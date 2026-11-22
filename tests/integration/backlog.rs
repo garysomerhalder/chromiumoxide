@@ -716,3 +716,105 @@ async fn launch_slow_mo_and_artifact_dirs() {
     assert!(artifacts.is_dir(), "artifactsDir is not removed");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// The child half of the signal tests: launches with the handler for
+/// `COX_SIGNAL_CHILD` (`int` or `term`), prints the browser pid, then waits.
+#[tokio::test]
+#[ignore = "run by the signal tests in a child process"]
+async fn signal_child() {
+    use futures::StreamExt;
+    let Ok(mode) = std::env::var("COX_SIGNAL_CHILD") else {
+        return;
+    };
+    let browser = Chromium::launch(LaunchOptions {
+        handle_sigint: mode == "int",
+        handle_sigterm: mode == "term",
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let mut events = browser.events();
+    println!("BROWSER_PID={}", browser.process_id().unwrap());
+    // SIGTERM closes the browser and the program goes on (as in Playwright).
+    while let Some(e) = events.next().await {
+        if matches!(e, chromiumoxide::BrowserEvent::Disconnected) {
+            println!("DISCONNECTED");
+            return;
+        }
+    }
+}
+
+/// Runs `signal_child` in `mode`, sends it `signal` once the browser is up;
+/// returns its exit status, its output and the browser's profile directory.
+fn run_signal_child(mode: &str, signal: &str) -> (std::process::ExitStatus, String, String, u32) {
+    use std::io::BufRead;
+    let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "backlog::signal_child",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env("COX_SIGNAL_CHILD", mode)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut out = std::io::BufReader::new(child.stdout.take().unwrap());
+    let mut seen = String::new();
+    let pid = loop {
+        let mut line = String::new();
+        assert!(
+            out.read_line(&mut line).unwrap() > 0,
+            "child output: {seen}"
+        );
+        seen.push_str(&line);
+        if let Some(pid) = line.trim().strip_prefix("BROWSER_PID=") {
+            break pid.parse::<u32>().unwrap();
+        }
+    };
+    let cmdline = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap();
+    let profile = String::from_utf8_lossy(&cmdline)
+        .split('\0')
+        .find_map(|a| a.strip_prefix("--user-data-dir=").map(str::to_owned))
+        .unwrap();
+    let sent = std::process::Command::new("kill")
+        .args([signal, &child.id().to_string()])
+        .status()
+        .unwrap();
+    assert!(sent.success());
+    let mut rest = String::new();
+    std::io::Read::read_to_string(&mut out, &mut rest).unwrap();
+    seen.push_str(&rest);
+    (child.wait().unwrap(), seen, profile, pid)
+}
+
+fn gone(pid: u32) -> bool {
+    std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |s| s.contains(") Z"))
+}
+
+/// `handleSIGINT`: Ctrl-C closes the browser, removes its profile, then the
+/// program exits with 130.
+#[tokio::test]
+async fn handle_sigint_closes_the_browser_and_exits() {
+    let (status, out, profile, pid) = run_signal_child("int", "-INT");
+    assert_eq!(status.code(), Some(130), "{out}");
+    assert!(gone(pid), "browser {pid} still running");
+    assert!(
+        !std::path::Path::new(&profile).exists(),
+        "{profile} left behind"
+    );
+}
+
+/// `handleSIGTERM`: closes the browser; the program keeps running.
+#[tokio::test]
+async fn handle_sigterm_closes_the_browser() {
+    let (status, out, profile, pid) = run_signal_child("term", "-TERM");
+    assert!(out.contains("DISCONNECTED"), "{out}");
+    assert_eq!(status.code(), Some(0), "{out}");
+    assert!(gone(pid), "browser {pid} still running");
+    assert!(
+        !std::path::Path::new(&profile).exists(),
+        "{profile} left behind"
+    );
+}
