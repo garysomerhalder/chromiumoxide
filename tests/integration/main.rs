@@ -26,6 +26,7 @@ mod screenshot;
 mod scripts;
 mod server;
 mod shortcuts;
+mod snapshots;
 mod storage;
 mod tracing;
 mod video;
