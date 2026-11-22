@@ -29,6 +29,7 @@ mod pdf;
 mod pixel_parity;
 mod popups;
 mod protocol;
+mod pw165;
 mod request;
 mod routing;
 mod screencast;

@@ -135,16 +135,22 @@ mod tests {
 
     #[test]
     fn states_per_action_follow_playwright() {
-        assert_eq!(required_states(Action::Click), &[Visible, Enabled, Stable]);
-        assert_eq!(
-            required_states(Action::DblClick),
-            &[Visible, Enabled, Stable]
-        );
-        assert_eq!(required_states(Action::Tap), &[Visible, Enabled, Stable]);
-        assert_eq!(required_states(Action::Check), &[Visible, Enabled, Stable]);
+        // Playwright 1.65: actions that wait for "enabled" also wait for "non-inert".
+        let pointer = &[Visible, Enabled, Stable, NonInert];
+        assert_eq!(required_states(Action::Click), pointer);
+        assert_eq!(required_states(Action::DblClick), pointer);
+        assert_eq!(required_states(Action::Tap), pointer);
+        assert_eq!(required_states(Action::Check), pointer);
         assert_eq!(required_states(Action::Hover), &[Visible, Stable]);
-        assert_eq!(required_states(Action::Fill), &[Visible, Enabled, Editable]);
-        assert_eq!(required_states(Action::SelectOption), &[Visible, Enabled]);
+        assert_eq!(
+            required_states(Action::Fill),
+            &[Visible, Enabled, Editable, NonInert]
+        );
+        assert_eq!(
+            required_states(Action::SelectOption),
+            &[Visible, Enabled, NonInert]
+        );
+        assert_eq!(NonInert.name(), "non-inert");
         assert_eq!(required_states(Action::ScrollIntoView), &[Visible, Stable]);
     }
 
