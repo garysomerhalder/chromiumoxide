@@ -7,5 +7,8 @@ pub mod application;
 pub mod domain;
 pub mod ports;
 
+#[cfg(test)]
+mod testing;
+
 /// The generated Chrome DevTools Protocol types.
 pub use chromiumoxide_cdp::cdp;
