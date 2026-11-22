@@ -32,6 +32,7 @@ pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::browser::{Browser, LaunchOptions};
 pub use application::context::BrowserContext;
 pub use application::discovery::Discovered;
+pub use application::frame::Frame;
 pub use application::input::{Keyboard, Mouse, Touchscreen};
 pub use application::locator::{
     BoundingBox, Click, ClickOptions, Locator, SelectOption, WaitFor, WaitForState,

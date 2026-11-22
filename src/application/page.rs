@@ -489,6 +489,17 @@ impl Page {
 
     /// Waits for (and returns) the main frame's execution context of `world`.
     pub(crate) async fn main_context(&self, world: World, timeout: Duration) -> Result<i64> {
+        self.frame_context(None, world, timeout).await
+    }
+
+    /// Waits for (and returns) a frame's execution context of `world`
+    /// (`None`: the main frame).
+    pub(crate) async fn frame_context(
+        &self,
+        frame: Option<&str>,
+        world: World,
+        timeout: Duration,
+    ) -> Result<i64> {
         let inner = &self.inner;
         wait_until(
             &*inner.shared.services.clock,
@@ -500,8 +511,18 @@ impl Page {
                     return Some(Err(Error::TargetClosed("page has been closed".into())));
                 }
                 let st = inner.state.lock().unwrap();
-                let main = st.tree.main_frame()?;
-                st.tree.context(&main.id, world).map(Ok)
+                let id = match frame {
+                    Some(id) => {
+                        if st.tree.frame(id).is_none() {
+                            return Some(Err(Error::TargetClosed(
+                                "frame has been detached".into(),
+                            )));
+                        }
+                        id.to_owned()
+                    }
+                    None => st.tree.main_frame()?.id.clone(),
+                };
+                st.tree.context(&id, world).map(Ok)
             },
         )
         .await
@@ -536,10 +557,24 @@ impl Page {
         timeout: Duration,
         action: &str,
     ) -> Result<Value> {
+        self.call_function_in(None, world, declaration, args, timeout, action)
+            .await
+    }
+
+    /// [`Page::call_function`] in a given frame (`None`: the main frame).
+    pub(crate) async fn call_function_in(
+        &self,
+        frame: Option<&str>,
+        world: World,
+        declaration: &str,
+        args: &[Value],
+        timeout: Duration,
+        action: &str,
+    ) -> Result<Value> {
         self.ensure_open()?;
         let attempt = async {
             loop {
-                let context_id = self.main_context(world, timeout).await?;
+                let context_id = self.frame_context(frame, world, timeout).await?;
                 let params = js::call_params(declaration, context_id, args);
                 match self
                     .cdp_session()

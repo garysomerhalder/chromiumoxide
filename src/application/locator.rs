@@ -31,6 +31,8 @@ const INJECTED: &str = "globalThis.__chromiumoxide_injected";
 #[derive(Debug, Clone)]
 pub(crate) struct ElementRef {
     pub(crate) object_id: String,
+    /// The innermost `<iframe>` element the node lives in (None: main frame).
+    pub(crate) frame_owner: Option<String>,
 }
 
 /// `locator.waitFor({ state })`.
@@ -62,6 +64,8 @@ enum Attempt<T> {
 #[derive(Clone)]
 pub struct Locator {
     page: Page,
+    /// Frame the selector starts from (`None`: the main frame).
+    frame: Option<String>,
     selector: String,
 }
 
@@ -76,6 +80,7 @@ impl Page {
     pub fn locator(&self, selector: &str) -> Locator {
         Locator {
             page: self.clone(),
+            frame: None,
             selector: selector.to_owned(),
         }
     }
@@ -102,8 +107,8 @@ impl Page {
     }
 
     /// The utility-world context of the main frame with the injected script installed.
-    async fn injected_context(&self, timeout: Duration) -> Result<i64> {
-        let context_id = self.main_context(World::Utility, timeout).await?;
+    async fn injected_context(&self, frame: Option<&str>, timeout: Duration) -> Result<i64> {
+        let context_id = self.frame_context(frame, World::Utility, timeout).await?;
         let installed = self
             .send(
                 "Runtime.evaluate",
@@ -133,12 +138,13 @@ impl Page {
     /// Calls `body(injected, ...args)` in the utility world.
     async fn injected_call(
         &self,
+        frame: Option<&str>,
         body: &str,
         args: &[Value],
         by_value: bool,
         timeout: Duration,
     ) -> Result<Value> {
-        let context_id = self.injected_context(timeout).await?;
+        let context_id = self.injected_context(frame, timeout).await?;
         let declaration = format!("function(...args) {{ return ({body})({INJECTED}, ...args); }}");
         let arguments: Vec<Value> = args.iter().map(|v| json!({"value": v})).collect();
         let r = self
@@ -156,6 +162,26 @@ impl Page {
             }
             Ok(r["result"].clone())
         }
+    }
+
+    /// `querySelector` in a frame; the element's object id.
+    async fn query_in(
+        &self,
+        frame: Option<&str>,
+        selector: &str,
+        strict: bool,
+        timeout: Duration,
+    ) -> Result<Option<String>> {
+        let r = self
+            .injected_call(
+                frame,
+                "(i, selector, strict) => i.querySelector(i.parseSelector(selector), document, strict) || null",
+                &[json!(selector), json!(strict)],
+                false,
+                timeout,
+            )
+            .await?;
+        Ok(r.get("objectId").and_then(Value::as_str).map(str::to_owned))
     }
 
     /// Calls `body(injected, element, ...args)`.
@@ -260,7 +286,34 @@ impl Locator {
     fn with(&self, selector: String) -> Locator {
         Locator {
             page: self.page.clone(),
+            frame: self.frame.clone(),
             selector,
+        }
+    }
+
+    pub(crate) fn in_frame(page: &Page, frame: Option<String>, selector: String) -> Locator {
+        Locator {
+            page: page.clone(),
+            frame,
+            selector,
+        }
+    }
+
+    /// `locator.frameLocator(selector)`.
+    pub fn frame_locator(&self, selector: &str) -> FrameLocator {
+        FrameLocator {
+            page: self.page.clone(),
+            frame: self.frame.clone(),
+            selector: compose::chain(&self.selector, selector),
+        }
+    }
+
+    /// `locator.contentFrame()`: the iframe this locator points to.
+    pub fn content_frame(&self) -> FrameLocator {
+        FrameLocator {
+            page: self.page.clone(),
+            frame: self.frame.clone(),
+            selector: self.selector.clone(),
         }
     }
 
@@ -308,20 +361,50 @@ impl Locator {
 
     // ---- resolution -------------------------------------------------------
 
+    /// Resolves the iframe hops in the selector; returns the frame to query
+    /// in, the remaining selector and the innermost iframe element.
+    async fn scope(
+        &self,
+        timeout: Duration,
+    ) -> Result<Option<(Option<String>, String, Option<String>)>> {
+        let parts = split_frames(&self.selector);
+        let (last, hops) = parts.split_last().expect("at least one part");
+        let mut frame = self.frame.clone();
+        let mut owner = None;
+        for hop in hops {
+            let Some(el) = self
+                .page
+                .query_in(frame.as_deref(), hop, true, timeout)
+                .await?
+            else {
+                return Ok(None);
+            };
+            let node = self
+                .page
+                .send("DOM.describeNode", json!({"objectId": el}))
+                .await?;
+            let Some(frame_id) = node.pointer("/node/frameId").and_then(Value::as_str) else {
+                return Err(Error::InvalidArgument(format!(
+                    "Selector \"{hop}\" did not resolve to an <iframe>"
+                )));
+            };
+            frame = Some(frame_id.to_owned());
+            owner = Some(el);
+        }
+        Ok(Some((frame, last.clone(), owner)))
+    }
+
     async fn query(&self, strict: bool, timeout: Duration) -> Result<Option<ElementRef>> {
-        let r = self
+        let Some((frame, selector, frame_owner)) = self.scope(timeout).await? else {
+            return Ok(None);
+        };
+        Ok(self
             .page
-            .injected_call(
-                "(i, selector, strict) => i.querySelector(i.parseSelector(selector), document, strict) || null",
-                &[json!(self.selector), json!(strict)],
-                false,
-                timeout,
-            )
-            .await?;
-        Ok(r.get("objectId")
-            .and_then(Value::as_str)
-            .map(|id| ElementRef {
-                object_id: id.to_owned(),
+            .query_in(frame.as_deref(), &selector, strict, timeout)
+            .await?
+            .map(|object_id| ElementRef {
+                object_id,
+                frame_owner,
             }))
     }
 
@@ -492,12 +575,28 @@ impl Locator {
             }
         };
         if !force {
+            // expectHitTarget works in the element's own frame coordinates;
+            // CDP quads are in root-viewport coordinates.
+            let mut local = point;
+            if let Some(owner) = &el.frame_owner {
+                let model = self
+                    .page
+                    .send("DOM.getBoxModel", json!({"objectId": owner}))
+                    .await?;
+                let content = model
+                    .pointer("/model/content")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                local.x -= content.first().and_then(Value::as_f64).unwrap_or_default();
+                local.y -= content.get(1).and_then(Value::as_f64).unwrap_or_default();
+            }
             let hit = self
                 .page
                 .element_call(
                     el,
                     "(i, node, point) => i.expectHitTarget(point, node)",
-                    &[json!({"x": point.x, "y": point.y})],
+                    &[json!({"x": local.x, "y": local.y})],
                     true,
                 )
                 .await?;
@@ -982,11 +1081,15 @@ impl Locator {
 
     /// `locator.count()` (does not wait).
     pub async fn count(&self) -> Result<usize> {
+        let Some((frame, selector, _)) = self.scope(self.timeout()).await? else {
+            return Ok(0);
+        };
         let v = self
             .page
             .injected_call(
+                frame.as_deref(),
                 "(i, selector) => i.querySelectorAll(i.parseSelector(selector), document).length",
-                &[json!(self.selector)],
+                &[json!(selector)],
                 true,
                 self.timeout(),
             )
@@ -1001,11 +1104,15 @@ impl Locator {
     }
 
     async fn all_strings(&self, body: &str) -> Result<Vec<String>> {
+        let Some((frame, selector, _)) = self.scope(self.timeout()).await? else {
+            return Ok(Vec::new());
+        };
         let v = self
             .page
             .injected_call(
+                frame.as_deref(),
                 &format!("(i, selector) => i.querySelectorAll(i.parseSelector(selector), document).map({body})"),
-                &[json!(self.selector)],
+                &[json!(selector)],
                 true,
                 self.timeout(),
             )
@@ -1057,7 +1164,11 @@ impl Locator {
             .pointer("/node/backendNodeId")
             .cloned()
             .unwrap_or(Value::Null);
-        let main = self.page.main_context(World::Main, self.timeout()).await?;
+        let frame = self.scope(self.timeout()).await?.and_then(|(f, _, _)| f);
+        let main = self
+            .page
+            .frame_context(frame.as_deref(), World::Main, self.timeout())
+            .await?;
         let adopted = self
             .page
             .send(
@@ -1268,5 +1379,88 @@ impl<'a> IntoFuture for WaitFor<'a> {
             self.locator.run_wait_for(self.state, timeout).await
         }
         .boxed()
+    }
+}
+
+/// Splits a selector at `internal:control=enter-frame` hops.
+fn split_frames(selector: &str) -> Vec<String> {
+    static HOP: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let hop = HOP.get_or_init(|| {
+        regex::Regex::new(r"\s*>>\s*internal:control=enter-frame\s*(?:>>\s*)?").expect("valid")
+    });
+    hop.split(selector).map(str::to_owned).collect()
+}
+
+/// Locates inside an iframe (Playwright's `FrameLocator`).
+#[derive(Clone)]
+pub struct FrameLocator {
+    page: Page,
+    frame: Option<String>,
+    /// Selector of the `<iframe>` element.
+    selector: String,
+}
+
+impl std::fmt::Debug for FrameLocator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "frameLocator({:?})", self.selector)
+    }
+}
+
+impl FrameLocator {
+    fn inside(&self, selector: &str) -> String {
+        compose::chain(&compose::enter_frame(&self.selector), selector)
+    }
+    pub fn locator(&self, selector: &str) -> Locator {
+        Locator::in_frame(&self.page, self.frame.clone(), self.inside(selector))
+    }
+    pub fn frame_locator(&self, selector: &str) -> FrameLocator {
+        FrameLocator {
+            page: self.page.clone(),
+            frame: self.frame.clone(),
+            selector: self.inside(selector),
+        }
+    }
+    pub fn get_by_role(&self, role: &str, options: RoleOptions) -> Locator {
+        self.locator(&selectors::get_by_role(role, &options))
+    }
+    pub fn get_by_text(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_text(&text.into(), exact))
+    }
+    pub fn get_by_label(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_label(&text.into(), exact))
+    }
+    pub fn get_by_placeholder(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_placeholder(&text.into(), exact))
+    }
+    pub fn get_by_test_id(&self, id: impl Into<TextMatch>) -> Locator {
+        self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
+    }
+    /// The `<iframe>` element itself.
+    pub fn owner(&self) -> Locator {
+        Locator::in_frame(&self.page, self.frame.clone(), self.selector.clone())
+    }
+    pub fn first(&self) -> FrameLocator {
+        self.nth(0)
+    }
+    pub fn last(&self) -> FrameLocator {
+        self.nth(-1)
+    }
+    pub fn nth(&self, index: i64) -> FrameLocator {
+        FrameLocator {
+            page: self.page.clone(),
+            frame: self.frame.clone(),
+            selector: compose::nth(&self.selector, index),
+        }
+    }
+}
+
+impl Page {
+    /// `page.frameLocator(selector)`.
+    pub fn frame_locator(&self, selector: &str) -> FrameLocator {
+        FrameLocator {
+            page: self.clone(),
+            frame: None,
+            selector: selector.to_owned(),
+        }
     }
 }
