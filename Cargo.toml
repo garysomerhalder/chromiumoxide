@@ -69,6 +69,10 @@ zip8 = ["chromiumoxide_fetcher/zip8"]
 name = "architecture"
 path = "tests/architecture.rs"
 
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
+
 [workspace]
 members = [
   "chromiumoxide_pdl",
