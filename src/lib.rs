@@ -114,7 +114,24 @@ pub struct BrowserServer {
     browser: Browser,
 }
 
+/// `browserServer.process()`: the launched browser process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerProcess {
+    pid: u32,
+}
+
+impl ServerProcess {
+    /// The operating-system process id.
+    pub fn pid(&self) -> u32 {
+        self.pid
+    }
+}
+
 impl BrowserServer {
+    /// `browserServer.process()`: the browser's process (`None` once closed).
+    pub fn process(&self) -> Option<ServerProcess> {
+        self.browser.process_id().map(|pid| ServerProcess { pid })
+    }
     /// The URL clients pass to [`Chromium::connect`].
     pub fn ws_endpoint(&self) -> String {
         self.browser.ws_endpoint().unwrap_or_default()

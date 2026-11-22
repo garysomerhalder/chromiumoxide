@@ -435,6 +435,12 @@ impl Browser {
         self.inner.services.clock.clone()
     }
 
+    /// The pid of the browser process this library launched (`None` when
+    /// connected, or once closed).
+    pub fn process_id(&self) -> Option<u32> {
+        self.inner.process.lock().unwrap().as_ref()?.pid()
+    }
+
     /// Closes the browser, ends the process and deletes the temporary profile.
     pub async fn close(&self) -> Result<()> {
         if self.inner.closed.swap(true, Ordering::SeqCst) {

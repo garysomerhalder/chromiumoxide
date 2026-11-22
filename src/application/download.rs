@@ -110,6 +110,14 @@ impl Download {
         Ok(self.inner.page.inner.shared.services.fs.read(&path)?)
     }
 
+    /// `download.createReadStream()`: waits for the download, then reads it
+    /// as a [`futures::io::AsyncRead`].
+    pub async fn create_read_stream(
+        &self,
+    ) -> Result<impl futures::io::AsyncRead + Unpin + Send + 'static> {
+        Ok(futures::io::Cursor::new(self.read().await?))
+    }
+
     /// Cancels an unfinished download.
     pub async fn cancel(&self) -> Result<()> {
         let context = self.inner.page.context_id();
