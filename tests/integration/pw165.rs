@@ -3,7 +3,10 @@
 
 use std::time::Duration;
 
-use chromiumoxide::{Browser, Chromium, Error, LaunchOptions, Page};
+use chromiumoxide::{
+    AriaSnapshotMode, AriaSnapshotOptions, Browser, Chromium, ContentOptions, Error, LaunchOptions,
+    Page, RoleOptions,
+};
 
 async fn page_with(html: &str) -> (Browser, Page) {
     let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
@@ -77,6 +80,162 @@ async fn unrendered_text_is_not_in_aria_snapshots() {
     assert_eq!(
         page.locator("body").aria_snapshot().await.unwrap(),
         "- group: Sum\n- button \"unslottedok\""
+    );
+    browser.close().await.unwrap();
+}
+
+const AI_PAGE: &str = r##"<h1>Title</h1><nav><a href="#x">Link</a><ul><li>One</li><li>Two</li></ul></nav><button onclick="window.clicked='main'">Go</button><iframe srcdoc="<p>Inside</p><button onclick='parent.clicked=&quot;frame&quot;'>Frame button</button>"></iframe>"##;
+
+async fn ai_page() -> (Browser, Page) {
+    let (browser, page) = page_with(AI_PAGE).await;
+    page.wait_for_function("() => window.frames[0]?.document.querySelector('button')")
+        .await
+        .unwrap();
+    (browser, page)
+}
+
+/// `ariaSnapshot({ mode, depth, boxes })`, iframes included in 'ai' mode
+/// (expected strings recorded from Playwright 1.65.1).
+#[tokio::test]
+async fn aria_snapshot_options_like_playwright() {
+    let (browser, page) = ai_page().await;
+    let ai = AriaSnapshotOptions {
+        mode: AriaSnapshotMode::Ai,
+        ..Default::default()
+    };
+    assert_eq!(
+        page.aria_snapshot_with(ai.clone()).await.unwrap(),
+        "- generic [active] [ref=e1]:\n  - heading \"Title\" [level=1] [ref=e2]\n  - navigation [ref=e3]:\n    - link \"Link\" [ref=e4] [cursor=pointer]:\n      - /url: \"#x\"\n    - list [ref=e5]:\n      - listitem [ref=e6]: One\n      - listitem [ref=e7]: Two\n  - button \"Go\" [ref=e8]\n  - iframe [ref=e9]:\n    - generic [ref=f1e1]:\n      - paragraph [ref=f1e2]: Inside\n      - button \"Frame button\" [ref=f1e3]"
+    );
+    assert_eq!(
+        page.aria_snapshot_with(AriaSnapshotOptions {
+            depth: Some(1),
+            ..ai.clone()
+        })
+        .await
+        .unwrap(),
+        "- generic [active] [ref=e1]:\n  - heading \"Title\" [level=1] [ref=e2]\n  - navigation [ref=e3]\n  - button \"Go\" [ref=e8]\n  - iframe [ref=e9]:\n    - generic [ref=f1e1]:\n      - paragraph [ref=f1e2]: Inside\n      - button \"Frame button\" [ref=f1e3]"
+    );
+    assert_eq!(
+        page.aria_snapshot_with(AriaSnapshotOptions {
+            depth: Some(1),
+            ..Default::default()
+        })
+        .await
+        .unwrap(),
+        "- heading \"Title\" [level=1]\n- navigation:\n  - link \"Link\":\n    - /url: \"#x\"\n  - list\n- button \"Go\"\n- iframe"
+    );
+    assert_eq!(
+        page.locator("nav").aria_snapshot_with(ai).await.unwrap(),
+        "- navigation [ref=e3]:\n  - link \"Link\" [ref=e4] [cursor=pointer]:\n    - /url: \"#x\"\n  - list [ref=e5]:\n    - listitem [ref=e6]: One\n    - listitem [ref=e7]: Two"
+    );
+    assert_eq!(
+        page.locator("h1")
+            .aria_snapshot_with(AriaSnapshotOptions {
+                boxes: true,
+                ..Default::default()
+            })
+            .await
+            .unwrap(),
+        "- heading \"Title\" [level=1] [box=8,8,1264,37]"
+    );
+    browser.close().await.unwrap();
+}
+
+/// 1.64: `page.getByRef(ref)` finds an element by its 'ai' snapshot ref,
+/// including refs inside iframes (`f1e3`).
+#[tokio::test]
+async fn get_by_ref_targets_ai_snapshot_refs() {
+    let (browser, page) = ai_page().await;
+    page.aria_snapshot_with(AriaSnapshotOptions {
+        mode: AriaSnapshotMode::Ai,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let go = page.get_by_ref("e8");
+    assert_eq!(go.selector(), "aria-ref=e8");
+    assert_eq!(
+        go.to_playwright_string().await.unwrap(),
+        "locator('aria-ref=e8')"
+    );
+    go.click().await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("window.clicked").await.unwrap(),
+        "main"
+    );
+    page.get_by_ref("f1e3").click().await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("window.clicked").await.unwrap(),
+        "frame"
+    );
+    let err = page
+        .get_by_ref("e999")
+        .click()
+        .timeout(Duration::from_millis(500))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::Timeout { .. }), "{err:?}");
+    browser.close().await.unwrap();
+}
+
+/// 1.64: `locator.within(parent)`; relative locators resolve per parent.
+#[tokio::test]
+async fn locator_within_scopes_to_each_parent() {
+    let (browser, page) = page_with(
+        "<table><tr><td>a1</td><td>a2</td><td>a3</td></tr><tr><td>b1</td><td>b2</td><td>b3</td></tr></table><div role=dialog><button>Save</button></div><button>Save</button>",
+    )
+    .await;
+    let third = page
+        .get_by_role("cell", RoleOptions::default())
+        .nth(2)
+        .within(&page.get_by_role("row", RoleOptions::default()));
+    assert_eq!(third.all_text_contents().await.unwrap(), ["a3", "b3"]);
+    let save = page
+        .get_by_role(
+            "button",
+            RoleOptions {
+                name: Some("Save".into()),
+                ..Default::default()
+            },
+        )
+        .within(&page.get_by_role("dialog", RoleOptions::default()));
+    assert_eq!(save.count().await.unwrap(), 1);
+    assert_eq!(
+        save.to_playwright_string().await.unwrap(),
+        "getByRole('dialog').locator(getByRole('button', { name: 'Save' }))"
+    );
+    browser.close().await.unwrap();
+}
+
+/// 1.64: `content({ includeShadow })` serializes open shadow roots as
+/// declarative shadow DOM.
+#[tokio::test]
+async fn content_can_include_shadow_roots() {
+    let (browser, page) = page_with(
+        "<!DOCTYPE html><div id=host></div><script>const r = host.attachShadow({mode:'open'}); r.innerHTML = '<b>shadow</b><span id=inner></span>'; r.getElementById('inner').attachShadow({mode:'open'}).innerHTML='<i>deep</i>';</script>",
+    )
+    .await;
+    let script = "<script>const r = host.attachShadow({mode:'open'}); r.innerHTML = '<b>shadow</b><span id=inner></span>'; r.getElementById('inner').attachShadow({mode:'open'}).innerHTML='<i>deep</i>';</script>";
+    assert_eq!(
+        page.content().await.unwrap(),
+        format!(
+            "<!DOCTYPE html><html><head></head><body><div id=\"host\"></div>{script}</body></html>"
+        )
+    );
+    let with_shadow = format!(
+        "<!DOCTYPE html><html><head></head><body><div id=\"host\"><template shadowrootmode=\"open\"><b>shadow</b><span id=\"inner\"><template shadowrootmode=\"open\"><i>deep</i></template></span></template></div>{script}</body></html>"
+    );
+    let options = ContentOptions {
+        include_shadow: true,
+    };
+    assert_eq!(
+        page.content_with(options.clone()).await.unwrap(),
+        with_shadow
+    );
+    assert_eq!(
+        page.main_frame().content_with(options).await.unwrap(),
+        with_shadow
     );
     browser.close().await.unwrap();
 }

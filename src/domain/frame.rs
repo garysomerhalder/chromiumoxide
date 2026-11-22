@@ -389,6 +389,24 @@ mod tests {
         }
     }
 
+    /// Playwright's `frame.seq`: allocated per page in attach order (it
+    /// prefixes 'ai' aria refs, `f1e3`); the main frame gets a new one when it
+    /// commits a new document after a real (non-`about:blank`) URL.
+    #[test]
+    fn frames_get_playwright_sequence_numbers() {
+        let mut t = tree_with_main();
+        t.attached("C", Some("M"));
+        assert_eq!(t.frame("M").unwrap().seq, 0);
+        assert_eq!(t.frame("C").unwrap().seq, 1);
+        t.navigated("M", None, "https://a.test/", "", "L1");
+        assert_eq!(t.frame("M").unwrap().seq, 0);
+        t.navigated("M", None, "https://b.test/", "", "L2");
+        assert_eq!(t.frame("M").unwrap().seq, 2);
+        t.attached("D", Some("M"));
+        assert_eq!(t.frame("D").unwrap().seq, 3);
+        assert_eq!(t.frame_by_seq(3).unwrap().id, "D");
+    }
+
     #[test]
     fn first_attached_frame_without_parent_is_main() {
         let t = tree_with_main();
