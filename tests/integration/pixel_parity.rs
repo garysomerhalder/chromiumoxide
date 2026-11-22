@@ -185,6 +185,13 @@ fn compare(ours: &Path, theirs: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Chromium sometimes styles a new page's initial document before the emulated
+/// device metrics reach the renderer; `setContent` reuses that document, so text
+/// controls can come out 1 CSS px off. Playwright shows the same race (we saw
+/// it on both sides, roughly 1 in 30 pages). A shot therefore passes when it
+/// is pixel-identical in any of `ATTEMPTS` fresh renders on both sides.
+const ATTEMPTS: usize = 3;
+
 #[tokio::test]
 async fn screenshots_are_pixel_identical_to_playwright() {
     let Some(node_path) = playwright_node_path() else {
@@ -196,20 +203,65 @@ async fn screenshots_are_pixel_identical_to_playwright() {
         return;
     };
     let found = Chromium::executable_path(&LaunchOptions::default()).unwrap();
-    let out: PathBuf = std::env::temp_dir().join(format!("cox-parity-{}", std::process::id()));
-    std::fs::create_dir_all(&out).unwrap();
+    let root: PathBuf = std::env::temp_dir().join(format!("cox-parity-{}", std::process::id()));
+    let cases = cases();
+    let mut pending: Vec<(usize, usize)> = cases
+        .iter()
+        .enumerate()
+        .flat_map(|(c, case)| (0..case.shots.len()).map(move |s| (c, s)))
+        .collect();
+    let mut log = Vec::new();
+    for attempt in 0..ATTEMPTS {
+        let out = root.join(format!("attempt-{attempt}"));
+        std::fs::create_dir_all(&out).unwrap();
+        render_with_playwright(&node_path, &found, &cases, &out);
+        render_with_chromiumoxide(&cases, &out).await;
+        pending.retain(|&(c, s)| {
+            let name = format!("{}-{}", cases[c].name, cases[c].shots[s].0);
+            match compare(
+                &out.join(format!("{name}.ours.png")),
+                &out.join(format!("{name}.png")),
+            ) {
+                Ok(()) => false,
+                Err(e) => {
+                    log.push(format!("attempt {attempt}: {name}: {e}"));
+                    true
+                }
+            }
+        });
+        if pending.is_empty() {
+            break;
+        }
+    }
+    assert!(
+        pending.is_empty(),
+        "pixel parity failed (images in {}):\n{}",
+        root.display(),
+        log.join("\n")
+    );
+    if !log.is_empty() {
+        eprintln!(
+            "pixel parity passed after re-rendering:\n{}",
+            log.join("\n")
+        );
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
 
+fn render_with_playwright(
+    node_path: &str,
+    found: &chromiumoxide::Discovered,
+    cases: &[Case],
+    out: &Path,
+) {
     // Playwright gets exactly our command line (with ignoreDefaultArgs it adds nothing).
-    let profile = out.join("playwright-profile");
     let args: Vec<String> = command_line(&LaunchSpec {
         kind: found.kind,
         headless: true,
         args: vec![],
         ignore_default_args: false,
-        user_data_dir: profile,
+        user_data_dir: out.join("playwright-profile"),
     });
-
-    let cases = cases();
     let job = json!({
         "executablePath": found.executable,
         "args": args,
@@ -226,14 +278,15 @@ async fn screenshots_are_pixel_identical_to_playwright() {
     let status = Command::new("node")
         .arg(&script)
         .arg(&job_path)
-        .env("NODE_PATH", &node_path)
+        .env("NODE_PATH", node_path)
         .status()
         .unwrap();
     assert!(status.success(), "Playwright render failed");
+}
 
+async fn render_with_chromiumoxide(cases: &[Case], out: &Path) {
     let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
-    let mut failures = Vec::new();
-    for c in &cases {
+    for c in cases {
         let context = browser.new_context(c.context.clone()).await.unwrap();
         let page = context.new_page().await.unwrap();
         page.set_content(&c.html).await.unwrap();
@@ -250,18 +303,8 @@ async fn screenshots_are_pixel_identical_to_playwright() {
                 .path(&ours)
                 .await
                 .unwrap();
-            if let Err(e) = compare(&ours, &out.join(format!("{}-{name}.png", c.name))) {
-                failures.push(format!("{}-{name}: {e}", c.name));
-            }
         }
         context.close().await.unwrap();
     }
     browser.close().await.unwrap();
-    assert!(
-        failures.is_empty(),
-        "pixel parity failed (images in {}):\n{}",
-        out.display(),
-        failures.join("\n")
-    );
-    let _ = std::fs::remove_dir_all(&out);
 }
