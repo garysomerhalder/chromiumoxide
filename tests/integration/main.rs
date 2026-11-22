@@ -6,6 +6,7 @@ mod assertions;
 mod clock;
 mod context;
 mod coverage;
+mod debugger;
 mod dragdrop;
 mod events;
 mod extras;
