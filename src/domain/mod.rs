@@ -6,3 +6,4 @@ pub mod error;
 pub mod frame;
 pub mod launch;
 pub mod screenshot;
+pub mod url_matcher;
