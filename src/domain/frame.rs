@@ -92,92 +92,264 @@ impl FrameTree {
     }
 
     pub fn main_frame(&self) -> Option<&Frame> {
-        unimplemented!()
+        self.main.as_deref().and_then(|id| self.frames.get(id))
     }
 
-    pub fn frame(&self, _id: &str) -> Option<&Frame> {
-        unimplemented!()
+    pub fn frame(&self, id: &str) -> Option<&Frame> {
+        self.frames.get(id)
     }
 
-    pub fn children(&self, _id: &str) -> Vec<&Frame> {
-        unimplemented!()
+    pub fn frames(&self) -> impl Iterator<Item = &Frame> {
+        self.frames.values()
+    }
+
+    pub fn children(&self, id: &str) -> Vec<&Frame> {
+        self.frames
+            .values()
+            .filter(|f| f.parent_id.as_deref() == Some(id))
+            .collect()
     }
 
     /// `Page.frameAttached` (or a frame found in `Page.getFrameTree`).
-    pub fn attached(&mut self, _id: &str, _parent_id: Option<&str>) -> Vec<Effect> {
-        unimplemented!()
+    pub fn attached(&mut self, id: &str, parent_id: Option<&str>) -> Vec<Effect> {
+        if self.frames.contains_key(id) {
+            return Vec::new();
+        }
+        let mut frame = Frame {
+            id: id.to_owned(),
+            parent_id: parent_id.map(str::to_owned),
+            ..Frame::default()
+        };
+        frame.fired.insert(LifecycleEvent::Commit);
+        self.frames.insert(id.to_owned(), frame);
+        if parent_id.is_none() {
+            self.main = Some(id.to_owned());
+        }
+        self.start_idle_timer(id).into_iter().collect()
     }
 
     /// `Page.frameNavigated` (new document committed).
     pub fn navigated(
         &mut self,
-        _id: &str,
-        _parent_id: Option<&str>,
-        _url: &str,
-        _name: &str,
-        _loader_id: &str,
+        id: &str,
+        parent_id: Option<&str>,
+        url: &str,
+        name: &str,
+        loader_id: &str,
     ) -> Vec<Effect> {
-        unimplemented!()
+        let mut effects = self.attached(id, parent_id);
+        effects.clear();
+        // A new document replaces the frame's children.
+        let children: Vec<String> = self.children(id).iter().map(|c| c.id.clone()).collect();
+        for child in children {
+            self.detached(&child);
+        }
+        if let Some(f) = self.frames.get_mut(id) {
+            f.url = url.to_owned();
+            f.name = name.to_owned();
+            f.loader_id = Some(loader_id.to_owned());
+            if f.inflight.contains(loader_id) {
+                f.document_request = Some(loader_id.to_owned());
+            }
+        }
+        effects.extend(self.clear_lifecycle(id));
+        effects
     }
 
     /// `Page.navigatedWithinDocument`.
-    pub fn navigated_within_document(&mut self, _id: &str, _url: &str) {
-        unimplemented!()
+    pub fn navigated_within_document(&mut self, id: &str, url: &str) {
+        if let Some(f) = self.frames.get_mut(id) {
+            f.url = url.to_owned();
+        }
     }
 
     /// `Page.frameDetached`: removes the frame and its descendants.
-    pub fn detached(&mut self, _id: &str) {
-        unimplemented!()
+    pub fn detached(&mut self, id: &str) {
+        let children: Vec<String> = self.children(id).iter().map(|c| c.id.clone()).collect();
+        for child in children {
+            self.detached(&child);
+        }
+        self.frames.remove(id);
+        if self.main.as_deref() == Some(id) {
+            self.main = None;
+        }
+        self.recalculate_main(None);
     }
 
     /// `Page.lifecycleEvent` (Chromium names: `DOMContentLoaded`, `load`, …).
-    pub fn lifecycle(&mut self, _id: &str, _loader_id: &str, _name: &str) {
-        unimplemented!()
+    pub fn lifecycle(&mut self, id: &str, loader_id: &str, name: &str) {
+        let event = match name {
+            "DOMContentLoaded" => LifecycleEvent::DomContentLoaded,
+            "load" => LifecycleEvent::Load,
+            _ => return,
+        };
+        let Some(f) = self.frames.get_mut(id) else {
+            return;
+        };
+        if f.loader_id.as_deref().is_some_and(|l| l != loader_id) {
+            return;
+        }
+        f.fired.insert(event);
+        self.recalculate_main(None);
     }
 
     /// The document was replaced in place (`document.open`, `setContent`).
-    pub fn clear_lifecycle(&mut self, _id: &str) -> Vec<Effect> {
-        unimplemented!()
+    pub fn clear_lifecycle(&mut self, id: &str) -> Vec<Effect> {
+        let Some(f) = self.frames.get_mut(id) else {
+            return Vec::new();
+        };
+        f.fired.clear();
+        let keep = f.document_request.clone();
+        f.inflight.retain(|r| Some(r) == keep.as_ref());
+        self.stop_idle_timer(id);
+        let effects: Vec<Effect> = if self.frames[id].inflight.is_empty() {
+            self.start_idle_timer(id).into_iter().collect()
+        } else {
+            Vec::new()
+        };
+        self.recalculate_main(Some(id));
+        if let Some(f) = self.frames.get_mut(id) {
+            f.fired.insert(LifecycleEvent::Commit);
+        }
+        effects
     }
 
     /// A network request started in a frame.
     pub fn request_started(
         &mut self,
-        _frame_id: &str,
-        _request_id: &str,
-        _is_document: bool,
+        frame_id: &str,
+        request_id: &str,
+        is_document: bool,
     ) -> Vec<Effect> {
-        unimplemented!()
+        let Some(f) = self.frames.get_mut(frame_id) else {
+            return Vec::new();
+        };
+        if is_document {
+            f.document_request = Some(request_id.to_owned());
+        }
+        f.inflight.insert(request_id.to_owned());
+        if f.inflight.len() == 1 {
+            self.stop_idle_timer(frame_id);
+        }
+        Vec::new()
     }
 
     /// A network request finished or failed.
-    pub fn request_finished(&mut self, _request_id: &str) -> Vec<Effect> {
-        unimplemented!()
+    pub fn request_finished(&mut self, request_id: &str) -> Vec<Effect> {
+        let Some(id) = self
+            .frames
+            .values()
+            .find(|f| f.inflight.contains(request_id))
+            .map(|f| f.id.clone())
+        else {
+            return Vec::new();
+        };
+        let f = self.frames.get_mut(&id).expect("frame");
+        f.inflight.remove(request_id);
+        if f.document_request.as_deref() == Some(request_id) {
+            f.document_request = None;
+        }
+        if f.inflight.is_empty() {
+            self.start_idle_timer(&id).into_iter().collect()
+        } else {
+            Vec::new()
+        }
     }
 
     /// A timer from [`Effect::StartNetworkIdleTimer`] elapsed.
-    pub fn network_idle_timer_fired(&mut self, _frame_id: &str, _generation: u64) {
-        unimplemented!()
+    pub fn network_idle_timer_fired(&mut self, frame_id: &str, generation: u64) {
+        let Some(f) = self.frames.get_mut(frame_id) else {
+            return;
+        };
+        if f.idle_generation != generation {
+            return;
+        }
+        f.idle_self = true;
+        self.recalculate_main(None);
     }
 
     /// `Runtime.executionContextCreated`.
-    pub fn context_created(&mut self, _frame_id: &str, _world: World, _context_id: i64) {
-        unimplemented!()
+    pub fn context_created(&mut self, frame_id: &str, world: World, context_id: i64) {
+        if let Some(f) = self.frames.get_mut(frame_id) {
+            f.contexts.insert(key(world), context_id);
+        }
     }
 
     /// `Runtime.executionContextDestroyed`.
-    pub fn context_destroyed(&mut self, _context_id: i64) {
-        unimplemented!()
+    pub fn context_destroyed(&mut self, context_id: i64) {
+        for f in self.frames.values_mut() {
+            f.contexts.retain(|_, id| *id != context_id);
+        }
     }
 
     /// `Runtime.executionContextsCleared`.
     pub fn contexts_cleared(&mut self) {
-        unimplemented!()
+        for f in self.frames.values_mut() {
+            f.contexts.clear();
+        }
     }
 
     /// The execution context of `world` in a frame, if it exists right now.
-    pub fn context(&self, _frame_id: &str, _world: World) -> Option<i64> {
-        unimplemented!()
+    pub fn context(&self, frame_id: &str, world: World) -> Option<i64> {
+        self.frames
+            .get(frame_id)?
+            .contexts
+            .get(&key(world))
+            .copied()
+    }
+
+    fn start_idle_timer(&mut self, id: &str) -> Option<Effect> {
+        self.generation += 1;
+        let generation = self.generation;
+        let f = self.frames.get_mut(id)?;
+        if f.fired.contains(&LifecycleEvent::NetworkIdle) {
+            return None;
+        }
+        f.idle_generation = generation;
+        Some(Effect::StartNetworkIdleTimer {
+            frame_id: id.to_owned(),
+            generation,
+        })
+    }
+
+    fn stop_idle_timer(&mut self, id: &str) {
+        self.generation += 1;
+        if let Some(f) = self.frames.get_mut(id) {
+            f.idle_generation = self.generation;
+            f.idle_self = false;
+        }
+    }
+
+    fn recalculate_main(&mut self, allow_removing: Option<&str>) {
+        if let Some(main) = self.main.clone() {
+            self.recalculate(&main, allow_removing);
+        }
+    }
+
+    fn recalculate(&mut self, id: &str, allow_removing: Option<&str>) {
+        let children: Vec<String> = self.children(id).iter().map(|c| c.id.clone()).collect();
+        let mut idle = self.frames.get(id).is_some_and(|f| f.idle_self);
+        for child in children {
+            self.recalculate(&child, allow_removing);
+            if !self.frames[&child].has(LifecycleEvent::NetworkIdle) {
+                idle = false;
+            }
+        }
+        let Some(f) = self.frames.get_mut(id) else {
+            return;
+        };
+        if idle {
+            f.fired.insert(LifecycleEvent::NetworkIdle);
+        } else if allow_removing != Some(id) {
+            f.fired.remove(&LifecycleEvent::NetworkIdle);
+        }
+    }
+}
+
+fn key(world: World) -> WorldKey {
+    match world {
+        World::Main => WorldKey::Main,
+        World::Utility => WorldKey::Utility,
     }
 }
 
