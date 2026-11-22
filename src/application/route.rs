@@ -99,6 +99,8 @@ struct RouteInner {
     interception_id: String,
     request: Request,
     handled: Mutex<bool>,
+    /// After `route.fetch()` the request is paused at the response stage.
+    response_stage: std::sync::atomic::AtomicBool,
     overrides: Mutex<Overrides>,
     decision: Mutex<Option<oneshot::Sender<Decision>>>,
 }
@@ -123,9 +125,12 @@ impl Route {
             route: self,
             status: None,
             headers: Vec::new(),
+            headers_set: false,
             content_type: None,
             body: None,
             json: None,
+            path: None,
+            response: None,
         }
     }
 
@@ -143,6 +148,16 @@ impl Route {
             route: self,
             overrides: Overrides::default(),
             fallback: false,
+        }
+    }
+
+    /// `route.fetch()`: performs the request (optionally changed) and returns
+    /// the response without sending it to the page, so it can be fulfilled
+    /// with changes.
+    pub fn fetch(&self) -> RouteFetch<'_> {
+        RouteFetch {
+            route: self,
+            overrides: Overrides::default(),
         }
     }
 
@@ -187,27 +202,209 @@ impl Route {
     }
 
     async fn resume(&self) -> Result<()> {
+        if self
+            .inner
+            .response_stage
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return self.send("Fetch.continueResponse", json!({})).await;
+        }
         let o = self.inner.overrides.lock().unwrap().clone();
-        let mut params = json!({});
-        if let Some(url) = o.url {
-            params["url"] = json!(url);
-        }
-        if let Some(method) = o.method {
-            params["method"] = json!(method);
-        }
-        if let Some(headers) = o.headers {
-            let list: Vec<Value> = headers
-                .iter()
-                .filter(|h| !h.name.eq_ignore_ascii_case("cookie"))
-                .map(|h| json!({"name": h.name, "value": h.value}))
-                .collect();
-            params["headers"] = json!(list);
-        }
-        if let Some(body) = o.post_data {
-            params["postData"] = json!(base64::engine::general_purpose::STANDARD.encode(body));
-        }
-        self.send("Fetch.continueRequest", params).await
+        self.send("Fetch.continueRequest", continue_params(&o))
+            .await
     }
+}
+
+/// The response `route.fetch()` got (Playwright's `APIResponse`).
+#[derive(Debug, Clone)]
+pub struct FetchResponse {
+    url: String,
+    status: u16,
+    status_text: String,
+    headers: Vec<HeaderEntry>,
+    body: Vec<u8>,
+}
+
+impl FetchResponse {
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+    pub fn status(&self) -> u16 {
+        self.status
+    }
+    pub fn status_text(&self) -> &str {
+        &self.status_text
+    }
+    pub fn ok(&self) -> bool {
+        (200..300).contains(&self.status)
+    }
+    /// Headers with lower-case names.
+    pub fn headers(&self) -> std::collections::HashMap<String, String> {
+        crate::domain::network::RawHeaders::new(self.headers.clone()).to_map()
+    }
+    pub fn headers_array(&self) -> &[HeaderEntry] {
+        &self.headers
+    }
+    pub fn body(&self) -> &[u8] {
+        &self.body
+    }
+    pub fn text(&self) -> String {
+        String::from_utf8_lossy(&self.body).into_owned()
+    }
+    pub fn json<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
+        Ok(serde_json::from_slice(&self.body)?)
+    }
+}
+
+/// A pending `route.fetch()`.
+#[must_use = "does nothing until awaited"]
+pub struct RouteFetch<'a> {
+    route: &'a Route,
+    overrides: Overrides,
+}
+
+impl<'a> RouteFetch<'a> {
+    pub fn url(mut self, url: impl Into<String>) -> Self {
+        self.overrides.url = Some(url.into());
+        self
+    }
+    pub fn method(mut self, method: impl Into<String>) -> Self {
+        self.overrides.method = Some(method.into());
+        self
+    }
+    /// Replaces all request headers.
+    pub fn headers<K: Into<String>, V: Into<String>>(
+        mut self,
+        headers: impl IntoIterator<Item = (K, V)>,
+    ) -> Self {
+        self.overrides.headers = Some(
+            headers
+                .into_iter()
+                .map(|(k, v)| HeaderEntry::new(k, v))
+                .collect(),
+        );
+        self
+    }
+    pub fn post_data(mut self, data: impl Into<Vec<u8>>) -> Self {
+        self.overrides.post_data = Some(data.into());
+        self
+    }
+}
+
+impl<'a> IntoFuture for RouteFetch<'a> {
+    type Output = Result<FetchResponse>;
+    type IntoFuture = BoxFuture<'a, Result<FetchResponse>>;
+    fn into_future(self) -> Self::IntoFuture {
+        async move {
+            let route = self.route;
+            if *route.inner.handled.lock().unwrap() {
+                return Err(Error::InvalidArgument("Route is already handled!".into()));
+            }
+            if route
+                .inner
+                .response_stage
+                .swap(true, std::sync::atomic::Ordering::SeqCst)
+            {
+                return Err(Error::InvalidArgument(
+                    "route.fetch() was already called for this route".into(),
+                ));
+            }
+            let id = route.inner.interception_id.clone();
+            let (tx, rx) = oneshot::channel();
+            let page = &route.inner.page;
+            page.inner
+                .response_waiters
+                .lock()
+                .unwrap()
+                .insert(id.clone(), tx);
+            let mut o = route.inner.overrides.lock().unwrap().clone();
+            o.merge(self.overrides);
+            let url = o
+                .url
+                .clone()
+                .unwrap_or_else(|| route.inner.request.url().to_owned());
+            let mut params = continue_params(&o);
+            params["interceptResponse"] = json!(true);
+            route.send("Fetch.continueRequest", params).await?;
+            let paused = crate::application::wait::with_timeout(
+                &*page.inner.shared.services.clock,
+                page.default_timeout(),
+                "route.fetch",
+                async {
+                    rx.await
+                        .map_err(|_| Error::TargetClosed("page has been closed".into()))
+                },
+            )
+            .await?;
+            if let Some(reason) = paused.get("responseErrorReason").and_then(Value::as_str) {
+                return Err(Error::Navigation(format!("route.fetch: net::ERR_{reason}")));
+            }
+            let status = paused
+                .get("responseStatusCode")
+                .and_then(Value::as_u64)
+                .unwrap_or(200) as u16;
+            let headers: Vec<HeaderEntry> = paused
+                .get("responseHeaders")
+                .and_then(Value::as_array)
+                .map(|list| {
+                    list.iter()
+                        .map(|h| {
+                            HeaderEntry::new(
+                                h.get("name").and_then(Value::as_str).unwrap_or_default(),
+                                h.get("value").and_then(Value::as_str).unwrap_or_default(),
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let r = page
+                .send("Fetch.getResponseBody", json!({"requestId": id}))
+                .await?;
+            let raw = r.get("body").and_then(Value::as_str).unwrap_or_default();
+            let body = if r.get("base64Encoded").and_then(Value::as_bool) == Some(true) {
+                base64::engine::general_purpose::STANDARD
+                    .decode(raw)
+                    .map_err(|e| Error::Evaluation(format!("invalid response body: {e}")))?
+            } else {
+                raw.as_bytes().to_vec()
+            };
+            Ok(FetchResponse {
+                url,
+                status,
+                status_text: paused
+                    .get("responseStatusText")
+                    .and_then(Value::as_str)
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or(status_text(status))
+                    .to_owned(),
+                headers,
+                body,
+            })
+        }
+        .boxed()
+    }
+}
+
+fn continue_params(o: &Overrides) -> Value {
+    let mut params = json!({});
+    if let Some(url) = &o.url {
+        params["url"] = json!(url);
+    }
+    if let Some(method) = &o.method {
+        params["method"] = json!(method);
+    }
+    if let Some(headers) = &o.headers {
+        let list: Vec<Value> = headers
+            .iter()
+            .filter(|h| !h.name.eq_ignore_ascii_case("cookie"))
+            .map(|h| json!({"name": h.name, "value": h.value}))
+            .collect();
+        params["headers"] = json!(list);
+    }
+    if let Some(body) = &o.post_data {
+        params["postData"] = json!(base64::engine::general_purpose::STANDARD.encode(body));
+    }
+    params
 }
 
 /// A pending `route.fulfill()`.
@@ -216,9 +413,12 @@ pub struct Fulfill<'a> {
     route: &'a Route,
     status: Option<u16>,
     headers: Vec<(String, String)>,
+    headers_set: bool,
     content_type: Option<String>,
     body: Option<Vec<u8>>,
     json: Option<serde_json::Result<String>>,
+    path: Option<std::path::PathBuf>,
+    response: Option<FetchResponse>,
 }
 
 impl<'a> Fulfill<'a> {
@@ -228,6 +428,7 @@ impl<'a> Fulfill<'a> {
     }
     pub fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.headers.push((name.into(), value.into()));
+        self.headers_set = true;
         self
     }
     pub fn headers<K: Into<String>, V: Into<String>>(
@@ -238,6 +439,18 @@ impl<'a> Fulfill<'a> {
             .into_iter()
             .map(|(k, v)| (k.into(), v.into()))
             .collect();
+        self.headers_set = true;
+        self
+    }
+    /// Serves this file (content type from its extension).
+    pub fn path(mut self, path: impl AsRef<std::path::Path>) -> Self {
+        self.path = Some(path.as_ref().to_owned());
+        self
+    }
+    /// Starts from a response got with `route.fetch()`; other options
+    /// override its status, headers and body.
+    pub fn response(mut self, response: &FetchResponse) -> Self {
+        self.response = Some(response.clone());
         self
     }
     pub fn content_type(mut self, content_type: impl Into<String>) -> Self {
@@ -261,21 +474,54 @@ impl<'a> IntoFuture for Fulfill<'a> {
     fn into_future(self) -> Self::IntoFuture {
         async move {
             let is_json = self.json.is_some();
-            let body = match self.json {
-                Some(json) => {
-                    if self.body.is_some() {
-                        return Err(Error::InvalidArgument(
-                            "Can specify either body or json parameters".into(),
-                        ));
-                    }
-                    json?.into_bytes()
+            let mut content_type = self.content_type.clone();
+            let body = if let Some(json) = self.json {
+                if self.body.is_some() {
+                    return Err(Error::InvalidArgument(
+                        "Can specify either body or json parameters".into(),
+                    ));
                 }
-                None => self.body.unwrap_or_default(),
+                json?.into_bytes()
+            } else if let Some(path) = &self.path {
+                if content_type.is_none() {
+                    content_type = Some(
+                        crate::domain::network::mime_type_for_path(&path.to_string_lossy())
+                            .unwrap_or("application/octet-stream")
+                            .to_owned(),
+                    );
+                }
+                self.route.inner.page.inner.shared.services.fs.read(path)?
+            } else if let Some(body) = self.body {
+                body
+            } else {
+                self.response
+                    .as_ref()
+                    .map(|r| r.body.clone())
+                    .unwrap_or_default()
             };
-            let status = self.status.unwrap_or(200);
+            let status = self
+                .status
+                .or(self.response.as_ref().map(|r| r.status))
+                .unwrap_or(200);
+            let mut headers = self.headers;
+            if !self.headers_set
+                && let Some(r) = &self.response
+            {
+                // The fetched body is decoded and may be replaced: its length and
+                // encoding headers no longer apply.
+                headers = r
+                    .headers
+                    .iter()
+                    .filter(|h| {
+                        !h.name.eq_ignore_ascii_case("content-length")
+                            && !h.name.eq_ignore_ascii_case("content-encoding")
+                    })
+                    .map(|h| (h.name.clone(), h.value.clone()))
+                    .collect();
+            }
             let headers = split_set_cookie(fulfill_headers(
-                &self.headers,
-                self.content_type.as_deref(),
+                &headers,
+                content_type.as_deref(),
                 is_json,
                 body.len(),
             ));
@@ -535,6 +781,28 @@ impl Page {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
+        if p.get("responseStatusCode").is_some() || p.get("responseErrorReason").is_some() {
+            let waiter = self
+                .inner
+                .response_waiters
+                .lock()
+                .unwrap()
+                .remove(&interception_id);
+            match waiter {
+                Some(tx) => {
+                    let _ = tx.send(p.clone());
+                }
+                None => {
+                    let fut = self.inner.shared.cdp.call(
+                        Some(&self.inner.session_id),
+                        "Fetch.continueResponse",
+                        json!({"requestId": interception_id}),
+                    );
+                    tokio::spawn(fut);
+                }
+            }
+            return;
+        }
         let network_id = p.get("networkId").and_then(Value::as_str);
         let url = p
             .pointer("/request/url")
@@ -583,6 +851,7 @@ impl Page {
                 interception_id,
                 request,
                 handled: Mutex::new(false),
+                response_stage: std::sync::atomic::AtomicBool::new(false),
                 overrides: Mutex::new(Overrides::default()),
                 decision: Mutex::new(None),
             }),

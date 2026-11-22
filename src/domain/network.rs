@@ -296,6 +296,43 @@ pub fn split_set_cookie(headers: Vec<HeaderEntry>) -> Vec<HeaderEntry> {
     out
 }
 
+/// The content type `route.fulfill({path})` uses for a file, by extension.
+pub fn mime_type_for_path(path: &str) -> Option<&'static str> {
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    let (_, ext) = name.rsplit_once('.')?;
+    Some(match ext.to_ascii_lowercase().as_str() {
+        "html" | "htm" => "text/html",
+        "css" => "text/css",
+        "js" | "mjs" | "cjs" => "text/javascript",
+        "json" | "map" => "application/json",
+        "txt" | "text" | "log" => "text/plain",
+        "csv" => "text/csv",
+        "xml" => "application/xml",
+        "md" => "text/markdown",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "avif" => "image/avif",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        "svg" => "image/svg+xml",
+        "woff" => "font/woff",
+        "woff2" => "font/woff2",
+        "ttf" => "font/ttf",
+        "otf" => "font/otf",
+        "pdf" => "application/pdf",
+        "zip" => "application/zip",
+        "wasm" => "application/wasm",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "ogg" => "audio/ogg",
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

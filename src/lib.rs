@@ -44,7 +44,9 @@ pub use application::locator::{
 pub use application::navigation::{Navigation, WaitForUrl};
 pub use application::network::{Request, Response, SecurityDetails, ServerAddr};
 pub use application::page::{Goto, Page};
-pub use application::route::{Abort, Continue, Fulfill, Route, RouteRegistration};
+pub use application::route::{
+    Abort, Continue, FetchResponse, Fulfill, Route, RouteFetch, RouteRegistration,
+};
 pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
 pub use application::services::Services;

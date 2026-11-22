@@ -73,6 +73,8 @@ pub(crate) struct PageInner {
     pub(crate) workers: Mutex<Vec<crate::application::worker::Worker>>,
     /// Pending file chooser waits (interception is on while > 0).
     pub(crate) file_chooser_waiters: std::sync::atomic::AtomicI64,
+    /// `route.fetch()` calls waiting for their response stage, by interception id.
+    pub(crate) response_waiters: Mutex<HashMap<String, futures::channel::oneshot::Sender<Value>>>,
 }
 
 impl PartialEq for Page {
@@ -170,6 +172,7 @@ impl Page {
             websockets: Mutex::new(HashMap::new()),
             workers: Mutex::new(Vec::new()),
             file_chooser_waiters: std::sync::atomic::AtomicI64::new(0),
+            response_waiters: Mutex::new(HashMap::new()),
             intercepting: AtomicBool::new(
                 options.http_credentials.is_some() || !context.routes.lock().unwrap().is_empty(),
             ),
