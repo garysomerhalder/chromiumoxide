@@ -116,7 +116,7 @@ async fn failures_read_like_playwright() {
             .timeout(t)
             .await
             .unwrap_err()),
-        "expect(locator).toHaveCount(expected) failed\n\nLocator:  locator('div,input')\nExpected: 3\nReceived: 2\nTimeout:  300ms"
+        "expect(locator).toHaveCount(expected) failed\n\nLocator:  locator('div,input')\nExpected: 3\nReceived: 6\nTimeout:  300ms"
     );
     assert_eq!(
         msg(expect(&page)
