@@ -133,6 +133,17 @@ pub struct Locator {
     selector: String,
 }
 
+/// Playwright's `locator.toString()`: its description, or the locator code
+/// (`getByRole('button', { name: 'Go' })`).
+impl std::fmt::Display for Locator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.description() {
+            Some(d) => f.write_str(&d),
+            None => f.write_str(&crate::domain::locator_gen::as_locator(&self.selector)),
+        }
+    }
+}
+
 impl std::fmt::Debug for Locator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "locator({:?})", self.selector)
