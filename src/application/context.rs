@@ -18,6 +18,8 @@ pub(crate) struct ContextInner {
     pub(crate) options: Arc<ContextOptions>,
     pub(crate) shared: Arc<Shared>,
     pub(crate) pages: Mutex<Vec<Page>>,
+    /// Files of this context's downloads (deleted when it closes).
+    pub(crate) downloaded: Mutex<Vec<std::path::PathBuf>>,
     /// `context.clock` has installed its script.
     pub(crate) clock_installed: std::sync::atomic::AtomicBool,
     pub(crate) debugger: Mutex<crate::application::debugger::DebuggerState>,
@@ -199,6 +201,7 @@ impl BrowserContext {
             options: Arc::new(options),
             shared: shared.clone(),
             pages: Mutex::new(Vec::new()),
+            downloaded: Mutex::new(Vec::new()),
             init_errors: Mutex::new(HashMap::new()),
             init_scripts: Mutex::new(Vec::new()),
             clock_installed: std::sync::atomic::AtomicBool::new(false),
@@ -371,6 +374,10 @@ impl BrowserContext {
             p.mark_closed();
         }
         shared.contexts.lock().unwrap().remove(&self.inner.id);
+        // Like Playwright, downloads go with their context.
+        for path in std::mem::take(&mut *self.inner.downloaded.lock().unwrap()) {
+            let _ = shared.services.fs.remove_file(&path);
+        }
         self.inner.changed.send_modify(|v| *v += 1);
         self.inner.emit(ContextEvent::Close);
         Ok(())

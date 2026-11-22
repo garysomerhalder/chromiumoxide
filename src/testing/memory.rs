@@ -75,6 +75,10 @@ impl FileSystem for MemoryFileSystem {
         }
     }
 
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        self.dirs.lock().unwrap().insert(path.to_path_buf());
+        Ok(())
+    }
     fn write(&self, path: &Path, _data: &[u8]) -> io::Result<()> {
         self.add_file(&path.to_string_lossy());
         Ok(())

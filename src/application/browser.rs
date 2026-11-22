@@ -40,6 +40,20 @@ pub struct LaunchOptions {
     pub channel: Channel,
     /// Route the browser's traffic through a proxy (Playwright's `proxy`).
     pub proxy: Option<crate::domain::launch::Proxy>,
+    /// Playwright's `slowMo`: wait this long after each action, navigation
+    /// and keyboard, mouse or touch call.
+    pub slow_mo: Duration,
+    /// Playwright's `downloadsPath`: accepted downloads go here (not removed
+    /// on close; the files still go with their context).
+    pub downloads_path: Option<PathBuf>,
+    /// Playwright's `tracesDir`: tracing also leaves `<name>.trace` and
+    /// `<name>.network` here.
+    pub traces_dir: Option<PathBuf>,
+    /// Playwright's `artifactsDir`: the default for `downloads_path` and
+    /// `traces_dir`; not removed on close.
+    pub artifacts_dir: Option<PathBuf>,
+    /// Playwright's `chromiumSandbox` (default `false`: `--no-sandbox`).
+    pub chromium_sandbox: bool,
 }
 
 impl Default for LaunchOptions {
@@ -53,6 +67,11 @@ impl Default for LaunchOptions {
             timeout: Duration::from_secs(180),
             channel: Channel::Pipe,
             proxy: None,
+            slow_mo: Duration::ZERO,
+            downloads_path: None,
+            traces_dir: None,
+            artifacts_dir: None,
+            chromium_sandbox: false,
         }
     }
 }
@@ -83,6 +102,8 @@ pub(crate) struct BrowserInner {
     launch_args: Option<Vec<String>>,
     /// `LaunchOptions::proxy`.
     launch_proxy: Option<crate::domain::launch::Proxy>,
+    /// `slowMo`, `downloadsPath`, `tracesDir` (`artifactsDir` resolved).
+    artifacts: crate::application::shared::LaunchArtifacts,
     /// `browser.events()` subscribers.
     subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<BrowserEvent>>>,
     /// `disconnected` was emitted.
@@ -172,6 +193,7 @@ impl Browser {
             ignore_default_args: options.ignore_default_args,
             user_data_dir: user_data_dir.clone(),
             proxy: options.proxy.clone(),
+            chromium_sandbox: options.chromium_sandbox,
         };
         let mut args = if persistent.is_some() {
             crate::domain::launch::persistent_command_line(&spec)
@@ -218,6 +240,17 @@ impl Browser {
                 bridge: Mutex::new(None),
                 launch_args: Some(options.args.clone()),
                 launch_proxy: options.proxy.clone(),
+                artifacts: crate::application::shared::LaunchArtifacts {
+                    slow_mo: options.slow_mo,
+                    downloads_path: options
+                        .downloads_path
+                        .clone()
+                        .or_else(|| options.artifacts_dir.clone()),
+                    traces_dir: options
+                        .traces_dir
+                        .clone()
+                        .or_else(|| options.artifacts_dir.clone()),
+                },
                 subscribers: Mutex::new(Vec::new()),
                 disconnected: AtomicBool::new(false),
             }),
@@ -255,6 +288,7 @@ impl Browser {
                 bridge: Mutex::new(None),
                 launch_args: None,
                 launch_proxy: None,
+                artifacts: Default::default(),
                 subscribers: Mutex::new(Vec::new()),
                 disconnected: AtomicBool::new(false),
             }),
@@ -321,6 +355,7 @@ impl Browser {
                 .to_owned(),
             launch_args: self.inner.launch_args.clone(),
             launch_proxy: self.inner.launch_proxy.clone(),
+            artifacts: self.inner.artifacts.clone(),
             contexts: Mutex::new(HashMap::new()),
             downloads_dir: Mutex::new(None),
             downloads: Mutex::new(HashMap::new()),

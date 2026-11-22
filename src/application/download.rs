@@ -157,6 +157,10 @@ impl Download {
 impl Shared {
     /// The browser-wide downloads directory, created on first use.
     pub(crate) fn downloads_dir(&self) -> Result<PathBuf> {
+        if let Some(d) = &self.artifacts.downloads_path {
+            self.services.fs.create_dir_all(d)?;
+            return Ok(d.clone());
+        }
         let mut dir = self.downloads_dir.lock().unwrap();
         if let Some(d) = dir.as_ref() {
             return Ok(d.clone());
@@ -216,6 +220,9 @@ impl Shared {
                         changed,
                     }),
                 };
+                if let Some(ctx) = page.inner.context.upgrade() {
+                    ctx.downloaded.lock().unwrap().push(dir.join(&guid));
+                }
                 self.downloads
                     .lock()
                     .unwrap()

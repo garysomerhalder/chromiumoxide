@@ -39,6 +39,8 @@ pub struct LaunchSpec {
     pub user_data_dir: PathBuf,
     /// `LaunchOptions::proxy`.
     pub proxy: Option<Proxy>,
+    /// Playwright's `chromiumSandbox`: keep Chromium's sandbox (no `--no-sandbox`).
+    pub chromium_sandbox: bool,
 }
 
 /// Playwright's `proxy` option (launch or context).
@@ -138,7 +140,9 @@ pub fn command_line(spec: &LaunchSpec) -> Vec<String> {
             });
             args.extend(HEADLESS_ARGS.iter().map(|a| (*a).to_owned()));
         }
-        args.push("--no-sandbox".to_owned());
+        if !spec.chromium_sandbox {
+            args.push("--no-sandbox".to_owned());
+        }
         if let Some(p) = &spec.proxy {
             args.extend(proxy_args(p));
         }
@@ -264,6 +268,7 @@ mod tests {
             ignore_default_args: false,
             user_data_dir: PathBuf::from("/tmp/profile-1"),
             proxy: None,
+            chromium_sandbox: false,
         }
     }
 
@@ -442,6 +447,7 @@ mod persistent_tests {
             ignore_default_args: false,
             user_data_dir: "/tmp/profile-1".into(),
             proxy: None,
+            chromium_sandbox: false,
         };
         let args = persistent_command_line(&spec);
         assert_eq!(args.last().map(String::as_str), Some("about:blank"));

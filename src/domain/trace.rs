@@ -262,3 +262,77 @@ mod tests {
         assert_eq!(v["title"], "t");
     }
 }
+
+/// Playwright's protocol metainfo `slowMo: true`: the calls `slowMo` delays.
+pub fn slows_down(class: &str, method: &str) -> bool {
+    const FRAME: &[&str] = &[
+        "blur",
+        "check",
+        "click",
+        "dragAndDrop",
+        "drop",
+        "dblclick",
+        "dispatchEvent",
+        "fill",
+        "focus",
+        "goto",
+        "hover",
+        "press",
+        "selectOption",
+        "setInputFiles",
+        "tap",
+        "type",
+        "uncheck",
+    ];
+    const ELEMENT: &[&str] = &[
+        "check",
+        "click",
+        "dblclick",
+        "dispatchEvent",
+        "fill",
+        "focus",
+        "hover",
+        "press",
+        "scrollIntoViewIfNeeded",
+        "selectOption",
+        "selectText",
+        "setInputFiles",
+        "tap",
+        "type",
+        "uncheck",
+    ];
+    const PAGE: &[&str] = &[
+        "goBack",
+        "goForward",
+        "reload",
+        "keyboardDown",
+        "keyboardUp",
+        "keyboardInsertText",
+        "keyboardType",
+        "keyboardPress",
+        "mouseMove",
+        "mouseDown",
+        "mouseUp",
+        "mouseClick",
+        "mouseWheel",
+        "touchscreenTap",
+    ];
+    match class {
+        "Frame" => FRAME.contains(&method),
+        "ElementHandle" => ELEMENT.contains(&method),
+        "Page" => PAGE.contains(&method),
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod slow_mo_tests {
+    #[test]
+    fn actions_and_navigation_slow_down_queries_do_not() {
+        assert!(super::slows_down("Frame", "click"));
+        assert!(super::slows_down("Frame", "goto"));
+        assert!(super::slows_down("Page", "keyboardPress"));
+        assert!(!super::slows_down("Frame", "setContent"));
+        assert!(!super::slows_down("Frame", "evaluateExpression"));
+    }
+}
