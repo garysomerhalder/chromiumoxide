@@ -120,3 +120,74 @@ async fn trace_zip_like_playwright() {
     let _ = std::fs::remove_dir_all(&dir);
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn trace_chunks_groups_and_har() {
+    let server = TestServer::start().await;
+    server.route("/one", "text/html", "<p>one</p>", 0);
+    server.route("/two", "text/html", "<p>two</p>", 0);
+    let dir = std::env::temp_dir().join(format!("chromiumoxide-chunks-{}", std::process::id()));
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    let tracing = context.tracing();
+    tracing.start(TracingStart::default()).await.unwrap();
+    tracing.group("first group").await.unwrap();
+    page.goto(&server.url("/one")).await.unwrap();
+    tracing.group_end().await.unwrap();
+    let first = dir.join("one.zip");
+    tracing.stop_chunk(Some(&first)).await.unwrap();
+    tracing.start_chunk(Some("second")).await.unwrap();
+    page.goto(&server.url("/two")).await.unwrap();
+    let second = dir.join("two.zip");
+    tracing.stop_chunk(Some(&second)).await.unwrap();
+    tracing.stop(None).await.unwrap();
+
+    let events = |path: &std::path::Path| -> Vec<Value> {
+        String::from_utf8(file(&unzip(path), "trace.trace"))
+            .unwrap()
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect()
+    };
+    let one = events(&first);
+    let group = one
+        .iter()
+        .find(|e| e["type"] == "before" && e["method"] == "tracingGroup")
+        .expect("group");
+    assert_eq!(group["params"]["name"], "first group");
+    assert!(
+        one.iter()
+            .any(|e| e["type"] == "after" && e["callId"] == group["callId"])
+    );
+    let gotos = |ev: &[Value]| -> Vec<String> {
+        ev.iter()
+            .filter(|e| e["type"] == "before" && e["method"] == "goto")
+            .map(|e| e["params"]["url"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    assert_eq!(gotos(&one), [server.url("/one")]);
+    let two = events(&second);
+    assert_eq!(two[0]["type"], "context-options");
+    assert_eq!(two[0]["title"], "second");
+    assert_eq!(gotos(&two), [server.url("/two")]);
+
+    // HAR on demand.
+    let har_path = dir.join("on-demand.har");
+    tracing.start_har(&har_path).await.unwrap();
+    page.goto(&server.url("/one")).await.unwrap();
+    tracing.stop_har().await.unwrap();
+    let har: Value = serde_json::from_slice(&std::fs::read(&har_path).unwrap()).unwrap();
+    assert!(
+        har["log"]["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["request"]["url"] == server.url("/one"))
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+    browser.close().await.unwrap();
+}
