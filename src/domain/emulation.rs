@@ -107,6 +107,8 @@ pub struct ContextOptions {
     pub base_url: Option<String>,
     /// Cookies and `localStorage` to start with (`storageState`).
     pub storage_state: Option<crate::domain::storage::StorageState>,
+    /// Save downloads (Playwright's default); `false` reports them as failed.
+    pub accept_downloads: bool,
 }
 
 impl Default for ContextOptions {
@@ -134,6 +136,7 @@ impl Default for ContextOptions {
             ignore_https_errors: false,
             base_url: None,
             storage_state: None,
+            accept_downloads: true,
         }
     }
 }

@@ -40,6 +40,10 @@ pub enum PageEvent {
     RequestFinished(Request),
     /// The request failed (`page.on('requestfailed')`).
     RequestFailed(Request),
+    /// This page opened a popup (`page.on('popup')`).
+    Popup(Page),
+    /// A download started (`page.on('download')`).
+    Download(crate::application::download::Download),
 }
 
 /// A `console.*` call (Playwright's `ConsoleMessage`).
@@ -310,6 +314,32 @@ impl Page {
             PageEvent::Console(m) if predicate(m) => Some(m.clone()),
             _ => None,
         })
+    }
+
+    /// `page.waitForEvent('popup')`.
+    pub fn wait_for_popup(&self) -> EventWaiter<'_, Page> {
+        self.wait_for_event(|e| match e {
+            PageEvent::Popup(p) => Some(p.clone()),
+            _ => None,
+        })
+    }
+
+    /// `page.opener()`: the page that opened this popup, if still open.
+    pub fn opener(&self) -> Option<Page> {
+        let id = self.inner.opener_id.as_deref()?;
+        let contexts: Vec<_> = self
+            .inner
+            .shared
+            .contexts
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect();
+        contexts
+            .iter()
+            .flat_map(|c| c.pages.lock().unwrap().clone())
+            .find(|p| p.target_id() == id && !p.is_closed())
     }
 
     /// `page.waitForEvent('pageerror')`.

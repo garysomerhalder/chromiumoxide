@@ -48,6 +48,13 @@ impl FileSystem for OsFileSystem {
         }
     }
 
+    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        match std::fs::remove_file(path) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+            other => other,
+        }
+    }
+
     fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
         // Chromium may still be flushing files for a moment after exit.
         let mut last = Ok(());

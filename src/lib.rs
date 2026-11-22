@@ -30,8 +30,9 @@ pub use chromiumoxide_fetcher as fetcher;
 
 pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::browser::{Browser, LaunchOptions};
-pub use application::context::BrowserContext;
+pub use application::context::{BrowserContext, ContextEvent, PageWaiter};
 pub use application::discovery::Discovered;
+pub use application::download::Download;
 pub use application::events::{ConsoleMessage, Dialog, EventWaiter, PageEvent};
 pub use application::frame::Frame;
 pub use application::handle::JsHandle;

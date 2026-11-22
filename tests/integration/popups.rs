@@ -32,7 +32,7 @@ async fn popups_and_context_pages() {
         .await
         .unwrap();
     popup
-        .wait_for_load_state(chromiumoxide::WaitUntil::Load)
+        .wait_for_load_state(chromiumoxide::WaitUntil::Load, None)
         .await
         .unwrap();
     assert_eq!(popup.url(), url);

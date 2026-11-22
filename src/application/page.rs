@@ -67,7 +67,17 @@ pub(crate) struct PageInner {
     pub(crate) intercepting: AtomicBool,
     /// `page.setExtraHTTPHeaders()`.
     pub(crate) extra_http_headers: Mutex<Option<std::collections::BTreeMap<String, String>>>,
+    /// The target that opened this page (popups).
+    pub(crate) opener_id: Option<String>,
 }
+
+impl PartialEq for Page {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
+impl Eq for Page {}
 
 /// A browser tab. Cheap to clone.
 #[derive(Clone)]
@@ -90,6 +100,7 @@ impl Page {
         context: &Arc<ContextInner>,
         session_id: String,
         target_id: String,
+        opener_id: Option<String>,
     ) -> Result<Page> {
         let cdp = shared.cdp.clone();
         let sid_owned = session_id.clone();
@@ -151,6 +162,7 @@ impl Page {
             network: Mutex::new(Default::default()),
             routes: Mutex::new(Vec::new()),
             extra_http_headers: Mutex::new(None),
+            opener_id,
             intercepting: AtomicBool::new(
                 options.http_credentials.is_some() || !context.routes.lock().unwrap().is_empty(),
             ),
