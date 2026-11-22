@@ -42,6 +42,8 @@ pub struct Request {
 
 struct RequestInner {
     page: Weak<PageInner>,
+    /// The service worker that made the request (then there is no page).
+    service_worker: Option<crate::application::worker::Worker>,
     request_id: String,
     url: String,
     method: String,
@@ -188,6 +190,11 @@ impl Request {
     }
 
     /// The frame that issued the request.
+    /// `request.serviceWorker()`: the service worker that made it, if any.
+    pub fn service_worker(&self) -> Option<crate::application::worker::Worker> {
+        self.inner.service_worker.clone()
+    }
+
     pub fn frame(&self) -> Option<Frame> {
         let page = self.page()?;
         self.inner
@@ -296,7 +303,11 @@ impl Request {
             if let Some(v) = f(&self.inner.state.lock().unwrap()) {
                 return Some(v);
             }
-            if self.page().is_none_or(|p| p.is_closed()) || rx.changed().await.is_err() {
+            let gone = match &self.inner.service_worker {
+                Some(w) => w.is_closed(),
+                None => self.page().is_none_or(|p| p.is_closed()),
+            };
+            if gone || rx.changed().await.is_err() {
                 return f(&self.inner.state.lock().unwrap());
             }
         }
@@ -473,16 +484,17 @@ impl Response {
             ));
         }
         self.request.wait(|st| st.done.then_some(())).await;
-        let page = self
-            .request
-            .page()
-            .ok_or_else(|| Error::TargetClosed("page has been closed".into()))?;
-        let r = page
-            .send(
-                "Network.getResponseBody",
-                json!({"requestId": self.request.inner.request_id}),
-            )
-            .await?;
+        let params = json!({"requestId": self.request.inner.request_id});
+        let r = match &self.request.inner.service_worker {
+            Some(worker) => worker.send("Network.getResponseBody", params).await?,
+            None => {
+                let page = self
+                    .request
+                    .page()
+                    .ok_or_else(|| Error::TargetClosed("page has been closed".into()))?;
+                page.send("Network.getResponseBody", params).await?
+            }
+        };
         let body = r.get("body").and_then(Value::as_str).unwrap_or_default();
         if r.get("base64Encoded").and_then(Value::as_bool) == Some(true) {
             base64::engine::general_purpose::STANDARD
@@ -639,6 +651,7 @@ impl Page {
                     let request = Request {
                         inner: Arc::new(RequestInner {
                             page: Arc::downgrade(&self.inner),
+                            service_worker: None,
                             request_id: id.clone(),
                             url: format!("{url}{}", s(req, "urlFragment")),
                             method: s(req, "method"),
@@ -880,5 +893,97 @@ impl Page {
             PageEvent::Response(r) if predicate(r) => Some(r.clone()),
             _ => None,
         })
+    }
+}
+
+/// Requests made by a service worker (no page): enough of the page's network
+/// model for `context.on('request' | 'response' | ...)`.
+pub(crate) fn worker_network_event(
+    worker: &crate::application::worker::Worker,
+    requests: &mut HashMap<String, Request>,
+    e: &RawEvent,
+) -> Option<crate::application::context::ContextEvent> {
+    use crate::application::context::ContextEvent;
+    let p = &e.params;
+    match e.method.as_str() {
+        "Network.requestWillBeSent" => {
+            let req = &p["request"];
+            let url = req.get("url").and_then(Value::as_str).unwrap_or_default();
+            if url.starts_with("data:") {
+                return None;
+            }
+            let id = s(p, "requestId");
+            let timestamp = p.get("timestamp").and_then(Value::as_f64).unwrap_or(0.0);
+            let wall_time = p.get("wallTime").and_then(Value::as_f64).unwrap_or(0.0);
+            let (changed, _) = watch::channel(0);
+            let request = Request {
+                inner: Arc::new(RequestInner {
+                    page: Weak::new(),
+                    service_worker: Some(worker.clone()),
+                    request_id: id.clone(),
+                    url: format!("{url}{}", s(req, "urlFragment")),
+                    method: s(req, "method"),
+                    headers: RawHeaders::from_protocol(&req["headers"], false),
+                    post_data: req
+                        .get("postData")
+                        .and_then(Value::as_str)
+                        .map(|d| d.as_bytes().to_vec()),
+                    resource_type: resource_type(p.get("type").and_then(Value::as_str)),
+                    is_navigation: false,
+                    frame_id: None,
+                    redirected_from: None,
+                    timestamp,
+                    state: Mutex::new(RequestState {
+                        redirected_to: None,
+                        response: None,
+                        raw_headers: None,
+                        failure: None,
+                        encoded_data_length: None,
+                        done: false,
+                        timing: Timing::unknown(wall_time),
+                    }),
+                    changed,
+                }),
+            };
+            requests.insert(id, request.clone());
+            Some(ContextEvent::Request(request))
+        }
+        "Network.responseReceived" => {
+            let request = requests.get(&s(p, "requestId"))?.clone();
+            let data = Arc::new(response_data(&p["response"], false, false));
+            let wall_time = request.inner.state.lock().unwrap().timing.start_time / 1000.0;
+            let timing = Timing::from_protocol(
+                p["response"].get("timing"),
+                wall_time,
+                request.inner.timestamp,
+            );
+            request.update(|st| {
+                st.response = Some(data.clone());
+                st.timing = timing;
+            });
+            Some(ContextEvent::Response(Response::new(request, data)))
+        }
+        "Network.loadingFinished" => {
+            let request = requests.remove(&s(p, "requestId"))?;
+            let at = p.get("timestamp").and_then(Value::as_f64).unwrap_or(0.0);
+            request.update(|st| {
+                if st.response.is_some() {
+                    st.timing.finish(request.inner.timestamp, at);
+                }
+                st.encoded_data_length = p.get("encodedDataLength").and_then(Value::as_f64);
+                st.done = true;
+            });
+            Some(ContextEvent::RequestFinished(request))
+        }
+        "Network.loadingFailed" => {
+            let request = requests.remove(&s(p, "requestId"))?;
+            let text = s(p, "errorText");
+            request.update(|st| {
+                st.failure = Some(text);
+                st.done = true;
+            });
+            Some(ContextEvent::RequestFailed(request))
+        }
+        _ => None,
     }
 }
