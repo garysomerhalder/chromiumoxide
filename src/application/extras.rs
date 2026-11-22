@@ -330,6 +330,13 @@ impl<'a> IntoFuture for WaitForNavigation<'a> {
 }
 
 impl BrowserContext {
+    /// `context.backgroundPages()`: deprecated in Playwright, which always
+    /// returns an empty list (Manifest V3 extensions have no background pages).
+    #[deprecated(note = "always empty, like Playwright's")]
+    pub fn background_pages(&self) -> Vec<Page> {
+        Vec::new()
+    }
+
     /// The browser this context belongs to.
     pub fn browser(&self) -> Option<Browser> {
         self.inner.shared.browser()
