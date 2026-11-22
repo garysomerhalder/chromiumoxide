@@ -3,6 +3,7 @@
 
 mod aria;
 mod assertions;
+mod clock;
 mod context;
 mod dragdrop;
 mod events;
