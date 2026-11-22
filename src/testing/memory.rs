@@ -141,3 +141,15 @@ impl crate::ports::VideoSink for NullSink {
         Box::pin(async { Ok(()) })
     }
 }
+
+/// An HTTP client that refuses every request (unit tests).
+pub struct NoHttp;
+
+impl crate::ports::HttpClient for NoHttp {
+    fn send(
+        &self,
+        _request: crate::domain::http::HttpRequest,
+    ) -> futures::future::BoxFuture<'static, io::Result<crate::domain::http::HttpResponse>> {
+        Box::pin(async { Err(io::Error::other("no network in unit tests")) })
+    }
+}

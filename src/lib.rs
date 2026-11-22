@@ -55,6 +55,7 @@ pub use application::navigation::{Navigation, WaitForUrl};
 pub use application::network::{Request, Response, SecurityDetails, ServerAddr};
 pub use application::page::{Goto, Page};
 pub use application::pdf::Pdf;
+pub use application::request::{ApiRequest, ApiRequestContext, ApiRequestOptions, ApiResponse};
 pub use application::route::{
     Abort, Continue, FetchResponse, Fulfill, Route, RouteFetch, RouteRegistration,
 };
@@ -84,6 +85,7 @@ pub use domain::emulation::{
 pub use domain::error::{Error, Result};
 pub use domain::frame::LifecycleEvent as WaitUntil;
 pub use domain::har::{Har, HarNotFound, RecordHar};
+pub use domain::http::MultipartValue;
 pub use domain::input::MouseButton;
 pub use domain::launch::BrowserKind;
 pub use domain::network::{HeaderEntry, RequestSizes, Timing};
@@ -111,7 +113,13 @@ impl Chromium {
             launcher: Arc::new(adapters::process::TokioLauncher),
             clock: Arc::new(adapters::clock::TokioClock),
             video: Arc::new(adapters::video::FfmpegEncoder),
+            http: Arc::new(adapters::http::TcpHttpClient),
         }
+    }
+
+    /// A standalone `APIRequestContext` (Playwright's `request.newContext()`).
+    pub async fn request_context(options: ApiRequestOptions) -> Result<ApiRequestContext> {
+        Ok(ApiRequestContext::new(Self::services(), options))
     }
 
     /// Discovers and launches Chromium (Playwright's `chromium.launch`).

@@ -13,4 +13,6 @@ pub struct Services {
     pub clock: Arc<dyn Clock>,
     /// Encodes recorded videos (`recordVideo`).
     pub video: Arc<dyn VideoEncoder>,
+    /// Sends `APIRequestContext` requests.
+    pub http: Arc<dyn crate::ports::HttpClient>,
 }

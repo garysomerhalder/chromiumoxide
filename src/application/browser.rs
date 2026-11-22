@@ -546,6 +546,7 @@ mod tests {
             launcher: Arc::new(launcher.clone()),
             clock: Arc::new(TestClock),
             video: Arc::new(crate::testing::memory::NullVideo),
+            http: Arc::new(crate::testing::memory::NoHttp),
         };
         (s, fs)
     }

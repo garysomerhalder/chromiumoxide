@@ -45,6 +45,9 @@ pub enum Error {
     /// A web-first assertion (`expect`) failed; the message reads like Playwright's.
     #[error("{0}")]
     Assertion(String),
+    /// An `APIRequestContext` request failed (Playwright's message).
+    #[error("{0}")]
+    Request(String),
     /// Protocol payload could not be (de)serialised.
     #[error("serialization error: {0}")]
     Serde(String),
