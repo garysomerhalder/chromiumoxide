@@ -495,3 +495,76 @@ async fn storage_state_with_opfs() {
     assert!(without.origins.iter().all(|o| o.opfs.is_none()));
     browser.close().await.unwrap();
 }
+
+/// `debugger.runTo(location)`: resume and pause again at the action called
+/// from that source line; `pausedDetails().location` names the call site.
+#[tokio::test]
+async fn debugger_run_to_a_source_location() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let ctx = browser.new_context(Default::default()).await.unwrap();
+    let page = ctx.new_page().await.unwrap();
+    page.set_content(
+        "<script>window.n=[]</script><button id=a onclick=n.push('a')>a</button>\
+         <button id=b onclick=n.push('b')>b</button><button id=c onclick=n.push('c')>c</button>",
+    )
+    .await
+    .unwrap();
+    let dbg = ctx.debugger();
+    let err = dbg
+        .run_to(chromiumoxide::SourceLocation::file("backlog.rs"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Debugger is not paused");
+    dbg.request_pause().await.unwrap();
+    let actions = tokio::spawn({
+        let page = page.clone();
+        async move {
+            let first = line!() + 1;
+            page.locator("#a").click().await.unwrap();
+            page.locator("#b").click().await.unwrap();
+            let third = line!() + 1;
+            page.locator("#c").click().await.unwrap();
+            (first, third)
+        }
+    });
+    let mut paused = None;
+    for _ in 0..500 {
+        if let Some(p) = dbg.paused_details() {
+            paused = Some(p);
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let p = paused.expect("paused before the first click");
+    assert_eq!(p.title, "Click locator('#a')");
+    let location = p.location.expect("call site");
+    assert!(location.file.ends_with("backlog.rs"), "{location:?}");
+    let first = location.line.unwrap();
+    dbg.run_to(chromiumoxide::SourceLocation {
+        file: "integration/backlog.rs".into(),
+        line: Some(first + 4),
+        column: None,
+    })
+    .await
+    .unwrap();
+    let mut paused = None;
+    for _ in 0..500 {
+        if let Some(p) = dbg.paused_details() {
+            paused = Some(p);
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let p = paused.expect("paused at the third click");
+    assert_eq!(p.title, "Click locator('#c')");
+    assert_eq!(p.location.unwrap().line, Some(first + 4));
+    assert_eq!(page.evaluate::<Vec<String>>("n").await.unwrap(), ["a", "b"]);
+    dbg.resume().await.unwrap();
+    let (a, c) = actions.await.unwrap();
+    assert_eq!((a, c), (first, first + 4));
+    assert_eq!(
+        page.evaluate::<Vec<String>>("n").await.unwrap(),
+        ["a", "b", "c"]
+    );
+    browser.close().await.unwrap();
+}
