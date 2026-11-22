@@ -242,3 +242,23 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod persistent_tests {
+    use super::*;
+
+    #[test]
+    fn persistent_launches_open_about_blank_like_playwright() {
+        let spec = LaunchSpec {
+            kind: BrowserKind::HeadlessShell,
+            headless: true,
+            args: Vec::new(),
+            ignore_default_args: false,
+            user_data_dir: "/tmp/profile-1".into(),
+            persistent: true,
+        };
+        let args = command_line(&spec);
+        assert_eq!(args.last().map(String::as_str), Some("about:blank"));
+        assert!(!args.iter().any(|a| a == "--no-startup-window"));
+    }
+}
