@@ -60,7 +60,7 @@ impl Page {
     }
 
     /// Stream of a generated event type from this page's session, from now on.
-    pub fn events<E>(&self) -> impl Stream<Item = E> + Send + use<E>
+    pub fn cdp_events<E>(&self) -> impl Stream<Item = E> + Send + use<E>
     where
         E: MethodType + DeserializeOwned + Send + 'static,
     {
@@ -75,7 +75,7 @@ impl Browser {
     }
 
     /// Stream of a generated event type from the browser target, from now on.
-    pub fn events<E>(&self) -> impl Stream<Item = E> + Send + use<E>
+    pub fn cdp_events<E>(&self) -> impl Stream<Item = E> + Send + use<E>
     where
         E: MethodType + DeserializeOwned + Send + 'static,
     {

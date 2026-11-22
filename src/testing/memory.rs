@@ -58,6 +58,10 @@ impl FileSystem for MemoryFileSystem {
         self.dirs.lock().unwrap().insert(p.clone());
         Ok(p)
     }
+    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        self.files.lock().unwrap().retain(|f| f != path);
+        Ok(())
+    }
     fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
         self.dirs.lock().unwrap().retain(|d| !d.starts_with(path));
         self.files.lock().unwrap().retain(|f| !f.starts_with(path));

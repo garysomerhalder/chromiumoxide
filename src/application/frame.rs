@@ -18,6 +18,14 @@ pub struct Frame {
     id: String,
 }
 
+impl PartialEq for Frame {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.page.inner, &other.page.inner) && self.id == other.id
+    }
+}
+
+impl Eq for Frame {}
+
 impl std::fmt::Debug for Frame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Frame")

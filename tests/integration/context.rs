@@ -191,3 +191,69 @@ async fn evaluate_runs_statement_strings_like_playwright() {
     assert_eq!(v, true);
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn service_workers_can_be_blocked() {
+    use chromiumoxide::ServiceWorkers;
+    let server = TestServer::start().await;
+    server.route("/", "text/html", "<p>sw</p>", 0);
+    server.route("/sw.js", "text/javascript", "self.x = 1", 0);
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions {
+            service_workers: ServiceWorkers::Block,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+    let warning = page
+        .wait_for_console_message(|m| m.kind() == "warning")
+        .run(page.evaluate::<bool>(
+            "async () => (await navigator.serviceWorker.register('/sw.js')) === undefined",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        warning.text(),
+        "Service Worker registration blocked by chromiumoxide"
+    );
+    assert!(
+        page.evaluate::<bool>(
+            "async () => (await navigator.serviceWorker.register('/sw.js')) === undefined"
+        )
+        .await
+        .unwrap()
+    );
+    browser.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn http_credentials_can_change_at_runtime() {
+    let server = TestServer::start().await;
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    let r = page.goto(&server.url("/protected")).await.unwrap().unwrap();
+    assert_eq!(r.status, 401);
+    context
+        .set_http_credentials(Some(HttpCredentials {
+            username: "user".into(),
+            password: "pass".into(),
+            origin: None,
+        }))
+        .await
+        .unwrap();
+    let r = page.goto(&server.url("/protected")).await.unwrap().unwrap();
+    assert_eq!(r.status, 200);
+    // Like Playwright, clearing them later keeps working for this origin:
+    // Chromium has cached the credentials (Playwright 1.63 also gets 200).
+    context.set_http_credentials(None).await.unwrap();
+    let r = page.goto(&server.url("/protected")).await.unwrap().unwrap();
+    assert_eq!(r.status, 200);
+    browser.close().await.unwrap();
+}

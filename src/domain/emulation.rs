@@ -105,6 +105,21 @@ pub struct ContextOptions {
     pub bypass_csp: bool,
     pub ignore_https_errors: bool,
     pub base_url: Option<String>,
+    /// Cookies and `localStorage` to start with (`storageState`).
+    pub storage_state: Option<crate::domain::storage::StorageState>,
+    /// Save downloads (Playwright's default); `false` reports them as failed.
+    pub accept_downloads: bool,
+    /// Whether pages may register service workers.
+    pub service_workers: ServiceWorkers,
+}
+
+/// Playwright's `serviceWorkers` option.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ServiceWorkers {
+    #[default]
+    Allow,
+    /// `navigator.serviceWorker.register` does nothing (and warns).
+    Block,
 }
 
 impl Default for ContextOptions {
@@ -131,6 +146,9 @@ impl Default for ContextOptions {
             bypass_csp: false,
             ignore_https_errors: false,
             base_url: None,
+            storage_state: None,
+            accept_downloads: true,
+            service_workers: ServiceWorkers::Allow,
         }
     }
 }

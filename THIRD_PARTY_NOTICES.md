@@ -9,6 +9,8 @@ Copyright (c) Microsoft Corporation, licensed under the Apache License, Version 
   apart from a header comment.
 - `src/application/scripts/prepare_screenshot.js` — Playwright's screenshot
   preparation function.
+- `src/application/scripts/websocket_mock.js` — Playwright's WebSocket mock used
+  by `routeWebSocket`, playwright-core 1.63.0, unmodified.
 - `src/domain/data/devices.json` — Playwright's device descriptors.
 - `src/domain/data/us_keyboard_layout.json` — Playwright's US keyboard layout.
 - `src/domain/data/font_families.json` — Playwright's default font families.

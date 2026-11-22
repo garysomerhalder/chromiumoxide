@@ -15,4 +15,8 @@ pub(crate) struct Shared {
     pub(crate) font_platform: FontPlatform,
     /// Contexts created through this connection, by `browserContextId`.
     pub(crate) contexts: Mutex<HashMap<String, Arc<ContextInner>>>,
+    /// Where downloads are saved (created on first use).
+    pub(crate) downloads_dir: Mutex<Option<std::path::PathBuf>>,
+    /// Downloads in progress, by guid.
+    pub(crate) downloads: Mutex<HashMap<String, crate::application::download::Download>>,
 }

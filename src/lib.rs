@@ -30,8 +30,12 @@ pub use chromiumoxide_fetcher as fetcher;
 
 pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::browser::{Browser, LaunchOptions};
-pub use application::context::BrowserContext;
+pub use application::context::{BrowserContext, ContextEvent, PageWaiter};
+pub use application::credentials::{Credential, Credentials, NewCredential};
 pub use application::discovery::Discovered;
+pub use application::download::Download;
+pub use application::events::{ConsoleMessage, Dialog, EventWaiter, PageEvent};
+pub use application::filechooser::{FileChooser, FileChooserWaiter};
 pub use application::frame::Frame;
 pub use application::handle::JsHandle;
 pub use application::input::{Keyboard, Mouse, Touchscreen};
@@ -39,24 +43,37 @@ pub use application::locator::{
     BoundingBox, Click, ClickOptions, Locator, SelectOption, WaitFor, WaitForState,
 };
 pub use application::navigation::{Navigation, WaitForUrl};
-pub use application::page::{Goto, Page, Response};
+pub use application::network::{Request, Response, SecurityDetails, ServerAddr};
+pub use application::page::{Goto, Page};
+pub use application::route::{
+    Abort, Continue, FetchResponse, Fulfill, Route, RouteFetch, RouteRegistration,
+};
 pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
 pub use application::services::Services;
+pub use application::storage::WebStorage;
+pub use application::websocket::{WebSocket, WebSocketEvent, WsPayload};
+pub use application::websocket_route::{WebSocketRoute, WebSocketServer};
+pub use application::worker::Worker;
+pub use domain::console::{Location, PageError};
 pub use domain::devices::{Device, device, device_names};
 pub use domain::discovery::Source as DiscoverySource;
 pub use domain::emulation::{
     ColorScheme, ContextOptions, Contrast, ForcedColors, Geolocation, HttpCredentials, Media,
-    ReducedMotion, Viewport,
+    ReducedMotion, ServiceWorkers, Viewport,
 };
 pub use domain::error::{Error, Result};
 pub use domain::frame::LifecycleEvent as WaitUntil;
 pub use domain::input::MouseButton;
 pub use domain::launch::BrowserKind;
+pub use domain::network::{HeaderEntry, RequestSizes, Timing};
 pub use domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale,
 };
 pub use domain::selectors::{Filter, RoleOptions, TextMatch};
+pub use domain::storage::{
+    ClearCookies, Cookie, NameValue, NewCookie, OriginState, SameSite, StorageState,
+};
 pub use domain::url_matcher::UrlMatcher;
 pub use ports::Channel;
 

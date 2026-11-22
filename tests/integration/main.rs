@@ -2,19 +2,26 @@
 //! No transport mocks: these talk to the browser over the real pipe/WebSocket.
 
 mod context;
+mod events;
+mod extras;
 mod frames;
 mod handles;
 mod input;
 mod launch;
 mod locator;
 mod navigation;
+mod network;
 mod page;
 mod pixel_parity;
+mod popups;
 mod protocol;
+mod routing;
 mod screenshot;
 mod scripts;
 mod server;
 mod shortcuts;
+mod storage;
+mod workers;
 
 pub fn full_chromium() -> Option<std::path::PathBuf> {
     let p = std::path::PathBuf::from("/opt/pw-browsers/chromium-1243/chrome-linux64/chrome");

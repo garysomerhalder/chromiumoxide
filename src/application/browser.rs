@@ -188,6 +188,8 @@ impl Browser {
             headless: self.inner.headless,
             font_platform: FontPlatform::from_user_agent(ua),
             contexts: Mutex::new(HashMap::new()),
+            downloads_dir: Mutex::new(None),
+            downloads: Mutex::new(HashMap::new()),
         });
         *self.inner.shared.lock().unwrap() = Some(shared.clone());
         tokio::spawn(target_loop(Arc::downgrade(&shared), events));
@@ -291,6 +293,11 @@ impl Browser {
                 for p in pages {
                     p.mark_closed();
                 }
+                c.emit(crate::application::context::ContextEvent::Close);
+            }
+            shared.close_downloads();
+            if let Some(dir) = shared.downloads_dir.lock().unwrap().take() {
+                let _ = self.inner.services.fs.remove_dir_all(&dir);
             }
         }
         let _ = self.inner.cdp.call(None, "Browser.close", json!({})).await;
@@ -311,6 +318,19 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
         let Some(shared) = shared.upgrade() else {
             break;
         };
+        if event.session_id.is_none() && event.method.starts_with("Browser.download") {
+            shared.handle_download_event(&event.method, &event.params);
+            continue;
+        }
+        if event.session_id.is_none() && event.method == "Target.detachedFromTarget" {
+            if let Some(sid) = event.params.get("sessionId").and_then(Value::as_str) {
+                let contexts: Vec<_> = shared.contexts.lock().unwrap().values().cloned().collect();
+                for c in contexts {
+                    c.detach_service_worker(sid);
+                }
+            }
+            continue;
+        }
         if event.method != "Target.attachedToTarget" {
             continue;
         }
@@ -329,6 +349,10 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
+        let opener = info
+            .get("openerId")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
         let context = info
             .get("browserContextId")
             .and_then(Value::as_str)
@@ -337,11 +361,51 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
             Some(context) if kind == "page" && event.session_id.is_none() => {
                 let shared = shared.clone();
                 tokio::spawn(async move {
-                    match Page::initialize(shared, &context, session_id, target_id.clone()).await {
+                    match Page::initialize(shared, &context, session_id, target_id.clone(), opener)
+                        .await
+                    {
                         Ok(page) => context.add_page(page),
                         Err(e) => context.page_failed(&target_id, &e),
                     }
                 });
+            }
+            Some(context) if kind == "service_worker" && event.session_id.is_none() => {
+                let url = info
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                let worker = crate::application::worker::Worker::attach(
+                    shared.clone(),
+                    None,
+                    session_id,
+                    url,
+                );
+                context.add_service_worker(worker);
+            }
+            _ if kind == "worker" && event.session_id.is_some() => {
+                let page = event
+                    .session_id
+                    .as_deref()
+                    .and_then(|s| shared.page_by_session(s));
+                match page {
+                    Some(page) => {
+                        let url = info
+                            .get("url")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned();
+                        page.attach_worker(session_id, url);
+                    }
+                    None => {
+                        let fut = shared.cdp.call(
+                            Some(&session_id),
+                            "Runtime.runIfWaitingForDebugger",
+                            json!({}),
+                        );
+                        tokio::spawn(fut);
+                    }
+                }
             }
             _ => {
                 let fut = shared.cdp.call(

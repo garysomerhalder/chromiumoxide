@@ -1,0 +1,547 @@
+//! Network model: header lists, resource types and request timing, as
+//! Playwright exposes them.
+
+use std::collections::HashMap;
+
+use serde_json::Value;
+
+/// One header line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeaderEntry {
+    pub name: String,
+    pub value: String,
+}
+
+impl HeaderEntry {
+    pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
+        HeaderEntry {
+            name: name.into(),
+            value: value.into(),
+        }
+    }
+}
+
+/// An ordered header list with case-insensitive lookup (Playwright's `RawHeaders`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RawHeaders {
+    entries: Vec<HeaderEntry>,
+}
+
+impl RawHeaders {
+    pub fn new(entries: Vec<HeaderEntry>) -> Self {
+        RawHeaders { entries }
+    }
+
+    /// From a protocol `Headers` object. With `split`, values holding several
+    /// lines (raw headers, e.g. repeated `Set-Cookie`) become several entries.
+    pub fn from_protocol(headers: &Value, split: bool) -> Self {
+        let mut entries = Vec::new();
+        if let Some(obj) = headers.as_object() {
+            for (name, value) in obj {
+                let value = match value {
+                    Value::String(s) => s.clone(),
+                    Value::Null => continue,
+                    other => other.to_string(),
+                };
+                if split {
+                    for v in value.split('\n') {
+                        entries.push(HeaderEntry::new(name, v.trim()));
+                    }
+                } else {
+                    entries.push(HeaderEntry::new(name, value));
+                }
+            }
+        }
+        RawHeaders { entries }
+    }
+
+    pub fn entries(&self) -> &[HeaderEntry] {
+        &self.entries
+    }
+
+    /// Every value of `name`, in order.
+    pub fn get_all(&self, name: &str) -> Vec<String> {
+        self.entries
+            .iter()
+            .filter(|e| e.name.eq_ignore_ascii_case(name))
+            .map(|e| e.value.clone())
+            .collect()
+    }
+
+    /// Values of `name` joined with `, ` (`\n` for `set-cookie`).
+    pub fn get(&self, name: &str) -> Option<String> {
+        let values = self.get_all(name);
+        if values.is_empty() {
+            return None;
+        }
+        let sep = if name.eq_ignore_ascii_case("set-cookie") {
+            "\n"
+        } else {
+            ", "
+        };
+        Some(values.join(sep))
+    }
+
+    /// Lower-cased names to joined values.
+    pub fn to_map(&self) -> HashMap<String, String> {
+        let mut map = HashMap::new();
+        for e in &self.entries {
+            let name = e.name.to_lowercase();
+            if !map.contains_key(&name)
+                && let Some(v) = self.get(&name)
+            {
+                map.insert(name, v);
+            }
+        }
+        map
+    }
+}
+
+/// Playwright's resource type: the protocol type, lower-cased.
+pub fn resource_type(protocol_type: Option<&str>) -> String {
+    protocol_type.unwrap_or("Other").to_lowercase()
+}
+
+/// Request timing in milliseconds (Playwright's `request.timing()`).
+/// `start_time` is wall-clock; the others are relative to it, `-1` if unknown.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Timing {
+    pub start_time: f64,
+    pub domain_lookup_start: f64,
+    pub domain_lookup_end: f64,
+    pub connect_start: f64,
+    pub secure_connection_start: f64,
+    pub connect_end: f64,
+    pub request_start: f64,
+    pub response_start: f64,
+    pub response_end: f64,
+}
+
+impl Timing {
+    /// From a response's protocol `timing`, the request's `wallTime` (s) and
+    /// monotonic `timestamp` (s).
+    pub fn from_protocol(timing: Option<&Value>, wall_time: f64, timestamp: f64) -> Self {
+        let f = |t: &Value, k: &str| t.get(k).and_then(Value::as_f64).unwrap_or(-1.0);
+        match timing {
+            Some(t) if t.get("requestTime").is_some() => Timing {
+                start_time: (f(t, "requestTime") - timestamp + wall_time) * 1000.0,
+                domain_lookup_start: f(t, "dnsStart"),
+                domain_lookup_end: f(t, "dnsEnd"),
+                connect_start: f(t, "connectStart"),
+                secure_connection_start: f(t, "sslStart"),
+                connect_end: f(t, "connectEnd"),
+                request_start: f(t, "sendStart"),
+                response_start: f(t, "receiveHeadersEnd"),
+                response_end: -1.0,
+            },
+            _ => Timing::unknown(wall_time),
+        }
+    }
+
+    /// Only the start time is known.
+    pub fn unknown(wall_time: f64) -> Self {
+        Timing {
+            start_time: wall_time * 1000.0,
+            domain_lookup_start: -1.0,
+            domain_lookup_end: -1.0,
+            connect_start: -1.0,
+            secure_connection_start: -1.0,
+            connect_end: -1.0,
+            request_start: -1.0,
+            response_start: -1.0,
+            response_end: -1.0,
+        }
+    }
+
+    /// Records the end of the response at monotonic `finished_at` (s).
+    pub fn finish(&mut self, request_timestamp: f64, finished_at: f64) {
+        let ms = ((finished_at - request_timestamp) * 1000.0 * 1000.0).round() / 1000.0;
+        self.response_end = ms.max(self.response_start);
+    }
+}
+
+/// The standard reason phrase for a status code (`Unknown` otherwise, like Playwright).
+pub fn status_text(status: u16) -> &'static str {
+    match status {
+        100 => "Continue",
+        101 => "Switching Protocols",
+        102 => "Processing",
+        103 => "Early Hints",
+        200 => "OK",
+        201 => "Created",
+        202 => "Accepted",
+        203 => "Non-Authoritative Information",
+        204 => "No Content",
+        205 => "Reset Content",
+        206 => "Partial Content",
+        207 => "Multi-Status",
+        208 => "Already Reported",
+        226 => "IM Used",
+        300 => "Multiple Choices",
+        301 => "Moved Permanently",
+        302 => "Found",
+        303 => "See Other",
+        304 => "Not Modified",
+        305 => "Use Proxy",
+        307 => "Temporary Redirect",
+        308 => "Permanent Redirect",
+        400 => "Bad Request",
+        401 => "Unauthorized",
+        402 => "Payment Required",
+        403 => "Forbidden",
+        404 => "Not Found",
+        405 => "Method Not Allowed",
+        406 => "Not Acceptable",
+        407 => "Proxy Authentication Required",
+        408 => "Request Timeout",
+        409 => "Conflict",
+        410 => "Gone",
+        411 => "Length Required",
+        412 => "Precondition Failed",
+        413 => "Payload Too Large",
+        414 => "URI Too Long",
+        415 => "Unsupported Media Type",
+        416 => "Range Not Satisfiable",
+        417 => "Expectation Failed",
+        418 => "I'm a teapot",
+        421 => "Misdirected Request",
+        422 => "Unprocessable Entity",
+        423 => "Locked",
+        424 => "Failed Dependency",
+        425 => "Too Early",
+        426 => "Upgrade Required",
+        428 => "Precondition Required",
+        429 => "Too Many Requests",
+        431 => "Request Header Fields Too Large",
+        451 => "Unavailable For Legal Reasons",
+        500 => "Internal Server Error",
+        501 => "Not Implemented",
+        502 => "Bad Gateway",
+        503 => "Service Unavailable",
+        504 => "Gateway Timeout",
+        505 => "HTTP Version Not Supported",
+        506 => "Variant Also Negotiates",
+        507 => "Insufficient Storage",
+        508 => "Loop Detected",
+        510 => "Not Extended",
+        511 => "Network Authentication Required",
+        _ => "Unknown",
+    }
+}
+
+/// The protocol `ErrorReason` for a Playwright `route.abort(errorCode)` code.
+pub fn error_reason(code: &str) -> Option<&'static str> {
+    Some(match code {
+        "aborted" => "Aborted",
+        "accessdenied" => "AccessDenied",
+        "addressunreachable" => "AddressUnreachable",
+        "blockedbyclient" => "BlockedByClient",
+        "blockedbyresponse" => "BlockedByResponse",
+        "connectionaborted" => "ConnectionAborted",
+        "connectionclosed" => "ConnectionClosed",
+        "connectionfailed" => "ConnectionFailed",
+        "connectionrefused" => "ConnectionRefused",
+        "connectionreset" => "ConnectionReset",
+        "internetdisconnected" => "InternetDisconnected",
+        "namenotresolved" => "NameNotResolved",
+        "timedout" => "TimedOut",
+        "failed" => "Failed",
+        _ => return None,
+    })
+}
+
+/// Response headers for `route.fulfill()`, like Playwright: lower-cased
+/// names, then `content-type` (explicit, or JSON), then `content-length`
+/// when there is a body and none was given.
+pub fn fulfill_headers(
+    headers: &[(String, String)],
+    content_type: Option<&str>,
+    json: bool,
+    body_len: usize,
+) -> Vec<HeaderEntry> {
+    let mut out: Vec<HeaderEntry> = Vec::new();
+    let set = |out: &mut Vec<HeaderEntry>, name: String, value: String| match out
+        .iter_mut()
+        .find(|h| h.name == name)
+    {
+        Some(h) => h.value = value,
+        None => out.push(HeaderEntry { name, value }),
+    };
+    for (k, v) in headers {
+        set(&mut out, k.to_lowercase(), v.clone());
+    }
+    if let Some(ct) = content_type {
+        set(&mut out, "content-type".into(), ct.to_owned());
+    } else if json {
+        set(&mut out, "content-type".into(), "application/json".into());
+    }
+    if body_len > 0 && !out.iter().any(|h| h.name == "content-length") {
+        set(&mut out, "content-length".into(), body_len.to_string());
+    }
+    out
+}
+
+/// Splits multi-line `set-cookie` values into separate header entries.
+pub fn split_set_cookie(headers: Vec<HeaderEntry>) -> Vec<HeaderEntry> {
+    let mut out = Vec::new();
+    for h in headers {
+        if h.name.eq_ignore_ascii_case("set-cookie") {
+            for v in h.value.split('\n') {
+                out.push(HeaderEntry::new(h.name.clone(), v.trim()));
+            }
+        } else {
+            out.push(h);
+        }
+    }
+    out
+}
+
+/// The content type `route.fulfill({path})` uses for a file, by extension.
+pub fn mime_type_for_path(path: &str) -> Option<&'static str> {
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    let (_, ext) = name.rsplit_once('.')?;
+    Some(match ext.to_ascii_lowercase().as_str() {
+        "html" | "htm" => "text/html",
+        "css" => "text/css",
+        "js" | "mjs" | "cjs" => "text/javascript",
+        "json" | "map" => "application/json",
+        "txt" | "text" | "log" => "text/plain",
+        "csv" => "text/csv",
+        "xml" => "application/xml",
+        "md" => "text/markdown",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "avif" => "image/avif",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        "svg" => "image/svg+xml",
+        "woff" => "font/woff",
+        "woff2" => "font/woff2",
+        "ttf" => "font/ttf",
+        "otf" => "font/otf",
+        "pdf" => "application/pdf",
+        "zip" => "application/zip",
+        "wasm" => "application/wasm",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "ogg" => "audio/ogg",
+        _ => return None,
+    })
+}
+
+/// Bytes of header lines (`name: value\r\n`), like Playwright's `headersSize`.
+pub fn headers_size(headers: &[HeaderEntry]) -> u64 {
+    headers
+        .iter()
+        .map(|h| (h.name.len() + h.value.len() + 4) as u64)
+        .sum()
+}
+
+/// Size of the request head (`METHOD /path HTTP/1.1\r\n` + headers + `\r\n`).
+pub fn request_headers_size(headers: &[HeaderEntry], url: &str, method: &str) -> u64 {
+    let path = url::Url::parse(url).map(|u| u.path().len()).unwrap_or(1) as u64;
+    4 + method.len() as u64 + path + 8 + headers_size(headers)
+}
+
+/// Size of the response head (`HTTP/1.1 200 OK\r\n` + headers + `\r\n`).
+pub fn response_headers_size(headers: &[HeaderEntry], status_text: &str) -> u64 {
+    4 + 8 + 3 + status_text.len() as u64 + headers_size(headers) + 2
+}
+
+/// Playwright's `response.httpVersion()` from the protocol's `protocol` field.
+pub fn http_version(protocol: Option<&str>) -> String {
+    match protocol {
+        None | Some("") | Some("http/1.1") => "HTTP/1.1".into(),
+        Some("h2") => "HTTP/2.0".into(),
+        Some(other) => other.into(),
+    }
+}
+
+/// `request.sizes()`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequestSizes {
+    pub request_body_size: u64,
+    pub request_headers_size: u64,
+    pub response_body_size: u64,
+    pub response_headers_size: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn headers_from_a_protocol_object_split_raw_values() {
+        let obj = json!({"Content-Type": "text/html", "Set-Cookie": "a=1\nb=2"});
+        let plain = RawHeaders::from_protocol(&obj, false);
+        assert_eq!(plain.entries().len(), 2);
+        let raw = RawHeaders::from_protocol(&obj, true);
+        assert_eq!(raw.get_all("set-cookie"), ["a=1", "b=2"]);
+        assert_eq!(raw.get("SET-COOKIE").as_deref(), Some("a=1\nb=2"));
+        assert_eq!(raw.get("content-type").as_deref(), Some("text/html"));
+        assert_eq!(raw.get("missing"), None);
+    }
+
+    #[test]
+    fn header_map_lowercases_and_joins_duplicates() {
+        let h = RawHeaders::new(vec![
+            HeaderEntry::new("Accept", "a"),
+            HeaderEntry::new("accept", "b"),
+            HeaderEntry::new("Set-Cookie", "x=1"),
+            HeaderEntry::new("set-cookie", "y=2"),
+        ]);
+        let map = h.to_map();
+        assert_eq!(map["accept"], "a, b");
+        assert_eq!(map["set-cookie"], "x=1\ny=2");
+        assert_eq!(map.len(), 2);
+    }
+
+    #[test]
+    fn resource_types_are_lowercased() {
+        assert_eq!(resource_type(Some("XHR")), "xhr");
+        assert_eq!(resource_type(Some("Document")), "document");
+        assert_eq!(resource_type(None), "other");
+    }
+
+    #[test]
+    fn timing_follows_playwright() {
+        let t = Timing::from_protocol(
+            Some(&json!({
+                "requestTime": 100.5, "dnsStart": 1.0, "dnsEnd": 2.0, "connectStart": 3.0,
+                "sslStart": -1.0, "connectEnd": 4.0, "sendStart": 5.0, "receiveHeadersEnd": 6.0
+            })),
+            1_700_000_000.0,
+            100.0,
+        );
+        assert_eq!(t.start_time, (100.5 - 100.0 + 1_700_000_000.0) * 1000.0);
+        assert_eq!(
+            (t.domain_lookup_start, t.domain_lookup_end, t.connect_start),
+            (1.0, 2.0, 3.0)
+        );
+        assert_eq!(
+            (
+                t.secure_connection_start,
+                t.connect_end,
+                t.request_start,
+                t.response_start
+            ),
+            (-1.0, 4.0, 5.0, 6.0)
+        );
+        assert_eq!(t.response_end, -1.0);
+        let none = Timing::from_protocol(None, 10.0, 1.0);
+        assert_eq!((none.start_time, none.response_start), (10_000.0, -1.0));
+        // responseEnd is relative to the request's timestamp, at least responseStart.
+        let mut t = t;
+        t.finish(100.0, 100.002);
+        assert_eq!(t.response_end, 6.0);
+        t.finish(100.0, 100.5);
+        assert_eq!(t.response_end, 500.0);
+    }
+
+    #[test]
+    fn status_text_defaults() {
+        assert_eq!(status_text(201), "Created");
+        assert_eq!(status_text(404), "Not Found");
+        assert_eq!(status_text(799), "Unknown");
+    }
+}
+
+#[cfg(test)]
+mod route_tests {
+    use super::*;
+
+    #[test]
+    fn abort_error_codes_map_to_protocol_reasons() {
+        assert_eq!(error_reason("failed"), Some("Failed"));
+        assert_eq!(error_reason("connectionrefused"), Some("ConnectionRefused"));
+        assert_eq!(error_reason("namenotresolved"), Some("NameNotResolved"));
+        assert_eq!(error_reason("nope"), None);
+    }
+
+    #[test]
+    fn fulfill_headers_like_playwright() {
+        let h = fulfill_headers(&[("X-H".into(), "v".into())], Some("text/plain"), false, 5);
+        assert_eq!(
+            h,
+            [
+                HeaderEntry::new("x-h", "v"),
+                HeaderEntry::new("content-type", "text/plain"),
+                HeaderEntry::new("content-length", "5"),
+            ]
+        );
+        let json = fulfill_headers(&[], None, true, 7);
+        assert_eq!(
+            json[0],
+            HeaderEntry::new("content-type", "application/json")
+        );
+        let empty = fulfill_headers(&[("Content-Length".into(), "3".into())], None, false, 0);
+        assert_eq!(empty, [HeaderEntry::new("content-length", "3")]);
+    }
+
+    #[test]
+    fn set_cookie_headers_are_split_for_fulfill() {
+        let h = split_set_cookie(vec![
+            HeaderEntry::new("set-cookie", "a=1\nb=2"),
+            HeaderEntry::new("x", "y"),
+        ]);
+        assert_eq!(
+            h,
+            [
+                HeaderEntry::new("set-cookie", "a=1"),
+                HeaderEntry::new("set-cookie", "b=2"),
+                HeaderEntry::new("x", "y"),
+            ]
+        );
+    }
+}
+
+#[cfg(test)]
+mod mime_tests {
+    use super::*;
+
+    #[test]
+    fn mime_types_for_fulfill_path() {
+        assert_eq!(mime_type_for_path("a/b/page.html"), Some("text/html"));
+        assert_eq!(mime_type_for_path("x.JSON"), Some("application/json"));
+        assert_eq!(mime_type_for_path("x.png"), Some("image/png"));
+        assert_eq!(mime_type_for_path("x.css"), Some("text/css"));
+        assert_eq!(mime_type_for_path("x.js"), Some("text/javascript"));
+        assert_eq!(mime_type_for_path("x.svg"), Some("image/svg+xml"));
+        assert_eq!(mime_type_for_path("x.unknownext"), None);
+        assert_eq!(mime_type_for_path("noext"), None);
+    }
+}
+
+#[cfg(test)]
+mod size_tests {
+    use super::*;
+
+    #[test]
+    fn header_sizes_like_playwright() {
+        let headers = vec![HeaderEntry::new("a", "bc"), HeaderEntry::new("Host", "x")];
+        assert_eq!(headers_size(&headers), (1 + 2 + 4) + (4 + 1 + 4));
+        // "GET /p/q HTTP/1.1\r\n" + headers + "\r\n"
+        assert_eq!(
+            request_headers_size(&headers, "http://x/p/q?z=1", "GET"),
+            4 + 3 + 4 + 8 + 16
+        );
+        // "HTTP/1.1 200 OK\r\n" + headers + "\r\n"
+        assert_eq!(
+            response_headers_size(&headers, "OK"),
+            4 + 8 + 3 + 2 + 16 + 2
+        );
+    }
+
+    #[test]
+    fn http_versions_like_playwright() {
+        assert_eq!(http_version(None), "HTTP/1.1");
+        assert_eq!(http_version(Some("http/1.1")), "HTTP/1.1");
+        assert_eq!(http_version(Some("h2")), "HTTP/2.0");
+        assert_eq!(http_version(Some("h3")), "h3");
+    }
+}

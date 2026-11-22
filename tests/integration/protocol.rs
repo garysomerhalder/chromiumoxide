@@ -13,7 +13,7 @@ async fn typed_commands_and_events() {
     assert!(version.product.contains("Chrome"));
 
     let page = browser.new_page().await.unwrap();
-    let mut loads = page.events::<EventLoadEventFired>();
+    let mut loads = page.cdp_events::<EventLoadEventFired>();
     page.execute(NavigateParams::new("data:text/html,<p>x</p>"))
         .await
         .unwrap();

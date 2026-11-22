@@ -29,21 +29,7 @@ pub const UTILITY_WORLD: &str = "__chromiumoxide_utility_world__";
 /// Playwright's default timeout for actions and navigations.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// The main resource response of a navigation.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Response {
-    pub url: String,
-    pub status: u16,
-    pub status_text: String,
-    pub headers: HashMap<String, String>,
-}
-
-impl Response {
-    /// Status in 200..=299.
-    pub fn ok(&self) -> bool {
-        (200..300).contains(&self.status)
-    }
-}
+pub use crate::application::network::Response;
 
 #[derive(Default)]
 pub(crate) struct PageState {
@@ -74,7 +60,31 @@ pub(crate) struct PageInner {
     pub(crate) bindings: Mutex<HashMap<String, crate::application::scripts::BindingFn>>,
     pub(crate) keyboard: tokio::sync::Mutex<crate::domain::input::Keyboard>,
     pub(crate) mouse: tokio::sync::Mutex<crate::domain::input::Mouse>,
+    pub(crate) events: Mutex<crate::application::events::EventState>,
+    pub(crate) network: Mutex<crate::application::network::NetworkState>,
+    pub(crate) routes: crate::application::route::Routes,
+    /// Whether `Fetch` interception is on (routes or HTTP credentials).
+    pub(crate) intercepting: AtomicBool,
+    /// `page.setExtraHTTPHeaders()`.
+    pub(crate) extra_http_headers: Mutex<Option<std::collections::BTreeMap<String, String>>>,
+    /// The target that opened this page (popups).
+    pub(crate) opener_id: Option<String>,
+    pub(crate) websockets: Mutex<HashMap<String, crate::application::websocket::WebSocket>>,
+    pub(crate) workers: Mutex<Vec<crate::application::worker::Worker>>,
+    /// Pending file chooser waits (interception is on while > 0).
+    pub(crate) file_chooser_waiters: std::sync::atomic::AtomicI64,
+    /// `route.fetch()` calls waiting for their response stage, by interception id.
+    pub(crate) response_waiters: Mutex<HashMap<String, futures::channel::oneshot::Sender<Value>>>,
+    pub(crate) ws_routes: crate::application::websocket_route::WsRoutes,
 }
+
+impl PartialEq for Page {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
+impl Eq for Page {}
 
 /// A browser tab. Cheap to clone.
 #[derive(Clone)]
@@ -97,6 +107,7 @@ impl Page {
         context: &Arc<ContextInner>,
         session_id: String,
         target_id: String,
+        opener_id: Option<String>,
     ) -> Result<Page> {
         let cdp = shared.cdp.clone();
         let sid_owned = session_id.clone();
@@ -127,6 +138,13 @@ impl Page {
         for (method, params) in crate::application::scripts::context_script_commands(context) {
             calls.push(cdp.call(sid, method, params));
         }
+        for (method, params) in crate::application::route::context_route_commands(context) {
+            calls.push(cdp.call(sid, method, params));
+        }
+        for (method, params) in crate::application::storage::runtime_commands(context) {
+            calls.push(cdp.call(sid, method, params));
+        }
+        crate::application::credentials::setup_page(&cdp, &sid_owned, &target_id, context).await?;
         calls.push(cdp.call(sid, "Runtime.runIfWaitingForDebugger", json!({})));
         let tree = frame_tree.await?;
 
@@ -148,6 +166,19 @@ impl Page {
                 shared.font_platform == crate::domain::emulation::FontPlatform::Mac,
             )),
             mouse: tokio::sync::Mutex::new(crate::domain::input::Mouse::default()),
+            events: Mutex::new(Default::default()),
+            network: Mutex::new(Default::default()),
+            routes: Mutex::new(Vec::new()),
+            extra_http_headers: Mutex::new(None),
+            opener_id,
+            websockets: Mutex::new(HashMap::new()),
+            workers: Mutex::new(Vec::new()),
+            file_chooser_waiters: std::sync::atomic::AtomicI64::new(0),
+            response_waiters: Mutex::new(HashMap::new()),
+            ws_routes: Mutex::new(Vec::new()),
+            intercepting: AtomicBool::new(
+                options.http_credentials.is_some() || !context.routes.lock().unwrap().is_empty(),
+            ),
         });
         let page = Page { inner };
         let mut effects = Vec::new();
@@ -211,6 +242,22 @@ impl Page {
     }
 
     fn handle_event(&self, e: &RawEvent) {
+        if self.handle_page_event(e) {
+            return;
+        }
+        if e.method.starts_with("Network.webSocket") {
+            self.handle_websocket_event(e);
+            return;
+        }
+        if e.method.starts_with("Network.") {
+            self.handle_network_event(e);
+        }
+        if e.method == "Target.detachedFromTarget" {
+            if let Some(sid) = e.params.get("sessionId").and_then(Value::as_str) {
+                self.detach_worker(sid);
+            }
+            return;
+        }
         let p = &e.params;
         let s = |v: &Value, k: &str| {
             v.get(k)
@@ -231,6 +278,11 @@ impl Page {
                 "Page.frameNavigated" => {
                     let f = &p["frame"];
                     let url = format!("{}{}", s(f, "url"), s(f, "urlFragment"));
+                    if let Some(origin) = crate::application::storage::origin_of(&url)
+                        && let Some(ctx) = self.inner.context.upgrade()
+                    {
+                        ctx.add_origin(origin);
+                    }
                     if f.get("parentId").is_none() {
                         st.main_navigations += 1;
                         st.last_navigation_same_document = false;
@@ -293,49 +345,13 @@ impl Page {
                         effects = st.tree.request_started(&s(p, "frameId"), &rid, is_document);
                     }
                 }
-                "Network.responseReceived" => {
-                    // Like Playwright, data: URLs produce no Request/Response.
-                    let is_data = p
-                        .pointer("/response/url")
-                        .and_then(Value::as_str)
-                        .is_some_and(|u| u.starts_with("data:"));
-                    if s(p, "type") == "Document" && !is_data {
-                        let r = &p["response"];
-                        let headers = r
-                            .get("headers")
-                            .and_then(Value::as_object)
-                            .map(|h| {
-                                h.iter()
-                                    .map(|(k, v)| {
-                                        (
-                                            k.to_lowercase(),
-                                            v.as_str().unwrap_or_default().to_owned(),
-                                        )
-                                    })
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        let response = Response {
-                            url: s(r, "url"),
-                            status: r.get("status").and_then(Value::as_u64).unwrap_or_default()
-                                as u16,
-                            status_text: s(r, "statusText"),
-                            headers,
-                        };
-                        st.responses.insert(s(p, "requestId"), response);
-                    }
-                }
                 "Network.loadingFinished" | "Network.loadingFailed" => {
                     effects = st.tree.request_finished(&s(p, "requestId"));
                 }
                 "Fetch.requestPaused" => {
-                    let cdp = self.inner.shared.cdp.clone();
-                    let fut = cdp.call(
-                        Some(&self.inner.session_id),
-                        "Fetch.continueRequest",
-                        json!({"requestId": s(p, "requestId")}),
-                    );
-                    tokio::spawn(fut);
+                    drop(st);
+                    self.on_request_paused(p);
+                    return;
                 }
                 "Fetch.authRequired" => {
                     let request_id = s(p, "requestId");
@@ -343,15 +359,11 @@ impl Page {
                         .pointer("/request/url")
                         .and_then(Value::as_str)
                         .unwrap_or_default();
-                    let creds =
-                        self.inner
-                            .options
-                            .http_credentials
-                            .as_ref()
-                            .filter(|c| match &c.origin {
-                                None => true,
-                                Some(o) => origin_of(url).eq_ignore_ascii_case(o),
-                            });
+                    let creds = self.http_credentials();
+                    let creds = creds.as_ref().filter(|c| match &c.origin {
+                        None => true,
+                        Some(o) => origin_of(url).eq_ignore_ascii_case(o),
+                    });
                     let response = if st.auth_attempts.contains(&request_id) {
                         json!({"response": "CancelAuth"})
                     } else if let Some(c) = creds {
@@ -419,6 +431,10 @@ impl Page {
     pub(crate) fn mark_closed(&self) {
         if !self.inner.closed.swap(true, Ordering::SeqCst) {
             self.bump();
+            self.close_network();
+            self.close_websockets();
+            self.close_workers();
+            self.emit(crate::application::events::PageEvent::Close);
             if let Some(ctx) = self.inner.context.upgrade() {
                 ctx.forget_page(&self.inner.target_id);
             }
