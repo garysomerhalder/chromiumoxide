@@ -229,6 +229,73 @@ pub fn status_text(status: u16) -> &'static str {
     }
 }
 
+/// The protocol `ErrorReason` for a Playwright `route.abort(errorCode)` code.
+pub fn error_reason(code: &str) -> Option<&'static str> {
+    Some(match code {
+        "aborted" => "Aborted",
+        "accessdenied" => "AccessDenied",
+        "addressunreachable" => "AddressUnreachable",
+        "blockedbyclient" => "BlockedByClient",
+        "blockedbyresponse" => "BlockedByResponse",
+        "connectionaborted" => "ConnectionAborted",
+        "connectionclosed" => "ConnectionClosed",
+        "connectionfailed" => "ConnectionFailed",
+        "connectionrefused" => "ConnectionRefused",
+        "connectionreset" => "ConnectionReset",
+        "internetdisconnected" => "InternetDisconnected",
+        "namenotresolved" => "NameNotResolved",
+        "timedout" => "TimedOut",
+        "failed" => "Failed",
+        _ => return None,
+    })
+}
+
+/// Response headers for `route.fulfill()`, like Playwright: lower-cased
+/// names, then `content-type` (explicit, or JSON), then `content-length`
+/// when there is a body and none was given.
+pub fn fulfill_headers(
+    headers: &[(String, String)],
+    content_type: Option<&str>,
+    json: bool,
+    body_len: usize,
+) -> Vec<HeaderEntry> {
+    let mut out: Vec<HeaderEntry> = Vec::new();
+    let set = |out: &mut Vec<HeaderEntry>, name: String, value: String| match out
+        .iter_mut()
+        .find(|h| h.name == name)
+    {
+        Some(h) => h.value = value,
+        None => out.push(HeaderEntry { name, value }),
+    };
+    for (k, v) in headers {
+        set(&mut out, k.to_lowercase(), v.clone());
+    }
+    if let Some(ct) = content_type {
+        set(&mut out, "content-type".into(), ct.to_owned());
+    } else if json {
+        set(&mut out, "content-type".into(), "application/json".into());
+    }
+    if body_len > 0 && !out.iter().any(|h| h.name == "content-length") {
+        set(&mut out, "content-length".into(), body_len.to_string());
+    }
+    out
+}
+
+/// Splits multi-line `set-cookie` values into separate header entries.
+pub fn split_set_cookie(headers: Vec<HeaderEntry>) -> Vec<HeaderEntry> {
+    let mut out = Vec::new();
+    for h in headers {
+        if h.name.eq_ignore_ascii_case("set-cookie") {
+            for v in h.value.split('\n') {
+                out.push(HeaderEntry::new(h.name.clone(), v.trim()));
+            }
+        } else {
+            out.push(h);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

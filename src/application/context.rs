@@ -23,6 +23,7 @@ pub(crate) struct ContextInner {
     pub(crate) bindings: Mutex<HashMap<String, crate::application::scripts::BindingFn>>,
     pub(crate) changed: watch::Sender<u64>,
     pub(crate) closed: AtomicBool,
+    pub(crate) routes: crate::application::route::Routes,
 }
 
 impl ContextInner {
@@ -93,6 +94,7 @@ impl BrowserContext {
             bindings: Mutex::new(HashMap::new()),
             changed,
             closed: AtomicBool::new(false),
+            routes: Mutex::new(Vec::new()),
         });
         shared.contexts.lock().unwrap().insert(id, inner.clone());
         if !inner.options.permissions.is_empty() {

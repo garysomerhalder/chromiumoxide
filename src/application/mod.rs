@@ -15,6 +15,7 @@ pub mod network;
 pub mod page;
 pub mod page_init;
 pub mod protocol;
+pub mod route;
 pub mod screenshot;
 pub mod scripts;
 pub mod services;

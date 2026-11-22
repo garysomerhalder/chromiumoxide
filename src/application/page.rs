@@ -62,6 +62,9 @@ pub(crate) struct PageInner {
     pub(crate) mouse: tokio::sync::Mutex<crate::domain::input::Mouse>,
     pub(crate) events: Mutex<crate::application::events::EventState>,
     pub(crate) network: Mutex<crate::application::network::NetworkState>,
+    pub(crate) routes: crate::application::route::Routes,
+    /// Whether `Fetch` interception is on (routes or HTTP credentials).
+    pub(crate) intercepting: AtomicBool,
 }
 
 /// A browser tab. Cheap to clone.
@@ -115,6 +118,9 @@ impl Page {
         for (method, params) in crate::application::scripts::context_script_commands(context) {
             calls.push(cdp.call(sid, method, params));
         }
+        for (method, params) in crate::application::route::context_route_commands(context) {
+            calls.push(cdp.call(sid, method, params));
+        }
         calls.push(cdp.call(sid, "Runtime.runIfWaitingForDebugger", json!({})));
         let tree = frame_tree.await?;
 
@@ -138,6 +144,10 @@ impl Page {
             mouse: tokio::sync::Mutex::new(crate::domain::input::Mouse::default()),
             events: Mutex::new(Default::default()),
             network: Mutex::new(Default::default()),
+            routes: Mutex::new(Vec::new()),
+            intercepting: AtomicBool::new(
+                options.http_credentials.is_some() || !context.routes.lock().unwrap().is_empty(),
+            ),
         });
         let page = Page { inner };
         let mut effects = Vec::new();
@@ -293,13 +303,9 @@ impl Page {
                     effects = st.tree.request_finished(&s(p, "requestId"));
                 }
                 "Fetch.requestPaused" => {
-                    let cdp = self.inner.shared.cdp.clone();
-                    let fut = cdp.call(
-                        Some(&self.inner.session_id),
-                        "Fetch.continueRequest",
-                        json!({"requestId": s(p, "requestId")}),
-                    );
-                    tokio::spawn(fut);
+                    drop(st);
+                    self.on_request_paused(p);
+                    return;
                 }
                 "Fetch.authRequired" => {
                     let request_id = s(p, "requestId");

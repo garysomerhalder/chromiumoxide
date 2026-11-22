@@ -454,6 +454,18 @@ pub(crate) struct NetworkState {
     awaiting_response_extra: HashMap<String, VecDeque<(Request, Arc<ResponseData>)>>,
     /// Raw request headers that arrived before their request.
     early_request_extra: HashMap<String, VecDeque<RawHeaders>>,
+    /// `Fetch.requestPaused` interception ids that arrived before their request.
+    paused: HashMap<String, String>,
+}
+
+impl NetworkState {
+    pub(crate) fn request(&self, id: &str) -> Option<Request> {
+        self.requests.get(id).cloned()
+    }
+
+    pub(crate) fn stash_paused(&mut self, network_id: &str, interception_id: String) {
+        self.paused.insert(network_id.to_owned(), interception_id);
+    }
 }
 
 fn s(v: &Value, k: &str) -> String {
@@ -503,6 +515,7 @@ impl Page {
     pub(crate) fn handle_network_event(&self, e: &RawEvent) {
         let p = &e.params;
         let mut emit = Vec::new();
+        let mut route = None;
         {
             let mut net = self.inner.network.lock().unwrap();
             match e.method.as_str() {
@@ -583,7 +596,10 @@ impl Page {
                     if let Some(prev) = &redirected_from {
                         prev.update(|st| st.redirected_to = Some(Arc::downgrade(&request.inner)));
                     }
-                    net.requests.insert(id, request.clone());
+                    net.requests.insert(id.clone(), request.clone());
+                    if let Some(interception) = net.paused.remove(&id) {
+                        route = Some((request.clone(), interception));
+                    }
                     emit.push(PageEvent::Request(request));
                 }
                 "Network.requestWillBeSentExtraInfo" => {
@@ -689,6 +705,9 @@ impl Page {
         for event in emit {
             self.emit(event);
         }
+        if let Some((request, interception)) = route {
+            self.dispatch_route(request, interception);
+        }
     }
 
     fn attach_response(
@@ -730,6 +749,7 @@ impl Page {
         let requests: Vec<Request> = {
             let mut net = self.inner.network.lock().unwrap();
             net.awaiting_response_extra.clear();
+            net.paused.clear();
             net.requests.drain().map(|(_, r)| r).collect()
         };
         for r in requests {
