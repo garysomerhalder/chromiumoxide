@@ -5,6 +5,7 @@ mod aria;
 mod assertions;
 mod clock;
 mod context;
+mod context_events;
 mod coverage;
 mod debugger;
 mod dragdrop;
