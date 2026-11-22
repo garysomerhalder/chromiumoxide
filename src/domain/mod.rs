@@ -23,3 +23,4 @@ pub mod storage;
 pub mod trace;
 pub mod url_matcher;
 pub mod video;
+pub mod x509;
