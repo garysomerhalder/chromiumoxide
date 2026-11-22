@@ -198,7 +198,7 @@ Chrome for Testing and chrome-headless-shell.
 | `clock` | M6 | ✅ |
 | `credentials` | M4 | ✅ via Chromium's virtual WebAuthn authenticator |
 | `debugger` | M6 | ⬜ |
-| `request` | M6 | ⬜ |
+| `request` | M6 | ✅ |
 | `tracing` | M5 | ✅ actions, console, network, screencast (no DOM snapshots yet) |
 
 ### Page
@@ -306,7 +306,7 @@ Chrome for Testing and chrome-headless-shell.
 | `keyboard` | M3 | ✅ |
 | `localStorage` | M4 | ✅ |
 | `mouse` | M3 | ✅ |
-| `request` | M6 | ⬜ |
+| `request` | M6 | ✅ |
 | `screencast` | M5 | ✅ start/stop (frames, `.webm`), overlays, chapters, actions |
 | `sessionStorage` | M4 | ✅ |
 | `touchscreen` | M3 | ✅ |
@@ -713,34 +713,34 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `delete` | M6 | ⬜ |
-| `dispose` | M6 | ⬜ |
-| `fetch` | M6 | ⬜ |
-| `get` | M6 | ⬜ |
-| `head` | M6 | ⬜ |
-| `patch` | M6 | ⬜ |
-| `post` | M6 | ⬜ |
-| `put` | M6 | ⬜ |
-| `storageState` | M6 | ⬜ |
-| `tracing` | M6 | ⬜ |
+| `delete` | M6 | ✅ |
+| `dispose` | M6 | ✅ |
+| `fetch` | M6 | ✅ |
+| `get` | M6 | ✅ |
+| `head` | M6 | ✅ |
+| `patch` | M6 | ✅ |
+| `post` | M6 | ✅ |
+| `put` | M6 | ✅ |
+| `storageState` | M6 | ✅ |
+| `tracing` | M6 | 🟡 requests are not traced yet |
 
 ### APIResponse
 
 | Member | Milestone | Status |
 |---|---|---|
-| `json` | M6 | ⬜ |
-| `body` | M6 | ⬜ |
-| `dispose` | M6 | ⬜ |
-| `headers` | M6 | ⬜ |
-| `headersArray` | M6 | ⬜ |
-| `ok` | M6 | ⬜ |
+| `json` | M6 | ✅ |
+| `body` | M6 | ✅ |
+| `dispose` | M6 | ✅ |
+| `headers` | M6 | ✅ |
+| `headersArray` | M6 | ✅ |
+| `ok` | M6 | ✅ |
 | `securityDetails` | M6 | ⬜ |
 | `serverAddr` | M6 | ⬜ |
-| `status` | M6 | ⬜ |
-| `statusText` | M6 | ⬜ |
-| `text` | M6 | ⬜ |
+| `status` | M6 | ✅ |
+| `statusText` | M6 | ✅ |
+| `text` | M6 | ✅ |
 | `timing` | M6 | ⬜ |
-| `url` | M6 | ⬜ |
+| `url` | M6 | ✅ |
 
 ### BrowserType
 
