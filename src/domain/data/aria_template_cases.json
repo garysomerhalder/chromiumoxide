@@ -1,0 +1,446 @@
+[
+ {
+  "input": "- heading \"Title\" [level=1]",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "heading",
+   "name": "Title",
+   "level": 1
+  }
+ },
+ {
+  "input": "- button \"OK\"\n- link \"Home\"",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "fragment",
+   "children": [
+    {
+     "kind": "role",
+     "role": "button",
+     "name": "OK"
+    },
+    {
+     "kind": "role",
+     "role": "link",
+     "name": "Home"
+    }
+   ]
+  }
+ },
+ {
+  "input": "- list:\n  - listitem: One\n  - listitem:\n    - link \"Two\":\n      - /url: /two",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "list",
+   "name": "",
+   "children": [
+    {
+     "kind": "role",
+     "role": "listitem",
+     "name": "",
+     "children": [
+      {
+       "kind": "text",
+       "text": {
+        "raw": "One",
+        "normalized": "One"
+       }
+      }
+     ]
+    },
+    {
+     "kind": "role",
+     "role": "listitem",
+     "name": "",
+     "children": [
+      {
+       "kind": "role",
+       "role": "link",
+       "name": "Two",
+       "children": [],
+       "props": {
+        "url": {
+         "raw": "/two",
+         "normalized": "/two"
+        }
+       }
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "input": "- text: hello   world",
+  "errors": [],
+  "fragment": {
+   "kind": "text",
+   "text": {
+    "raw": "hello   world",
+    "normalized": "hello world"
+   }
+  }
+ },
+ {
+  "input": "- paragraph: Some text\n- textbox \"Name\": value\n- checkbox [checked]\n- checkbox [checked=mixed]\n- button [disabled] [pressed=false]",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "fragment",
+   "children": [
+    {
+     "kind": "role",
+     "role": "paragraph",
+     "name": "",
+     "children": [
+      {
+       "kind": "text",
+       "text": {
+        "raw": "Some text",
+        "normalized": "Some text"
+       }
+      }
+     ]
+    },
+    {
+     "kind": "role",
+     "role": "textbox",
+     "name": "Name",
+     "children": [
+      {
+       "kind": "text",
+       "text": {
+        "raw": "value",
+        "normalized": "value"
+       }
+      }
+     ]
+    },
+    {
+     "kind": "role",
+     "role": "checkbox",
+     "name": "",
+     "checked": true
+    },
+    {
+     "kind": "role",
+     "role": "checkbox",
+     "name": "",
+     "checked": "mixed"
+    },
+    {
+     "kind": "role",
+     "role": "button",
+     "name": "",
+     "disabled": true,
+     "pressed": false
+    }
+   ]
+  }
+ },
+ {
+  "input": "- heading /Ti.le/ [level=2]",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "heading",
+   "name": {
+    "pattern": "Ti.le"
+   },
+   "level": 2
+  }
+ },
+ {
+  "input": "- /children: equal\n- button \"a\"",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "fragment",
+   "children": [
+    {
+     "kind": "role",
+     "role": "button",
+     "name": "a"
+    }
+   ],
+   "containerMode": "equal"
+  }
+ },
+ {
+  "input": "- /children: deep-equal\n- button",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "fragment",
+   "children": [
+    {
+     "kind": "role",
+     "role": "button",
+     "name": ""
+    }
+   ],
+   "containerMode": "deep-equal"
+  }
+ },
+ {
+  "input": "- 'link \"a: b\"'",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "link",
+   "name": "a: b"
+  }
+ },
+ {
+  "input": "- \"button \\\"q\\\"\"",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "button",
+   "name": "q"
+  }
+ },
+ {
+  "input": "- listitem: 123",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "listitem",
+   "name": "",
+   "children": [
+    {
+     "kind": "text",
+     "text": {
+      "raw": "123",
+      "normalized": "123"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "input": "- listitem: true",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "listitem",
+   "name": "",
+   "children": [
+    {
+     "kind": "text",
+     "text": {
+      "raw": "true",
+      "normalized": "true"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "input": "- listitem: 1.50",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "listitem",
+   "name": "",
+   "children": [
+    {
+     "kind": "text",
+     "text": {
+      "raw": "1.5",
+      "normalized": "1.5"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "input": "- group:\n  - text: \"quoted: text\"\n  - text: 'single ''q'''",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "group",
+   "name": "",
+   "children": [
+    {
+     "kind": "text",
+     "text": {
+      "raw": "quoted: text",
+      "normalized": "quoted: text"
+     }
+    },
+    {
+     "kind": "text",
+     "text": {
+      "raw": "single 'q'",
+      "normalized": "single 'q'"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "input": "- paragraph: /\\d+ items/",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "paragraph",
+   "name": "",
+   "children": [
+    {
+     "kind": "text",
+     "text": {
+      "raw": "/\\d+ items/",
+      "normalized": "/\\d+ items/"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "input": "- button \"x\" [foo]",
+  "errors": [
+   "Unsupported attribute [foo]:\n\nbutton \"x\" [foo]\n            ^\n"
+  ],
+  "fragment": null
+ },
+ {
+  "input": "- button \"x\" [level=abc]",
+  "errors": [
+   "Value of \"level\" attribute must be a number:\n\nbutton \"x\" [level=abc]\n                  ^\n"
+  ],
+  "fragment": null
+ },
+ {
+  "input": "- 123",
+  "errors": [
+   "Sequence items should be strings or maps"
+  ],
+  "fragment": null
+ },
+ {
+  "input": "button",
+  "errors": [
+   "Aria snapshot must be a YAML sequence, elements starting with \" -\""
+  ],
+  "fragment": null
+ },
+ {
+  "input": "- listitem:",
+  "errors": [
+   "Node value should be a string or a sequence"
+  ],
+  "fragment": null
+ },
+ {
+  "input": "- button \"unterminated",
+  "errors": [
+   "Unterminated string:\n\nbutton \"unterminated\n                    ^\n"
+  ],
+  "fragment": null
+ },
+ {
+  "input": "- heading [level=1] \"late\"",
+  "errors": [
+   "Unexpected input:\n\nheading [level=1] \"late\"\n                  ^\n"
+  ],
+  "fragment": null
+ },
+ {
+  "input": "- navigation:\n    - link \"a\"\n    - link \"b\"",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "navigation",
+   "name": "",
+   "children": [
+    {
+     "kind": "role",
+     "role": "link",
+     "name": "a"
+    },
+    {
+     "kind": "role",
+     "role": "link",
+     "name": "b"
+    }
+   ]
+  }
+ },
+ {
+  "input": "- link \"x\":\n  - /url: https://example.com/a#b\n  - img \"logo\"",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "link",
+   "name": "x",
+   "children": [
+    {
+     "kind": "role",
+     "role": "img",
+     "name": "logo"
+    }
+   ],
+   "props": {
+    "url": {
+     "raw": "https://example.com/a#b",
+     "normalized": "https://example.com/a#b"
+    }
+   }
+  }
+ },
+ {
+  "input": "- button \"multi\n  line\"",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "button",
+   "name": "multi line"
+  }
+ },
+ {
+  "input": "- text: a # comment",
+  "errors": [],
+  "fragment": {
+   "kind": "text",
+   "text": {
+    "raw": "a",
+    "normalized": "a"
+   }
+  }
+ },
+ {
+  "input": "- generic [active]: x",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "generic",
+   "name": "",
+   "active": true,
+   "children": [
+    {
+     "kind": "text",
+     "text": {
+      "raw": "x",
+      "normalized": "x"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "input": "- region \"r\" [expanded] [selected=true] [invalid=grammar]",
+  "errors": [],
+  "fragment": {
+   "kind": "role",
+   "role": "region",
+   "name": "r",
+   "expanded": true,
+   "selected": true,
+   "invalid": "grammar"
+  }
+ }
+]
