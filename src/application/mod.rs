@@ -26,6 +26,7 @@ pub mod page_init;
 pub mod pdf;
 pub mod protocol;
 pub mod route;
+pub mod screencast;
 pub mod screenshot;
 pub mod scripts;
 pub mod selectors;

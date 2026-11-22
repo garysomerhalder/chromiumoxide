@@ -55,6 +55,7 @@ pub use application::pdf::Pdf;
 pub use application::route::{
     Abort, Continue, FetchResponse, Fulfill, Route, RouteFetch, RouteRegistration,
 };
+pub use application::screencast::{Overlay, Screencast, ScreencastFrame, ScreencastOptions};
 pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
 pub use application::selectors::Selectors;
