@@ -25,7 +25,10 @@ pub struct WebMcpAnnotations {
 
 /// Whether the launch arguments enable Chromium's `WebMCP` feature.
 pub fn webmcp_enabled(args: &[String]) -> bool {
-    unimplemented!()
+    args.iter()
+        .filter_map(|a| a.strip_prefix("--enable-features="))
+        .flat_map(|features| features.split(','))
+        .any(|f| f == "WebMCP")
 }
 
 /// Playwright's error when WebMCP is used without the feature.
@@ -34,12 +37,34 @@ pub const NOT_ENABLED: &str =
 
 /// Playwright's `normalizeTool`, from the injected script's description.
 pub fn normalize_tool(tool: &Value) -> WebMcpTool {
-    unimplemented!()
+    let hint = |k: &str| tool.pointer(&format!("/annotations/{k}")) == Some(&Value::Bool(true));
+    let annotations = WebMcpAnnotations {
+        read_only: hint("readOnly"),
+        untrusted_content: hint("untrustedContent"),
+        consequential: hint("consequential"),
+    };
+    let text = |k: &str| {
+        tool.get(k)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    WebMcpTool {
+        name: text("name"),
+        description: text("description"),
+        input_schema: tool.get("inputSchema").filter(|v| !v.is_null()).cloned(),
+        annotations: (annotations != WebMcpAnnotations::default()).then_some(annotations),
+    }
 }
 
 /// Playwright's error for `callTool` with an unknown name.
 pub fn unknown_tool_error(name: &str, available: &[String]) -> String {
-    unimplemented!()
+    let tail = if available.is_empty() {
+        " The frame does not register any WebMCP tools.".to_owned()
+    } else {
+        format!(" Available tools: {}.", available.join(", "))
+    };
+    format!("No WebMCP tool named \"{name}\".{tail}")
 }
 
 #[cfg(test)]

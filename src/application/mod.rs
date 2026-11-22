@@ -44,6 +44,7 @@ pub mod storage;
 pub mod tracing;
 pub mod video;
 pub mod wait;
+pub mod webmcp;
 pub mod websocket;
 pub mod websocket_route;
 pub mod worker;

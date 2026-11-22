@@ -15,6 +15,9 @@ pub(crate) struct Shared {
     pub(crate) font_platform: FontPlatform,
     /// e.g. `157.0.8103.78`.
     pub(crate) browser_version: String,
+    /// The `args` of a launched browser (None when connected), for checks
+    /// like Playwright's on `originalLaunchOptions.args`.
+    pub(crate) launch_args: Option<Vec<String>>,
     /// The browser that owns this connection (for `context.browser()`).
     pub(crate) browser: Mutex<std::sync::Weak<crate::application::browser::BrowserInner>>,
     /// `selectors.setTestIdAttribute` / `selectors.register`.

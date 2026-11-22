@@ -74,6 +74,7 @@ pub use application::snapshot::{ScreenshotAssertion, UpdateSnapshots};
 pub use application::storage::{StorageStateOptions, WebStorage};
 pub use application::tracing::{Tracing, TracingStart};
 pub use application::video::Video;
+pub use application::webmcp::WebMcp;
 pub use application::websocket::{WebSocket, WebSocketEvent, WsPayload};
 pub use application::websocket_route::{WebSocketRoute, WebSocketServer};
 pub use application::worker::Worker;
@@ -103,6 +104,7 @@ pub use domain::storage::{
 };
 pub use domain::url_matcher::UrlMatcher;
 pub use domain::video::RecordVideo;
+pub use domain::webmcp::{WebMcpAnnotations, WebMcpTool};
 pub use ports::Channel;
 
 /// A launched browser serving clients (Playwright's `BrowserServer`).

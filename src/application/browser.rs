@@ -76,6 +76,8 @@ pub(crate) struct BrowserInner {
     remove_profile: bool,
     /// `browser.bind()`: the connection served to other clients.
     bridge: Mutex<Option<Box<dyn crate::ports::BoundBridge>>>,
+    /// `LaunchOptions::args` (None when connected).
+    launch_args: Option<Vec<String>>,
 }
 
 impl Drop for BrowserInner {
@@ -177,6 +179,7 @@ impl Browser {
                 tracing: Mutex::new(None),
                 remove_profile: persistent.is_none(),
                 bridge: Mutex::new(None),
+                launch_args: Some(options.args.clone()),
             }),
         };
         let default_options = persistent.map(|(_, o)| o);
@@ -210,6 +213,7 @@ impl Browser {
                 tracing: Mutex::new(None),
                 remove_profile: false,
                 bridge: Mutex::new(None),
+                launch_args: None,
             }),
         };
         browser.handshake(None).await?;
@@ -272,6 +276,7 @@ impl Browser {
                 .and_then(|p| p.split('/').nth(1))
                 .unwrap_or_default()
                 .to_owned(),
+            launch_args: self.inner.launch_args.clone(),
             contexts: Mutex::new(HashMap::new()),
             downloads_dir: Mutex::new(None),
             downloads: Mutex::new(HashMap::new()),
