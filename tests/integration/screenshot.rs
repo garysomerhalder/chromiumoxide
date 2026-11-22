@@ -125,3 +125,103 @@ async fn screenshot_hides_the_caret_and_writes_to_a_path() {
     assert!(err.to_string().contains("clip.width"), "{err}");
     browser.close().await.unwrap();
 }
+
+const BOXES: &str = "<style>body{margin:0;background:#fff} div{position:absolute;width:50px;height:50px;background:rgb(255,0,0)} #a{left:0;top:0} #b{left:100px;top:0} #c{left:0;top:100px}</style><div id=a></div><div id=b></div><div id=c class=c></div>";
+
+#[tokio::test]
+async fn mask_covers_located_elements_with_a_colour() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let ctx = browser
+        .new_context(ContextOptions {
+            viewport: Some(Viewport::new(300, 200)),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = ctx.new_page().await.unwrap();
+    page.set_content(BOXES).await.unwrap();
+
+    // Default mask colour is Playwright's #F0F.
+    let shot = decode(&page.screenshot().mask(&[page.locator("#a")]).await.unwrap());
+    assert_eq!(pixel(&shot, 25, 25), [255, 0, 255, 255]);
+    assert_eq!(pixel(&shot, 125, 25), [255, 0, 0, 255]);
+
+    // Several locators, a custom colour, non-strict matching.
+    let shot = decode(
+        &page
+            .screenshot()
+            .mask(&[page.locator("#b"), page.locator("div.c, #nothing")])
+            .mask_color("#00FF00")
+            .await
+            .unwrap(),
+    );
+    assert_eq!(pixel(&shot, 25, 25), [255, 0, 0, 255]);
+    assert_eq!(pixel(&shot, 125, 25), [0, 255, 0, 255]);
+    assert_eq!(pixel(&shot, 25, 125), [0, 255, 0, 255]);
+
+    // The overlay is removed afterwards.
+    let shot = decode(&page.screenshot().await.unwrap());
+    assert_eq!(pixel(&shot, 125, 25), [255, 0, 0, 255]);
+
+    // Element screenshots take masks too.
+    let el = decode(
+        &page
+            .locator("#a")
+            .screenshot_builder()
+            .mask(&[page.locator("#a")])
+            .mask_color("#0000FF")
+            .await
+            .unwrap(),
+    );
+    assert_eq!(pixel(&el, 10, 10), [0, 0, 255, 255]);
+    browser.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn animations_disabled_finishes_finite_and_style_applies_while_capturing() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let ctx = browser
+        .new_context(ContextOptions {
+            viewport: Some(Viewport::new(300, 100)),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = ctx.new_page().await.unwrap();
+    page.set_content(
+        "<style>body{margin:0;background:#fff} @keyframes k{from{left:0}to{left:200px}} #m{position:absolute;top:0;left:0;width:50px;height:50px;background:rgb(255,0,0);animation:k 1000s linear forwards}</style><div id=m></div>",
+    )
+    .await
+    .unwrap();
+
+    let running = decode(&page.screenshot().await.unwrap());
+    assert_eq!(pixel(&running, 10, 10), [255, 0, 0, 255]);
+    assert_eq!(pixel(&running, 225, 10), [255, 255, 255, 255]);
+
+    let disabled = decode(
+        &page
+            .screenshot()
+            .animations(chromiumoxide::Animations::Disabled)
+            .await
+            .unwrap(),
+    );
+    assert_eq!(pixel(&disabled, 10, 10), [255, 255, 255, 255]);
+    assert_eq!(pixel(&disabled, 225, 10), [255, 0, 0, 255]);
+
+    let styled = decode(
+        &page
+            .screenshot()
+            .style("body { background: rgb(0, 0, 255) !important }")
+            .await
+            .unwrap(),
+    );
+    assert_eq!(pixel(&styled, 150, 80), [0, 0, 255, 255]);
+    assert_eq!(
+        page.evaluate::<String>("getComputedStyle(document.body).backgroundColor")
+            .await
+            .unwrap(),
+        "rgb(255, 255, 255)",
+        "the style is removed after capture"
+    );
+    browser.close().await.unwrap();
+}
