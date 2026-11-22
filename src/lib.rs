@@ -31,6 +31,7 @@ pub use application::discovery::Discovered;
 pub use application::page::{Goto, Page, Response};
 pub use application::screenshot::Screenshot;
 pub use application::services::Services;
+pub use domain::devices::{Device, device, device_names};
 pub use domain::discovery::Source as DiscoverySource;
 pub use domain::emulation::{
     ColorScheme, ContextOptions, Contrast, ForcedColors, Geolocation, HttpCredentials, Media,
