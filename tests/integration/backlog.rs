@@ -234,3 +234,119 @@ async fn context_and_browser_events() {
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(*browser_seen.lock().unwrap(), ["context", "disconnected"]);
 }
+
+const TWO_BUTTONS: &str =
+    "<button onclick='window.c=1'>a</button><button onclick='window.c=2'>b</button>";
+
+/// Playwright 1.65.1 (recorded): selector shortcuts and `$` use the first
+/// match unless `strictSelectors`; locators are always strict.
+#[tokio::test]
+async fn selector_shortcuts_strictness_and_query_selector() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(TWO_BUTTONS).await.unwrap();
+    page.click("button").await.unwrap();
+    assert_eq!(page.evaluate::<i64>("window.c").await.unwrap(), 1);
+    assert_eq!(
+        page.text_content("button").await.unwrap().as_deref(),
+        Some("a")
+    );
+    assert!(page.is_visible("button").await.unwrap());
+    let first = page.query_selector("button").await.unwrap().unwrap();
+    assert_eq!(first.text_content().await.unwrap().as_deref(), Some("a"));
+    assert!(page.query_selector("nope").await.unwrap().is_none());
+    assert_eq!(page.query_selector_all("button").await.unwrap().len(), 2);
+    assert_eq!(
+        page.eval_on_selector::<String>("button", "e => e.textContent")
+            .await
+            .unwrap(),
+        "a"
+    );
+    assert_eq!(
+        page.eval_on_selector_all_with::<i64, _>("button", "(es, n) => es.length * n", 10)
+            .await
+            .unwrap(),
+        20
+    );
+    let err = page
+        .eval_on_selector::<String>("nope", "e => e.id")
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Failed to find element matching selector \"nope\""),
+        "{err}"
+    );
+    let body = page.query_selector("body").await.unwrap().unwrap();
+    assert_eq!(body.query_selector_all("button").await.unwrap().len(), 2);
+    assert_eq!(
+        body.eval_on_selector::<String>("button:last-child", "e => e.textContent")
+            .await
+            .unwrap(),
+        "b"
+    );
+    assert_eq!(
+        page.main_frame()
+            .eval_on_selector_all::<usize>("button", "es => es.length")
+            .await
+            .unwrap(),
+        2
+    );
+    let err = page
+        .locator("button")
+        .click()
+        .timeout(Duration::from_millis(500))
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("strict mode violation"), "{err}");
+
+    let strict = browser
+        .new_context(chromiumoxide::ContextOptions {
+            strict_selectors: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = strict.new_page().await.unwrap();
+    page.set_content(TWO_BUTTONS).await.unwrap();
+    for err in [
+        page.click("button").await.unwrap_err(),
+        page.text_content("button").await.unwrap_err(),
+        page.query_selector("button").await.unwrap_err(),
+    ] {
+        assert!(err.to_string().contains("strict mode violation"), "{err}");
+    }
+    browser.close().await.unwrap();
+}
+
+/// `page.close({ runBeforeUnload: true })` runs `beforeunload` (a dialog
+/// Playwright accepts by default) before the page closes.
+#[tokio::test]
+async fn close_can_run_before_unload() {
+    use futures::StreamExt;
+    let (browser, page) = page_with(
+        "<button>x</button><script>addEventListener('beforeunload', e => { e.preventDefault(); e.returnValue = ''; })</script>",
+    )
+    .await;
+    page.click("button").await.unwrap();
+    let mut events = page.events();
+    page.close_with(chromiumoxide::PageCloseOptions {
+        run_before_unload: true,
+    })
+    .await
+    .unwrap();
+    let mut kinds = Vec::new();
+    while let Ok(Some(e)) = tokio::time::timeout(Duration::from_secs(5), events.next()).await {
+        match e {
+            chromiumoxide::PageEvent::Dialog(d) => kinds.push(format!("dialog:{}", d.kind())),
+            chromiumoxide::PageEvent::Close => {
+                kinds.push("close".into());
+                break;
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(kinds, ["dialog:beforeunload", "close"]);
+    assert!(page.is_closed());
+    browser.close().await.unwrap();
+}
