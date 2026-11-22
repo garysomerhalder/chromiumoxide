@@ -57,6 +57,7 @@ pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
 pub use application::services::Services;
 pub use application::storage::WebStorage;
+pub use application::video::Video;
 pub use application::websocket::{WebSocket, WebSocketEvent, WsPayload};
 pub use application::websocket_route::{WebSocketRoute, WebSocketServer};
 pub use application::worker::Worker;
@@ -82,6 +83,7 @@ pub use domain::storage::{
     ClearCookies, Cookie, NameValue, NewCookie, OriginState, SameSite, StorageState,
 };
 pub use domain::url_matcher::UrlMatcher;
+pub use domain::video::RecordVideo;
 pub use ports::Channel;
 
 /// Entry point, like Playwright's `chromium` browser type.
@@ -95,6 +97,7 @@ impl Chromium {
             env: Arc::new(adapters::os::OsEnvironment),
             launcher: Arc::new(adapters::process::TokioLauncher),
             clock: Arc::new(adapters::clock::TokioClock),
+            video: Arc::new(adapters::video::FfmpegEncoder),
         }
     }
 

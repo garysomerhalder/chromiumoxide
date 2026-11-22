@@ -456,6 +456,7 @@ mod tests {
             env: Arc::new(MapEnvironment::linux("/home/u")),
             launcher: Arc::new(launcher.clone()),
             clock: Arc::new(TestClock),
+            video: Arc::new(crate::testing::memory::NullVideo),
         };
         (s, fs)
     }

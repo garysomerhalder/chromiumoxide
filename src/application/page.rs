@@ -76,6 +76,7 @@ pub(crate) struct PageInner {
     /// `route.fetch()` calls waiting for their response stage, by interception id.
     pub(crate) response_waiters: Mutex<HashMap<String, futures::channel::oneshot::Sender<Value>>>,
     pub(crate) ws_routes: crate::application::websocket_route::WsRoutes,
+    pub(crate) video: Mutex<Option<crate::application::video::Video>>,
 }
 
 impl PartialEq for Page {
@@ -176,6 +177,7 @@ impl Page {
             file_chooser_waiters: std::sync::atomic::AtomicI64::new(0),
             response_waiters: Mutex::new(HashMap::new()),
             ws_routes: Mutex::new(Vec::new()),
+            video: Mutex::new(None),
             intercepting: AtomicBool::new(
                 options.http_credentials.is_some() || !context.routes.lock().unwrap().is_empty(),
             ),
@@ -188,6 +190,7 @@ impl Page {
         }
         page.apply_effects(effects);
         page.spawn_event_loop(events);
+        page.start_video();
 
         for result in futures::future::join_all(calls).await {
             result?;

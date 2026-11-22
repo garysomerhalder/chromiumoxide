@@ -113,3 +113,31 @@ impl Environment for MapEnvironment {
         self.os
     }
 }
+
+/// A video encoder that writes nothing (unit tests).
+pub struct NullVideo;
+
+struct NullSink;
+
+impl crate::ports::VideoEncoder for NullVideo {
+    fn start(
+        &self,
+        _output: &Path,
+        _width: u32,
+        _height: u32,
+    ) -> futures::future::BoxFuture<'static, io::Result<Box<dyn crate::ports::VideoSink>>> {
+        Box::pin(async { Ok(Box::new(NullSink) as Box<dyn crate::ports::VideoSink>) })
+    }
+}
+
+impl crate::ports::VideoSink for NullSink {
+    fn write_frame<'a>(
+        &'a mut self,
+        _jpeg: &'a [u8],
+    ) -> futures::future::BoxFuture<'a, io::Result<()>> {
+        Box::pin(async { Ok(()) })
+    }
+    fn finish(self: Box<Self>) -> futures::future::BoxFuture<'static, io::Result<()>> {
+        Box::pin(async { Ok(()) })
+    }
+}

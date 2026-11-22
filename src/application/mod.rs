@@ -28,6 +28,7 @@ pub mod services;
 pub(crate) mod shared;
 pub mod shortcuts;
 pub mod storage;
+pub mod video;
 pub mod wait;
 pub mod websocket;
 pub mod websocket_route;
