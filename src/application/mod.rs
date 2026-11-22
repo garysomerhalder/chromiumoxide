@@ -2,6 +2,7 @@
 
 pub mod actions;
 pub mod aria;
+pub mod aria_snapshot;
 pub mod browser;
 pub mod clock;
 pub mod context;

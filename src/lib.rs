@@ -30,6 +30,7 @@ pub use chromiumoxide_fetcher as fetcher;
 
 pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::aria::AriaAssertion;
+pub use application::aria_snapshot::{AriaSnapshotMode, AriaSnapshotOptions};
 pub use application::browser::{Browser, LaunchOptions};
 pub use application::clock::Clock;
 pub use application::context::{BrowserContext, ContextEvent, PageWaiter, WebError};
@@ -44,7 +45,7 @@ pub use application::expect::{
 };
 pub use application::extras::{BrowserType, CdpSessionHandle, EmulateMedia, WaitForNavigation};
 pub use application::filechooser::{FileChooser, FileChooserWaiter};
-pub use application::frame::Frame;
+pub use application::frame::{ContentOptions, Frame};
 pub use application::handle::JsHandle;
 pub use application::har::RouteFromHar;
 pub use application::input::{Keyboard, Mouse, Touchscreen};

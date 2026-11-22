@@ -11,6 +11,21 @@ use crate::domain::error::{Error, Result};
 use crate::domain::frame::World;
 use crate::domain::selectors::{self, RoleOptions, TextMatch};
 
+/// Options of `page.content()` / `frame.content()`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContentOptions {
+    /// Serialize open shadow roots as declarative shadow DOM
+    /// (`<template shadowrootmode="open">`), Playwright 1.64.
+    pub include_shadow: bool,
+}
+
+impl Page {
+    /// `page.content({ includeShadow })`.
+    pub async fn content_with(&self, options: ContentOptions) -> Result<String> {
+        self.main_frame().content_with(options).await
+    }
+}
+
 /// A frame of a page (Playwright's `Frame`). Cheap to clone.
 #[derive(Clone)]
 pub struct Frame {
@@ -207,6 +222,21 @@ impl Frame {
                 "function() { let h = ''; if (document.doctype) h = new XMLSerializer().serializeToString(document.doctype); if (document.documentElement) h += document.documentElement.outerHTML; return h; }",
                 &[],
                 "reading content",
+            )
+            .await?;
+        Ok(v.as_str().unwrap_or_default().to_owned())
+    }
+
+    /// `frame.content({ includeShadow })`.
+    pub async fn content_with(&self, options: ContentOptions) -> Result<String> {
+        let v = self
+            .page
+            .injected_call(
+                Some(&self.id),
+                "(i, includeShadow) => i.documentContent(includeShadow)",
+                &[Value::Bool(options.include_shadow)],
+                true,
+                self.page.default_timeout(),
             )
             .await?;
         Ok(v.as_str().unwrap_or_default().to_owned())

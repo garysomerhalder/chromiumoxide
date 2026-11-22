@@ -197,13 +197,14 @@ impl Page {
             )
             .await?;
         if installed.pointer("/result/value") != Some(&Value::Bool(true)) {
+            let frame_seq = self.frame_seq(frame);
             let options = json!({
-                "isUnderTest": false, "sdkLanguage": "javascript", "frameSeq": 0,
+                "isUnderTest": false, "sdkLanguage": "javascript", "frameSeq": frame_seq,
                 "testIdAttributeName": self.test_id_attribute(), "stableRafCount": 1, "browserName": "chromium",
                 "isUtilityWorld": true, "customEngines": self.custom_engines(),
             });
             let install = format!(
-                "(() => {{ if ({INJECTED}) return; const module = {{}};\n{INJECTED_SOURCE}\n{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); }})()"
+                "(() => {{ if ({INJECTED}) return; const module = {{}};\n{INJECTED_SOURCE}\n{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); {INJECTED}.__chromiumoxide_render_aria_yaml = json => renderAriaSnapshotAsYaml(json); }})()"
             );
             let r = self
                 .send(
@@ -214,6 +215,22 @@ impl Page {
             crate::application::js::result_value(&r)?;
         }
         Ok(context_id)
+    }
+
+    /// Playwright's `frame.seq` of a frame (None: the main frame).
+    pub(crate) fn frame_seq(&self, frame: Option<&str>) -> u64 {
+        let st = self.inner.state.lock().unwrap();
+        let f = match frame {
+            Some(id) => st.tree.frame(id),
+            None => st.tree.main_frame(),
+        };
+        f.map_or(0, |f| f.seq)
+    }
+
+    /// The frame with Playwright sequence number `seq`.
+    fn frame_id_by_seq(&self, seq: u64) -> Option<String> {
+        let st = self.inner.state.lock().unwrap();
+        st.tree.frame_by_seq(seq).map(|f| f.id.clone())
     }
 
     /// Calls `body(injected, ...args)` in the utility world.
@@ -266,7 +283,7 @@ impl Page {
     }
 
     /// Calls `body(injected, element, ...args)`.
-    async fn element_call(
+    pub(crate) async fn element_call(
         &self,
         el: &ElementRef,
         body: &str,
@@ -403,6 +420,11 @@ impl Locator {
         self.with(compose::chain(&self.selector, selector))
     }
     /// `locator.locator(otherLocator)`.
+    /// `locator.within(parent)`: this locator, looked up inside each element
+    /// of `parent` (Playwright 1.64; `parent.locator(this)`).
+    pub fn within(&self, parent: &Locator) -> Locator {
+        parent.locator_of(self)
+    }
     pub fn locator_of(&self, other: &Locator) -> Locator {
         self.with(compose::chain_locator(&self.selector, &other.selector))
     }
@@ -469,6 +491,9 @@ impl Locator {
         let mut owner = None;
         let mut visible = true;
         for hop in hops {
+            if let Some(id) = self.aria_ref_frame(hop)? {
+                frame = Some(id);
+            }
             let Some(el) = self
                 .page
                 .query_in(frame.as_deref(), hop, true, timeout)
@@ -505,10 +530,45 @@ impl Locator {
             frame = Some(frame_id.to_owned());
             owner = Some(el);
         }
+        if let Some(id) = self.aria_ref_frame(last)? {
+            frame = Some(id);
+        }
         Ok(Some((frame, last.clone(), owner, visible)))
     }
 
-    async fn query(&self, strict: bool, timeout: Duration) -> Result<Option<ElementRef>> {
+    /// Playwright's `_jumpToAriaRefFrameIfNeeded`: a chunk starting with an
+    /// 'ai' ref of a child frame (`aria-ref=f1e3`) is queried in that frame.
+    fn aria_ref_frame(&self, chunk: &str) -> Result<Option<String>> {
+        let Some(body) = chunk.trim_start().strip_prefix("aria-ref=") else {
+            return Ok(None);
+        };
+        let body = body.split(">>").next().unwrap_or_default().trim();
+        let Some(seq) = body
+            .strip_prefix('f')
+            .and_then(|rest| rest.split_once('e'))
+            .filter(|(f, e)| {
+                !f.is_empty()
+                    && !e.is_empty()
+                    && f.bytes().all(|b| b.is_ascii_digit())
+                    && e.bytes().all(|b| b.is_ascii_digit())
+            })
+            .and_then(|(f, _)| f.parse::<u64>().ok())
+        else {
+            return Ok(None);
+        };
+        self.page.frame_id_by_seq(seq).map(Some).ok_or_else(|| {
+            Error::InvalidArgument(format!(
+                "Invalid frame in aria-ref selector \"{}\"",
+                self.selector
+            ))
+        })
+    }
+
+    pub(crate) async fn query(
+        &self,
+        strict: bool,
+        timeout: Duration,
+    ) -> Result<Option<ElementRef>> {
         let Some((frame, selector, mut frame_owner, frame_visible)) =
             self.scope_visible(timeout).await?
         else {
