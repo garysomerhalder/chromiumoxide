@@ -639,15 +639,30 @@ pub enum FontPlatform {
 
 impl FontPlatform {
     /// Playwright's `CRBrowser._platform()`.
-    pub fn from_user_agent(_ua: &str) -> Self {
-        unimplemented!()
+    pub fn from_user_agent(ua: &str) -> Self {
+        if ua.contains("Windows") {
+            Self::Win
+        } else if ua.contains("Macintosh") {
+            Self::Mac
+        } else {
+            Self::Linux
+        }
     }
 }
 
 /// Playwright's `platformToFontFamilies` entry: the `Page.setFontFamilies`
 /// parameters applied to every headless page.
-pub fn default_font_families(_platform: FontPlatform) -> serde_json::Value {
-    unimplemented!()
+pub fn default_font_families(platform: FontPlatform) -> serde_json::Value {
+    static TABLE: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
+    let table = TABLE.get_or_init(|| {
+        serde_json::from_str(include_str!("data/font_families.json")).expect("valid font table")
+    });
+    let key = match platform {
+        FontPlatform::Linux => "linux",
+        FontPlatform::Mac => "mac",
+        FontPlatform::Win => "win",
+    };
+    table[key].clone()
 }
 
 #[cfg(test)]
