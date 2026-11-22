@@ -249,9 +249,15 @@ mod tests {
         );
         let v: serde_json::Value = serde_json::from_str(&e).unwrap();
         assert_eq!(v["type"], "context-options");
-        assert_eq!(v["version"], TRACE_VERSION);
+        // Recorded from Playwright 1.65.1: trace format 10, options without
+        // `noDefaultViewport`.
+        assert_eq!(v["version"], 10);
+        assert_eq!(v["playwrightVersion"], "1.65.1");
+        assert_eq!(
+            v["options"],
+            serde_json::json!({"viewport": {"width": 1280, "height": 720}})
+        );
         assert_eq!(v["browserName"], "chromium");
-        assert_eq!(v["options"]["viewport"]["width"], 1280);
         assert_eq!(v["title"], "t");
     }
 }
