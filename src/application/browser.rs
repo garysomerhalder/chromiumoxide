@@ -74,6 +74,8 @@ pub(crate) struct BrowserInner {
     tracing: Mutex<Option<Option<String>>>,
     /// Delete the profile on close (temporary profiles only).
     remove_profile: bool,
+    /// `browser.bind()`: the connection served to other clients.
+    bridge: Mutex<Option<Box<dyn crate::ports::BoundBridge>>>,
 }
 
 impl Drop for BrowserInner {
@@ -174,6 +176,7 @@ impl Browser {
                 closed: AtomicBool::new(false),
                 tracing: Mutex::new(None),
                 remove_profile: persistent.is_none(),
+                bridge: Mutex::new(None),
             }),
         };
         let default_options = persistent.map(|(_, o)| o);
@@ -206,10 +209,38 @@ impl Browser {
                 closed: AtomicBool::new(false),
                 tracing: Mutex::new(None),
                 remove_profile: false,
+                bridge: Mutex::new(None),
             }),
         };
         browser.handshake(None).await?;
         Ok(browser)
+    }
+
+    /// Playwright's `browser.bind()`: lets other clients
+    /// ([`Chromium::connect`](crate::Chromium::connect)) share this browser
+    /// over a local WebSocket, whatever channel it was launched with. Their
+    /// endpoint speaks CDP. Binding again returns the same endpoint.
+    pub async fn bind(&self) -> Result<String> {
+        if let Some(b) = self.inner.bridge.lock().unwrap().as_ref() {
+            return Ok(b.endpoint());
+        }
+        let bound = self
+            .inner
+            .services
+            .bridge
+            .serve(self.inner.cdp.clone())
+            .await?;
+        let endpoint = bound.endpoint();
+        *self.inner.bridge.lock().unwrap() = Some(bound);
+        Ok(endpoint)
+    }
+
+    /// `browser.unbind()`: stops serving other clients.
+    pub async fn unbind(&self) -> Result<()> {
+        if let Some(b) = self.inner.bridge.lock().unwrap().take() {
+            b.stop();
+        }
+        Ok(())
     }
 
     /// The DevTools WebSocket URL, if the browser was launched or connected over one.
@@ -568,6 +599,7 @@ mod tests {
             clock: Arc::new(TestClock),
             video: Arc::new(crate::testing::memory::NullVideo),
             http: Arc::new(crate::testing::memory::NoHttp),
+            bridge: Arc::new(crate::testing::memory::NoBridge),
         };
         (s, fs)
     }

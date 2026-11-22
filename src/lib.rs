@@ -137,6 +137,7 @@ impl Chromium {
             clock: Arc::new(adapters::clock::TokioClock),
             video: Arc::new(adapters::video::FfmpegEncoder),
             http: Arc::new(adapters::http::TcpHttpClient),
+            bridge: Arc::new(adapters::cdp::bridge::WsBridge),
         }
     }
 

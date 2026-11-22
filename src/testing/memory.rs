@@ -153,3 +153,15 @@ impl crate::ports::HttpClient for NoHttp {
         Box::pin(async { Err(io::Error::other("no network in unit tests")) })
     }
 }
+
+/// A bridge that refuses to serve (unit tests).
+pub struct NoBridge;
+
+impl crate::ports::CdpBridge for NoBridge {
+    fn serve(
+        &self,
+        _cdp: std::sync::Arc<dyn crate::ports::CdpSession>,
+    ) -> futures::future::BoxFuture<'static, io::Result<Box<dyn crate::ports::BoundBridge>>> {
+        Box::pin(async { Err(io::Error::other("no network in unit tests")) })
+    }
+}

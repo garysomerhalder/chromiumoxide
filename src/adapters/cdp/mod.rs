@@ -1,5 +1,6 @@
 //! CDP adapters.
 
+pub mod bridge;
 pub mod connection;
 pub mod memory_transport;
 
