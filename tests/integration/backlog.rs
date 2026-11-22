@@ -418,3 +418,80 @@ async fn request_max_retries() {
     assert_eq!(*seen.lock().unwrap(), Some(Ok(200)));
     browser.close().await.unwrap();
 }
+
+/// Playwright's `storageState({ opfs })`: origin private file system entries
+/// (`{ path, type, base64 }`), restored into new contexts.
+#[tokio::test]
+async fn storage_state_with_opfs() {
+    let server = crate::server::TestServer::start().await;
+    server.route("/", "text/html", "<p>opfs</p>", 0);
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let context = browser
+        .new_context(chromiumoxide::ContextOptions::default())
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+    page.evaluate::<()>(
+        "async () => { const root = await navigator.storage.getDirectory(); \
+         const dir = await root.getDirectoryHandle('dir', { create: true }); \
+         const f = await dir.getFileHandle('a.txt', { create: true }); \
+         const w = await f.createWritable(); await w.write('hello'); await w.close(); }",
+    )
+    .await
+    .unwrap();
+    let plain = context.storage_state().await.unwrap();
+    assert!(plain.origins.iter().all(|o| o.opfs.is_none()), "{plain:?}");
+    let state = context
+        .storage_state_with(chromiumoxide::StorageStateOptions {
+            opfs: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let opfs = state.origins[0].opfs.clone().expect("opfs entries");
+    let file = opfs
+        .iter()
+        .find(|e| e["path"] == "dir/a.txt")
+        .unwrap_or_else(|| panic!("{opfs:?}"));
+    assert_eq!(file["type"], "file");
+    assert_eq!(file["base64"], "aGVsbG8=");
+
+    let restored = browser
+        .new_context(chromiumoxide::ContextOptions {
+            storage_state: Some(state.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = restored.new_page().await.unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+    let text: String = page
+        .evaluate(
+            "async () => { const root = await navigator.storage.getDirectory(); \
+             const dir = await root.getDirectoryHandle('dir'); \
+             return await (await (await dir.getFileHandle('a.txt')).getFile()).text(); }",
+        )
+        .await
+        .unwrap();
+    assert_eq!(text, "hello");
+
+    // A standalone request context keeps the origins it was given.
+    let rq = Chromium::request_context(chromiumoxide::ApiRequestOptions {
+        storage_state: Some(state.clone()),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let back = rq
+        .storage_state_with(chromiumoxide::StorageStateOptions {
+            opfs: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(back.origins, state.origins);
+    let without = rq.storage_state().await.unwrap();
+    assert!(without.origins.iter().all(|o| o.opfs.is_none()));
+    browser.close().await.unwrap();
+}
