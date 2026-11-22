@@ -358,6 +358,20 @@ impl BrowserContext {
         F: Fn(Vec<Value>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = std::result::Result<Value, String>> + Send + 'static,
     {
+        self.register_context_binding(name, boxed(f)).await
+    }
+
+    /// Playwright's `context.exposeBinding(name, fn)`: like `expose_function`,
+    /// with the calling page and frame.
+    pub async fn expose_binding<F, Fut>(&self, name: &str, f: F) -> Result<()>
+    where
+        F: Fn(BindingSource, Vec<Value>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = std::result::Result<Value, String>> + Send + 'static,
+    {
+        self.register_context_binding(name, boxed_binding(f)).await
+    }
+
+    async fn register_context_binding(&self, name: &str, callback: BindingFn) -> Result<()> {
         {
             let mut bindings = self.inner.bindings.lock().unwrap();
             let on_page = self
@@ -369,7 +383,7 @@ impl BrowserContext {
                     "Function \"{name}\" has been already registered"
                 )));
             }
-            bindings.insert(name.to_owned(), boxed(f));
+            bindings.insert(name.to_owned(), callback);
         }
         for page in self.pages() {
             for (method, params) in binding_commands(name) {

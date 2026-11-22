@@ -28,6 +28,8 @@ pub(crate) struct ContextInner {
     /// Origins visited by the context's frames (for storage state).
     pub(crate) origins: crate::application::storage::Origins,
     pub(crate) subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<ContextEvent>>>,
+    pub(crate) ws_routes: crate::application::websocket_route::WsRoutes,
+    pub(crate) ws_routing: Mutex<crate::application::websocket_route::WsRouting>,
 }
 
 /// Something that happened in a context (Playwright's `context.on(...)`).
@@ -123,6 +125,8 @@ impl BrowserContext {
             runtime: Mutex::new(Default::default()),
             origins: Mutex::new(Vec::new()),
             subscribers: Mutex::new(Vec::new()),
+            ws_routes: Mutex::new(Vec::new()),
+            ws_routing: Mutex::new(Default::default()),
         });
         shared.contexts.lock().unwrap().insert(id, inner.clone());
         if inner.options.service_workers == crate::domain::emulation::ServiceWorkers::Block {

@@ -26,4 +26,5 @@ pub mod shortcuts;
 pub mod storage;
 pub mod wait;
 pub mod websocket;
+pub mod websocket_route;
 pub mod worker;
