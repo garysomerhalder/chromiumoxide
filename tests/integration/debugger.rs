@@ -135,3 +135,40 @@ async fn pick_locator_returns_the_clicked_element() {
     page.cancel_pick_locator().await.unwrap();
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn pick_locator_survives_navigation_and_reaches_frames() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content("<p>before</p>").await.unwrap();
+    let pick = tokio::spawn({
+        let page = page.clone();
+        async move { page.pick_locator().await }
+    });
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    // A new document keeps picking mode on.
+    page.set_content(
+        "<style>body{margin:0}</style><iframe style='border:0;width:300px;height:100px' srcdoc=\"<style>body{margin:0}</style><button style='width:100px;height:40px'>In</button>\"></iframe>",
+    )
+    .await
+    .unwrap();
+    page.wait_for_function(
+        "() => document.querySelector('iframe').contentDocument?.querySelector('button')",
+    )
+    .await
+    .unwrap();
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    page.mouse().move_to(50.0, 20.0, 1).await.unwrap();
+    page.mouse().click(50.0, 20.0).await.unwrap();
+    let locator = tokio::time::timeout(Duration::from_secs(5), pick)
+        .await
+        .expect("picked")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        locator.to_playwright_string().await.unwrap(),
+        "locator('iframe').contentFrame().getByRole('button', { name: 'In' })"
+    );
+    assert_eq!(locator.count().await.unwrap(), 1);
+    browser.close().await.unwrap();
+}
