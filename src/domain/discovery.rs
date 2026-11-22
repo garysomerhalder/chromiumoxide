@@ -218,10 +218,8 @@ pub fn rank_entries(layout: Layout, names: &[String]) -> Vec<String> {
                     let (class, rest) =
                         if let Some(rest) = name.strip_prefix("chromium_headless_shell-") {
                             (0, rest)
-                        } else if let Some(rest) = name.strip_prefix("chromium-") {
-                            (1, rest)
                         } else {
-                            return None;
+                            (1, name.strip_prefix("chromium-")?)
                         };
                     (class, vec![rest.parse::<u64>().ok()?])
                 }
@@ -354,7 +352,7 @@ mod tests {
                 source: Source::ChromeForTesting
             }
         );
-        let system: Vec<_> = got[10..].iter().cloned().collect();
+        let system: Vec<_> = got[10..].to_vec();
         assert_eq!(
             system[0],
             Probe::Candidate {
