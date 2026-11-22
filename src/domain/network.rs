@@ -309,3 +309,52 @@ mod tests {
         assert_eq!(status_text(799), "");
     }
 }
+
+#[cfg(test)]
+mod route_tests {
+    use super::*;
+
+    #[test]
+    fn abort_error_codes_map_to_protocol_reasons() {
+        assert_eq!(error_reason("failed"), Some("Failed"));
+        assert_eq!(error_reason("connectionrefused"), Some("ConnectionRefused"));
+        assert_eq!(error_reason("namenotresolved"), Some("NameNotResolved"));
+        assert_eq!(error_reason("nope"), None);
+    }
+
+    #[test]
+    fn fulfill_headers_like_playwright() {
+        let h = fulfill_headers(&[("X-H".into(), "v".into())], Some("text/plain"), false, 5);
+        assert_eq!(
+            h,
+            [
+                HeaderEntry::new("x-h", "v"),
+                HeaderEntry::new("content-type", "text/plain"),
+                HeaderEntry::new("content-length", "5"),
+            ]
+        );
+        let json = fulfill_headers(&[], None, true, 7);
+        assert_eq!(
+            json[0],
+            HeaderEntry::new("content-type", "application/json")
+        );
+        let empty = fulfill_headers(&[("Content-Length".into(), "3".into())], None, false, 0);
+        assert_eq!(empty, [HeaderEntry::new("content-length", "3")]);
+    }
+
+    #[test]
+    fn set_cookie_headers_are_split_for_fulfill() {
+        let h = split_set_cookie(vec![
+            HeaderEntry::new("set-cookie", "a=1\nb=2"),
+            HeaderEntry::new("x", "y"),
+        ]);
+        assert_eq!(
+            h,
+            [
+                HeaderEntry::new("set-cookie", "a=1"),
+                HeaderEntry::new("set-cookie", "b=2"),
+                HeaderEntry::new("x", "y"),
+            ]
+        );
+    }
+}

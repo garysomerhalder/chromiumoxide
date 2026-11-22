@@ -13,6 +13,7 @@ mod network;
 mod page;
 mod pixel_parity;
 mod protocol;
+mod routing;
 mod screenshot;
 mod scripts;
 mod server;
