@@ -618,6 +618,53 @@ impl ApiResponse {
     pub async fn json<T: DeserializeOwned>(&self) -> Result<T> {
         Ok(serde_json::from_slice(&self.body().await?)?)
     }
+    /// `response.serverAddr()`.
+    pub async fn server_addr(&self) -> Result<Option<crate::application::network::ServerAddr>> {
+        Ok(self.inner.response.server_addr.as_ref().map(|(ip, port)| {
+            crate::application::network::ServerAddr {
+                ip_address: ip.clone(),
+                port: *port,
+            }
+        }))
+    }
+
+    /// `response.securityDetails()`: `None` for plain HTTP.
+    pub async fn security_details(
+        &self,
+    ) -> Result<Option<crate::application::network::SecurityDetails>> {
+        let Some((protocol, cert)) = &self.inner.response.tls else {
+            return Ok(None);
+        };
+        let summary = cert
+            .as_deref()
+            .and_then(crate::domain::x509::certificate_summary);
+        Ok(Some(crate::application::network::SecurityDetails {
+            protocol: Some(protocol.clone()),
+            subject_name: summary.as_ref().and_then(|s| s.subject_name.clone()),
+            issuer: summary.as_ref().and_then(|s| s.issuer.clone()),
+            valid_from: summary.as_ref().map(|s| s.valid_from),
+            valid_to: summary.as_ref().map(|s| s.valid_to),
+        }))
+    }
+
+    /// `response.timing()`: milliseconds relative to `start_time` (-1: n/a).
+    pub fn timing(&self) -> crate::domain::network::Timing {
+        self.inner
+            .response
+            .timing
+            .unwrap_or(crate::domain::network::Timing {
+                start_time: 0.0,
+                domain_lookup_start: -1.0,
+                domain_lookup_end: -1.0,
+                connect_start: -1.0,
+                secure_connection_start: -1.0,
+                connect_end: -1.0,
+                request_start: -1.0,
+                response_start: -1.0,
+                response_end: -1.0,
+            })
+    }
+
     /// Frees the body; later reads fail.
     pub async fn dispose(&self) {
         *self.inner.body.lock().unwrap() = None;

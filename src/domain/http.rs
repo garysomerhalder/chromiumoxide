@@ -22,6 +22,11 @@ pub struct HttpResponse {
     pub status_text: String,
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
+    /// The server's IP address and port.
+    pub server_addr: Option<(String, u16)>,
+    /// TLS protocol (e.g. `TLSv1.3`) and the server's certificate (DER).
+    pub tls: Option<(String, Option<Vec<u8>>)>,
+    pub timing: Option<crate::domain::network::Timing>,
 }
 
 /// A `multipart` field.
