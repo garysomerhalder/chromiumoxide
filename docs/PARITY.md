@@ -9,6 +9,10 @@ Playwright reference: **1.65.1** (`playwright-core/types/types.d.ts`; M1-M6
 were built against 1.63.0, M7 brings everything to 1.65.1).
 Firefox and WebKit are out of scope (this is a CDP client).
 
+The member tables below track methods. Options, events and upcoming
+Playwright versions that are still missing are listed in
+[`BACKLOG.md`](BACKLOG.md) (audit of 2026-11-22).
+
 ### Notes
 
 - **Launch preset.** The default switches are the device-mockup contract
