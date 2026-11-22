@@ -154,3 +154,37 @@ async fn http_credentials_answer_basic_auth() {
     assert_eq!(response.status, 401);
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn set_content_on_a_new_page_lays_out_at_the_emulated_scale() {
+    // Chromium sometimes styles the initial about:blank document before the
+    // emulated device metrics reach the renderer, and document.open() reuses
+    // that document: text controls then keep a 1x layout (about 1 in 50 pages).
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let ctx = browser
+        .new_context(ContextOptions {
+            viewport: Some(Viewport::new(800, 600)),
+            device_scale_factor: Some(2.0),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let html = "<svg width='220' height='90'><rect width='100' height='66'/></svg><input value='x' style='font-size:16px'>";
+    let mut tops = std::collections::BTreeMap::<String, u32>::new();
+    for _ in 0..150 {
+        let page = ctx.new_page().await.unwrap();
+        page.set_content(html).await.unwrap();
+        let top: f64 = page
+            .evaluate("document.querySelector('input').getBoundingClientRect().top")
+            .await
+            .unwrap();
+        *tops.entry(top.to_string()).or_default() += 1;
+        page.close().await.unwrap();
+    }
+    assert_eq!(
+        tops.len(),
+        1,
+        "input position varies between identical pages: {tops:?}"
+    );
+    browser.close().await.unwrap();
+}
