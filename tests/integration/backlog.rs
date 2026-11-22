@@ -568,3 +568,47 @@ async fn debugger_run_to_a_source_location() {
     );
     browser.close().await.unwrap();
 }
+
+/// `browserServer.process()`: the browser's process, here its pid.
+#[tokio::test]
+async fn browser_server_process() {
+    let server = Chromium::launch_server(LaunchOptions::default())
+        .await
+        .unwrap();
+    let process = server.process().expect("launched by us");
+    let pid = process.pid();
+    let cmdline = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap();
+    let cmdline = String::from_utf8_lossy(&cmdline);
+    assert!(cmdline.contains("--remote-debugging-port"), "{cmdline}");
+    server.close().await.unwrap();
+    assert!(
+        !std::path::Path::new(&format!("/proc/{pid}/cmdline")).exists()
+            || std::fs::read_to_string(format!("/proc/{pid}/stat"))
+                .unwrap_or_default()
+                .contains(") Z"),
+        "process {pid} ended"
+    );
+}
+
+/// `download.createReadStream()`: the bytes as an `AsyncRead`.
+#[tokio::test]
+async fn download_read_stream() {
+    use futures::AsyncReadExt;
+    let server = crate::server::TestServer::start().await;
+    server.respond(
+        "/dl",
+        "200 OK",
+        &[("Content-Disposition", "attachment; filename=f.txt")],
+        "streamed bytes",
+    );
+    let (browser, page) = page_with("").await;
+    page.set_content(&format!("<a href='{}'>dl</a>", server.url("/dl")))
+        .await
+        .unwrap();
+    let download = page.wait_for_download().run(page.click("a")).await.unwrap();
+    let mut stream = download.create_read_stream().await.unwrap();
+    let mut out = String::new();
+    stream.read_to_string(&mut out).await.unwrap();
+    assert_eq!(out, "streamed bytes");
+    browser.close().await.unwrap();
+}
