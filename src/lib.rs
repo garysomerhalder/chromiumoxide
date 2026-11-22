@@ -102,6 +102,26 @@ pub use domain::url_matcher::UrlMatcher;
 pub use domain::video::RecordVideo;
 pub use ports::Channel;
 
+/// A launched browser serving clients (Playwright's `BrowserServer`).
+pub struct BrowserServer {
+    browser: Browser,
+}
+
+impl BrowserServer {
+    /// The URL clients pass to [`Chromium::connect`].
+    pub fn ws_endpoint(&self) -> String {
+        self.browser.ws_endpoint().unwrap_or_default()
+    }
+    /// Closes the browser (and every client's pages).
+    pub async fn close(&self) -> Result<()> {
+        self.browser.close().await
+    }
+    /// Same as [`close`](Self::close): the process is ended either way.
+    pub async fn kill(&self) -> Result<()> {
+        self.browser.close().await
+    }
+}
+
 /// Entry point, like Playwright's `chromium` browser type.
 pub struct Chromium;
 
@@ -141,6 +161,24 @@ impl Chromium {
     pub fn executable_path(options: &LaunchOptions) -> Result<Discovered> {
         let s = Self::services();
         application::discovery::discover(&*s.fs, &*s.env, options.executable_path.as_deref())
+    }
+
+    /// Playwright's `browserType.launchServer()`: a browser other processes
+    /// can [`connect`](Self::connect) to (its endpoint speaks CDP).
+    pub async fn launch_server(options: LaunchOptions) -> Result<BrowserServer> {
+        let browser = Self::launch(LaunchOptions {
+            channel: Channel::WebSocket,
+            ..options
+        })
+        .await?;
+        Ok(BrowserServer { browser })
+    }
+
+    /// Playwright's `browserType.connect(wsEndpoint)`: a client of a
+    /// [`BrowserServer`] (or of any browser's DevTools WebSocket). Closing it
+    /// disconnects and leaves the browser running.
+    pub async fn connect(ws_endpoint: &str) -> Result<Browser> {
+        Self::connect_over_cdp(ws_endpoint).await
     }
 
     /// Connects to a running browser's DevTools WebSocket URL.

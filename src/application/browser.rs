@@ -350,6 +350,7 @@ impl Browser {
         for inner in live {
             let _ = BrowserContext { inner }.flush_har().await;
         }
+        let mut context_ids: Vec<String> = Vec::new();
         let shared = self.inner.shared.lock().unwrap().take();
         if let Some(shared) = shared {
             let contexts: Vec<_> = shared
@@ -360,6 +361,9 @@ impl Browser {
                 .map(|(_, c)| c)
                 .collect();
             for c in contexts {
+                if !c.id.is_empty() {
+                    context_ids.push(c.id.clone());
+                }
                 c.closed.store(true, Ordering::SeqCst);
                 let pages = std::mem::take(&mut *c.pages.lock().unwrap());
                 for p in pages {
@@ -372,8 +376,25 @@ impl Browser {
                 let _ = self.inner.services.fs.remove_dir_all(&dir);
             }
         }
-        let _ = self.inner.cdp.call(None, "Browser.close", json!({})).await;
         let process = self.inner.process.lock().unwrap().take();
+        if process.is_none() {
+            // Connected, not launched: like Playwright, drop the contexts this
+            // client created and disconnect; the browser keeps running.
+            for id in context_ids {
+                let _ = self
+                    .inner
+                    .cdp
+                    .call(
+                        None,
+                        "Target.disposeBrowserContext",
+                        json!({"browserContextId": id}),
+                    )
+                    .await;
+            }
+            self.inner.cdp.disconnect();
+            return Ok(());
+        }
+        let _ = self.inner.cdp.call(None, "Browser.close", json!({})).await;
         if let Some(process) = process {
             process.shutdown().await;
         }

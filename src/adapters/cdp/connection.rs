@@ -138,6 +138,10 @@ impl Inner {
 }
 
 impl CdpSession for Connection {
+    fn disconnect(&self) {
+        self.inner.writer.close_channel();
+    }
+
     fn call(
         &self,
         session_id: Option<&str>,
