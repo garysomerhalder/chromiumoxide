@@ -35,6 +35,9 @@ pub(crate) struct ElementRef {
     pub(crate) object_id: String,
     /// The innermost `<iframe>` element the node lives in (None: main frame).
     pub(crate) frame_owner: Option<String>,
+    /// Whether every `<iframe>` hop to the node is visible (Playwright 1.64's
+    /// `frameVisible`: elements in hidden iframes are hidden).
+    pub(crate) frame_visible: bool,
 }
 
 /// `locator.waitFor({ state })`.
@@ -448,10 +451,23 @@ impl Locator {
         &self,
         timeout: Duration,
     ) -> Result<Option<(Option<String>, String, Option<String>)>> {
+        Ok(self
+            .scope_visible(timeout)
+            .await?
+            .map(|(frame, selector, owner, _)| (frame, selector, owner)))
+    }
+
+    /// Like [`Locator::scope`], plus whether every iframe hop is visible
+    /// (Playwright's `frameVisible`; a frame's own locators start visible).
+    pub(crate) async fn scope_visible(
+        &self,
+        timeout: Duration,
+    ) -> Result<Option<(Option<String>, String, Option<String>, bool)>> {
         let parts = split_frames(&self.selector);
         let (last, hops) = parts.split_last().expect("at least one part");
         let mut frame = self.frame.clone();
         let mut owner = None;
+        let mut visible = true;
         for hop in hops {
             let Some(el) = self
                 .page
@@ -469,14 +485,33 @@ impl Locator {
                     "Selector \"{hop}\" did not resolve to an <iframe>"
                 )));
             };
+            if visible {
+                let iframe = ElementRef {
+                    object_id: el.clone(),
+                    frame_owner: None,
+                    frame_visible: true,
+                };
+                visible = self
+                    .page
+                    .element_call(
+                        &iframe,
+                        "(i, node) => i.utils.isElementVisible(node)",
+                        &[],
+                        true,
+                    )
+                    .await?
+                    == Value::Bool(true);
+            }
             frame = Some(frame_id.to_owned());
             owner = Some(el);
         }
-        Ok(Some((frame, last.clone(), owner)))
+        Ok(Some((frame, last.clone(), owner, visible)))
     }
 
     async fn query(&self, strict: bool, timeout: Duration) -> Result<Option<ElementRef>> {
-        let Some((frame, selector, mut frame_owner)) = self.scope(timeout).await? else {
+        let Some((frame, selector, mut frame_owner, frame_visible)) =
+            self.scope_visible(timeout).await?
+        else {
             return Ok(None);
         };
         // A locator made from a child frame has no iframe hop: find the
@@ -494,6 +529,7 @@ impl Locator {
             .map(|object_id| ElementRef {
                 object_id,
                 frame_owner,
+                frame_visible,
             }))
     }
 
@@ -558,6 +594,17 @@ impl Locator {
         })
     }
 
+    /// [`Locator::resolved`] for actions: like Playwright 1.64, an element in
+    /// a hidden iframe is retried until its frame is visible.
+    async fn resolved_for_action(&self, timeout: Duration) -> Result<Attempt<ElementRef>> {
+        Ok(match self.resolved(timeout).await? {
+            Attempt::Done(el) if !el.frame_visible => {
+                Attempt::Retry("element is inside a hidden frame, retrying".into())
+            }
+            other => other,
+        })
+    }
+
     /// Waits for the element (strict) and returns it.
     pub(crate) async fn element(&self, what: &str, timeout: Duration) -> Result<ElementRef> {
         self.retry(what, timeout, |_| self.resolved(timeout)).await
@@ -569,21 +616,24 @@ impl Locator {
             .page
             .element_call(
                 el,
-                "async (i, node, states) => await i.checkElementStates(node, states)",
-                &[json!(states)],
+                "async (i, node, states, fv) => await i.checkElementStates(node, states, fv)",
+                &[json!(states), json!(el.frame_visible)],
                 true,
             )
             .await?;
         Ok(match r {
             Value::Null => None,
             Value::String(s) => Some(s),
-            other => Some(format!(
-                "element is not {}",
-                other
+            other => Some(
+                match other
                     .get("missingState")
                     .and_then(Value::as_str)
                     .unwrap_or("ready")
-            )),
+                {
+                    "non-inert" => "element is inert".to_owned(),
+                    state => format!("element is not {state}"),
+                },
+            ),
         })
     }
 
@@ -704,7 +754,7 @@ impl Locator {
     async fn pointer_action(&self, action: Action, o: &ClickOptions, what: &str) -> Result<()> {
         let timeout = o.timeout.unwrap_or_else(|| self.timeout());
         self.retry(what, timeout, |_| async move {
-            let el = match self.resolved(timeout).await? {
+            let el = match self.resolved_for_action(timeout).await? {
                 Attempt::Done(el) => el,
                 Attempt::Retry(r) => return Ok(Attempt::Retry(r)),
             };
@@ -796,7 +846,7 @@ impl Locator {
     async fn fill_impl(&self, value: &str) -> Result<()> {
         let timeout = self.timeout();
         self.retry("filling", timeout, |_| async move {
-            let el = match self.resolved(timeout).await? {
+            let el = match self.resolved_for_action(timeout).await? {
                 Attempt::Done(el) => el,
                 Attempt::Retry(r) => return Ok(Attempt::Retry(r)),
             };
@@ -983,8 +1033,8 @@ impl Locator {
             .page
             .element_call(
                 &el,
-                "(i, node, s) => i.elementState(node, s)",
-                &[json!(state)],
+                "(i, node, s, fv) => i.elementState(node, s, fv)",
+                &[json!(state), json!(el.frame_visible)],
                 true,
             )
             .await?;
@@ -998,8 +1048,8 @@ impl Locator {
             .page
             .element_call(
                 &el,
-                "(i, node, s) => i.elementState(node, s)",
-                &[json!(state)],
+                "(i, node, s, fv) => i.elementState(node, s, fv)",
+                &[json!(state), json!(el.frame_visible)],
                 true,
             )
             .await?;
@@ -1051,7 +1101,7 @@ impl Locator {
         self.retry("selecting options", timeout, |_| {
             let options = options.clone();
             async move {
-                let el = match self.resolved(timeout).await? {
+                let el = match self.resolved_for_action(timeout).await? {
                     Attempt::Done(el) => el,
                     Attempt::Retry(r) => return Ok(Attempt::Retry(r)),
                 };
@@ -1247,8 +1297,8 @@ impl Locator {
             .page
             .element_call(
                 &el,
-                "(i, node, s) => i.elementState(node, s)",
-                &[json!(state)],
+                "(i, node, s, fv) => i.elementState(node, s, fv)",
+                &[json!(state), json!(el.frame_visible)],
                 true,
             )
             .await?;
@@ -1264,8 +1314,8 @@ impl Locator {
                     .page
                     .element_call(
                         &el,
-                        "(i, node) => i.elementState(node, 'visible')",
-                        &[],
+                        "(i, node, fv) => i.elementState(node, 'visible', fv)",
+                        &[json!(el.frame_visible)],
                         true,
                     )
                     .await?;
@@ -1426,8 +1476,8 @@ impl Locator {
                         .page
                         .element_call(
                             el,
-                            "(i, node) => i.elementState(node, 'visible')",
-                            &[],
+                            "(i, node, fv) => i.elementState(node, 'visible', fv)",
+                            &[json!(el.frame_visible)],
                             true,
                         )
                         .await?;
@@ -1772,6 +1822,7 @@ impl Locator {
                 let el = ElementRef {
                     object_id: id.to_owned(),
                     frame_owner: frame_owner.clone(),
+                    frame_visible: true,
                 };
                 out.push(self.main_world_object(&el).await?);
             }
@@ -2052,6 +2103,7 @@ impl Page {
                 .unwrap_or_default()
                 .to_owned(),
             frame_owner: None,
+            frame_visible: true,
         };
         let v = self
             .element_call(
@@ -2120,8 +2172,8 @@ impl Locator {
                     .page
                     .element_call(
                         &el,
-                        "async (i, node, states) => await i.checkElementStates(node, states)",
-                        &[json!(states)],
+                        "async (i, node, states, fv) => await i.checkElementStates(node, states, fv)",
+                        &[json!(states), json!(el.frame_visible)],
                         true,
                     )
                     .await?;

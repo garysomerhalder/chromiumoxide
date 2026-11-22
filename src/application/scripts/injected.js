@@ -1,4 +1,4 @@
-// Playwright injected script (packages/injected), from playwright-core 1.63.0.
+// Playwright injected script (packages/injected), from playwright-core 1.65.1.
 // Copyright (c) Microsoft Corporation. Licensed under the Apache License, Version 2.0.
 // See THIRD_PARTY_NOTICES.md. Do not edit: regenerate from playwright-core.
 
@@ -581,7 +581,9 @@ function yamlStringNeedsQuotes(str) {
     return true;
   if (/^\[/.test(str))
     return true;
-  if (!isNaN(Number(str)) || ["y", "n", "yes", "no", "true", "false", "on", "off", "null"].includes(str.toLowerCase()))
+  if (!isNaN(Number(str)) || ["y", "n", "yes", "no", "true", "false", "on", "off", "null", "~"].includes(str.toLowerCase()))
+    return true;
+  if (/^[-+]?\.(inf|nan)$/i.test(str))
     return true;
   return false;
 }
@@ -601,8 +603,8 @@ function renderAriaSnapshotAsYaml(snapshot, options = {}) {
     if (node.name && node.name.length <= 900) {
       const name = renderString(node.name);
       if (name) {
-        const stringifiedName = name.startsWith("/") && name.endsWith("/") ? name : JSON.stringify(name);
-        key += " " + stringifiedName;
+        const isRegex = options.convertStringsToRegex && name !== node.name;
+        key += " " + (isRegex ? name : JSON.stringify(name));
       }
     }
     if (node.checked === "mixed")
@@ -2290,16 +2292,13 @@ function innerAsLocators(factory, parsed, isFrameLocator = false, maxOutputSize 
       const attrSelector = parseAttributeSelector(part.body, true);
       const options = { attrs: [] };
       for (const attr of attrSelector.attributes) {
-        if (attr.name === "name") {
-          if (options.exact !== void 0 && options.exact !== attr.caseSensitive)
-            throw new Error(`Conflicting exactness in internal:role selector: ${stringifySelector({ parts: [part] })}`);
-          options.exact = attr.caseSensitive;
-          options.name = attr.value;
-        } else if (attr.name === "description") {
-          if (options.exact !== void 0 && options.exact !== attr.caseSensitive)
-            throw new Error(`Conflicting exactness in internal:role selector: ${stringifySelector({ parts: [part] })}`);
-          options.exact = attr.caseSensitive;
-          options.description = attr.value;
+        if (attr.name === "name" || attr.name === "description") {
+          if (typeof attr.value === "string") {
+            if (options.exact !== void 0 && options.exact !== attr.caseSensitive)
+              throw new Error(`Conflicting exactness in internal:role selector: ${stringifySelector({ parts: [part] })}`);
+            options.exact = attr.caseSensitive;
+          }
+          options[attr.name] = attr.value;
         } else {
           if (attr.name === "level" && typeof attr.value === "string")
             attr.value = +attr.value;
@@ -2403,7 +2402,7 @@ function combineTokens(factory, tokens, maxOutputSize) {
 }
 function detectExact(text) {
   let exact = false;
-  const match = text.match(/^\/(.*)\/([igm]*)$/);
+  const match = text.match(/^\/(.*)\/([dgimsuvy]*)$/);
   if (match)
     return { text: new RegExp(match[1], match[2]) };
   if (text.endsWith('"')) {
@@ -2597,7 +2596,7 @@ var PythonLocatorFactory = class {
     return locators.join(".");
   }
   regexToString(body) {
-    const suffix = body.flags.includes("i") ? ", re.IGNORECASE" : "";
+    const suffix = regexFlagsSuffix(body, "re", regexFlagNames.python);
     return `re.compile(r"${normalizeEscapedRegexQuotes(body.source).replace(/\\\//, "/").replace(/"/g, '\\"')}"${suffix})`;
   }
   toCallWithExact(method, body, exact) {
@@ -2708,7 +2707,7 @@ var JavaLocatorFactory = class {
     return locators.join(".");
   }
   regexToString(body) {
-    const suffix = body.flags.includes("i") ? ", Pattern.CASE_INSENSITIVE" : "";
+    const suffix = regexFlagsSuffix(body, "Pattern", regexFlagNames.java);
     return `Pattern.compile(${this.quote(normalizeEscapedRegexQuotes(body.source))}${suffix})`;
   }
   toCallWithExact(clazz, method, body, exact) {
@@ -2807,7 +2806,7 @@ var CSharpLocatorFactory = class {
     return locators.join(".");
   }
   regexToString(body) {
-    const suffix = body.flags.includes("i") ? ", RegexOptions.IgnoreCase" : "";
+    const suffix = regexFlagsSuffix(body, "RegexOptions", regexFlagNames.csharp);
     return `new Regex(${this.quote(normalizeEscapedRegexQuotes(body.source))}${suffix})`;
   }
   toCallWithExact(method, body, exact) {
@@ -2862,6 +2861,15 @@ var generators = {
   csharp: CSharpLocatorFactory,
   jsonl: JsonlLocatorFactory
 };
+var regexFlagNames = {
+  python: { i: "IGNORECASE", m: "MULTILINE", s: "DOTALL" },
+  java: { i: "CASE_INSENSITIVE", m: "MULTILINE", s: "DOTALL" },
+  csharp: { i: "IgnoreCase", m: "Multiline", s: "Singleline" }
+};
+function regexFlagsSuffix(body, flagsEnum, names) {
+  const flags = [...body.flags].filter((flag) => flag in names).map((flag) => `${flagsEnum}.${names[flag]}`);
+  return flags.length ? `, ${flags.join(" | ")}` : "";
+}
 function isRegExp(obj) {
   return obj instanceof RegExp;
 }
@@ -3017,6 +3025,35 @@ var removeNamelessImages = {
       return "remove";
   }
 };
+var rolesWithIdentifyingNames = /* @__PURE__ */ new Set([
+  "alertdialog",
+  "dialog",
+  "banner",
+  "complementary",
+  "contentinfo",
+  "form",
+  "main",
+  "navigation",
+  "region",
+  "search",
+  "application",
+  "document",
+  "figure",
+  "group",
+  "grid",
+  "listbox",
+  "menu",
+  "menubar",
+  "radiogroup",
+  "tablist",
+  "tabpanel",
+  "toolbar",
+  "tree",
+  "treegrid",
+  "table",
+  "columnheader",
+  "rowheader"
+]);
 var removeRedundantNames = {
   name: "removeRedundantNames",
   enter(node, ctx) {
@@ -3036,7 +3073,7 @@ var removeRedundantNames = {
     const nameFromContentRefs = (_a = ctx.snapshot.info.get(node.ref)) == null ? void 0 : _a.nameFromContentRefs;
     if (!(nameFromContentRefs == null ? void 0 : nameFromContentRefs.length))
       return;
-    if (nameFromContentRefs.every((ref) => !ctx.pendingContentRefs.has(ref))) {
+    if (!rolesWithIdentifyingNames.has(node.role) && nameFromContentRefs.every((ref) => !ctx.pendingContentRefs.has(ref))) {
       node.name = "";
     } else {
       for (const ref of nameFromContentRefs)
@@ -3107,6 +3144,13 @@ function parentElementOrShadowHost(element) {
   if (element.parentNode.nodeType === 11 && element.parentNode.host)
     return element.parentNode.host;
 }
+function isElementInert(element) {
+  for (let e = element; e; e = parentElementOrShadowHost(e)) {
+    if (e.hasAttribute("inert"))
+      return true;
+  }
+  return false;
+}
 function enclosingShadowRootOrDocument(element) {
   let node = element;
   while (node.parentNode)
@@ -3149,17 +3193,27 @@ function computeElementStyleVisibilityVisible(element, style) {
   style = style != null ? style : getElementComputedStyle(element);
   if (!style)
     return true;
-  if (Element.prototype.checkVisibility && globalOptions.browserNameForWorkarounds !== "webkit") {
-    if (!element.checkVisibility())
-      return false;
-  } else {
-    const detailsOrSummary = element.closest("details,summary");
-    if (detailsOrSummary !== element && (detailsOrSummary == null ? void 0 : detailsOrSummary.nodeName) === "DETAILS" && !detailsOrSummary.open)
-      return false;
-  }
+  if (!element.checkVisibility() && !isWebKitListBoxOptionVisible(element, style))
+    return false;
   if (style.visibility !== "visible")
     return false;
   return true;
+}
+function isListBoxSelect(select) {
+  return select.multiple || select.size > 1;
+}
+function isWebKitListBoxOptionVisible(element, style) {
+  var _a;
+  if (globalOptions.browserNameForWorkarounds !== "webkit" || element.nodeName !== "OPTION" || style.display === "none")
+    return false;
+  const select = element.closest("select");
+  if (!select || !isListBoxSelect(select))
+    return false;
+  for (let e = element.parentElement; e && e !== select; e = e.parentElement) {
+    if (((_a = getElementComputedStyle(e)) == null ? void 0 : _a.display) === "none")
+      return false;
+  }
+  return isElementStyleVisibilityVisible(select);
 }
 function computeBox(element) {
   const style = getElementComputedStyle(element);
@@ -3183,11 +3237,17 @@ function computeBox(element) {
 function isElementVisible(element) {
   return computeBox(element).visible;
 }
+var kTextNodeRange = /* @__PURE__ */ Symbol("playwrightTextNodeRange");
 function isVisibleTextNode(node) {
-  const range = node.ownerDocument.createRange();
+  var _a;
+  const document = node.ownerDocument;
+  const range = (_a = document[kTextNodeRange]) != null ? _a : document[kTextNodeRange] = document.createRange();
   range.selectNode(node);
   const rect = range.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0;
+  const result = rect.width > 0 && rect.height > 0;
+  range.setStart(document, 0);
+  range.collapse(true);
+  return result;
 }
 function elementSafeTagName(element) {
   const tagName = element.tagName;
@@ -3340,7 +3400,7 @@ var kImplicitRoleByTagName = {
   "PROGRESS": () => "progressbar",
   "SEARCH": () => "search",
   "SECTION": (e) => hasExplicitAccessibleName(e) ? "region" : null,
-  "SELECT": (e) => e.hasAttribute("multiple") || e.size > 1 ? "listbox" : "combobox",
+  "SELECT": (e) => isListBoxSelect(e) ? "listbox" : "combobox",
   "STRONG": () => "strong",
   "SUB": () => "subscript",
   "SUP": () => "superscript",
@@ -3511,7 +3571,7 @@ var validRoles = [
   "treeitem"
 ];
 function getExplicitAriaRole(element) {
-  const roles = (element.getAttribute("role") || "").split(" ").map((role) => role.trim());
+  const roles = (element.getAttribute("role") || "").toLowerCase().split(" ").map((role) => role.trim());
   return roles.find((role) => validRoles.includes(role)) || null;
 }
 function hasPresentationConflictResolution(element, role) {
@@ -3580,6 +3640,16 @@ function belongsToDisplayNoneOrAriaHiddenOrNonSlotted(element) {
   }
   return hidden;
 }
+function isTextNodeNotRendered(text) {
+  const parent = text.parentElement;
+  if (!parent)
+    return false;
+  if (parent.shadowRoot && !text.assignedSlot)
+    return true;
+  if (elementSafeTagName(parent) === "DETAILS" && !parent.open)
+    return true;
+  return false;
+}
 function getIdRefs(element, ref) {
   if (!ref)
     return [];
@@ -3587,7 +3657,7 @@ function getIdRefs(element, ref) {
   if (!root)
     return [];
   try {
-    const ids = ref.split(" ").filter((id) => !!id);
+    const ids = ref.split(/[ \t\n\f\r]+/).filter((id) => !!id);
     const result = [];
     for (const id of ids) {
       const firstElement = root.querySelector("#" + CSS.escape(id));
@@ -3668,11 +3738,8 @@ function parseCSSContentPropertyAsString(element, content, isPseudo) {
   }
 }
 function getAriaLabelledByElements(element) {
-  const ref = element.getAttribute("aria-labelledby");
-  if (ref === null)
-    return null;
-  const refs = getIdRefs(element, ref);
-  return refs.length ? refs : null;
+  const refs = element.ariaLabelledByElements || getIdRefs(element, element.getAttribute("aria-labelledby"));
+  return (refs == null ? void 0 : refs.length) ? [...refs] : null;
 }
 function allowsNameFromContent(role, targetDescendant) {
   const alwaysAllowsNameFromContent = ["button", "cell", "checkbox", "columnheader", "gridcell", "heading", "link", "menuitem", "menuitemcheckbox", "menuitemradio", "option", "radio", "row", "rowheader", "switch", "tab", "tooltip", "treeitem"].includes(role);
@@ -3764,8 +3831,9 @@ var kAriaInvalidRoles = [
   "tree"
 ];
 function getAriaInvalid(element) {
-  const ariaInvalid = element.getAttribute("aria-invalid");
-  if (!ariaInvalid || ariaInvalid.trim() === "" || ariaInvalid.toLocaleLowerCase() === "false")
+  var _a;
+  const ariaInvalid = (_a = element.getAttribute("aria-invalid")) == null ? void 0 : _a.toLowerCase();
+  if (!ariaInvalid || ariaInvalid.trim() === "" || ariaInvalid === "false")
     return "false";
   if (ariaInvalid === "true" || ariaInvalid === "grammar" || ariaInvalid === "spelling")
     return ariaInvalid;
@@ -3804,7 +3872,7 @@ function insideTargetElement(options) {
   return options.embeddedInTargetElement === "self" || options.embeddedInTargetElement === "descendant";
 }
 function getTextAlternativeInternal(element, options) {
-  var _a, _b, _c, _d, _e;
+  var _a;
   if (options.visitedElements.has(element))
     return emptyCompositeString();
   const childOptions = {
@@ -3812,8 +3880,7 @@ function getTextAlternativeInternal(element, options) {
     embeddedInTargetElement: options.embeddedInTargetElement === "self" ? "descendant" : options.embeddedInTargetElement
   };
   if (!options.includeHidden) {
-    const isEmbeddedInHiddenReferenceTraversal = !!((_a = options.embeddedInLabelledBy) == null ? void 0 : _a.hidden) || !!((_b = options.embeddedInDescribedBy) == null ? void 0 : _b.hidden) || !!((_c = options.embeddedInNativeTextAlternative) == null ? void 0 : _c.hidden) || !!((_d = options.embeddedInLabel) == null ? void 0 : _d.hidden);
-    if (isElementIgnoredForAria(element) || !isEmbeddedInHiddenReferenceTraversal && isElementHiddenForAria(element)) {
+    if (isElementIgnoredForAria(element) || !isEmbeddedInHiddenReferenceTraversal(options) && isElementHiddenForAria(element)) {
       options.visitedElements.add(element);
       return emptyCompositeString();
     }
@@ -3855,7 +3922,7 @@ function getTextAlternativeInternal(element, options) {
             selectedOptions.push(element.options[0]);
         } else {
           const listbox = role === "combobox" ? queryInAriaOwned(element, "*").find((e) => getAriaRole(e) === "listbox") : element;
-          selectedOptions = listbox ? queryInAriaOwned(listbox, '[aria-selected="true"]').filter((e) => getAriaRole(e) === "option") : [];
+          selectedOptions = listbox ? queryInAriaOwned(listbox, '[aria-selected="true" i]').filter((e) => getAriaRole(e) === "option") : [];
         }
         if (!selectedOptions.length && tagName === "INPUT") {
           return compositeString(element.value, element, options.collectElements);
@@ -4022,7 +4089,8 @@ function getTextAlternativeInternal(element, options) {
     if (maybeTrimmedAccessibleName) {
       if (options.outDerivedFromContent && insideTargetElement(options) && trimFlatString(accessibleName.text))
         options.outDerivedFromContent.value = true;
-      (_e = accessibleName.elements) == null ? void 0 : _e.add(element);
+      if (trimFlatString(accessibleName.text))
+        (_a = accessibleName.elements) == null ? void 0 : _a.add(element);
       return accessibleName;
     }
   }
@@ -4035,8 +4103,13 @@ function getTextAlternativeInternal(element, options) {
   options.visitedElements.add(element);
   return emptyCompositeString();
 }
+function isEmbeddedInHiddenReferenceTraversal(options) {
+  var _a, _b, _c, _d;
+  return !!((_a = options.embeddedInLabelledBy) == null ? void 0 : _a.hidden) || !!((_b = options.embeddedInDescribedBy) == null ? void 0 : _b.hidden) || !!((_c = options.embeddedInNativeTextAlternative) == null ? void 0 : _c.hidden) || !!((_d = options.embeddedInLabel) == null ? void 0 : _d.hidden);
+}
 function innerAccumulatedElementText(element, options) {
   const tokens = [];
+  const skipNotRenderedText = !options.includeHidden && !isEmbeddedInHiddenReferenceTraversal(options);
   const elements = options.collectElements ? /* @__PURE__ */ new Set() : void 0;
   const visit = (node, skipSlotted) => {
     var _a;
@@ -4052,6 +4125,8 @@ function innerAccumulatedElementText(element, options) {
         token = " " + token + " ";
       tokens.push(token);
     } else if (node.nodeType === 3) {
+      if (skipNotRenderedText && isTextNodeNotRendered(node))
+        return;
       tokens.push(node.textContent || "");
     }
   };
@@ -4099,13 +4174,14 @@ function getCheckedWithoutMixed(element) {
   return result;
 }
 function getChecked(element, allowMixed) {
+  var _a;
   const tagName = elementSafeTagName(element);
   if (allowMixed && tagName === "INPUT" && element.indeterminate)
     return "mixed";
   if (tagName === "INPUT" && ["checkbox", "radio"].includes(element.type))
     return element.checked;
   if (kAriaCheckedRoles.includes(getAriaRole(element) || "")) {
-    const checked = element.getAttribute("aria-checked");
+    const checked = (_a = element.getAttribute("aria-checked")) == null ? void 0 : _a.toLowerCase();
     if (checked === "true")
       return true;
     if (allowMixed && checked === "mixed")
@@ -4120,15 +4196,16 @@ function getReadonly(element) {
   if (["INPUT", "TEXTAREA", "SELECT"].includes(tagName))
     return element.hasAttribute("readonly");
   if (kAriaReadonlyRoles.includes(getAriaRole(element) || ""))
-    return element.getAttribute("aria-readonly") === "true";
+    return getAriaBoolean(element.getAttribute("aria-readonly")) === true;
   if (element.isContentEditable)
     return false;
   return "error";
 }
 var kAriaPressedRoles = ["button"];
 function getAriaPressed(element) {
+  var _a;
   if (kAriaPressedRoles.includes(getAriaRole(element) || "")) {
-    const pressed = element.getAttribute("aria-pressed");
+    const pressed = (_a = element.getAttribute("aria-pressed")) == null ? void 0 : _a.toLowerCase();
     if (pressed === "true")
       return true;
     if (pressed === "mixed")
@@ -4140,14 +4217,8 @@ var kAriaExpandedRoles = ["application", "button", "checkbox", "combobox", "grid
 function getAriaExpanded(element) {
   if (elementSafeTagName(element) === "DETAILS")
     return element.open;
-  if (kAriaExpandedRoles.includes(getAriaRole(element) || "")) {
-    const expanded = element.getAttribute("aria-expanded");
-    if (expanded === null)
-      return void 0;
-    if (expanded === "true")
-      return true;
-    return false;
-  }
+  if (kAriaExpandedRoles.includes(getAriaRole(element) || ""))
+    return getAriaBoolean(element.getAttribute("aria-expanded"));
   return void 0;
 }
 var kAriaLevelRoles = ["heading", "listitem", "row", "treeitem"];
@@ -4360,6 +4431,8 @@ function generateAriaTree(rootElement, publicOptions) {
     visited.add(node);
     if (node.nodeType === Node.TEXT_NODE && node.nodeValue) {
       if (!parentElementVisible)
+        return;
+      if (isTextNodeNotRendered(node))
         return;
       const text = node.nodeValue;
       if (ariaNode.role !== "textbox" && text)
@@ -4744,12 +4817,13 @@ function findNewElement(from, to) {
 }
 
 // packages/injected/src/highlight.css?inline
-var highlight_default = ":host{font-size:13px;font-family:system-ui,Ubuntu,Droid Sans,sans-serif;color:#333;color-scheme:light}svg{position:absolute;height:0}x-pw-tooltip{backdrop-filter:blur(5px);background-color:#fff;border-radius:6px;box-shadow:0 .5rem 1.2rem #0000004d;display:none;font-size:12.8px;font-weight:400;left:0;line-height:1.5;max-width:600px;position:absolute;top:0;padding:0;flex-direction:column;overflow:hidden}x-pw-tooltip-line{display:flex;max-width:600px;padding:6px;user-select:none;cursor:pointer}x-pw-tooltip-footer{display:flex;max-width:600px;padding:6px;user-select:none;color:#777}x-pw-dialog{background-color:#fff;pointer-events:auto;border-radius:6px;box-shadow:0 .5rem 1.2rem #0000004d;display:flex;flex-direction:column;position:absolute;z-index:10;font-size:13px}x-pw-dialog:not(.autosize){width:400px;height:150px}x-pw-dialog-body{display:flex;flex-direction:column;flex:auto}x-pw-dialog-body label{margin:5px 8px;display:flex;flex-direction:row;align-items:center}x-pw-highlight{position:absolute;top:0;left:0;width:0;height:0}x-pw-action-point{position:absolute;width:20px;height:20px;background:red;border-radius:10px;margin:-10px 0 0 -10px;z-index:2}x-pw-action-cursor{position:absolute;width:18px;height:22px;pointer-events:none;z-index:4;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}x-pw-action-cursor svg{width:100%;height:100%;position:static}x-pw-title{position:absolute;backdrop-filter:blur(5px);background-color:#00000080;color:#fff;border-radius:6px;padding:6px;font-size:24px;line-height:1.4;white-space:nowrap;user-select:none;z-index:3}x-pw-user-overlays,x-pw-user-overlay{position:absolute;inset:0}@keyframes pw-fade-out{0%{opacity:1}to{opacity:0}}x-pw-separator{height:1px;margin:6px 9px;background:#949494e5}x-pw-tool-gripper{height:28px;width:24px;margin:2px 0;cursor:grab}x-pw-tool-gripper:active{cursor:grabbing}x-pw-tool-gripper>x-div{width:16px;height:16px;margin:6px 4px;clip-path:url(#icon-gripper);background-color:#555}x-pw-tools-list>label{display:flex;align-items:center;margin:0 10px;user-select:none}x-pw-tools-list{display:flex;width:100%;border-bottom:1px solid #dddddd}x-pw-tool-item{pointer-events:auto;height:28px;width:28px;border-radius:3px}x-pw-tool-item:not(.disabled){cursor:pointer}x-pw-tool-item:not(.disabled):hover{background-color:#dbdbdb}x-pw-tool-item.toggled{background-color:#8acae480}x-pw-tool-item.toggled:not(.disabled):hover{background-color:#8acae4c4}x-pw-tool-item>x-div{width:16px;height:16px;margin:6px;background-color:#3a3a3a}x-pw-tool-item.disabled>x-div{background-color:#61616180;cursor:default}x-pw-tool-item.record.toggled{background-color:transparent}x-pw-tool-item.record.toggled:not(.disabled):hover{background-color:#dbdbdb}x-pw-tool-item.record.toggled>x-div{background-color:#a1260d}x-pw-tool-item.record.disabled.toggled>x-div{opacity:.8}x-pw-tool-item.accept>x-div{background-color:#388a34}x-pw-tool-item.record>x-div{clip-path:url(#icon-circle-large-filled)}x-pw-tool-item.record.toggled>x-div{clip-path:url(#icon-stop-circle)}x-pw-tool-item.pick-locator>x-div{clip-path:url(#icon-inspect)}x-pw-tool-item.text>x-div{clip-path:url(#icon-whole-word)}x-pw-tool-item.visibility>x-div{clip-path:url(#icon-eye)}x-pw-tool-item.value>x-div{clip-path:url(#icon-symbol-constant)}x-pw-tool-item.snapshot>x-div{clip-path:url(#icon-gist)}x-pw-tool-item.accept>x-div{clip-path:url(#icon-check)}x-pw-tool-item.cancel>x-div{clip-path:url(#icon-close)}x-pw-tool-item.succeeded>x-div{clip-path:url(#icon-pass);background-color:#388a34!important}x-pw-overlay{position:absolute;top:0;max-width:min-content;z-index:2147483647;background:transparent;pointer-events:auto}x-pw-overlay x-pw-tools-list{background-color:#fffd;box-shadow:#0000001a 0 5px 5px;border-radius:3px;border-bottom:none}x-pw-overlay x-pw-tool-item{margin:2px}textarea.text-editor{font-family:system-ui,Ubuntu,Droid Sans,sans-serif;flex:auto;border:none;margin:6px 10px;color:#333;outline:1px solid transparent!important;resize:none;padding:0;font-size:13px}textarea.text-editor.does-not-match{outline:1px solid red!important}x-div{display:block}x-spacer{flex:auto}*{box-sizing:border-box}*[hidden]{display:none!important}x-locator-editor{flex:none;width:100%;height:60px;padding:4px;border-bottom:1px solid #dddddd;outline:1px solid transparent}x-locator-editor.does-not-match{outline:1px solid red}.CodeMirror{width:100%!important;height:100%!important}x-pw-action-list{flex:auto;display:flex;flex-direction:column;user-select:none}x-pw-action-item{padding:6px 10px;cursor:pointer;overflow:hidden}x-pw-action-item:hover{background-color:#f2f2f2}x-pw-action-item:last-child{border-bottom-left-radius:6px;border-bottom-right-radius:6px}\n";
+var highlight_default = ":host{font-size:13px;font-family:system-ui,Ubuntu,Droid Sans,sans-serif;color:#333;color-scheme:light}svg{position:absolute;height:0}x-pw-tooltip{backdrop-filter:blur(5px);background-color:#fff;border-radius:6px;box-shadow:0 .5rem 1.2rem #0000004d;display:none;font-size:12.8px;font-weight:400;left:0;line-height:1.5;max-width:600px;position:absolute;top:0;padding:0;flex-direction:column;overflow:hidden}x-pw-tooltip-line{display:flex;max-width:600px;padding:6px;user-select:none;cursor:pointer}x-pw-tooltip-footer{display:flex;max-width:600px;padding:6px;user-select:none;color:#777}x-pw-dialog{background-color:#fff;pointer-events:auto;border-radius:6px;box-shadow:0 .5rem 1.2rem #0000004d;display:flex;flex-direction:column;position:absolute;z-index:10;font-size:13px}x-pw-dialog:not(.autosize){width:400px;height:150px}x-pw-dialog-body{display:flex;flex-direction:column;flex:auto}x-pw-dialog-body label{margin:5px 8px;display:flex;flex-direction:row;align-items:center}x-pw-highlight{position:absolute;top:0;left:0;width:0;height:0}x-pw-action-point{position:absolute;width:20px;height:20px;background:red;border-radius:10px;margin:-10px 0 0 -10px;z-index:2}x-pw-screencast-highlight,x-pw-screencast-point,x-pw-title{animation:pw-fade-out var(--pw-fade-duration) ease-out var(--pw-fade-delay, 0ms) forwards}x-pw-screencast-highlight,x-pw-screencast-point{position:absolute;pointer-events:none}x-pw-screencast-highlight{z-index:1}x-pw-screencast-point{width:0;height:0;overflow:visible;translate:-50% -50%;z-index:2}x-pw-action-cursor{position:absolute;width:14px;height:21px;pointer-events:none;z-index:4;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}x-pw-action-cursor svg{width:100%;height:100%;position:static;overflow:visible}x-pw-title{position:absolute;backdrop-filter:blur(5px);background-color:#00000080;color:#fff;border-radius:6px;padding:6px;font-size:24px;line-height:1.4;white-space:nowrap;user-select:none;z-index:3}x-pw-user-overlays,x-pw-user-overlay{position:absolute;inset:0}@keyframes pw-fade-out{0%{opacity:1}to{opacity:0}}x-pw-separator{height:1px;margin:6px 9px;background:#949494e5}x-pw-tool-gripper{height:28px;width:24px;margin:2px 0;cursor:grab}x-pw-tool-gripper:active{cursor:grabbing}x-pw-tool-gripper>x-div{width:16px;height:16px;margin:6px 4px;clip-path:url(#icon-gripper);background-color:#555}x-pw-tools-list>label{display:flex;align-items:center;margin:0 10px;user-select:none}x-pw-tools-list{display:flex;width:100%;border-bottom:1px solid #dddddd}x-pw-tool-item{pointer-events:auto;height:28px;width:28px;border-radius:3px}x-pw-tool-item:not(.disabled){cursor:pointer}x-pw-tool-item:not(.disabled):hover{background-color:#dbdbdb}x-pw-tool-item.toggled{background-color:#8acae480}x-pw-tool-item.toggled:not(.disabled):hover{background-color:#8acae4c4}x-pw-tool-item>x-div{width:16px;height:16px;margin:6px;background-color:#3a3a3a}x-pw-tool-item.disabled>x-div{background-color:#61616180;cursor:default}x-pw-tool-item.record.toggled{background-color:transparent}x-pw-tool-item.record.toggled:not(.disabled):hover{background-color:#dbdbdb}x-pw-tool-item.record.toggled>x-div{background-color:#a1260d}x-pw-tool-item.record.disabled.toggled>x-div{opacity:.8}x-pw-tool-item.accept>x-div{background-color:#388a34}x-pw-tool-item.record>x-div{clip-path:url(#icon-circle-large-filled)}x-pw-tool-item.record.toggled>x-div{clip-path:url(#icon-stop-circle)}x-pw-tool-item.pick-locator>x-div{clip-path:url(#icon-inspect)}x-pw-tool-item.text>x-div{clip-path:url(#icon-whole-word)}x-pw-tool-item.visibility>x-div{clip-path:url(#icon-eye)}x-pw-tool-item.value>x-div{clip-path:url(#icon-symbol-constant)}x-pw-tool-item.snapshot>x-div{clip-path:url(#icon-gist)}x-pw-tool-item.accept>x-div{clip-path:url(#icon-check)}x-pw-tool-item.cancel>x-div{clip-path:url(#icon-close)}x-pw-tool-item.succeeded>x-div{clip-path:url(#icon-pass);background-color:#388a34!important}x-pw-overlay{position:absolute;top:0;max-width:min-content;z-index:2147483647;background:transparent;pointer-events:auto}x-pw-overlay x-pw-tools-list{background-color:#fffd;box-shadow:#0000001a 0 5px 5px;border-radius:3px;border-bottom:none}x-pw-overlay x-pw-tool-item{margin:2px}textarea.text-editor{font-family:system-ui,Ubuntu,Droid Sans,sans-serif;flex:auto;border:none;margin:6px 10px;color:#333;outline:1px solid transparent!important;resize:none;padding:0;font-size:13px}textarea.text-editor.does-not-match{outline:1px solid red!important}x-div{display:block}x-spacer{flex:auto}*{box-sizing:border-box}*[hidden]{display:none!important}x-locator-editor{flex:none;width:100%;height:60px;padding:4px;border-bottom:1px solid #dddddd;outline:1px solid transparent}x-locator-editor.does-not-match{outline:1px solid red}.CodeMirror{width:100%!important;height:100%!important}x-pw-action-list{flex:auto;display:flex;flex-direction:column;user-select:none}x-pw-action-item{padding:6px 10px;cursor:pointer;overflow:hidden}x-pw-action-item:hover{background-color:#f2f2f2}x-pw-action-item:last-child{border-bottom-left-radius:6px;border-bottom-right-radius:6px}\n";
 
 // packages/injected/src/highlight.ts
 var Highlight = class {
   constructor(injectedScript) {
     this._renderedEntries = [];
+    this._screencastDecorations = [];
     this._userOverlays = /* @__PURE__ */ new Map();
     this._userOverlayHidden = false;
     this._language = "javascript";
@@ -4850,9 +4924,10 @@ var Highlight = class {
       this._rafRequest = void 0;
     }
     this._elementHighlights = [];
+    this._clearUserOverlayTimer();
     this._glassPaneElement.remove();
   }
-  showActionPoint(x, y, fadeDuration) {
+  showActionPoint(x, y) {
     if (!this._actionPointElement) {
       this._actionPointElement = this._injectedScript.document.createElement("x-pw-action-point");
       this._glassPaneShadow.appendChild(this._actionPointElement);
@@ -4860,21 +4935,57 @@ var Highlight = class {
     this._actionPointElement.style.top = y + "px";
     this._actionPointElement.style.left = x + "px";
     this._actionPointElement.hidden = false;
-    if (fadeDuration)
-      this._actionPointElement.style.animation = `pw-fade-out ${fadeDuration}ms ease-out forwards`;
-    else
-      this._actionPointElement.style.animation = "";
   }
   hideActionPoint() {
     if (this._actionPointElement)
       this._actionPointElement.hidden = true;
   }
+  showScreencastHighlight(box, style, fadeDuration) {
+    const element = this._createScreencastDecoration("x-pw-screencast-highlight", style, fadeDuration);
+    element.style.left = box.x + "px";
+    element.style.top = box.y + "px";
+    element.style.width = box.width + "px";
+    element.style.height = box.height + "px";
+  }
+  showScreencastPoint(x, y, style, fadeDuration) {
+    const element = this._createScreencastDecoration("x-pw-screencast-point", style, fadeDuration);
+    element.style.left = x + "px";
+    element.style.top = y + "px";
+  }
+  hideScreencastDecorations() {
+    for (const element of this._screencastDecorations)
+      element.remove();
+    this._screencastDecorations = [];
+  }
+  _createScreencastDecoration(name, style, fadeDuration) {
+    const element = this._injectedScript.document.createElement(name);
+    element.style.cssText = style;
+    if (fadeDuration)
+      element.style.setProperty("--pw-fade-duration", fadeDuration + "ms");
+    this._glassPaneShadow.appendChild(element);
+    this._screencastDecorations.push(element);
+    return element;
+  }
   moveActionCursor(x, y, fadeDuration) {
-    const moveDuration = fadeDuration ? Math.max(80, Math.min(fadeDuration * 0.6, 400)) : 0;
-    this._actionCursorElement.style.transition = `top ${moveDuration}ms ease, left ${moveDuration}ms ease`;
-    this._actionCursorElement.style.left = x + "px";
-    this._actionCursorElement.style.top = y + "px";
-    this._actionCursorElement.style.visibility = "visible";
+    var _a;
+    const element = this._actionCursorElement;
+    const from = element.getBoundingClientRect();
+    const wasVisible = element.style.visibility === "visible";
+    (_a = this._actionCursorAnimation) == null ? void 0 : _a.cancel();
+    this._actionCursorAnimation = void 0;
+    element.style.left = x + "px";
+    element.style.top = y + "px";
+    element.style.visibility = "visible";
+    const dx = from.left - x;
+    const dy = from.top - y;
+    if (!wasVisible || !fadeDuration || Math.hypot(dx, dy) < 1)
+      return;
+    const duration = Math.max(80, Math.min(fadeDuration * 0.6, 400));
+    this._actionCursorAnimation = element.animate(cursorPathKeyframes(dx, dy, x + y + dx + dy), { duration, easing: "cubic-bezier(0.5, 0, 0.3, 1)" });
+  }
+  restoreActionCursor(x, y) {
+    if (this._actionCursorElement.style.visibility !== "visible")
+      this.moveActionCursor(x, y);
   }
   hideActionCursor() {
     this._actionCursorElement.style.visibility = "hidden";
@@ -4882,30 +4993,26 @@ var Highlight = class {
   _createCursorSvg(document) {
     const svgNs = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNs, "svg");
-    svg.setAttribute("viewBox", "0 0 18 22");
+    svg.setAttribute("viewBox", "0 0 12 18");
     const path = document.createElementNS(svgNs, "path");
-    path.setAttribute("d", "M1 1 L1 17 L5.5 13 L8 20.5 L11 19.5 L8.5 12 L15 12 Z");
-    path.setAttribute("fill", "white");
-    path.setAttribute("stroke", "black");
-    path.setAttribute("stroke-width", "1.5");
+    path.setAttribute("d", "M0 0 L0 15.8 L3.9 12.4 L6.6 18.6 L8.9 17.6 L6.2 11.4 L11.2 11.4 Z");
+    path.setAttribute("fill", "black");
+    path.setAttribute("stroke", "white");
+    path.setAttribute("stroke-width", "1.6");
     path.setAttribute("stroke-linejoin", "round");
+    path.setAttribute("paint-order", "stroke");
     svg.appendChild(path);
     return svg;
   }
-  showActionTitle(text, fadeDuration, position, fontSize) {
+  showActionTitle(text, fadeDuration, position, style) {
     this._titleElement.textContent = text;
     this._titleElement.hidden = false;
+    this._titleElement.style.cssText = style != null ? style : "";
     if (fadeDuration) {
       const fadeTime = fadeDuration / 4;
-      this._titleElement.style.animation = `pw-fade-out ${fadeTime}ms ease-out ${fadeDuration - fadeTime}ms forwards`;
-    } else {
-      this._titleElement.style.animation = "";
+      this._titleElement.style.setProperty("--pw-fade-duration", fadeTime + "ms");
+      this._titleElement.style.setProperty("--pw-fade-delay", fadeDuration - fadeTime + "ms");
     }
-    this._titleElement.style.top = "";
-    this._titleElement.style.bottom = "";
-    this._titleElement.style.left = "";
-    this._titleElement.style.right = "";
-    this._titleElement.style.transform = "";
     switch (position) {
       case "top-left":
         this._titleElement.style.top = "6px";
@@ -4935,8 +5042,6 @@ var Highlight = class {
         this._titleElement.style.right = "6px";
         break;
     }
-    if (fontSize)
-      this._titleElement.style.fontSize = fontSize + "px";
   }
   hideActionTitle() {
     this._titleElement.hidden = true;
@@ -4956,6 +5061,7 @@ var Highlight = class {
     this._userOverlays.set(id, element);
     this._userOverlayContainer.appendChild(element);
     this._userOverlayContainer.hidden = this._userOverlayHidden;
+    this._ensureUserOverlayTimer();
     return id;
   }
   getUserOverlay(id) {
@@ -4967,8 +5073,26 @@ var Highlight = class {
       element.remove();
       this._userOverlays.delete(id);
     }
-    if (this._userOverlays.size === 0)
+    if (this._userOverlays.size === 0) {
       this._userOverlayContainer.hidden = true;
+      this._clearUserOverlayTimer();
+    }
+  }
+  // Elements that enter the top layer later paint above the glass pane, so keep re-promoting it while overlays are showing.
+  _ensureUserOverlayTimer() {
+    if (this._userOverlayTimer !== void 0)
+      return;
+    const tick = () => {
+      this.install();
+      this._userOverlayTimer = this._injectedScript.utils.builtins.setTimeout(tick, 500);
+    };
+    this._userOverlayTimer = this._injectedScript.utils.builtins.setTimeout(tick, 500);
+  }
+  _clearUserOverlayTimer() {
+    if (this._userOverlayTimer === void 0)
+      return;
+    this._injectedScript.utils.builtins.clearTimeout(this._userOverlayTimer);
+    this._userOverlayTimer = void 0;
   }
   setUserOverlaysVisible(visible) {
     this._userOverlayHidden = !visible;
@@ -5005,7 +5129,7 @@ var Highlight = class {
         lineElement.textContent = entry.tooltipText;
         tooltipElement.appendChild(lineElement);
       }
-      this._renderedEntries.push({ targetElement: entry.element, box: toDOMRect(entry.box), color: entry.color, borderColor: entry.borderColor, fadeDuration: entry.fadeDuration, cssStyle: entry.cssStyle, tooltipElement, highlightElement });
+      this._renderedEntries.push({ targetElement: entry.element, box: toDOMRect(entry.box), color: entry.color, cssStyle: entry.cssStyle, tooltipElement, highlightElement });
     }
     for (const entry of this._renderedEntries) {
       if (!entry.box && !entry.targetElement)
@@ -5029,10 +5153,6 @@ var Highlight = class {
       entry.highlightElement.style.width = box.width + "px";
       entry.highlightElement.style.height = box.height + "px";
       entry.highlightElement.style.display = "block";
-      if (entry.borderColor)
-        entry.highlightElement.style.border = "2px solid " + entry.borderColor;
-      if (entry.fadeDuration)
-        entry.highlightElement.style.animation = `pw-fade-out ${entry.fadeDuration}ms ease-out forwards`;
       if (entry.cssStyle)
         entry.highlightElement.style.cssText += ";" + entry.cssStyle;
       if (this._isUnderTest)
@@ -5115,6 +5235,32 @@ var Highlight = class {
     this._glassPaneElement.removeEventListener("click", handler);
   }
 };
+function cursorPathKeyframes(dx, dy, seed) {
+  const random = (salt) => {
+    const value = Math.sin(seed * 12.9898 + salt * 78.233) * 43758.5453;
+    return value - Math.floor(value);
+  };
+  const distance = Math.hypot(dx, dy);
+  const normalX = -dy / distance;
+  const normalY = dx / distance;
+  const side = random(1) < 0.5 ? -1 : 1;
+  const startBow = side * distance * (0.03 + 0.03 * random(2));
+  const endBow = side * distance * (0.01 + 0.02 * random(3));
+  const c1x = dx * 2 / 3 + normalX * startBow;
+  const c1y = dy * 2 / 3 + normalY * startBow;
+  const c2x = dx / 3 + normalX * endBow;
+  const c2y = dy / 3 + normalY * endBow;
+  const keyframes = [];
+  const steps = 30;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const u = 1 - t;
+    const px = u * u * u * dx + 3 * u * u * t * c1x + 3 * u * t * t * c2x;
+    const py = u * u * u * dy + 3 * u * u * t * c1y + 3 * u * t * t * c2y;
+    keyframes.push({ transform: `translate(${px}px, ${py}px)` });
+  }
+  return keyframes;
+}
 function toDOMRect(box) {
   if (!box)
     return void 0;
@@ -5183,8 +5329,10 @@ function matchesAttributePart(value, attr) {
   if (attr.op === "<truthy>")
     return !!objValue;
   if (attr.op === "=") {
-    if (attrValue instanceof RegExp)
+    if (attrValue instanceof RegExp) {
+      attrValue.lastIndex = 0;
       return typeof objValue === "string" && !!objValue.match(attrValue);
+    }
     return objValue === attrValue;
   }
   if (typeof objValue !== "string" || typeof attrValue !== "string")
@@ -5832,7 +5980,10 @@ var textMatchesEngine = {
     if (args.length === 0 || typeof args[0] !== "string" || args.length > 2 || args.length === 2 && typeof args[1] !== "string")
       throw new Error(`"text-matches" engine expects a regexp body and optional regexp flags`);
     const re = new RegExp(args[0], args.length === 2 ? args[1] : void 0);
-    const matcher = (elementText2) => re.test(elementText2.full);
+    const matcher = (elementText2) => {
+      re.lastIndex = 0;
+      return re.test(elementText2.full);
+    };
     return elementMatchesText(evaluator._cacheText, element, matcher) === "self";
   }
 };
@@ -6252,7 +6403,7 @@ function cssFallback(injectedScript, targetElement, options) {
     }
     tokens.unshift(bestTokenForLevel);
   }
-  return makeStrict(uniqueCSSSelector());
+  return makeStrict(tokens.join(" > "));
 }
 function penalizeScoreForLength(groups) {
   for (const group of groups) {
@@ -6538,6 +6689,20 @@ function isArrayBuffer(obj) {
     return false;
   }
 }
+function isMap(obj) {
+  try {
+    return obj instanceof Map || Object.prototype.toString.call(obj) === "[object Map]";
+  } catch (error) {
+    return false;
+  }
+}
+function isSet(obj) {
+  try {
+    return obj instanceof Set || Object.prototype.toString.call(obj) === "[object Set]";
+  } catch (error) {
+    return false;
+  }
+}
 var typedArrayConstructors = {
   i8: Int8Array,
   ui8: Uint8Array,
@@ -6618,6 +6783,20 @@ function parseEvaluationResultValue(value, handles = [], refs = /* @__PURE__ */ 
       }
       return result;
     }
+    if ("m" in value) {
+      const result = /* @__PURE__ */ new Map();
+      refs.set(value.id, result);
+      for (const { k, v } of value.m)
+        result.set(parseEvaluationResultValue(k, handles, refs), parseEvaluationResultValue(v, handles, refs));
+      return result;
+    }
+    if ("s" in value) {
+      const result = /* @__PURE__ */ new Set();
+      refs.set(value.id, result);
+      for (const item of value.s)
+        result.add(parseEvaluationResultValue(item, handles, refs));
+      return result;
+    }
     if ("h" in value)
       return handles[value.h];
     if ("fn" in value) {
@@ -6631,8 +6810,8 @@ function parseEvaluationResultValue(value, handles = [], refs = /* @__PURE__ */ 
   }
   return value;
 }
-function serializeAsCallArgument(value, handleSerializer) {
-  return serialize(value, handleSerializer, { visited: /* @__PURE__ */ new Map(), lastId: 0 });
+function serializeAsCallArgument(value, handleSerializer, options = {}) {
+  return serialize(value, handleSerializer, { visited: /* @__PURE__ */ new Map(), lastId: 0, extendedSerialization: options.extendedSerialization });
 }
 function serialize(value, handleSerializer, visitorInfo) {
   if (value && typeof value === "object") {
@@ -6699,6 +6878,36 @@ ${value.stack}`;
   const id = visitorInfo.visited.get(value);
   if (id)
     return { ref: id };
+  if (visitorInfo.extendedSerialization) {
+    if (isMap(value)) {
+      const m = [];
+      const id2 = ++visitorInfo.lastId;
+      visitorInfo.visited.set(value, id2);
+      const iterator = value.entries();
+      const next = (/* @__PURE__ */ new Map()).entries().next;
+      while (true) {
+        const entry = next.call(iterator);
+        if (entry.done)
+          break;
+        m.push({ k: serialize(entry.value[0], handleSerializer, visitorInfo), v: serialize(entry.value[1], handleSerializer, visitorInfo) });
+      }
+      return { m, id: id2 };
+    }
+    if (isSet(value)) {
+      const s = [];
+      const id2 = ++visitorInfo.lastId;
+      visitorInfo.visited.set(value, id2);
+      const iterator = value.values();
+      const next = (/* @__PURE__ */ new Set()).values().next;
+      while (true) {
+        const entry = next.call(iterator);
+        if (entry.done)
+          break;
+        s.push(serialize(entry.value, handleSerializer, visitorInfo));
+      }
+      return { s, id: id2 };
+    }
+  }
   if (Array.isArray(value)) {
     const a = [];
     const id2 = ++visitorInfo.lastId;
@@ -6758,7 +6967,8 @@ var UtilityScript = class {
         performance: global.performance,
         Intl: global.Intl,
         Date: global.Date,
-        AbortSignal: global.AbortSignal
+        AbortSignal: global.AbortSignal,
+        Temporal: global.Temporal
       };
     }
     if (this.isUnderTest)
@@ -6779,30 +6989,30 @@ var UtilityScript = class {
       if (typeof result === "function")
         result = result(...parameters);
     }
-    return returnByValue ? this._promiseAwareJsonValueNoThrow(result) : result;
+    if (isThenable(result)) {
+      return (async () => {
+        const value = await result;
+        return returnByValue ? this._jsonValueNoThrow(value) : value;
+      })();
+    }
+    return returnByValue ? this._jsonValueNoThrow(result) : result;
   }
   jsonValue(returnByValue, value) {
     if (value === void 0)
       return void 0;
     return serializeAsCallArgument(value, (value2) => ({ fallThrough: value2 }));
   }
-  _promiseAwareJsonValueNoThrow(value) {
-    const safeJson = (value2) => {
-      try {
-        return this.jsonValue(true, value2);
-      } catch (e) {
-        return void 0;
-      }
-    };
-    if (value && typeof value === "object" && typeof value.then === "function") {
-      return (async () => {
-        const promiseValue = await value;
-        return safeJson(promiseValue);
-      })();
+  _jsonValueNoThrow(value) {
+    try {
+      return this.jsonValue(true, value);
+    } catch (e) {
+      return void 0;
     }
-    return safeJson(value);
   }
 };
+function isThenable(value) {
+  return value && typeof value === "object" && typeof value.then === "function";
+}
 
 // packages/injected/src/injectedScript.ts
 var InjectedScript = class {
@@ -7002,6 +7212,29 @@ var InjectedScript = class {
   ariaSnapshotForExpectFailure(element, options) {
     const { json } = renderAriaTreeAsJSON(generateAriaTree(element, options), options);
     return renderAriaSnapshotAsYaml(json);
+  }
+  documentContent(includeShadow) {
+    let content = "";
+    if (this.document.doctype)
+      content = new XMLSerializer().serializeToString(this.document.doctype);
+    const root = this.document.documentElement;
+    if (!root)
+      return content;
+    if (!includeShadow)
+      return content + root.outerHTML;
+    const shadowRoots = [];
+    const collectShadowRoots = (node) => {
+      for (const element of node.querySelectorAll("*")) {
+        if (element.shadowRoot) {
+          shadowRoots.push(element.shadowRoot);
+          collectShadowRoots(element.shadowRoot);
+        }
+      }
+    };
+    collectShadowRoots(this.document);
+    const emptyRoot = root.cloneNode(false).outerHTML;
+    const endTagIndex = emptyRoot.lastIndexOf("</");
+    return content + emptyRoot.slice(0, endTagIndex) + root.getHTML({ shadowRoots }) + emptyRoot.slice(endTagIndex);
   }
   getAllElementsMatchingExpectAriaTemplate(document, template) {
     return getAllElementsMatchingExpectAriaTemplate(document.documentElement, template);
@@ -7278,7 +7511,7 @@ var InjectedScript = class {
         element = element.closest("button, [role=button], [role=checkbox], [role=radio]") || element;
     }
     if (behavior === "follow-label") {
-      if (!element.matches("a, input, textarea, button, select, [role=link], [role=button], [role=checkbox], [role=radio]") && !element.isContentEditable) {
+      if (!element.matches("a, input, textarea, button, select, option, optgroup, [role=link], [role=button], [role=checkbox], [role=radio]") && !element.isContentEditable) {
         const enclosingLabel = element.closest("label");
         if (enclosingLabel && enclosingLabel.control)
           element = enclosingLabel.control;
@@ -7286,7 +7519,7 @@ var InjectedScript = class {
     }
     return element;
   }
-  async checkElementStates(node, states) {
+  async checkElementStates(node, states, frameVisible) {
     if (states.includes("stable")) {
       const stableResult = await this._checkElementIsStable(node);
       if (stableResult === false)
@@ -7296,7 +7529,7 @@ var InjectedScript = class {
     }
     for (const state of states) {
       if (state !== "stable") {
-        const result = this.elementState(node, state);
+        const result = this.elementState(node, state, frameVisible);
         if (result.received === "error:notconnected")
           return "error:notconnected";
         if (!result.matches)
@@ -7367,7 +7600,7 @@ var InjectedScript = class {
     };
     return { queryAll };
   }
-  elementState(node, state) {
+  elementState(node, state, frameVisible) {
     const element = this.retarget(node, ["visible", "hidden"].includes(state) ? "none" : "follow-label");
     if (!element || !element.isConnected) {
       if (state === "hidden")
@@ -7375,7 +7608,7 @@ var InjectedScript = class {
       return { matches: false, received: "error:notconnected" };
     }
     if (state === "visible" || state === "hidden") {
-      const visible = isElementVisible(element);
+      const visible = !!frameVisible && isElementVisible(element);
       return {
         matches: state === "visible" ? visible : !visible,
         received: visible ? "visible" : "hidden"
@@ -7386,6 +7619,13 @@ var InjectedScript = class {
       return {
         matches: state === "disabled" ? disabled : !disabled,
         received: disabled ? "disabled" : "enabled"
+      };
+    }
+    if (state === "non-inert") {
+      const inert = isElementInert(element);
+      return {
+        matches: !inert,
+        received: inert ? "inert" : "non-inert"
       };
     }
     if (state === "editable") {
@@ -7485,14 +7725,10 @@ var InjectedScript = class {
         if (isNaN(Number(value)))
           throw this.createStacklessError("Cannot type text into input[type=number]");
       }
-      if (type === "color")
-        value = value.toLowerCase();
       if (kInputTypesToSetValue.has(type)) {
         value = value.trim();
         input.focus();
         input.value = value;
-        if (input.value !== value)
-          throw this.createStacklessError("Malformed value");
         element.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
         element.dispatchEvent(new Event("change", { bubbles: true }));
         return "done";
@@ -7505,6 +7741,7 @@ var InjectedScript = class {
     return "needsinput";
   }
   selectText(node) {
+    var _a;
     const element = this.retarget(node, "follow-label");
     if (!element)
       return "error:notconnected";
@@ -7521,7 +7758,10 @@ var InjectedScript = class {
       textarea.focus();
       return "done";
     }
-    element.focus();
+    let focusTarget = element;
+    while (focusTarget.isContentEditable && ((_a = focusTarget.parentElement) == null ? void 0 : _a.isContentEditable))
+      focusTarget = focusTarget.parentElement;
+    focusTarget.focus();
     const range = element.ownerDocument.createRange();
     range.selectNodeContents(element);
     const selection = element.ownerDocument.defaultView.getSelection();
@@ -7609,9 +7849,8 @@ var InjectedScript = class {
           elements.unshift(singleElement);
         }
       }
-      if (elements[0] && elements[0].shadowRoot === root && elements[1] === singleElement) {
+      if (elements[0] && elements[1] === singleElement && roots.slice(index).some((r) => r.host === elements[0]))
         elements.shift();
-      }
       const innerElement = elements[0];
       if (!innerElement)
         break;
@@ -7896,10 +8135,9 @@ var InjectedScript = class {
     highlight.addMaskedElements(elements, color);
   }
   _ensureHighlight() {
-    if (!this._highlight) {
+    if (!this._highlight)
       this._highlight = new Highlight(this);
-      this._highlight.install();
-    }
+    this._highlight.install();
     return this._highlight;
   }
   setHighlights(highlights) {
@@ -7909,31 +8147,34 @@ var InjectedScript = class {
     highlight.setElementHighlights(highlights);
   }
   setScreencastAnnotation(annotation) {
-    var _a;
+    var _a, _b, _c, _d;
     const highlight = this._ensureHighlight();
+    highlight.hideScreencastDecorations();
     if (!annotation) {
-      highlight.updateHighlight([]);
-      highlight.hideActionPoint();
       highlight.hideActionTitle();
-      highlight.hideActionCursor();
       return;
     }
     const fadeDuration = (_a = annotation.duration) != null ? _a : 500;
-    if (annotation.box) {
-      highlight.updateHighlight([{
-        box: annotation.box,
-        color: "rgba(0, 128, 255, 0.15)",
-        borderColor: "rgba(0, 128, 255, 0.6)",
-        fadeDuration
-      }]);
-    }
+    if (annotation.box && ((_b = annotation.style) == null ? void 0 : _b.highlight))
+      highlight.showScreencastHighlight(annotation.box, annotation.style.highlight, fadeDuration);
     if (annotation.point) {
-      if (annotation.cursor !== "none")
+      if (annotation.cursor !== "none") {
+        if (annotation.lastCursorPoint)
+          highlight.restoreActionCursor(annotation.lastCursorPoint.x, annotation.lastCursorPoint.y);
         highlight.moveActionCursor(annotation.point.x, annotation.point.y, fadeDuration);
-      highlight.showActionPoint(annotation.point.x, annotation.point.y, fadeDuration);
+      }
+      if ((_c = annotation.style) == null ? void 0 : _c.point)
+        highlight.showScreencastPoint(annotation.point.x, annotation.point.y, annotation.style.point, fadeDuration);
     }
     if (annotation.actionTitle)
-      highlight.showActionTitle(annotation.actionTitle, fadeDuration, annotation.position, annotation.fontSize);
+      highlight.showActionTitle(annotation.actionTitle, fadeDuration, annotation.position, (_d = annotation.style) == null ? void 0 : _d.title);
+  }
+  restoreScreencastCursor(point) {
+    this._ensureHighlight().restoreActionCursor(point.x, point.y);
+  }
+  hideScreencastCursor() {
+    var _a;
+    (_a = this._highlight) == null ? void 0 : _a.hideActionCursor();
   }
   addUserOverlay(id, html) {
     const highlight = this._ensureHighlight();
@@ -8002,19 +8243,19 @@ var InjectedScript = class {
     addHitTargetInterceptorListeners();
     this.onGlobalListenersRemoved.add(addHitTargetInterceptorListeners);
   }
-  async expect(element, options, elements) {
+  async expect(element, options, elements, frameVisible) {
     const isArray = options.expression === "to.have.count" || options.expression.endsWith(".array");
-    const core = isArray ? this.expectArray(elements, options) : await this.expectSingleElement(element, options);
-    const ariaSnapshot = core.matches !== options.isNot ? void 0 : this._ariaSnapshotForExpect(element, options);
+    const core = isArray ? this.expectArray(elements, options) : await this.expectSingleElement(element, options, frameVisible);
+    const ariaSnapshot = core.matches !== options.isNot ? void 0 : this._ariaSnapshotForExpect(element, options, frameVisible);
     if (core.received === void 0 && ariaSnapshot === void 0)
       return { matches: core.matches };
     return { matches: core.matches, received: { value: core.received, ariaSnapshot } };
   }
-  _ariaSnapshotForExpect(element, options) {
+  _ariaSnapshotForExpect(element, options, frameVisible) {
     const expression = options.expression;
     if (expression === "to.have.count" || expression.endsWith(".array") || expression === "to.match.aria")
       return void 0;
-    if (isElementVisible(element) && expression !== "to.have.title" && expression !== "to.have.url") {
+    if (frameVisible && isElementVisible(element) && expression !== "to.have.title" && expression !== "to.have.url") {
       const isContainment = expression === "to.have.text";
       return this.ariaSnapshotForExpectFailure(element, { mode: "default", depth: isContainment ? void 0 : 1 });
     }
@@ -8022,7 +8263,7 @@ var InjectedScript = class {
       return void 0;
     return this.ariaSnapshotForExpectFailure(this.document.body, { mode: "default" });
   }
-  async expectSingleElement(element, options) {
+  async expectSingleElement(element, options, frameVisible) {
     var _a, _b;
     const expression = options.expression;
     {
@@ -8076,9 +8317,9 @@ var InjectedScript = class {
           received: focused ? "focused" : "inactive"
         };
       } else if (expression === "to.be.hidden") {
-        result = this.elementState(element, "hidden");
+        result = this.elementState(element, "hidden", frameVisible);
       } else if (expression === "to.be.visible") {
-        result = this.elementState(element, "visible");
+        result = this.elementState(element, "visible", frameVisible);
       } else if (expression === "to.be.attached") {
         result = {
           matches: true,
@@ -8246,8 +8487,12 @@ function oneLine(s) {
 }
 function createAttributeMatcher(part) {
   const { value, caseSensitive } = part;
-  if (value instanceof RegExp)
-    return (s) => !!s.match(value);
+  if (value instanceof RegExp) {
+    return (s) => {
+      value.lastIndex = 0;
+      return !!s.match(value);
+    };
+  }
   if (caseSensitive)
     return (s) => s === value;
   const lowerCaseValue = value.toLowerCase();
@@ -8270,7 +8515,11 @@ function createTextMatcher(selector, internal) {
   if (selector[0] === "/" && selector.lastIndexOf("/") > 0) {
     const lastSlash = selector.lastIndexOf("/");
     const re = new RegExp(selector.substring(1, lastSlash), selector.substring(lastSlash + 1));
-    return { matcher: (elementText2) => re.test(elementText2.full), kind: "regex" };
+    const matcher = (elementText2) => {
+      re.lastIndex = 0;
+      return re.test(elementText2.full);
+    };
+    return { matcher, kind: "regex" };
   }
   const unquote = internal ? JSON.parse.bind(JSON) : cssUnquote;
   let strict = false;
@@ -8323,8 +8572,10 @@ var ExpectedTextMatcher = class {
       return text === this._string;
     if (this._substring !== void 0)
       return text.includes(this._substring);
-    if (this._regex)
+    if (this._regex) {
+      this._regex.lastIndex = 0;
       return !!this._regex.test(text);
+    }
     return false;
   }
   matchesClassList(injectedScript, classList, partial) {

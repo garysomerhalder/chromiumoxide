@@ -50,8 +50,7 @@ async fn elements_in_hidden_iframes_are_hidden() {
 /// not inert; Playwright logs "element is inert".
 #[tokio::test]
 async fn actions_wait_for_inert_elements() {
-    let (browser, page) =
-        page_with(r#"<div inert><button>B</button><input value=x></div>"#).await;
+    let (browser, page) = page_with(r#"<div inert><button>B</button><input value=x></div>"#).await;
     let err = page
         .locator("button")
         .click()
@@ -59,11 +58,9 @@ async fn actions_wait_for_inert_elements() {
         .await
         .unwrap_err();
     assert!(err.to_string().contains("element is inert"), "{err}");
-    page.evaluate::<()>(
-        "setTimeout(() => document.querySelector('div').inert = false, 300)",
-    )
-    .await
-    .unwrap();
+    page.evaluate::<()>("void setTimeout(() => document.querySelector('div').inert = false, 300)")
+        .await
+        .unwrap();
     page.locator("input").fill("y").await.unwrap();
     assert_eq!(page.locator("input").input_value().await.unwrap(), "y");
     browser.close().await.unwrap();

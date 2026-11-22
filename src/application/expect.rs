@@ -105,13 +105,13 @@ struct Outcome {
     not_found: bool,
 }
 
-const RUN: &str = "async (i, selector, isArray, options) => {
+const RUN: &str = "async (i, selector, isArray, options, frameVisible) => {
   const parsed = i.parseSelector(selector);
   let elements;
   if (isArray) elements = i.querySelectorAll(parsed, document);
   else { const e = i.querySelector(parsed, document, true); elements = e ? [e] : []; }
   if (!elements.length) return { missing: true };
-  const r = await i.expect(elements[0], options, elements);
+  const r = await i.expect(elements[0], options, elements, frameVisible);
   return { missing: false, matches: r.matches, received: r.received ? r.received.value : undefined };
 }";
 
@@ -150,7 +150,9 @@ impl Assertion<'_> {
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_owned();
-                let Some((frame, selector, _)) = self.locator.scope(timeout).await? else {
+                let Some((frame, selector, _, frame_visible)) =
+                    self.locator.scope_visible(timeout).await?
+                else {
                     return Ok(missing(&expression));
                 };
                 let r = self
@@ -159,7 +161,12 @@ impl Assertion<'_> {
                     .injected_call(
                         frame.as_deref(),
                         RUN,
-                        &[json!(selector), json!(array), options.clone()],
+                        &[
+                            json!(selector),
+                            json!(array),
+                            options.clone(),
+                            json!(frame_visible),
+                        ],
                         true,
                         timeout,
                     )

@@ -19,10 +19,10 @@ use crate::domain::expect::{
     DEFAULT_EXPECT_TIMEOUT_MS, line_diff, poll_interval_ms, quote_keep_lines,
 };
 
-const MATCH: &str = "async (i, selector, template) => {
+const MATCH: &str = "async (i, selector, template, frameVisible) => {
   const e = i.querySelector(i.parseSelector(selector), document, true);
   if (!e) return { missing: true };
-  const r = await i.expect(e, { expression: 'to.match.aria', expectedValue: template, isNot: false }, [e]);
+  const r = await i.expect(e, { expression: 'to.match.aria', expectedValue: template, isNot: false }, [e], frameVisible);
   const v = r.received && r.received.value;
   return { missing: false, matches: !!r.matches, raw: v ? v.raw : '', regex: v ? v.regex : '' };
 }";
@@ -119,7 +119,8 @@ impl<'a> AriaAssertion<'a> {
     }
 
     async fn once(&self, template: &Value, timeout: Duration) -> Result<Outcome> {
-        let Some((frame, selector, _)) = self.locator.scope(timeout).await? else {
+        let Some((frame, selector, _, frame_visible)) = self.locator.scope_visible(timeout).await?
+        else {
             return Ok(Outcome {
                 missing: true,
                 matches: false,
@@ -133,7 +134,7 @@ impl<'a> AriaAssertion<'a> {
             .injected_call(
                 frame.as_deref(),
                 MATCH,
-                &[json!(selector), template.clone()],
+                &[json!(selector), template.clone(), json!(frame_visible)],
                 true,
                 timeout,
             )

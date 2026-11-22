@@ -12,6 +12,8 @@ pub enum ElementState {
     Checked,
     Unchecked,
     Stable,
+    /// Not `inert` (Playwright 1.65).
+    NonInert,
 }
 
 impl ElementState {
@@ -25,6 +27,7 @@ impl ElementState {
             ElementState::Checked => "checked",
             ElementState::Unchecked => "unchecked",
             ElementState::Stable => "stable",
+            ElementState::NonInert => "non-inert",
         }
     }
 }
@@ -47,11 +50,11 @@ pub fn required_states(action: Action) -> &'static [ElementState] {
     use ElementState::*;
     match action {
         Action::Click | Action::DblClick | Action::Tap | Action::Check => {
-            &[Visible, Enabled, Stable]
+            &[Visible, Enabled, Stable, NonInert]
         }
         Action::Hover | Action::ScrollIntoView => &[Visible, Stable],
-        Action::Fill => &[Visible, Enabled, Editable],
-        Action::SelectOption => &[Visible, Enabled],
+        Action::Fill => &[Visible, Enabled, Editable, NonInert],
+        Action::SelectOption => &[Visible, Enabled, NonInert],
     }
 }
 
