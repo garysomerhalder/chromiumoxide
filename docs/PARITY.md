@@ -148,7 +148,7 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `bind` | M3 | ➖ Playwright-protocol server; use `Chromium::launch_server` / `connect` (CDP) instead |
+| `bind` | M3 | ✅ `browser.bind()` (CDP endpoint, works for pipe launches) |
 | `browserType` | M1 | ✅ |
 | `close` | M1 | ✅ |
 | `contexts` | M1 | ✅ |
@@ -158,7 +158,7 @@ Chrome for Testing and chrome-headless-shell.
 | `newPage` | M1 | ✅ |
 | `startTracing` | M3 | ✅ |
 | `stopTracing` | M3 | ✅ |
-| `unbind` | M3 | ➖ Playwright-protocol server; use `Chromium::launch_server` / `connect` (CDP) instead |
+| `unbind` | M3 | ✅ `browser.unbind()` |
 | `version` | M1 | ✅ |
 
 ### BrowserContext
