@@ -747,11 +747,11 @@ Chrome for Testing and chrome-headless-shell.
 | Member | Milestone | Status |
 |---|---|---|
 | `connectOverCDP` | M1 | ✅ |
-| `connect` | M6 | ⬜ |
+| `connect` | M6 | ✅ to a `launch_server` (CDP endpoint, not Playwright's protocol) |
 | `executablePath` | M1 | ✅ |
 | `launch` | M1 | ✅ |
 | `launchPersistentContext` | M3 | ✅ |
-| `launchServer` | M6 | ⬜ |
+| `launchServer` | M6 | ✅ `BrowserServer` (CDP endpoint) |
 | `name` | M1 | ✅ |
 
 ### Selectors
