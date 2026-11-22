@@ -535,14 +535,63 @@ impl Page {
         source: &str,
         arg: Option<&Value>,
     ) -> Result<Value> {
+        let timeout = self.default_timeout();
+        if !self.is_expression(world, source, timeout).await? {
+            return self.evaluate_script(world, source, timeout).await;
+        }
         let args: Vec<Value> = arg.cloned().into_iter().collect();
         let declaration = js::function_declaration(source);
-        self.call_function(
-            world,
-            &declaration,
-            &args,
-            self.default_timeout(),
+        self.call_function(world, &declaration, &args, timeout, "evaluating")
+            .await
+    }
+
+    /// Whether `source` parses as a single expression (or function), checked
+    /// with `Runtime.compileScript` without running it.
+    pub(crate) async fn is_expression(
+        &self,
+        world: World,
+        source: &str,
+        timeout: Duration,
+    ) -> Result<bool> {
+        let context_id = self.main_context(world, timeout).await?;
+        let r = self
+            .send(
+                "Runtime.compileScript",
+                json!({"expression": format!("({}\n)", source.trim().trim_end_matches(';')),
+                       "sourceURL": "", "persistScript": false, "executionContextId": context_id}),
+            )
+            .await?;
+        Ok(r.get("exceptionDetails").is_none())
+    }
+
+    /// Playwright's semantics for a non-expression string: run it as a script
+    /// (statements allowed), return the completion value, await a promise.
+    async fn evaluate_script(
+        &self,
+        world: World,
+        source: &str,
+        timeout: Duration,
+    ) -> Result<Value> {
+        let attempt = async {
+            loop {
+                let context_id = self.main_context(world, timeout).await?;
+                let params = json!({"expression": source, "contextId": context_id, "returnByValue": true,
+                                    "awaitPromise": true, "userGesture": true});
+                match self.send("Runtime.evaluate", params).await {
+                    Ok(response) => match js::result_value(&response) {
+                        Err(e) if js::is_context_lost(&e) => continue,
+                        other => return other,
+                    },
+                    Err(e) if js::is_context_lost(&e) => continue,
+                    Err(e) => return Err(e),
+                }
+            }
+        };
+        with_timeout(
+            &*self.inner.shared.services.clock,
+            timeout,
             "evaluating",
+            attempt,
         )
         .await
     }

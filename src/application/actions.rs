@@ -218,11 +218,16 @@ impl Page {
         timeout: Duration,
     ) -> Result<Value> {
         let source = source.trim().trim_end_matches(';');
+        // Like Playwright, a string that is not an expression is a script,
+        // re-evaluated on every poll.
+        let make = if self.is_expression(World::Main, source, timeout).await? {
+            format!("(\n{source}\n)")
+        } else {
+            format!("globalThis.eval({})", serde_json::to_string(source)?)
+        };
         let declaration = format!(
             "async function(__arg, __polling, __timeout) {{
-  const __make = () => (
-{source}
-  );
+  const __make = () => {make};
   const __check = async () => {{ let v = __make(); if (typeof v === 'function') v = v(__arg); return await v; }};
   return await new Promise((resolve, reject) => {{
     let done = false;
