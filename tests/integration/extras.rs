@@ -281,3 +281,75 @@ async fn webauthn_credentials() {
     assert_eq!(credentials.get(None, None).await.unwrap().len(), 1);
     browser.close().await.unwrap();
 }
+
+/// Playwright 1.64's `signCount`: set on create, returned by create/get and
+/// advanced by each sign-in through the authenticator.
+#[tokio::test]
+async fn webauthn_sign_count() {
+    let server = TestServer::start().await;
+    server.route("/", "text/html", "<p>webauthn</p>", 0);
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    let credentials = context.credentials();
+    credentials.install().await.unwrap();
+    let made = credentials
+        .create(chromiumoxide::NewCredential {
+            sign_count: Some(5),
+            ..chromiumoxide::NewCredential::new("localhost")
+        })
+        .await
+        .unwrap();
+    assert_eq!(made.sign_count, 5);
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/").replace("127.0.0.1", "localhost"))
+        .await
+        .unwrap();
+    page.evaluate::<String>(
+        "async () => { const a = await navigator.credentials.get({publicKey: { \
+         challenge: new Uint8Array([1,2,3]), rpId: 'localhost', userVerification: 'preferred' }}); return a.id; }",
+    )
+    .await
+    .unwrap();
+    let got = credentials.get(None, Some(&made.id)).await.unwrap();
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].sign_count, 6, "{got:?}");
+    browser.close().await.unwrap();
+}
+
+/// Playwright 1.65's `cdpSession.send(method, params, { timeout })`.
+#[tokio::test]
+async fn cdp_session_send_with_timeout() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    let session = page
+        .context()
+        .unwrap()
+        .new_cdp_session(&page)
+        .await
+        .unwrap();
+    let v = session
+        .send_with_timeout(
+            "Runtime.evaluate",
+            serde_json::json!({"expression": "1 + 2", "returnByValue": true}),
+            std::time::Duration::from_secs(5),
+        )
+        .await
+        .unwrap();
+    assert_eq!(v["result"]["value"], 3);
+    let err = session
+        .send_with_timeout(
+            "Runtime.evaluate",
+            serde_json::json!({"expression": "new Promise(() => {})", "awaitPromise": true}),
+            std::time::Duration::from_millis(300),
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, chromiumoxide::Error::Timeout { .. }),
+        "{err:?}"
+    );
+    browser.close().await.unwrap();
+}
