@@ -206,11 +206,11 @@ Chrome for Testing and chrome-headless-shell.
 | Member | Milestone | Status |
 |---|---|---|
 | `evaluate` | M1 | ✅ |
-| `evaluateHandle` | M3 | ⬜ |
+| `evaluateHandle` | M3 | ✅ |
 | `addInitScript` | M3 | ✅ |
 | `waitForFunction` | M1 | ✅ |
 | `waitForSelector` | M3 | ✅ |
-| `exposeBinding` | M3 | ⬜ |
+| `exposeBinding` | M3 | ✅ |
 | `addLocatorHandler` | M3 | ⬜ |
 | `addScriptTag` | M3 | ✅ |
 | `addStyleTag` | M1 | ✅ |
@@ -490,13 +490,13 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `evaluate` | M3 | ⬜ |
-| `evaluateHandle` | M3 | ⬜ |
-| `jsonValue` | M3 | ⬜ |
-| `asElement` | M3 | ⬜ |
-| `dispose` | M3 | ⬜ |
-| `getProperties` | M3 | ⬜ |
-| `getProperty` | M3 | ⬜ |
+| `evaluate` | M3 | ✅ |
+| `evaluateHandle` | M3 | ✅ |
+| `jsonValue` | M3 | ✅ |
+| `asElement` | M3 | ✅ |
+| `dispose` | M3 | ✅ |
+| `getProperties` | M3 | ✅ |
+| `getProperty` | M3 | ✅ |
 
 ### Keyboard
 
