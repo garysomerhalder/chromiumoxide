@@ -425,3 +425,20 @@ mod route_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod mime_tests {
+    use super::*;
+
+    #[test]
+    fn mime_types_for_fulfill_path() {
+        assert_eq!(mime_type_for_path("a/b/page.html"), Some("text/html"));
+        assert_eq!(mime_type_for_path("x.JSON"), Some("application/json"));
+        assert_eq!(mime_type_for_path("x.png"), Some("image/png"));
+        assert_eq!(mime_type_for_path("x.css"), Some("text/css"));
+        assert_eq!(mime_type_for_path("x.js"), Some("text/javascript"));
+        assert_eq!(mime_type_for_path("x.svg"), Some("image/svg+xml"));
+        assert_eq!(mime_type_for_path("x.unknownext"), None);
+        assert_eq!(mime_type_for_path("noext"), None);
+    }
+}

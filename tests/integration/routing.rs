@@ -249,3 +249,80 @@ async fn unknown_abort_code_is_rejected() {
     assert!(rx.await.unwrap().contains("Unknown error code: nope"));
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn route_fetch_and_fulfill_with_response_or_file() {
+    let server = TestServer::start().await;
+    server.route("/", "text/html", "<p>hi</p>", 0);
+    server.respond(
+        "/api",
+        "200 OK",
+        &[("Content-Type", "application/json"), ("X-Orig", "yes")],
+        "{\"a\":1}",
+    );
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.route("**/api", |r: Route| async move {
+        let resp = r.fetch().await.unwrap();
+        assert_eq!(resp.status(), 200);
+        assert_eq!(resp.headers()["x-orig"], "yes");
+        let mut v: serde_json::Value = resp.json().unwrap();
+        v["extra"] = json!(1);
+        r.fulfill().response(&resp).json(&v).await.unwrap();
+    })
+    .await
+    .unwrap();
+    page.route("**/redirect-me", |r: Route| async move {
+        let target = r.request().url().replace("/redirect-me", "/echo");
+        let resp = r
+            .fetch()
+            .url(&target)
+            .method("POST")
+            .post_data("sent")
+            .await
+            .unwrap();
+        r.fulfill().response(&resp).await.unwrap();
+    })
+    .await
+    .unwrap();
+    let dir = std::env::temp_dir().join(format!("chromiumoxide-route-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("data.css");
+    std::fs::write(&file, "body{}").unwrap();
+    let f = file.clone();
+    page.route("**/style", move |r: Route| {
+        let f = f.clone();
+        async move {
+            r.fulfill().path(&f).await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+    assert_eq!(
+        page.evaluate::<serde_json::Value>(
+            "() => fetch('/api').then(async r => [r.status, r.headers.get('x-orig'), await r.text()])"
+        )
+        .await
+        .unwrap(),
+        json!([200, "yes", "{\"a\":1,\"extra\":1}"])
+    );
+    assert_eq!(
+        page.evaluate::<serde_json::Value>(
+            "() => fetch('/redirect-me').then(async r => [r.status, await r.json()])"
+        )
+        .await
+        .unwrap(),
+        json!([201, {"method": "POST", "body": "sent"}])
+    );
+    assert_eq!(
+        page.evaluate::<serde_json::Value>(
+            "() => fetch('/style').then(async r => [r.headers.get('content-type'), r.headers.get('content-length'), await r.text()])"
+        )
+        .await
+        .unwrap(),
+        json!(["text/css", "6", "body{}"])
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+    browser.close().await.unwrap();
+}
