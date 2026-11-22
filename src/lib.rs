@@ -46,7 +46,8 @@ pub use application::handle::JsHandle;
 pub use application::har::RouteFromHar;
 pub use application::input::{Keyboard, Mouse, Touchscreen};
 pub use application::locator::{
-    BoundingBox, Click, ClickOptions, Locator, SelectOption, WaitFor, WaitForState,
+    BoundingBox, Click, ClickOptions, DropFile, DropPayload, Locator, SelectOption, WaitFor,
+    WaitForState,
 };
 pub use application::navigation::{Navigation, WaitForUrl};
 pub use application::network::{Request, Response, SecurityDetails, ServerAddr};

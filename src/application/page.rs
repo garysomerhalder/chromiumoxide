@@ -80,6 +80,8 @@ pub(crate) struct PageInner {
     pub(crate) screencast: Mutex<crate::application::screencast::ScreencastState>,
     /// The API calls running on this page (method, params), innermost last.
     pub(crate) calls: Mutex<Vec<(String, Value)>>,
+    /// The data of an HTML5 drag in progress (`Input.dragIntercepted`).
+    pub(crate) drag: Mutex<Option<Value>>,
     pub(crate) navigation_timeout: Mutex<Option<Duration>>,
     pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
     pub(crate) locator_handlers: Mutex<Vec<crate::application::extras::LocatorHandler>>,
@@ -194,6 +196,7 @@ impl Page {
             video: Mutex::new(None),
             screencast: Mutex::new(Default::default()),
             calls: Mutex::new(Vec::new()),
+            drag: Mutex::new(None),
             navigation_timeout: Mutex::new(*context.navigation_timeout.lock().unwrap()),
             media: Mutex::new(Default::default()),
             locator_handlers: Mutex::new(Vec::new()),

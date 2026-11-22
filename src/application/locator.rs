@@ -6,6 +6,8 @@
 
 use std::future::{Future, IntoFuture};
 use std::path::PathBuf;
+
+use base64::Engine;
 use std::time::Duration;
 
 use futures::FutureExt;
@@ -55,6 +57,68 @@ pub struct BoundingBox {
 }
 
 /// One attempt's outcome inside the retry loop.
+/// Playwright's in-page part of `drop()`.
+const DROP: &str = "(i, node, payloads, data, point) => {
+  if (!node.isConnected || node.nodeType !== 1) return 'error:notconnected';
+  const dt = new DataTransfer();
+  for (const p of payloads) {
+    const bytes = Uint8Array.from(atob(p.buffer), (c) => c.charCodeAt(0));
+    dt.items.add(new File([bytes], p.name, { type: p.mimeType }));
+  }
+  for (const entry of data) dt.setData(entry.mimeType, entry.value);
+  const makeEvent = (type) => new DragEvent(type, { bubbles: true, cancelable: true, composed: true,
+    clientX: point.x, clientY: point.y, dataTransfer: dt });
+  node.dispatchEvent(makeEvent('dragenter'));
+  const over = makeEvent('dragover');
+  node.dispatchEvent(over);
+  if (!over.defaultPrevented) { node.dispatchEvent(makeEvent('dragleave')); return 'not-accepted'; }
+  node.dispatchEvent(makeEvent('drop'));
+  return 'accepted';
+}";
+
+/// An in-memory file for `locator.drop()`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DropFile {
+    pub name: String,
+    pub mime_type: String,
+    pub buffer: Vec<u8>,
+}
+
+impl DropFile {
+    pub fn new(name: &str, mime_type: &str, buffer: &[u8]) -> Self {
+        Self {
+            name: name.to_owned(),
+            mime_type: mime_type.to_owned(),
+            buffer: buffer.to_vec(),
+        }
+    }
+}
+
+/// What `locator.drop()` drops: files (paths or buffers) and/or data by MIME type.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DropPayload {
+    files: Vec<DropFile>,
+    paths: Vec<PathBuf>,
+    data: Vec<(String, String)>,
+}
+
+impl DropPayload {
+    pub fn file(mut self, file: DropFile) -> Self {
+        self.files.push(file);
+        self
+    }
+    /// A file read from disk (name and MIME type from the path).
+    pub fn path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.paths.push(path.into());
+        self
+    }
+    /// A data entry, e.g. `("text/plain", "hello")`.
+    pub fn data(mut self, mime_type: &str, value: &str) -> Self {
+        self.data.push((mime_type.to_owned(), value.to_owned()));
+        self
+    }
+}
+
 enum Attempt<T> {
     Done(T),
     Retry(String),
@@ -792,6 +856,65 @@ impl Locator {
         self.page
             .show_action(point.map(|p| (p.x, p.y)), bbox, locator.as_deref())
             .await;
+    }
+
+    /// `locator.drop(payload)`: an external drag-and-drop of files and/or
+    /// data onto the element's centre (`dragenter`, `dragover`, `drop`).
+    pub async fn drop(&self, payload: DropPayload) -> Result<()> {
+        if payload.files.is_empty() && payload.paths.is_empty() && payload.data.is_empty() {
+            return Err(Error::InvalidArgument(
+                "At least one of \"files\" or \"data\" must be provided.".into(),
+            ));
+        }
+        let fs = self.page.inner.shared.services.fs.clone();
+        let mut files: Vec<Value> = Vec::new();
+        for p in &payload.paths {
+            let bytes = fs.read(p)?;
+            let name = p
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let mime = crate::domain::network::mime_type_for_path(&name)
+                .unwrap_or("application/octet-stream");
+            files.push(json!({"name": name, "mimeType": mime,
+                              "buffer": base64::engine::general_purpose::STANDARD.encode(bytes)}));
+        }
+        for f in &payload.files {
+            files.push(json!({"name": f.name, "mimeType": f.mime_type,
+                              "buffer": base64::engine::general_purpose::STANDARD.encode(&f.buffer)}));
+        }
+        let data: Vec<Value> = payload
+            .data
+            .iter()
+            .map(|(m, v)| json!({"mimeType": m, "value": v}))
+            .collect();
+        let timeout = self.timeout();
+        let (files, data) = (&files, &data);
+        self.retry("dropping", timeout, |_| async move {
+            let el = match self.resolved(timeout).await? {
+                Attempt::Done(el) => el,
+                Attempt::Retry(r) => return Ok(Attempt::Retry(r)),
+            };
+            if let Some(missing) = self.check_states(&el, Action::Hover).await? {
+                return Ok(Attempt::Retry(missing));
+            }
+            let point = match self.pointer_point(&el, false, None).await? {
+                Ok(p) => p,
+                Err(reason) => return Ok(Attempt::Retry(reason)),
+            };
+            let r = self
+                .page
+                .element_call(&el, DROP, &[json!(files), json!(data), json!({"x": point.x, "y": point.y})], true)
+                .await?;
+            match r.as_str() {
+                Some("accepted") => Ok(Attempt::Done(())),
+                Some("not-accepted") => Err(Error::Evaluation(
+                    "Drop target did not accept the drop \u{2014} its dragover handler did not call preventDefault()".into(),
+                )),
+                _ => Ok(Attempt::Retry("element is not attached to the DOM".into())),
+            }
+        })
+        .await
     }
 
     /// `locator.focus()`.
