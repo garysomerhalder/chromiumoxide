@@ -123,3 +123,94 @@ async fn workers_like_playwright() {
     assert!(page.workers().is_empty());
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn route_web_socket_like_playwright() {
+    use chromiumoxide::WebSocketRoute;
+    use std::sync::{Arc, Mutex};
+    let server = TestServer::start().await;
+    server.route("/", "text/html", "<p>x</p>", 0);
+    let port = ws_server().await;
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    let log = Arc::new(Mutex::new(Vec::<String>::new()));
+    let l = log.clone();
+    page.route_web_socket("**/mock", move |ws: WebSocketRoute| {
+        let l = l.clone();
+        async move {
+            l.lock().unwrap().push(format!(
+                "route {}",
+                ws.url().split(':').next_back().unwrap_or("")
+            ));
+            let (l2, w2) = (l.clone(), ws.clone());
+            ws.on_message(move |m: WsPayload| {
+                let (l2, w2) = (l2.clone(), w2.clone());
+                async move {
+                    if let WsPayload::Text(t) = m {
+                        l2.lock().unwrap().push(format!("page sent {t}"));
+                        w2.send(format!("reply:{t}")).await;
+                    }
+                }
+            });
+            let l3 = l.clone();
+            ws.on_close(move |code: Option<u16>, reason: String| {
+                let l3 = l3.clone();
+                async move {
+                    l3.lock()
+                        .unwrap()
+                        .push(format!("page closed {} {reason}", code.unwrap_or(0)));
+                }
+            });
+        }
+    })
+    .await
+    .unwrap();
+    page.route_web_socket("**/proxy", |ws: WebSocketRoute| async move {
+        let server = ws.connect_to_server().unwrap();
+        let s2 = server.clone();
+        ws.on_message(move |m: WsPayload| {
+            let s2 = s2.clone();
+            async move {
+                if let WsPayload::Text(t) = m {
+                    s2.send(t.to_uppercase()).await;
+                }
+            }
+        });
+        let w2 = ws.clone();
+        server.on_message(move |m: WsPayload| {
+            let w2 = w2.clone();
+            async move {
+                if let WsPayload::Text(t) = m {
+                    w2.send(format!("{t}!")).await;
+                }
+            }
+        });
+    })
+    .await
+    .unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+    let open = |path: &str, send: &str, close: bool| {
+        format!(
+            "() => new Promise(res => {{ const ws = new WebSocket('ws://127.0.0.1:{port}/{path}'); \
+             ws.onopen = () => ws.send('{send}'); ws.onmessage = e => {{ {} res(e.data); }}; }})",
+            if close { "ws.close(4000, 'bye');" } else { "" }
+        )
+    };
+    let got: String = page.evaluate(&open("mock", "hi", true)).await.unwrap();
+    assert_eq!(got, "reply:hi");
+    let got: String = page.evaluate(&open("proxy", "hello", false)).await.unwrap();
+    assert_eq!(got, "echo:HELLO!");
+    let got: String = page.evaluate(&open("other", "raw", false)).await.unwrap();
+    assert_eq!(got, "echo:raw");
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let log = log.lock().unwrap().clone();
+    assert_eq!(
+        log,
+        [
+            format!("route {port}/mock"),
+            "page sent hi".into(),
+            "page closed 4000 bye".into()
+        ]
+    );
+    browser.close().await.unwrap();
+}
