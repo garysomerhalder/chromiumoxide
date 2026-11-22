@@ -48,6 +48,8 @@ pin-project-lite = "0.2"
 dunce = "1"
 bytes = { version = "1", features = ["serde"], optional = true }
 reqwest = { version = "0.13", default-features = false }
+p12-keystore = "0.4"
+pkcs8 = { version = "0.11", features = ["encryption", "pem", "std"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

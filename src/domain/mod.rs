@@ -1,6 +1,7 @@
 //! Pure domain model: no I/O, no async runtime, no protocol types.
 pub mod actionability;
 pub mod aria_template;
+pub mod client_cert;
 pub mod clock;
 pub mod console;
 pub mod coverage;

@@ -364,6 +364,11 @@ impl<'a> IntoFuture for RouteFetch<'a> {
             if let Some(n) = self.max_retries {
                 return fetch_with_request(route, self.overrides, n).await;
             }
+            // Chromium cannot present the context's client certificates:
+            // fetch their origins ourselves.
+            if route.has_client_certificate() {
+                return fetch_with_request(route, self.overrides, 0).await;
+            }
             if route
                 .inner
                 .response_stage
@@ -965,7 +970,52 @@ impl Page {
     }
 }
 
+impl Route {
+    /// Whether the context has a client certificate for this request's origin.
+    fn has_client_certificate(&self) -> bool {
+        let url = self.inner.request.url();
+        self.inner.page.context().is_some_and(|c| {
+            c.inner
+                .options
+                .client_certificates
+                .iter()
+                .any(|cert| crate::domain::client_cert::url_has_origin(url, &cert.origin))
+        })
+    }
+}
+
 impl BrowserContext {
+    /// `clientCertificates`: requests to those origins are sent by the
+    /// context's `APIRequestContext` (which presents the certificate) and
+    /// fulfilled with its response. Registered first, so user routes run
+    /// before it and fall back to it.
+    pub(crate) async fn route_client_certificate_origins(&self) -> Result<()> {
+        let mut origins: Vec<String> = self
+            .inner
+            .options
+            .client_certificates
+            .iter()
+            .filter_map(|c| crate::domain::client_cert::normalize_origin(&c.origin))
+            .collect();
+        origins.dedup();
+        for origin in origins {
+            let pattern = format!("^{}([/?#]|$)", regex::escape(&origin));
+            let matcher =
+                regex::Regex::new(&pattern).map_err(|e| Error::InvalidArgument(e.to_string()))?;
+            self.route(matcher, |route: Route| async move {
+                let _ = match route.fetch().await {
+                    Ok(response) => route.fulfill().response(&response).await,
+                    Err(e) => {
+                        tracing::debug!(target: "chromiumoxide", "clientCertificates fetch failed: {e}");
+                        route.abort().await
+                    }
+                };
+            })
+            .await?;
+        }
+        Ok(())
+    }
+
     /// `context.route(url, handler)`: applies to every page of the context.
     pub fn route<F, Fut>(&self, url: impl Into<UrlMatcher>, handler: F) -> RouteRegistration<'_>
     where

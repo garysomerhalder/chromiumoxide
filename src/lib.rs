@@ -79,6 +79,7 @@ pub use application::webmcp::WebMcp;
 pub use application::websocket::{WebSocket, WebSocketEvent, WsPayload};
 pub use application::websocket_route::{WebSocketRoute, WebSocketServer};
 pub use application::worker::Worker;
+pub use domain::client_cert::ClientCertificate;
 pub use domain::clock::{ClockTime, Ticks};
 pub use domain::console::{Location, PageError};
 pub use domain::coverage::Range as CoverageRange;
@@ -186,6 +187,8 @@ impl Chromium {
 
     /// A standalone `APIRequestContext` (Playwright's `request.newContext()`).
     pub async fn request_context(options: ApiRequestOptions) -> Result<ApiRequestContext> {
+        domain::client_cert::validate(&options.client_certificates)
+            .map_err(Error::InvalidArgument)?;
         Ok(ApiRequestContext::new(Self::services(), options))
     }
 

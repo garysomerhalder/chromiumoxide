@@ -13,6 +13,8 @@ use tokio::net::TcpStream;
 use tokio_rustls::TlsConnector;
 use tokio_rustls::rustls::{self, ClientConfig, RootCertStore};
 
+use crate::domain::client_cert::ClientIdentity;
+
 use crate::domain::http::{HttpRequest, HttpResponse};
 use crate::ports::HttpClient;
 
@@ -112,6 +114,113 @@ fn insecure_config() -> Arc<ClientConfig> {
         .clone()
 }
 
+/// The certificate chain and key of a client certificate (PEM or DER
+/// cert + key, the key optionally an encrypted PKCS#8 PEM, or a PKCS#12).
+fn client_auth(
+    id: &ClientIdentity,
+) -> io::Result<(
+    Vec<rustls::pki_types::CertificateDer<'static>>,
+    rustls::pki_types::PrivateKeyDer<'static>,
+)> {
+    use rustls::pki_types::pem::PemObject;
+    use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
+    let bad =
+        |what: &str, e: &dyn std::fmt::Display| invalid(format!("clientCertificates: {what}: {e}"));
+    let passphrase = id.passphrase.as_deref().unwrap_or_default();
+    if let Some(pfx) = &id.pfx {
+        let store = p12_keystore::KeyStore::from_pkcs12(pfx, passphrase, Default::default())
+            .map_err(|e| bad("pfx", &e))?;
+        let (_, chain) = store
+            .private_key_chain()
+            .ok_or_else(|| invalid("clientCertificates: pfx: no private key"))?;
+        let certs = chain
+            .certs()
+            .iter()
+            .map(|c| CertificateDer::from(c.as_der().to_vec()))
+            .collect();
+        let key = PrivatePkcs8KeyDer::from(chain.key().as_der().to_vec()).into();
+        return Ok((certs, key));
+    }
+    let (Some(cert), Some(key)) = (&id.cert, &id.key) else {
+        return Err(invalid("clientCertificates: cert and key are required"));
+    };
+    let is_pem = |b: &[u8]| b.windows(10).any(|w| w == b"-----BEGIN");
+    let certs: Vec<CertificateDer<'static>> = if is_pem(cert) {
+        CertificateDer::pem_slice_iter(cert)
+            .collect::<Result<_, _>>()
+            .map_err(|e| bad("cert", &e))?
+    } else {
+        vec![CertificateDer::from(cert.clone())]
+    };
+    let key = if is_pem(key) {
+        let text = String::from_utf8_lossy(key);
+        if text.contains("ENCRYPTED PRIVATE KEY") {
+            let (_, der) = pkcs8::der::pem::decode_vec(key).map_err(|e| bad("key", &e))?;
+            let info = pkcs8::EncryptedPrivateKeyInfoOwned::try_from(der.as_slice())
+                .map_err(|e| bad("key", &e))?;
+            let plain = info
+                .decrypt(passphrase)
+                .map_err(|e| bad("key (wrong passphrase?)", &e))?;
+            PrivatePkcs8KeyDer::from(plain.as_bytes().to_vec()).into()
+        } else {
+            PrivateKeyDer::from_pem_slice(key).map_err(|e| bad("key", &e))?
+        }
+    } else {
+        PrivateKeyDer::try_from(key.clone()).map_err(|e| bad("key", &e))?
+    };
+    Ok((certs, key))
+}
+
+/// A TLS configuration that presents `id`.
+fn client_auth_config(insecure: bool, id: &ClientIdentity) -> io::Result<Arc<ClientConfig>> {
+    let (certs, key) = client_auth(id)?;
+    let signing = provider()
+        .key_provider
+        .load_private_key(key)
+        .map_err(|e| invalid(format!("clientCertificates: key: {e}")))?;
+    let resolver = Arc::new(PresentCertificate(Arc::new(
+        rustls::sign::CertifiedKey::new(certs, signing),
+    )));
+    let builder = ClientConfig::builder_with_provider(provider())
+        .with_safe_default_protocol_versions()
+        .map_err(|e| invalid(e.to_string()))?;
+    let config = if insecure {
+        builder
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(AcceptAll(provider())))
+            .with_client_cert_resolver(resolver)
+    } else {
+        let mut roots = RootCertStore::empty();
+        for cert in rustls_native_certs::load_native_certs().certs {
+            let _ = roots.add(cert);
+        }
+        builder
+            .with_root_certificates(roots)
+            .with_client_cert_resolver(resolver)
+    };
+    Ok(Arc::new(config))
+}
+
+/// Always presents one certificate. Used instead of `with_client_auth_cert`,
+/// which parses the certificate with webpki and so refuses X.509 v1
+/// certificates (OpenSSL, and so Playwright, accepts them).
+#[derive(Debug)]
+struct PresentCertificate(Arc<rustls::sign::CertifiedKey>);
+
+impl rustls::client::ResolvesClientCert for PresentCertificate {
+    fn resolve(
+        &self,
+        _root_hint_subjects: &[&[u8]],
+        _sigschemes: &[rustls::SignatureScheme],
+    ) -> Option<Arc<rustls::sign::CertifiedKey>> {
+        Some(self.0.clone())
+    }
+
+    fn has_certs(&self) -> bool {
+        true
+    }
+}
+
 /// Milestones of a connection, in ms since the request started (-1: none).
 struct Marks {
     lookup: (f64, f64),
@@ -130,6 +239,7 @@ struct Connection {
 async fn connect(
     url: &url::Url,
     insecure: bool,
+    identity: Option<&ClientIdentity>,
     started: std::time::Instant,
 ) -> io::Result<Connection> {
     let ms = || started.elapsed().as_secs_f64() * 1000.0;
@@ -174,10 +284,10 @@ async fn connect(
         }
         "https" => {
             marks.secure_start = ms();
-            let config = if insecure {
-                insecure_config()
-            } else {
-                verified_config()
+            let config = match identity {
+                Some(id) => client_auth_config(insecure, id)?,
+                None if insecure => insecure_config(),
+                None => verified_config(),
             };
             let name = rustls::pki_types::ServerName::try_from(host)
                 .map_err(|e| invalid(e.to_string()))?;
@@ -236,7 +346,13 @@ async fn exchange(req: HttpRequest) -> io::Result<HttpResponse> {
         .map(|d| d.as_secs_f64() * 1000.0)
         .unwrap_or_default();
     let ms = || started.elapsed().as_secs_f64() * 1000.0;
-    let conn = connect(&url, req.ignore_https_errors, started).await?;
+    let conn = connect(
+        &url,
+        req.ignore_https_errors,
+        req.client_identity.as_ref(),
+        started,
+    )
+    .await?;
     let mut stream = conn.stream;
     let mut target = url.path().to_owned();
     if let Some(q) = url.query() {

@@ -41,6 +41,8 @@ pub struct ApiRequestOptions {
     pub fail_on_status_code: bool,
     /// Cookies to start with.
     pub storage_state: Option<StorageState>,
+    /// TLS client certificates per origin (Playwright's `clientCertificates`).
+    pub client_certificates: Vec<crate::domain::client_cert::ClientCertificate>,
 }
 
 enum Jar {
@@ -158,6 +160,7 @@ impl BrowserContext {
                     timeout: None,
                     fail_on_status_code: false,
                     storage_state: None,
+                    client_certificates: o.client_certificates.clone(),
                 },
                 jar: Jar::Context(Arc::downgrade(&self.inner)),
                 browser_ua: Mutex::new(None),
@@ -545,6 +548,7 @@ impl ApiRequestContext {
             body,
             timeout_ms: (!timeout.is_zero()).then_some(timeout.as_millis() as u64),
             ignore_https_errors: r.ignore_https_errors.unwrap_or(o.ignore_https_errors),
+            client_identity: None,
         };
         // `maxRedirects: 0` means "do not follow" (Playwright maps it to -1).
         let mut redirects_left: i64 = match r.max_redirects {
@@ -573,6 +577,7 @@ impl ApiRequestContext {
                     log(format!("  {}: {v}", k.to_ascii_lowercase()));
                 }
             }
+            send.client_identity = self.client_identity(&send.url)?;
             let resp = self.send_with_retries(send, r.max_retries).await?;
             if let Some(call) = call {
                 let log = |m: String| {
@@ -637,6 +642,40 @@ impl ApiRequestContext {
 }
 
 impl ApiRequestContext {
+    /// The client certificate for `url`'s origin, with its files read.
+    fn client_identity(
+        &self,
+        url: &str,
+    ) -> Result<Option<crate::domain::client_cert::ClientIdentity>> {
+        let Some(c) = self
+            .inner
+            .options
+            .client_certificates
+            .iter()
+            .find(|c| crate::domain::client_cert::url_has_origin(url, &c.origin))
+        else {
+            return Ok(None);
+        };
+        let fs = &self.inner.services.fs;
+        let read = |bytes: &Option<Vec<u8>>,
+                    path: &Option<std::path::PathBuf>|
+         -> Result<Option<Vec<u8>>> {
+            match (bytes, path) {
+                (Some(b), _) => Ok(Some(b.clone())),
+                (None, Some(p)) => Ok(Some(fs.read(p).map_err(|e| {
+                    Error::InvalidArgument(format!("clientCertificates: {}: {e}", p.display()))
+                })?)),
+                (None, None) => Ok(None),
+            }
+        };
+        Ok(Some(crate::domain::client_cert::ClientIdentity {
+            cert: read(&c.cert, &c.cert_path)?,
+            key: read(&c.key, &c.key_path)?,
+            pfx: read(&c.pfx, &c.pfx_path)?,
+            passphrase: c.passphrase.clone(),
+        }))
+    }
+
     /// Playwright's `_sendRequestWithRetries`.
     async fn send_with_retries(&self, req: HttpRequest, max_retries: u32) -> Result<HttpResponse> {
         let mut backoff = Duration::from_millis(250);

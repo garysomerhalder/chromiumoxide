@@ -259,6 +259,9 @@ impl BrowserContext {
         if let Some(state) = context.inner.options.storage_state.clone() {
             context.restore_storage_state(&state).await?;
         }
+        if !context.inner.options.client_certificates.is_empty() {
+            context.route_client_certificate_origins().await?;
+        }
         Ok(context)
     }
 

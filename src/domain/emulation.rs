@@ -106,6 +106,8 @@ pub struct ContextOptions {
     /// Selector shortcuts (`page.click(selector)`, `page.$`) are strict too
     /// (Playwright's `strictSelectors`); locators always are.
     pub strict_selectors: bool,
+    /// TLS client certificates per origin (Playwright's `clientCertificates`).
+    pub client_certificates: Vec<crate::domain::client_cert::ClientCertificate>,
     pub java_script_enabled: bool,
     pub bypass_csp: bool,
     pub ignore_https_errors: bool,
@@ -162,6 +164,7 @@ impl Default for ContextOptions {
             record_video: None,
             proxy: None,
             strict_selectors: false,
+            client_certificates: Vec::new(),
         }
     }
 }
@@ -217,6 +220,7 @@ impl ContextOptions {
         if self.viewport.is_none() && self.is_mobile {
             return fail(r#""isMobile" option is not supported with null "viewport""#);
         }
+        crate::domain::client_cert::validate(&self.client_certificates).map_err(InvalidOptions)?;
         if let Some(v) = &self.record_video {
             crate::domain::video::validate_fps("recordVideo.fps", v.fps).map_err(InvalidOptions)?;
         }
