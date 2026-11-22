@@ -289,6 +289,10 @@ pub struct OriginState {
     /// Databases, as Playwright's storage script serialises them (when asked for).
     #[serde(default, rename = "indexedDB", skip_serializing_if = "Option::is_none")]
     pub indexed_db: Option<Vec<serde_json::Value>>,
+    /// Origin private file system entries (`{ path, type, base64 }`), as
+    /// Playwright's storage script serialises them (when asked for).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opfs: Option<Vec<serde_json::Value>>,
 }
 
 /// Playwright's storage state (`context.storageState()`), JSON-compatible
@@ -409,6 +413,7 @@ mod tests {
         let state = StorageState {
             cookies: vec![c],
             origins: vec![OriginState {
+                opfs: None,
                 indexed_db: None,
                 origin: "http://127.0.0.1:1".into(),
                 local_storage: vec![NameValue {

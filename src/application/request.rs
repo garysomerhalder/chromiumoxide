@@ -229,13 +229,39 @@ impl ApiRequestContext {
     /// `request.storageState()`: its cookies (and, for a context's, the
     /// context's storage).
     pub async fn storage_state(&self) -> Result<StorageState> {
+        self.storage_state_with(Default::default()).await
+    }
+
+    /// `request.storageState({ indexedDB, opfs })`: a standalone context
+    /// returns the origins it was created with (Playwright's `_origins`).
+    pub async fn storage_state_with(
+        &self,
+        options: crate::application::storage::StorageStateOptions,
+    ) -> Result<StorageState> {
         match &self.inner.jar {
             Jar::Own(c) => Ok(StorageState {
                 cookies: c.lock().unwrap().clone(),
-                origins: Vec::new(),
+                origins: self
+                    .inner
+                    .options
+                    .storage_state
+                    .as_ref()
+                    .map(|s| s.origins.clone())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|mut o| {
+                        if !options.indexed_db {
+                            o.indexed_db = None;
+                        }
+                        if !options.opfs {
+                            o.opfs = None;
+                        }
+                        o
+                    })
+                    .collect(),
             }),
             Jar::Context(_) => match self.context() {
-                Some(ctx) => ctx.storage_state().await,
+                Some(ctx) => ctx.storage_state_with(options).await,
                 None => Err(Error::Request(CLOSED.into())),
             },
         }
