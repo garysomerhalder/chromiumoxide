@@ -195,6 +195,7 @@ Chrome for Testing and chrome-headless-shell.
 | `unroute` | M4 | ✅ |
 | `unrouteAll` | M4 | ✅ |
 | `waitForEvent` | M3 | ✅ `events()` stream, `wait_for_page()` |
+| events: `page`, `serviceworker`, `close`, `request`, `response`, `requestfinished`, `requestfailed`, `console`, `dialog`, `weberror` | M4 | ✅ `ContextEvent` |
 | `clock` | M6 | ✅ |
 | `credentials` | M4 | ✅ via Chromium's virtual WebAuthn authenticator |
 | `debugger` | M6 | ✅ requestPause, next, resume, pausedDetails (title), events; no source locations / `runTo` |
