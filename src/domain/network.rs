@@ -479,3 +479,32 @@ mod mime_tests {
         assert_eq!(mime_type_for_path("noext"), None);
     }
 }
+
+#[cfg(test)]
+mod size_tests {
+    use super::*;
+
+    #[test]
+    fn header_sizes_like_playwright() {
+        let headers = vec![HeaderEntry::new("a", "bc"), HeaderEntry::new("Host", "x")];
+        assert_eq!(headers_size(&headers), (1 + 2 + 4) + (4 + 1 + 4));
+        // "GET /p/q HTTP/1.1\r\n" + headers + "\r\n"
+        assert_eq!(
+            request_headers_size(&headers, "http://x/p/q?z=1", "GET"),
+            4 + 3 + 4 + 8 + 16
+        );
+        // "HTTP/1.1 200 OK\r\n" + headers + "\r\n"
+        assert_eq!(
+            response_headers_size(&headers, "OK"),
+            4 + 8 + 3 + 2 + 16 + 2
+        );
+    }
+
+    #[test]
+    fn http_versions_like_playwright() {
+        assert_eq!(http_version(None), "HTTP/1.1");
+        assert_eq!(http_version(Some("http/1.1")), "HTTP/1.1");
+        assert_eq!(http_version(Some("h2")), "HTTP/2.0");
+        assert_eq!(http_version(Some("h3")), "h3");
+    }
+}

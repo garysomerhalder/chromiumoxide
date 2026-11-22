@@ -184,3 +184,46 @@ async fn requests_and_responses_like_playwright() {
     );
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn sizes_and_http_version() {
+    let server = TestServer::start().await;
+    server.respond(
+        "/sized",
+        "200 OK",
+        &[("Content-Type", "text/plain")],
+        "twelve bytes",
+    );
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    let resp = page.goto(&server.url("/sized")).await.unwrap().unwrap();
+    assert_eq!(resp.http_version().await.unwrap(), "HTTP/1.1");
+    let sizes = resp.request().sizes().await.unwrap();
+    // The test server's exact response head.
+    let head = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 12\r\nConnection: close\r\n\r\n";
+    assert_eq!(sizes.response_headers_size, head.len() as u64);
+    assert_eq!(sizes.response_body_size, 12);
+    assert_eq!(sizes.request_body_size, 0);
+    assert!(sizes.request_headers_size > 100, "{sizes:?}");
+    let api = page
+        .wait_for_response("**/echo")
+        .run(page.evaluate::<u16>(
+            "() => fetch('/echo', {method: 'POST', body: 'hi=1'}).then(r => r.status)",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(api.request().sizes().await.unwrap().request_body_size, 4);
+    let failed = page
+        .wait_for_event(|e| match e {
+            PageEvent::RequestFailed(r) => Some(r.clone()),
+            _ => None,
+        })
+        .run(page.evaluate::<i32>("() => fetch('http://127.0.0.1:1/x').then(() => 1, () => 0)"))
+        .await
+        .unwrap();
+    assert_eq!(
+        failed.sizes().await.unwrap_err().to_string(),
+        "invalid argument: Unable to fetch sizes for failed request"
+    );
+    browser.close().await.unwrap();
+}
