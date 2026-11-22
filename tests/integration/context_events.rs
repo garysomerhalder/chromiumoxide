@@ -103,7 +103,10 @@ async fn service_worker_requests_carry_their_worker() {
 #[tokio::test]
 async fn background_pages_is_always_empty_like_playwright() {
     let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
-    let ctx = browser.new_context(ContextOptions::default()).await.unwrap();
+    let ctx = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
     let _page = ctx.new_page().await.unwrap();
     #[allow(deprecated)]
     let pages = ctx.background_pages();
