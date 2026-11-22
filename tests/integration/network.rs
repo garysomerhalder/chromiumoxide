@@ -223,7 +223,7 @@ async fn sizes_and_http_version() {
         .unwrap();
     assert_eq!(
         failed.sizes().await.unwrap_err().to_string(),
-        "invalid argument: Unable to fetch sizes for failed request"
+        "Unable to fetch sizes for failed request"
     );
     browser.close().await.unwrap();
 }
