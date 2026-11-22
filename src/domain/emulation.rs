@@ -105,6 +105,8 @@ pub struct ContextOptions {
     pub bypass_csp: bool,
     pub ignore_https_errors: bool,
     pub base_url: Option<String>,
+    /// Cookies and `localStorage` to start with (`storageState`).
+    pub storage_state: Option<crate::domain::storage::StorageState>,
 }
 
 impl Default for ContextOptions {
@@ -131,6 +133,7 @@ impl Default for ContextOptions {
             bypass_csp: false,
             ignore_https_errors: false,
             base_url: None,
+            storage_state: None,
         }
     }
 }

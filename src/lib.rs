@@ -62,6 +62,9 @@ pub use domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale,
 };
 pub use domain::selectors::{Filter, RoleOptions, TextMatch};
+pub use domain::storage::{
+    ClearCookies, Cookie, NameValue, NewCookie, OriginState, SameSite, StorageState,
+};
 pub use domain::url_matcher::UrlMatcher;
 pub use ports::Channel;
 

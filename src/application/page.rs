@@ -65,6 +65,8 @@ pub(crate) struct PageInner {
     pub(crate) routes: crate::application::route::Routes,
     /// Whether `Fetch` interception is on (routes or HTTP credentials).
     pub(crate) intercepting: AtomicBool,
+    /// `page.setExtraHTTPHeaders()`.
+    pub(crate) extra_http_headers: Mutex<Option<std::collections::BTreeMap<String, String>>>,
 }
 
 /// A browser tab. Cheap to clone.
@@ -121,6 +123,9 @@ impl Page {
         for (method, params) in crate::application::route::context_route_commands(context) {
             calls.push(cdp.call(sid, method, params));
         }
+        for (method, params) in crate::application::storage::runtime_commands(context) {
+            calls.push(cdp.call(sid, method, params));
+        }
         calls.push(cdp.call(sid, "Runtime.runIfWaitingForDebugger", json!({})));
         let tree = frame_tree.await?;
 
@@ -145,6 +150,7 @@ impl Page {
             events: Mutex::new(Default::default()),
             network: Mutex::new(Default::default()),
             routes: Mutex::new(Vec::new()),
+            extra_http_headers: Mutex::new(None),
             intercepting: AtomicBool::new(
                 options.http_credentials.is_some() || !context.routes.lock().unwrap().is_empty(),
             ),
@@ -237,6 +243,11 @@ impl Page {
                 "Page.frameNavigated" => {
                     let f = &p["frame"];
                     let url = format!("{}{}", s(f, "url"), s(f, "urlFragment"));
+                    if let Some(origin) = crate::application::storage::origin_of(&url)
+                        && let Some(ctx) = self.inner.context.upgrade()
+                    {
+                        ctx.add_origin(origin);
+                    }
                     if f.get("parentId").is_none() {
                         st.main_navigations += 1;
                         st.last_navigation_same_document = false;

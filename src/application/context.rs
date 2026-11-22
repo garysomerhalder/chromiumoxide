@@ -24,6 +24,9 @@ pub(crate) struct ContextInner {
     pub(crate) changed: watch::Sender<u64>,
     pub(crate) closed: AtomicBool,
     pub(crate) routes: crate::application::route::Routes,
+    pub(crate) runtime: Mutex<crate::application::storage::RuntimeSettings>,
+    /// Origins visited by the context's frames (for storage state).
+    pub(crate) origins: crate::application::storage::Origins,
 }
 
 impl ContextInner {
@@ -95,19 +98,25 @@ impl BrowserContext {
             changed,
             closed: AtomicBool::new(false),
             routes: Mutex::new(Vec::new()),
+            runtime: Mutex::new(Default::default()),
+            origins: Mutex::new(Vec::new()),
         });
         shared.contexts.lock().unwrap().insert(id, inner.clone());
-        if !inner.options.permissions.is_empty() {
-            shared
-                .cdp
-                .call(
-                    None,
-                    "Browser.grantPermissions",
-                    json!({"browserContextId": inner.id, "permissions": inner.options.permissions}),
-                )
-                .await?;
+        let context = BrowserContext { inner };
+        if !context.inner.options.permissions.is_empty() {
+            let names: Vec<&str> = context
+                .inner
+                .options
+                .permissions
+                .iter()
+                .map(String::as_str)
+                .collect();
+            context.grant_permissions(&names, None).await?;
         }
-        Ok(BrowserContext { inner })
+        if let Some(state) = context.inner.options.storage_state.clone() {
+            context.restore_storage_state(&state).await?;
+        }
+        Ok(context)
     }
 
     /// The protocol id of this context.
