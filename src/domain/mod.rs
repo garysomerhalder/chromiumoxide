@@ -1,4 +1,5 @@
 //! Pure domain model: no I/O, no async runtime, no protocol types.
+pub mod actionability;
 pub mod devices;
 pub mod discovery;
 pub mod emulation;
