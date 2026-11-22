@@ -1051,3 +1051,25 @@ async fn har_update_and_start_har_options() {
     browser.close().await.unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// `browser.newPage(options)`: a page in its own context with those options
+/// (e.g. `clientCertificates`); closing the page closes the context.
+#[tokio::test]
+async fn new_page_with_context_options() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser
+        .new_page_with(chromiumoxide::ContextOptions {
+            viewport: Some(chromiumoxide::Viewport {
+                width: 333,
+                height: 222,
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(page.evaluate::<i64>("innerWidth").await.unwrap(), 333);
+    assert_eq!(browser.contexts().len(), 1);
+    page.close().await.unwrap();
+    assert!(browser.contexts().is_empty(), "its context closed with it");
+    browser.close().await.unwrap();
+}
