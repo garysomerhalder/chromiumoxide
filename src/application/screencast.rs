@@ -71,9 +71,76 @@ impl ScreencastOptions {
     }
 }
 
+/// Where `showActions` prints the action title.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActionTitlePosition {
+    TopLeft,
+    Top,
+    #[default]
+    TopRight,
+    BottomLeft,
+    Bottom,
+    BottomRight,
+}
+
+impl ActionTitlePosition {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::TopLeft => "top-left",
+            Self::Top => "top",
+            Self::TopRight => "top-right",
+            Self::BottomLeft => "bottom-left",
+            Self::Bottom => "bottom",
+            Self::BottomRight => "bottom-right",
+        }
+    }
+}
+
+/// Options of `screencast.showActions()`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShowActions {
+    duration: Duration,
+    position: ActionTitlePosition,
+    font_size: u32,
+    cursor: bool,
+}
+
+impl Default for ShowActions {
+    fn default() -> Self {
+        Self {
+            duration: Duration::from_millis(500),
+            position: ActionTitlePosition::TopRight,
+            font_size: 24,
+            cursor: true,
+        }
+    }
+}
+
+impl ShowActions {
+    /// How long each annotation shows (default 500 ms); actions wait for it.
+    pub fn duration(mut self, d: Duration) -> Self {
+        self.duration = d;
+        self
+    }
+    pub fn position(mut self, p: ActionTitlePosition) -> Self {
+        self.position = p;
+        self
+    }
+    pub fn font_size(mut self, px: u32) -> Self {
+        self.font_size = px;
+        self
+    }
+    /// Whether to draw the animated pointer (`cursor: "pointer" | "none"`).
+    pub fn cursor(mut self, yes: bool) -> Self {
+        self.cursor = yes;
+        self
+    }
+}
+
 /// Per-page screencast state.
 #[derive(Default)]
 pub(crate) struct ScreencastState {
+    actions: Option<ShowActions>,
     running: Option<Running>,
     /// User overlays, in insertion order.
     overlays: Vec<(String, String)>,
@@ -115,6 +182,48 @@ impl Page {
     /// `page.screencast`.
     pub fn screencast(&self) -> Screencast {
         Screencast { page: self.clone() }
+    }
+
+    pub(crate) fn showing_actions(&self) -> bool {
+        self.inner.screencast.lock().unwrap().actions.is_some()
+    }
+
+    /// Playwright's `onBeforeInputAction` for screencasts: the title of the
+    /// running call, the point and the element box, shown for the duration.
+    pub(crate) async fn show_action(
+        &self,
+        point: Option<(f64, f64)>,
+        bbox: Option<crate::application::locator::BoundingBox>,
+        locator: Option<&str>,
+    ) {
+        let Some(o) = self.inner.screencast.lock().unwrap().actions.clone() else {
+            return;
+        };
+        let title = self
+            .inner
+            .calls
+            .lock()
+            .unwrap()
+            .last()
+            .map(|(method, params)| crate::domain::trace::action_title(method, params, locator));
+        let annotation = json!({
+            "duration": o.duration.as_millis() as u64,
+            "point": point.map(|(x, y)| json!({"x": x, "y": y})),
+            "box": bbox.map(|b| json!({"x": b.x, "y": b.y, "width": b.width, "height": b.height})),
+            "actionTitle": title,
+            "position": o.position.as_str(),
+            "fontSize": o.font_size,
+            "cursor": if o.cursor { "pointer" } else { "none" },
+        });
+        let _ = self
+            .injected_call(
+                None,
+                "async (i, o) => { i.setScreencastAnnotation(o); const t = (i.utils.builtins && i.utils.builtins.setTimeout) || setTimeout; await new Promise(f => t(f, o.duration)); i.setScreencastAnnotation(null); }",
+                &[annotation],
+                true,
+                o.duration + self.default_timeout(),
+            )
+            .await;
     }
 }
 
@@ -433,6 +542,19 @@ impl Screencast {
                 self.page.default_timeout(),
             )
             .await?;
+        Ok(())
+    }
+
+    /// `screencast.showActions(options)`: annotates input actions (title,
+    /// pointer, element box); each action waits for its annotation.
+    pub async fn show_actions(&self, options: ShowActions) -> Result<()> {
+        self.page.inner.screencast.lock().unwrap().actions = Some(options);
+        Ok(())
+    }
+
+    /// `screencast.hideActions()`.
+    pub async fn hide_actions(&self) -> Result<()> {
+        self.page.inner.screencast.lock().unwrap().actions = None;
         Ok(())
     }
 

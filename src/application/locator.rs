@@ -645,6 +645,7 @@ impl Locator {
             if o.trial {
                 return Ok(Attempt::Done(()));
             }
+            self.annotate(&el, Some(point)).await;
             let keyboard = self.page.keyboard();
             for m in &o.modifiers {
                 keyboard.down(m).await?;
@@ -727,6 +728,7 @@ impl Locator {
             if let Some(missing) = self.check_states(&el, Action::Fill).await? {
                 return Ok(Attempt::Retry(missing));
             }
+            self.annotate(&el, None).await;
             let r = self
                 .page
                 .element_call(
@@ -765,6 +767,7 @@ impl Locator {
                 Attempt::Done(el) => el,
                 Attempt::Retry(r) => return Ok(Attempt::Retry(r)),
             };
+            self.annotate(&el, None).await;
             let r = self
                 .page
                 .element_call(&el, "(i, node) => i.focusNode(node, true)", &[], true)
@@ -776,6 +779,19 @@ impl Locator {
             })
         })
         .await
+    }
+
+    /// Shows the screencast action annotation (`screencast.showActions()`)
+    /// before an input action on `el`.
+    async fn annotate(&self, el: &ElementRef, point: Option<Point>) {
+        if !self.page.showing_actions() {
+            return;
+        }
+        let bbox = self.page.box_of(el).await.ok().flatten();
+        let locator = self.to_playwright_string().await.ok();
+        self.page
+            .show_action(point.map(|p| (p.x, p.y)), bbox, locator.as_deref())
+            .await;
     }
 
     /// `locator.focus()`.

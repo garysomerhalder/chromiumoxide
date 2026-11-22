@@ -105,7 +105,31 @@ pub fn context_options_event(
 /// Playwright's `renderFullTitleForCall` for the input actions: the title
 /// from the protocol's metainfo, then the locator (`{selector}`) when known.
 pub fn action_title(method: &str, params: &serde_json::Value, locator: Option<&str>) -> String {
-    unimplemented!()
+    let param = |k: &str| {
+        params
+            .get(k)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .replace('\n', "\\n")
+    };
+    let title = match method {
+        "check" => "Check".to_owned(),
+        "uncheck" => "Uncheck".to_owned(),
+        "click" => "Click".to_owned(),
+        "dblclick" => "Double click".to_owned(),
+        "hover" => "Hover".to_owned(),
+        "tap" => "Tap".to_owned(),
+        "fill" => format!("Fill \"{}\"", param("value")),
+        "press" => format!("Press \"{}\"", param("key")),
+        "type" => format!("Type \"{}\"", param("text")),
+        "selectOption" => "Select option".to_owned(),
+        "setInputFiles" => "Set input files".to_owned(),
+        other => return other.to_owned(),
+    };
+    match locator {
+        Some(l) => format!("{title} {}", l.replace('\n', "\\n")),
+        None => title,
+    }
 }
 
 #[cfg(test)]

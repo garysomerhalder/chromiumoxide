@@ -78,6 +78,8 @@ pub(crate) struct PageInner {
     pub(crate) ws_routes: crate::application::websocket_route::WsRoutes,
     pub(crate) video: Mutex<Option<crate::application::video::Video>>,
     pub(crate) screencast: Mutex<crate::application::screencast::ScreencastState>,
+    /// The API calls running on this page (method, params), innermost last.
+    pub(crate) calls: Mutex<Vec<(String, Value)>>,
     pub(crate) navigation_timeout: Mutex<Option<Duration>>,
     pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
     pub(crate) locator_handlers: Mutex<Vec<crate::application::extras::LocatorHandler>>,
@@ -191,6 +193,7 @@ impl Page {
             ws_routes: Mutex::new(Vec::new()),
             video: Mutex::new(None),
             screencast: Mutex::new(Default::default()),
+            calls: Mutex::new(Vec::new()),
             navigation_timeout: Mutex::new(*context.navigation_timeout.lock().unwrap()),
             media: Mutex::new(Default::default()),
             locator_handlers: Mutex::new(Vec::new()),

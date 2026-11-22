@@ -411,6 +411,20 @@ impl Page {
     where
         F: Future<Output = Result<T>>,
     {
+        self.inner
+            .calls
+            .lock()
+            .unwrap()
+            .push((method.to_owned(), params.clone()));
+        let r = self.traced_call(class, method, params, f).await;
+        self.inner.calls.lock().unwrap().pop();
+        r
+    }
+
+    async fn traced_call<T, F>(&self, class: &str, method: &str, params: Value, f: F) -> Result<T>
+    where
+        F: Future<Output = Result<T>>,
+    {
         let Some(ctx) = self.inner.context.upgrade() else {
             return f.await;
         };
