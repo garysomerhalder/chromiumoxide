@@ -9,6 +9,7 @@ use futures::FutureExt;
 use futures::future::BoxFuture;
 use serde_json::{Value, json};
 
+use crate::application::locator::Locator;
 use crate::application::page::Page;
 use crate::domain::error::{Error, Result};
 use crate::domain::frame::World;
@@ -21,6 +22,11 @@ const PREPARE: &str = include_str!("scripts/prepare_screenshot.js");
 
 const CLEANUP: &str =
     "function() { window.__pwCleanupScreenshot && window.__pwCleanupScreenshot(); }";
+
+/// Playwright's default `maskColor`.
+const DEFAULT_MASK_COLOR: &str = "#F0F";
+
+const MASK: &str = "(i, selector, color) => { i.addMaskedElements(i.querySelectorAll(i.parseSelector(selector), i.document), color); }";
 
 const VIEWPORT_SIZE: &str =
     "function() { return { width: window.innerWidth, height: window.innerHeight }; }";
@@ -41,14 +47,13 @@ impl Page {
     pub fn screenshot(&self) -> Screenshot<'_> {
         Screenshot {
             page: self,
+            element: None,
             options: ScreenshotOptions::default(),
+            mask: Vec::new(),
+            mask_color: None,
             path: None,
             timeout: None,
         }
-    }
-
-    async fn run_screenshot(&self, o: &ScreenshotOptions, timeout: Duration) -> Result<Vec<u8>> {
-        self.run_screenshot_of(o, timeout, None).await
     }
 
     /// Page screenshot, or of `element` when given (Playwright's `screenshotElement`).
@@ -57,6 +62,64 @@ impl Page {
         o: &ScreenshotOptions,
         timeout: Duration,
         element: Option<&crate::application::locator::ElementRef>,
+    ) -> Result<Vec<u8>> {
+        self.run_masked_screenshot(o, timeout, element, &[], None)
+            .await
+    }
+
+    /// Covers every element matched by `mask` (non-strict) with `color`, like
+    /// Playwright's `_maskElements`; returns the frames to clean up.
+    async fn mask_elements(
+        &self,
+        mask: &[Locator],
+        color: &str,
+        timeout: Duration,
+    ) -> Result<Vec<Option<String>>> {
+        let mut frames: Vec<Option<String>> = Vec::new();
+        if mask.is_empty() {
+            return Ok(frames);
+        }
+        self.hide_highlights(&[None], timeout).await;
+        for locator in mask {
+            let Some((frame, selector, _)) = locator.scope(timeout).await? else {
+                continue;
+            };
+            self.injected_call(
+                frame.as_deref(),
+                MASK,
+                &[json!(selector), json!(color)],
+                true,
+                timeout,
+            )
+            .await?;
+            if !frames.contains(&frame) {
+                frames.push(frame);
+            }
+        }
+        Ok(frames)
+    }
+
+    async fn hide_highlights(&self, frames: &[Option<String>], timeout: Duration) {
+        for frame in frames {
+            let _ = self
+                .injected_call(
+                    frame.as_deref(),
+                    "(i) => i.hideHighlight()",
+                    &[],
+                    true,
+                    timeout,
+                )
+                .await;
+        }
+    }
+
+    async fn run_masked_screenshot(
+        &self,
+        o: &ScreenshotOptions,
+        timeout: Duration,
+        element: Option<&crate::application::locator::ElementRef>,
+        mask: &[Locator],
+        mask_color: Option<&str>,
     ) -> Result<Vec<u8>> {
         let quality = validate(o)?;
         let viewport = match self.viewport_size() {
@@ -97,9 +160,19 @@ impl Page {
             "preparing the screenshot",
         )
         .await?;
-        let result = self
-            .capture_prepared(o, quality, viewport, timeout, element)
-            .await;
+        let result = match self
+            .mask_elements(mask, mask_color.unwrap_or(DEFAULT_MASK_COLOR), timeout)
+            .await
+        {
+            Ok(masked) => {
+                let r = self
+                    .capture_prepared(o, quality, viewport, timeout, element)
+                    .await;
+                self.hide_highlights(&masked, timeout).await;
+                r
+            }
+            Err(e) => Err(e),
+        };
         let _ = self
             .call_function(
                 World::Utility,
@@ -232,7 +305,11 @@ fn num(v: &Value, k: &str) -> f64 {
 #[must_use = "does nothing until awaited"]
 pub struct Screenshot<'a> {
     page: &'a Page,
+    /// `Some` for `locator.screenshot()`.
+    element: Option<Locator>,
     options: ScreenshotOptions,
+    mask: Vec<Locator>,
+    mask_color: Option<String>,
     path: Option<PathBuf>,
     timeout: Option<Duration>,
 }
@@ -275,6 +352,16 @@ impl<'a> Screenshot<'a> {
         self.options.style = Some(css.to_owned());
         self
     }
+    /// Covers the elements these locators match with a box (`mask`).
+    pub fn mask(mut self, locators: &[Locator]) -> Self {
+        self.mask.extend(locators.iter().cloned());
+        self
+    }
+    /// Colour of the mask boxes, any CSS colour (default `#F0F`).
+    pub fn mask_color(mut self, color: &str) -> Self {
+        self.mask_color = Some(color.to_owned());
+        self
+    }
     /// Also write the image to this file.
     pub fn path(mut self, path: impl Into<PathBuf>) -> Self {
         self.path = Some(path.into());
@@ -296,13 +383,42 @@ impl<'a> IntoFuture for Screenshot<'a> {
     type IntoFuture = BoxFuture<'a, Result<Vec<u8>>>;
     fn into_future(self) -> Self::IntoFuture {
         async move {
-            let timeout = self.timeout.unwrap_or_else(|| self.page.default_timeout());
-            let bytes = self.page.run_screenshot(&self.options, timeout).await?;
+            let timeout = self.timeout.unwrap_or_else(|| match &self.element {
+                Some(l) => l.timeout(),
+                None => self.page.default_timeout(),
+            });
+            let element = match &self.element {
+                Some(l) => {
+                    l.scroll_into_view_if_needed().await?;
+                    Some(l.element("taking a screenshot", timeout).await?)
+                }
+                None => None,
+            };
+            let bytes = self
+                .page
+                .run_masked_screenshot(
+                    &self.options,
+                    timeout,
+                    element.as_ref(),
+                    &self.mask,
+                    self.mask_color.as_deref(),
+                )
+                .await?;
             if let Some(path) = &self.path {
                 self.page.inner.shared.services.fs.write(path, &bytes)?;
             }
             Ok(bytes)
         }
         .boxed()
+    }
+}
+
+impl Locator {
+    /// `locator.screenshot(options)` as a builder: chain options (mask, style,
+    /// animations, path, ...), then `.await` the image bytes.
+    pub fn screenshot_builder(&self) -> Screenshot<'_> {
+        let mut s = self.page.screenshot();
+        s.element = Some(self.clone());
+        s
     }
 }

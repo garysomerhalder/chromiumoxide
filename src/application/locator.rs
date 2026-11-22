@@ -63,7 +63,7 @@ enum Attempt<T> {
 /// A way to find element(s) on a page, re-resolved on every use (Playwright's `Locator`).
 #[derive(Clone)]
 pub struct Locator {
-    page: Page,
+    pub(crate) page: Page,
     /// Frame the selector starts from (`None`: the main frame).
     frame: Option<String>,
     selector: String,
@@ -472,7 +472,7 @@ impl Locator {
         })
     }
 
-    fn timeout(&self) -> Duration {
+    pub(crate) fn timeout(&self) -> Duration {
         self.page.default_timeout()
     }
 
@@ -484,7 +484,7 @@ impl Locator {
     }
 
     /// Waits for the element (strict) and returns it.
-    async fn element(&self, what: &str, timeout: Duration) -> Result<ElementRef> {
+    pub(crate) async fn element(&self, what: &str, timeout: Duration) -> Result<ElementRef> {
         self.retry(what, timeout, |_| self.resolved(timeout)).await
     }
 
