@@ -7,6 +7,7 @@ pub mod discovery;
 pub mod js;
 pub mod page;
 pub mod page_init;
+pub mod protocol;
 pub mod screenshot;
 pub mod services;
 pub(crate) mod shared;
