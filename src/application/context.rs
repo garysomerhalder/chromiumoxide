@@ -18,6 +18,8 @@ pub(crate) struct ContextInner {
     pub(crate) options: Arc<ContextOptions>,
     pub(crate) shared: Arc<Shared>,
     pub(crate) pages: Mutex<Vec<Page>>,
+    /// `context.clock` has installed its script.
+    pub(crate) clock_installed: std::sync::atomic::AtomicBool,
     pub(crate) init_errors: Mutex<HashMap<String, String>>,
     pub(crate) init_scripts: Mutex<Vec<String>>,
     pub(crate) bindings: Mutex<HashMap<String, crate::application::scripts::BindingFn>>,
@@ -155,6 +157,7 @@ impl BrowserContext {
             pages: Mutex::new(Vec::new()),
             init_errors: Mutex::new(HashMap::new()),
             init_scripts: Mutex::new(Vec::new()),
+            clock_installed: std::sync::atomic::AtomicBool::new(false),
             bindings: Mutex::new(HashMap::new()),
             changed,
             closed: AtomicBool::new(false),

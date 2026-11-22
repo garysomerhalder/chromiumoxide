@@ -3,6 +3,7 @@
 pub mod actions;
 pub mod aria;
 pub mod browser;
+pub mod clock;
 pub mod context;
 pub mod credentials;
 pub mod discovery;
