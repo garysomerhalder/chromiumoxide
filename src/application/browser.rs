@@ -74,6 +74,8 @@ pub(crate) struct BrowserInner {
     tracing: Mutex<Option<Option<String>>>,
     /// Delete the profile on close (temporary profiles only).
     remove_profile: bool,
+    /// `browser.bind()`: the connection served to other clients.
+    bridge: Mutex<Option<Box<dyn crate::ports::BoundBridge>>>,
 }
 
 impl Drop for BrowserInner {
@@ -174,6 +176,7 @@ impl Browser {
                 closed: AtomicBool::new(false),
                 tracing: Mutex::new(None),
                 remove_profile: persistent.is_none(),
+                bridge: Mutex::new(None),
             }),
         };
         let default_options = persistent.map(|(_, o)| o);
@@ -206,10 +209,38 @@ impl Browser {
                 closed: AtomicBool::new(false),
                 tracing: Mutex::new(None),
                 remove_profile: false,
+                bridge: Mutex::new(None),
             }),
         };
         browser.handshake(None).await?;
         Ok(browser)
+    }
+
+    /// Playwright's `browser.bind()`: lets other clients
+    /// ([`Chromium::connect`](crate::Chromium::connect)) share this browser
+    /// over a local WebSocket, whatever channel it was launched with. Their
+    /// endpoint speaks CDP. Binding again returns the same endpoint.
+    pub async fn bind(&self) -> Result<String> {
+        if let Some(b) = self.inner.bridge.lock().unwrap().as_ref() {
+            return Ok(b.endpoint());
+        }
+        let bound = self
+            .inner
+            .services
+            .bridge
+            .serve(self.inner.cdp.clone())
+            .await?;
+        let endpoint = bound.endpoint();
+        *self.inner.bridge.lock().unwrap() = Some(bound);
+        Ok(endpoint)
+    }
+
+    /// `browser.unbind()`: stops serving other clients.
+    pub async fn unbind(&self) -> Result<()> {
+        if let Some(b) = self.inner.bridge.lock().unwrap().take() {
+            b.stop();
+        }
+        Ok(())
     }
 
     /// The DevTools WebSocket URL, if the browser was launched or connected over one.
@@ -350,6 +381,7 @@ impl Browser {
         for inner in live {
             let _ = BrowserContext { inner }.flush_har().await;
         }
+        let mut context_ids: Vec<String> = Vec::new();
         let shared = self.inner.shared.lock().unwrap().take();
         if let Some(shared) = shared {
             let contexts: Vec<_> = shared
@@ -360,6 +392,9 @@ impl Browser {
                 .map(|(_, c)| c)
                 .collect();
             for c in contexts {
+                if !c.id.is_empty() {
+                    context_ids.push(c.id.clone());
+                }
                 c.closed.store(true, Ordering::SeqCst);
                 let pages = std::mem::take(&mut *c.pages.lock().unwrap());
                 for p in pages {
@@ -372,8 +407,25 @@ impl Browser {
                 let _ = self.inner.services.fs.remove_dir_all(&dir);
             }
         }
-        let _ = self.inner.cdp.call(None, "Browser.close", json!({})).await;
         let process = self.inner.process.lock().unwrap().take();
+        if process.is_none() {
+            // Connected, not launched: like Playwright, drop the contexts this
+            // client created and disconnect; the browser keeps running.
+            for id in context_ids {
+                let _ = self
+                    .inner
+                    .cdp
+                    .call(
+                        None,
+                        "Target.disposeBrowserContext",
+                        json!({"browserContextId": id}),
+                    )
+                    .await;
+            }
+            self.inner.cdp.disconnect();
+            return Ok(());
+        }
+        let _ = self.inner.cdp.call(None, "Browser.close", json!({})).await;
         if let Some(process) = process {
             process.shutdown().await;
         }
@@ -468,6 +520,8 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
                 );
                 context.add_service_worker(worker);
             }
+            // Out-of-process iframes are attached by their page's event loop.
+            _ if kind == "iframe" && event.session_id.is_some() => {}
             _ if kind == "worker" && event.session_id.is_some() => {
                 let page = event
                     .session_id
@@ -544,6 +598,8 @@ mod tests {
             launcher: Arc::new(launcher.clone()),
             clock: Arc::new(TestClock),
             video: Arc::new(crate::testing::memory::NullVideo),
+            http: Arc::new(crate::testing::memory::NoHttp),
+            bridge: Arc::new(crate::testing::memory::NoBridge),
         };
         (s, fs)
     }

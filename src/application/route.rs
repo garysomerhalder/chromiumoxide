@@ -793,12 +793,15 @@ impl Page {
                     let _ = tx.send(p.clone());
                 }
                 None => {
-                    let fut = self.inner.shared.cdp.call(
-                        Some(&self.inner.session_id),
-                        "Fetch.continueResponse",
-                        json!({"requestId": interception_id}),
-                    );
-                    tokio::spawn(fut);
+                    let page = self.clone();
+                    tokio::spawn(async move {
+                        let _ = page
+                            .send(
+                                "Fetch.continueResponse",
+                                json!({"requestId": interception_id}),
+                            )
+                            .await;
+                    });
                 }
             }
             return;
@@ -809,12 +812,15 @@ impl Page {
             .and_then(Value::as_str)
             .unwrap_or_default();
         let Some(network_id) = network_id.filter(|_| self.routing_active()) else {
-            let fut = self.inner.shared.cdp.call(
-                Some(&self.inner.session_id),
-                "Fetch.continueRequest",
-                json!({"requestId": interception_id}),
-            );
-            tokio::spawn(fut);
+            let page = self.clone();
+            tokio::spawn(async move {
+                let _ = page
+                    .send(
+                        "Fetch.continueRequest",
+                        json!({"requestId": interception_id}),
+                    )
+                    .await;
+            });
             return;
         };
         if url.starts_with("data:") {

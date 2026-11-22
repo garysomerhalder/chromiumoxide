@@ -1,9 +1,11 @@
 //! Page keyboard, mouse and touchscreen (Playwright's `page.keyboard` etc.).
 
+use futures::StreamExt;
 use serde_json::{Value, json};
 
 use crate::application::page::Page;
 use crate::domain::error::{Error, Result};
+use crate::domain::frame::World;
 use crate::domain::input::{
     KeyEvent, KeyEventType, MouseButton, MouseEvent, MouseEventType, TypeStep, split_shortcut,
     type_steps,
@@ -141,7 +143,126 @@ impl Keyboard {
     }
 }
 
+/// Watches for a drag starting on the next mouse move (Playwright's
+/// `setupDragListeners`, run in every frame's utility world).
+const SETUP_DRAG: &str = "function() {
+  let didStartDrag = Promise.resolve(false);
+  let dragEvent = null;
+  const dragListener = (event) => dragEvent = event;
+  const mouseListener = () => {
+    didStartDrag = new Promise((callback) => {
+      window.addEventListener('dragstart', dragListener, { once: true, capture: true });
+      setTimeout(() => callback(dragEvent ? !dragEvent.defaultPrevented : false), 0);
+    });
+  };
+  window.addEventListener('mousemove', mouseListener, { once: true, capture: true });
+  window.__cleanupDrag = async () => {
+    const val = await didStartDrag;
+    window.removeEventListener('mousemove', mouseListener, { capture: true });
+    window.removeEventListener('dragstart', dragListener, { capture: true });
+    delete window.__cleanupDrag;
+    return val;
+  };
+}";
+
+const CLEANUP_DRAG: &str =
+    "function() { return window.__cleanupDrag ? window.__cleanupDrag() : false; }";
+
 impl Mouse {
+    async fn modifiers(&self) -> u32 {
+        self.page.inner.keyboard.lock().await.modifiers()
+    }
+
+    fn drag_state(&self) -> Option<Value> {
+        self.page.inner.drag.lock().unwrap().clone()
+    }
+
+    async fn drag_event(&self, kind: &str, x: f64, y: f64, data: Value) -> Result<()> {
+        let modifiers = self.modifiers().await;
+        self.page
+            .send(
+                "Input.dispatchDragEvent",
+                json!({"type": kind, "x": x, "y": y, "data": data, "modifiers": modifiers}),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// A move that may start or continue an HTML5 drag (Playwright's
+    /// `DragManager.interceptDragCausedByMove`).
+    async fn dispatch_move(&self, e: &MouseEvent) -> Result<()> {
+        if let Some(data) = self.drag_state() {
+            return self.drag_event("dragOver", e.x, e.y, data).await;
+        }
+        if e.button != "left" {
+            return self.dispatch(e).await;
+        }
+        let timeout = self.page.default_timeout();
+        let frames = self.page.frames();
+        for f in &frames {
+            let _ = self
+                .page
+                .call_function_in(
+                    Some(f.id()),
+                    World::Utility,
+                    SETUP_DRAG,
+                    &[],
+                    timeout,
+                    "watching drags",
+                )
+                .await;
+        }
+        let mut cdp = self.page.inner.shared.cdp.subscribe();
+        self.page
+            .send("Input.setInterceptDrags", json!({"enabled": true}))
+            .await?;
+        let moved = self.dispatch(e).await;
+        let mut expecting = false;
+        for f in &frames {
+            let started = self
+                .page
+                .call_function_in(
+                    Some(f.id()),
+                    World::Utility,
+                    CLEANUP_DRAG,
+                    &[],
+                    timeout,
+                    "watching drags",
+                )
+                .await;
+            expecting |= matches!(started, Ok(Value::Bool(true)));
+        }
+        let mut data = None;
+        if expecting && moved.is_ok() {
+            let session = self.page.inner.session_id.clone();
+            let wait = async {
+                while let Some(ev) = cdp.next().await {
+                    if ev.session_id.as_deref() == Some(session.as_str())
+                        && ev.method == "Input.dragIntercepted"
+                    {
+                        return Some(ev.params["data"].clone());
+                    }
+                }
+                None
+            };
+            let clock = self.page.inner.shared.services.clock.clone();
+            data = tokio::select! {
+                d = wait => d,
+                _ = clock.sleep(timeout) => None,
+            };
+        }
+        let _ = self
+            .page
+            .send("Input.setInterceptDrags", json!({"enabled": false}))
+            .await;
+        moved?;
+        if let Some(data) = data {
+            *self.page.inner.drag.lock().unwrap() = Some(data.clone());
+            self.drag_event("dragEnter", e.x, e.y, data).await?;
+        }
+        Ok(())
+    }
+
     async fn dispatch(&self, e: &MouseEvent) -> Result<()> {
         let modifiers = self.page.inner.keyboard.lock().await.modifiers();
         let params = match e.kind {
@@ -170,6 +291,15 @@ impl Mouse {
     pub async fn move_to(&self, x: f64, y: f64, steps: u32) -> Result<()> {
         let events = self.page.inner.mouse.lock().await.move_to(x, y, steps);
         for e in &events {
+            self.dispatch_move(e).await?;
+        }
+        Ok(())
+    }
+
+    /// The move of a click: never starts a drag.
+    async fn move_for_click(&self, x: f64, y: f64) -> Result<()> {
+        let events = self.page.inner.mouse.lock().await.move_to(x, y, 1);
+        for e in &events {
             self.dispatch(e).await?;
         }
         Ok(())
@@ -182,6 +312,9 @@ impl Mouse {
 
     async fn down_n(&self, button: MouseButton, click_count: u32) -> Result<()> {
         let e = self.page.inner.mouse.lock().await.down(button, click_count);
+        if self.drag_state().is_some() {
+            return Ok(());
+        }
         self.dispatch(&e).await
     }
 
@@ -192,6 +325,10 @@ impl Mouse {
 
     async fn up_n(&self, button: MouseButton, click_count: u32) -> Result<()> {
         let e = self.page.inner.mouse.lock().await.up(button, click_count);
+        let drag = self.page.inner.drag.lock().unwrap().take();
+        if let Some(data) = drag {
+            return self.drag_event("drop", e.x, e.y, data).await;
+        }
         self.dispatch(&e).await
     }
 
@@ -203,7 +340,7 @@ impl Mouse {
         button: MouseButton,
         click_count: u32,
     ) -> Result<()> {
-        self.move_to(x, y, 1).await?;
+        self.move_for_click(x, y).await?;
         for n in 1..=click_count.max(1) {
             self.down_n(button, n).await?;
             self.up_n(button, n).await?;

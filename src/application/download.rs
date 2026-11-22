@@ -166,7 +166,7 @@ impl Shared {
         contexts
             .iter()
             .flat_map(|c| c.pages.lock().unwrap().clone())
-            .find(|p| p.inner.session_id == session_id)
+            .find(|p| p.has_session(session_id))
     }
 
     fn page_with_frame(&self, frame_id: &str) -> Option<Page> {

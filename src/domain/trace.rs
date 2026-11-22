@@ -75,6 +75,51 @@ pub fn zip_stored(files: &[(&str, Vec<u8>)]) -> Vec<u8> {
     out
 }
 
+/// SHA-1 as lower-case hex (trace resource names).
+pub fn sha1_hex(data: &[u8]) -> String {
+    let mut h: [u32; 5] = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0];
+    let mut msg = data.to_vec();
+    let bit_len = (data.len() as u64).wrapping_mul(8);
+    msg.push(0x80);
+    while msg.len() % 64 != 56 {
+        msg.push(0);
+    }
+    msg.extend_from_slice(&bit_len.to_be_bytes());
+    for chunk in msg.chunks(64) {
+        let mut w = [0u32; 80];
+        for (i, word) in chunk.chunks(4).enumerate() {
+            w[i] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
+        }
+        for i in 16..80 {
+            w[i] = (w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]).rotate_left(1);
+        }
+        let [mut a, mut b, mut c, mut d, mut e] = h;
+        for (i, wi) in w.iter().enumerate() {
+            let (f, k) = match i {
+                0..=19 => ((b & c) | (!b & d), 0x5A827999),
+                20..=39 => (b ^ c ^ d, 0x6ED9EBA1),
+                40..=59 => ((b & c) | (b & d) | (c & d), 0x8F1BBCDC),
+                _ => (b ^ c ^ d, 0xCA62C1D6),
+            };
+            let t = a
+                .rotate_left(5)
+                .wrapping_add(f)
+                .wrapping_add(e)
+                .wrapping_add(k)
+                .wrapping_add(*wi);
+            e = d;
+            d = c;
+            c = b.rotate_left(30);
+            b = a;
+            a = t;
+        }
+        for (x, y) in h.iter_mut().zip([a, b, c, d, e]) {
+            *x = x.wrapping_add(y);
+        }
+    }
+    h.iter().map(|v| format!("{v:08x}")).collect()
+}
+
 /// The first event of a trace chunk.
 pub fn context_options_event(
     browser: &str,
@@ -134,6 +179,22 @@ pub fn action_title(method: &str, params: &serde_json::Value, locator: Option<&s
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn sha1_matches_known_vectors() {
+        assert_eq!(sha1_hex(b""), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
+        assert_eq!(sha1_hex(b"abc"), "a9993e364706816aba3e25717850c26c9cd0d89d");
+        assert_eq!(
+            sha1_hex(b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+            "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
+        );
+        // Playwright 1.63 named this stylesheet resources/3fe3...181a.css.
+        assert_eq!(
+            sha1_hex(b"button { color: red; }"),
+            "3fe33742618fac5890c933e5782ff6af7a2f181a"
+        );
+        assert_eq!(sha1_hex(&vec![b'a'; 1000]).len(), 40);
+    }
+
     #[test]
     fn action_titles_like_playwright() {
         let p = serde_json::json!({"value": "a\nb", "key": "Enter", "text": "hi"});

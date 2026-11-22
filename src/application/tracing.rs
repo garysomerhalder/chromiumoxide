@@ -15,6 +15,7 @@ use crate::application::events::PageEvent;
 use crate::application::page::Page;
 use crate::domain::emulation::FontPlatform;
 use crate::domain::error::{Error, Result};
+use crate::domain::frame::World;
 use crate::domain::trace::{context_options_event, zip_stored};
 
 /// Options for `tracing.start()`.
@@ -22,7 +23,7 @@ use crate::domain::trace::{context_options_event, zip_stored};
 pub struct TracingStart {
     /// Record screencast frames (filmstrip).
     pub screenshots: bool,
-    /// DOM snapshots: not recorded yet (accepted for compatibility).
+    /// Record DOM snapshots before and after each action.
     pub snapshots: bool,
     pub name: Option<String>,
     pub title: Option<String>,
@@ -37,6 +38,29 @@ pub(crate) struct TraceRecording {
     next_call: u64,
     pages: HashSet<String>,
     groups: Vec<String>,
+    /// The page global of Playwright's snapshot streamer (`snapshots: true`).
+    streamer: Option<String>,
+}
+
+const SNAPSHOT_STREAMER: &str = include_str!("scripts/snapshot_streamer.js");
+
+/// File extension of a stored resource, like Playwright's `mime.getExtension`.
+fn extension_for(mime: &str) -> &'static str {
+    match mime.split(';').next().unwrap_or_default().trim() {
+        "text/html" => "html",
+        "text/css" => "css",
+        "text/javascript" | "application/javascript" => "js",
+        "application/json" => "json",
+        "text/plain" => "txt",
+        "image/png" => "png",
+        "image/jpeg" => "jpeg",
+        "image/gif" => "gif",
+        "image/svg+xml" => "svg",
+        "image/webp" => "webp",
+        "font/woff" => "woff",
+        "font/woff2" => "woff2",
+        _ => "dat",
+    }
 }
 
 pub(crate) type TracingState = Mutex<Option<TraceRecording>>;
@@ -117,9 +141,30 @@ impl ContextInner {
                         let mut rec = ctx.tracing.lock().unwrap();
                         if let Some(rec) = rec.as_mut() {
                             let id = id.clone();
+                            let store = rec.streamer.is_some().then(|| Arc::downgrade(&ctx));
                             rec.network.push(tokio::spawn(async move {
-                                let entry =
+                                let mut entry =
                                     crate::application::har::entry_for(r, id, false).await;
+                                // With snapshots, bodies go to resources/ (`_file`).
+                                if let Some(ctx) = store.and_then(|w| w.upgrade()) {
+                                    let content = &mut entry.response.content;
+                                    if content.text.is_some() {
+                                        let body = content.body();
+                                        let name = format!(
+                                            "resources/{}.{}",
+                                            crate::domain::trace::sha1_hex(&body),
+                                            extension_for(&content.mime_type)
+                                        );
+                                        content.text = None;
+                                        content.encoding = None;
+                                        content.file = Some(name.clone());
+                                        if let Some(rec) = ctx.tracing.lock().unwrap().as_mut()
+                                            && !rec.resources.iter().any(|(n, _)| *n == name)
+                                        {
+                                            rec.resources.push((name, body));
+                                        }
+                                    }
+                                }
                                 serde_json::to_value(entry).ok().map(|snapshot| {
                                     json!({"type": "resource-snapshot", "snapshot": snapshot})
                                         .to_string()
@@ -234,7 +279,46 @@ impl Tracing {
                 next_call: 1,
                 pages: HashSet::new(),
                 groups: Vec::new(),
+                streamer: None,
             });
+        }
+        let snapshots = self
+            .context
+            .tracing
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|r| r.options.snapshots);
+        if snapshots {
+            let name = format!(
+                "__playwright_snapshot_streamer_{:x}",
+                (clock.wall_ms().to_bits() ^ clock.now_ms().rotate_left(13))
+            );
+            let js_enabled = self.context.options.java_script_enabled;
+            let script = format!("({SNAPSHOT_STREAMER})({name:?}, {js_enabled})");
+            BrowserContext {
+                inner: self.context.clone(),
+            }
+            .add_init_script(&script)
+            .await?;
+            let pages: Vec<Page> = self.context.pages.lock().unwrap().clone();
+            for page in pages {
+                for frame in page.frames() {
+                    let _ = page
+                        .call_function_in(
+                            Some(frame.id()),
+                            World::Main,
+                            &format!("function() {{ {script}; }}"),
+                            &[],
+                            page.default_timeout(),
+                            "installing the snapshotter",
+                        )
+                        .await;
+                }
+            }
+            if let Some(rec) = self.context.tracing.lock().unwrap().as_mut() {
+                rec.streamer = Some(name);
+            }
         }
         let pages: Vec<Page> = self.context.pages.lock().unwrap().clone();
         for page in pages {
@@ -411,6 +495,7 @@ impl Page {
     where
         F: Future<Output = Result<T>>,
     {
+        self.debugger_checkpoint(method, &params).await;
         self.inner
             .calls
             .lock()
@@ -447,7 +532,9 @@ impl Page {
                 "method": method, "params": params, "pageId": format!("page@{}", self.target_id().to_lowercase()),
             }));
         }
+        self.trace_snapshot(&ctx, &call_id, "before").await;
         let result = f.await;
+        self.trace_snapshot(&ctx, &call_id, "after").await;
         if let Some(t) = ctx.trace_time() {
             let mut after = json!({"type": "after", "callId": call_id, "endTime": t});
             if let Err(e) = &result {
@@ -456,5 +543,81 @@ impl Page {
             ctx.trace_event(after);
         }
         result
+    }
+}
+
+impl Page {
+    /// Playwright's `Snapshotter.captureSnapshot`: a `frame-snapshot` event
+    /// per frame, when the trace records snapshots.
+    async fn trace_snapshot(&self, ctx: &Arc<ContextInner>, call_id: &str, phase: &str) {
+        let Some(name) = ctx
+            .tracing
+            .lock()
+            .unwrap()
+            .as_ref()
+            .and_then(|r| r.streamer.clone())
+        else {
+            return;
+        };
+        let page_id = format!("page@{}", self.target_id().to_lowercase());
+        let main = self.main_frame().id().to_owned();
+        for frame in self.frames() {
+            let data = self
+                .call_function_in(
+                    Some(frame.id()),
+                    World::Main,
+                    &format!(
+                        "function() {{ const s = window[{name:?}]; return s ? s.captureSnapshot(undefined) : null; }}"
+                    ),
+                    &[],
+                    std::time::Duration::from_secs(5),
+                    "capturing a snapshot",
+                )
+                .await;
+            let Ok(data) = data else { continue };
+            if data.is_null() {
+                continue;
+            }
+            let Some(time) = ctx.trace_time() else { return };
+            let mut overrides = Vec::new();
+            let mut files = Vec::new();
+            for o in data["resourceOverrides"].as_array().into_iter().flatten() {
+                let url = o.get("url").cloned().unwrap_or(Value::Null);
+                match o.get("content") {
+                    Some(Value::String(content)) => {
+                        let mime = o
+                            .get("contentType")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default();
+                        let file = format!(
+                            "resources/{}.{}",
+                            crate::domain::trace::sha1_hex(content.as_bytes()),
+                            extension_for(mime)
+                        );
+                        files.push((file.clone(), content.as_bytes().to_vec()));
+                        overrides.push(json!({"url": url, "file": file}));
+                    }
+                    other => overrides
+                        .push(json!({"url": url, "ref": other.cloned().unwrap_or(Value::Null)})),
+                }
+            }
+            let snapshot = json!({
+                "callId": call_id, "phase": phase, "pageId": page_id,
+                "frameId": format!("frame@{}", frame.id().to_lowercase()),
+                "frameUrl": data["url"], "doctype": data["doctype"], "html": data["html"],
+                "viewport": data["viewport"], "timestamp": time, "wallTime": data["wallTime"],
+                "collectionTime": data["collectionTime"], "resourceOverrides": overrides,
+                "isMainFrame": frame.id() == main,
+            });
+            if let Some(rec) = ctx.tracing.lock().unwrap().as_mut() {
+                for (name, body) in files {
+                    if !rec.resources.iter().any(|(n, _)| *n == name) {
+                        rec.resources.push((name, body));
+                    }
+                }
+                rec.events
+                    .push(json!({"type": "frame-snapshot", "snapshot": snapshot}).to_string());
+            }
+        }
     }
 }

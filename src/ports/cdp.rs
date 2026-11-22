@@ -35,4 +35,7 @@ pub trait CdpSession: Send + Sync {
     /// Every event received from now on. Subscribe *before* issuing the call
     /// that triggers the events you need.
     fn subscribe(&self) -> EventStream;
+
+    /// Closes the connection (the browser keeps running).
+    fn disconnect(&self) {}
 }

@@ -1,0 +1,230 @@
+[
+ {
+  "selector": "button",
+  "locator": "locator('button')"
+ },
+ {
+  "selector": "#a .b > c",
+  "locator": "locator('#a .b > c')"
+ },
+ {
+  "selector": "xpath=//div",
+  "locator": "locator('//div')"
+ },
+ {
+  "selector": "//span",
+  "locator": "locator('//span')"
+ },
+ {
+  "selector": "text=Hello",
+  "locator": "locator('text=Hello')"
+ },
+ {
+  "selector": "text=\"Exact\"",
+  "locator": "locator('text=\"Exact\"')"
+ },
+ {
+  "selector": "internal:role=button",
+  "locator": "getByRole('button')"
+ },
+ {
+  "selector": "internal:role=button[name=\"Go\"i]",
+  "locator": "getByRole('button', { name: 'Go' })"
+ },
+ {
+  "selector": "internal:role=button[name=\"Go\"s]",
+  "locator": "getByRole('button', { name: 'Go', exact: true })"
+ },
+ {
+  "selector": "internal:role=heading[level=2]",
+  "locator": "getByRole('heading', { level: 2 })"
+ },
+ {
+  "selector": "internal:role=checkbox[checked=true]",
+  "locator": "getByRole('checkbox', { checked: true })"
+ },
+ {
+  "selector": "internal:role=checkbox[checked=false]",
+  "locator": "getByRole('checkbox', { checked: false })"
+ },
+ {
+  "selector": "internal:role=button[disabled=true][selected=true][expanded=false][include-hidden=true][pressed=true]",
+  "locator": "getByRole('button', { disabled: true, selected: true, expanded: false, includeHidden: true, pressed: true })"
+ },
+ {
+  "selector": "internal:role=link[name=/sign.?up/i]",
+  "locator": "getByRole('link', { name: /sign.?up/i })"
+ },
+ {
+  "selector": "internal:role=button[description=\"desc\"i]",
+  "locator": "getByRole('button', { description: 'desc' })"
+ },
+ {
+  "selector": "internal:text=\"Welcome\"i",
+  "locator": "getByText('Welcome')"
+ },
+ {
+  "selector": "internal:text=\"Welcome\"s",
+  "locator": "getByText('Welcome', { exact: true })"
+ },
+ {
+  "selector": "internal:text=/wel+come/",
+  "locator": "getByText(/wel+come/)"
+ },
+ {
+  "selector": "internal:text=/x\\/y/gi",
+  "locator": "getByText(/x\\/y/gi)"
+ },
+ {
+  "selector": "internal:text=\"it's \\\"quoted\\\"\"i",
+  "locator": "getByText('it\\'s \"quoted\"')"
+ },
+ {
+  "selector": "internal:text=\"line\\nbreak\"i",
+  "locator": "getByText('line\\nbreak')"
+ },
+ {
+  "selector": "internal:text=\"ünïcödé ✓\"i",
+  "locator": "getByText('ünïcödé ✓')"
+ },
+ {
+  "selector": "internal:label=\"Name\"i",
+  "locator": "getByLabel('Name')"
+ },
+ {
+  "selector": "internal:label=\"Name\"s",
+  "locator": "getByLabel('Name', { exact: true })"
+ },
+ {
+  "selector": "internal:label=/na/",
+  "locator": "getByLabel(/na/)"
+ },
+ {
+  "selector": "internal:attr=[placeholder=\"Search\"i]",
+  "locator": "getByPlaceholder('Search')"
+ },
+ {
+  "selector": "internal:attr=[placeholder=\"Search\"s]",
+  "locator": "getByPlaceholder('Search', { exact: true })"
+ },
+ {
+  "selector": "internal:attr=[alt=\"logo\"i]",
+  "locator": "getByAltText('logo')"
+ },
+ {
+  "selector": "internal:attr=[title=\"tip\"s]",
+  "locator": "getByTitle('tip', { exact: true })"
+ },
+ {
+  "selector": "internal:testid=[data-testid=\"save\"s]",
+  "locator": "getByTestId('save')"
+ },
+ {
+  "selector": "internal:testid=[data-testid=/sa.e/]",
+  "locator": "getByTestId(/sa.e/)"
+ },
+ {
+  "selector": "li >> internal:has-text=\"One\"i",
+  "locator": "locator('li').filter({ hasText: 'One' })"
+ },
+ {
+  "selector": "li >> internal:has-text=/one/i",
+  "locator": "locator('li').filter({ hasText: /one/i })"
+ },
+ {
+  "selector": "li >> internal:has-not-text=\"Two\"i",
+  "locator": "locator('li').filter({ hasNotText: 'Two' })"
+ },
+ {
+  "selector": "li >> internal:has=\"internal:role=button\"",
+  "locator": "locator('li').filter({ has: getByRole('button') })"
+ },
+ {
+  "selector": "li >> internal:has-not=\"span\"",
+  "locator": "locator('li').filter({ hasNot: locator('span') })"
+ },
+ {
+  "selector": "li >> visible=true",
+  "locator": "locator('li').visible()"
+ },
+ {
+  "selector": "li >> visible=false",
+  "locator": "locator('li').filter({ visible: false })"
+ },
+ {
+  "selector": "a >> internal:and=\".b\"",
+  "locator": "locator('a').and(locator('.b'))"
+ },
+ {
+  "selector": "a >> internal:or=\"internal:text=\\\"x\\\"i\"",
+  "locator": "locator('a').or(getByText('x'))"
+ },
+ {
+  "selector": "li >> nth=0",
+  "locator": "locator('li').first()"
+ },
+ {
+  "selector": "li >> nth=-1",
+  "locator": "locator('li').last()"
+ },
+ {
+  "selector": "li >> nth=3",
+  "locator": "locator('li').nth(3)"
+ },
+ {
+  "selector": "li >> nth=-1",
+  "locator": "locator('li').last()"
+ },
+ {
+  "selector": "ul >> li",
+  "locator": "locator('ul').locator('li')"
+ },
+ {
+  "selector": "ul >> internal:role=listitem >> nth=1",
+  "locator": "locator('ul').getByRole('listitem').nth(1)"
+ },
+ {
+  "selector": "iframe >> internal:control=enter-frame >> button",
+  "locator": "locator('iframe').contentFrame().locator('button')"
+ },
+ {
+  "selector": "#f >> internal:control=enter-frame >> internal:text=\"In\"i",
+  "locator": "locator('#f').contentFrame().getByText('In')"
+ },
+ {
+  "selector": "iframe >> internal:control=enter-frame >> internal:role=button[name=\"In\"i]",
+  "locator": "locator('iframe').contentFrame().getByRole('button', { name: 'In' })"
+ },
+ {
+  "selector": "iframe >> internal:control=enter-frame >> iframe >> internal:control=enter-frame >> p",
+  "locator": "locator('iframe').contentFrame().locator('iframe').contentFrame().locator('p')"
+ },
+ {
+  "selector": "div >> internal:chain=\"internal:text=\\\"t\\\"i\"",
+  "locator": "locator('div').locator(getByText('t'))"
+ },
+ {
+  "selector": "button >> internal:describe=\"Submit\"",
+  "locator": "locator('button')"
+ },
+ {
+  "selector": "li >> internal:has-text=\"One\"i",
+  "locator": "locator('li').filter({ hasText: 'One' })"
+ },
+ {
+  "selector": "li >> internal:has=\"b\"",
+  "locator": "locator('li').filter({ has: locator('b') })"
+ },
+ {
+  "selector": "internal:role=button[name=\"a'b\"i]",
+  "locator": "getByRole('button', { name: 'a\\'b' })"
+ },
+ {
+  "selector": "internal:text=\"back\\\\slash\"i",
+  "locator": "getByText('back\\\\slash')"
+ },
+ {
+  "selector": "a >> visible=true",
+  "locator": "locator('a').visible()"
+ }
+]

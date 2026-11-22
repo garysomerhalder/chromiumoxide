@@ -18,6 +18,9 @@ pub(crate) struct ContextInner {
     pub(crate) options: Arc<ContextOptions>,
     pub(crate) shared: Arc<Shared>,
     pub(crate) pages: Mutex<Vec<Page>>,
+    /// `context.clock` has installed its script.
+    pub(crate) clock_installed: std::sync::atomic::AtomicBool,
+    pub(crate) debugger: Mutex<crate::application::debugger::DebuggerState>,
     pub(crate) init_errors: Mutex<HashMap<String, String>>,
     pub(crate) init_scripts: Mutex<Vec<String>>,
     pub(crate) bindings: Mutex<HashMap<String, crate::application::scripts::BindingFn>>,
@@ -50,10 +53,32 @@ pub enum ContextEvent {
     ServiceWorker(crate::application::worker::Worker),
     /// The context was closed.
     Close,
+    /// A request of any page or service worker (`context.on('request')`).
+    Request(crate::application::network::Request),
+    /// `context.on('response')`.
+    Response(crate::application::network::Response),
+    /// `context.on('requestfinished')`.
+    RequestFinished(crate::application::network::Request),
+    /// `context.on('requestfailed')`.
+    RequestFailed(crate::application::network::Request),
+    /// A console message of any page (`context.on('console')`).
+    Console(crate::application::events::ConsoleMessage),
+    /// An uncaught page error (`context.on('weberror')`).
+    WebError(WebError),
+    /// A dialog of any page (`context.on('dialog')`).
+    Dialog(crate::application::events::Dialog),
+}
+
+/// Playwright's `WebError`: an uncaught error and its page.
+#[derive(Debug, Clone)]
+pub struct WebError {
+    pub page: Option<Page>,
+    pub error: crate::domain::console::PageError,
 }
 
 impl ContextInner {
-    pub(crate) fn add_service_worker(&self, worker: crate::application::worker::Worker) {
+    pub(crate) fn add_service_worker(self: &Arc<Self>, worker: crate::application::worker::Worker) {
+        worker.set_owner(self);
         self.service_workers.lock().unwrap().push(worker.clone());
         self.emit(ContextEvent::ServiceWorker(worker));
     }
@@ -155,6 +180,8 @@ impl BrowserContext {
             pages: Mutex::new(Vec::new()),
             init_errors: Mutex::new(HashMap::new()),
             init_scripts: Mutex::new(Vec::new()),
+            clock_installed: std::sync::atomic::AtomicBool::new(false),
+            debugger: Mutex::new(Default::default()),
             bindings: Mutex::new(HashMap::new()),
             changed,
             closed: AtomicBool::new(false),
@@ -363,7 +390,7 @@ impl<'a> PageWaiter<'a> {
                 match e {
                     ContextEvent::Page(p) => return Ok(p),
                     ContextEvent::Close => break,
-                    ContextEvent::ServiceWorker(_) => {}
+                    _ => {}
                 }
             }
             Err(Error::TargetClosed(

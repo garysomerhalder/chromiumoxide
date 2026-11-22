@@ -289,6 +289,13 @@ impl FrameTree {
         }
     }
 
+    /// `Runtime.executionContextsCleared` of a session owning this frame.
+    pub fn contexts_cleared_in(&mut self, frame_id: &str) {
+        if let Some(f) = self.frames.get_mut(frame_id) {
+            f.contexts.clear();
+        }
+    }
+
     /// The frame owning an execution context.
     pub fn frame_for_context(&self, context_id: i64) -> Option<&Frame> {
         self.frames

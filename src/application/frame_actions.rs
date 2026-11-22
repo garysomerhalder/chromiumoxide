@@ -18,7 +18,7 @@ use crate::domain::selectors::{self, TextMatch};
 use crate::domain::url_matcher::UrlMatcher;
 
 impl Frame {
-    fn is_main(&self) -> bool {
+    pub(crate) fn is_main(&self) -> bool {
         self.page().main_frame().id() == self.id()
     }
 
@@ -305,8 +305,11 @@ impl Frame {
         self.wait_for_load_state(LifecycleEvent::Load).await
     }
 
-    /// `frame.waitForNavigation()`: the main frame's navigation (see the page).
+    /// `frame.waitForNavigation()`: this frame's next navigation.
     pub fn wait_for_navigation(&self) -> crate::application::extras::WaitForNavigation<'_> {
-        self.page().wait_for_navigation()
+        if self.is_main() {
+            return self.page().wait_for_navigation();
+        }
+        self.page().wait_for_navigation().for_frame(self.id())
     }
 }

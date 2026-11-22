@@ -220,6 +220,25 @@ impl Page {
         }
         st.subscribers
             .retain(|s| s.unbounded_send(event.clone()).is_ok());
+        drop(st);
+        // The context hears about its pages' traffic, console and errors.
+        use crate::application::context::{ContextEvent, WebError};
+        let forwarded = match event {
+            PageEvent::Request(r) => Some(ContextEvent::Request(r)),
+            PageEvent::Response(r) => Some(ContextEvent::Response(r)),
+            PageEvent::RequestFinished(r) => Some(ContextEvent::RequestFinished(r)),
+            PageEvent::RequestFailed(r) => Some(ContextEvent::RequestFailed(r)),
+            PageEvent::Console(m) => Some(ContextEvent::Console(m)),
+            PageEvent::Dialog(d) => Some(ContextEvent::Dialog(d)),
+            PageEvent::PageError(error) => Some(ContextEvent::WebError(WebError {
+                page: Some(self.clone()),
+                error,
+            })),
+            _ => None,
+        };
+        if let (Some(e), Some(ctx)) = (forwarded, self.inner.context.upgrade()) {
+            ctx.emit(e);
+        }
     }
 
     /// `page.consoleMessages()`: recent console messages.

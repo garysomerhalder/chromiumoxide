@@ -30,6 +30,11 @@ struct WorkerInner {
     /// The worker's execution context, once created.
     context: watch::Sender<Option<i64>>,
     closed: AtomicBool,
+    /// Service workers: the context they report requests to.
+    owner: std::sync::Mutex<std::sync::Weak<crate::application::context::ContextInner>>,
+    /// Service workers: requests in flight.
+    requests:
+        std::sync::Mutex<std::collections::HashMap<String, crate::application::network::Request>>,
 }
 
 impl std::fmt::Debug for Worker {
@@ -241,6 +246,8 @@ impl Worker {
                 url,
                 context,
                 closed: AtomicBool::new(false),
+                owner: std::sync::Mutex::new(std::sync::Weak::new()),
+                requests: std::sync::Mutex::new(Default::default()),
             }),
         };
         let cdp = shared.cdp.clone();
@@ -259,11 +266,41 @@ impl Worker {
         });
         let sid = Some(session_id.as_str());
         let enable = cdp.call(sid, "Runtime.enable", json!({}));
+        // Service workers report their own requests (`request.serviceWorker()`).
+        let network = worker
+            .inner
+            .page
+            .is_none()
+            .then(|| cdp.call(sid, "Network.enable", json!({})));
         let run = cdp.call(sid, "Runtime.runIfWaitingForDebugger", json!({}));
         tokio::spawn(async move {
+            if let Some(network) = network {
+                let _ = network.await;
+            }
             let _ = futures::join!(enable, run);
         });
         worker
+    }
+
+    /// The context a service worker reports its requests to.
+    pub(crate) fn set_owner(
+        &self,
+        context: &std::sync::Arc<crate::application::context::ContextInner>,
+    ) {
+        *self.inner.owner.lock().unwrap() = std::sync::Arc::downgrade(context);
+    }
+
+    /// A protocol command on the worker's session.
+    pub(crate) async fn send(
+        &self,
+        method: &str,
+        params: Value,
+    ) -> crate::domain::error::Result<Value> {
+        self.inner
+            .shared
+            .cdp
+            .call(Some(&self.inner.session_id), method, params)
+            .await
     }
 
     pub(crate) fn session_id(&self) -> &str {
@@ -286,6 +323,17 @@ impl Worker {
                 if let Some(page) = &self.inner.page {
                     let message = ConsoleMessage::from_worker(self, page, p);
                     page.emit(PageEvent::Console(message));
+                }
+            }
+            m if m.starts_with("Network.") && self.inner.page.is_none() => {
+                let event = {
+                    let mut requests = self.inner.requests.lock().unwrap();
+                    crate::application::network::worker_network_event(self, &mut requests, e)
+                };
+                if let (Some(event), Some(ctx)) =
+                    (event, self.inner.owner.lock().unwrap().upgrade())
+                {
+                    ctx.emit(event);
                 }
             }
             _ => {}
