@@ -18,6 +18,7 @@ mod screenshot;
 mod scripts;
 mod server;
 mod shortcuts;
+mod storage;
 
 pub fn full_chromium() -> Option<std::path::PathBuf> {
     let p = std::path::PathBuf::from("/opt/pw-browsers/chromium-1243/chrome-linux64/chrome");

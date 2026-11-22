@@ -86,6 +86,28 @@ impl TestServer {
                         let _ = sock.write_all(&body).await;
                         return;
                     }
+                    if path == "/headers" {
+                        let header = |name: &str| {
+                            req.lines()
+                                .find_map(|l| {
+                                    let (k, v) = l.split_once(':')?;
+                                    k.eq_ignore_ascii_case(name).then(|| v.trim().to_owned())
+                                })
+                                .map_or("null".to_owned(), |v| format!("{v:?}"))
+                        };
+                        let body = format!(
+                            "{{\"foo\":{},\"cookie\":{}}}",
+                            header("x-foo"),
+                            header("cookie")
+                        );
+                        let head = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        );
+                        let _ = sock.write_all(head.as_bytes()).await;
+                        let _ = sock.write_all(body.as_bytes()).await;
+                        return;
+                    }
                     if path == "/echo" {
                         let body = format!(
                             "{{\"method\":{:?},\"body\":{:?}}}",

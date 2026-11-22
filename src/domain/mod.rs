@@ -11,4 +11,5 @@ pub mod launch;
 pub mod network;
 pub mod screenshot;
 pub mod selectors;
+pub mod storage;
 pub mod url_matcher;
