@@ -8,6 +8,7 @@ mod page;
 mod pixel_parity;
 mod protocol;
 mod screenshot;
+mod scripts;
 mod server;
 
 pub fn full_chromium() -> Option<std::path::PathBuf> {
