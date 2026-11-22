@@ -75,14 +75,14 @@ pub fn persistent_command_line(spec: &LaunchSpec) -> Vec<String> {
     args
 }
 
-/// Playwright's default Chromium switches (device-mockup contract; do not edit
-/// without telling device-mockup).
+/// Playwright 1.65.1's default Chromium switches (device-mockup contract; do
+/// not edit without telling device-mockup).
 const DEFAULT_ARGS: &[&str] = &[
     "--font-render-hinting=none",
     "--disable-lcd-text",
     "--force-color-profile=srgb",
     "--disable-blink-features=XSLT,EnableXSLTForCAPAlerts",
-    "--enable-features=SendGPUChannelEarly,CDPScreenshotNewSurface",
+    "--enable-features=SendGPUChannelEarly,CDPScreenshotNewSurface,SkipListAccountsWithoutGaiaCookies",
     "--js-flags=--no-enable-lazy-source-positions",
     "--disable-field-trial-config",
     "--disable-background-networking",
@@ -90,16 +90,15 @@ const DEFAULT_ARGS: &[&str] = &[
     "--disable-backgrounding-occluded-windows",
     "--disable-back-forward-cache",
     "--disable-breakpad",
-    "--disable-client-side-phishing-detection",
     "--disable-component-extensions-with-background-pages",
     "--disable-component-update",
     "--no-default-browser-check",
     "--disable-default-apps",
     "--disable-extensions",
     "--disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,\
-DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,\
-ThirdPartyStoragePartitioning,BlockOriginHeaderModificationOnRedirect,Translate,AutoDeElevate,\
-OptimizationHints",
+HttpsUpgrades,HttpsFirstBalancedModeAutoEnable,LensOverlay,MediaRouter,PaintHolding,\
+ThirdPartyStoragePartitioning,AvoidCorsURLLoaderRestartOnRedirect,TcpPortRandomizationWin,\
+OptimizationHints,NetworkTimeServiceQuerying,AimEnabled,PreconnectToSearch",
     "--allow-pre-commit-input",
     "--disable-hang-monitor",
     "--disable-ipc-flooding-protection",
@@ -111,11 +110,12 @@ OptimizationHints",
     "--password-store=basic",
     "--use-mock-keychain",
     "--no-service-autorun",
-    "--export-tagged-pdf",
     "--disable-search-engine-choice-screen",
     "--unsafely-disable-devtools-self-xss-warnings",
-    "--disable-sync",
     "--enable-unsafe-swiftshader",
+    "--disable-stack-profiler",
+    "--disable-sync",
+    "--do-not-de-elevate",
 ];
 
 /// Added after `--headless` in headless mode.
