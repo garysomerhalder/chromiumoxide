@@ -57,6 +57,74 @@ struct Inner {
     /// The browser's default user agent, for context requests.
     browser_ua: Mutex<Option<String>>,
     disposed: AtomicBool,
+    trace: Mutex<Option<ApiTrace>>,
+}
+
+/// A trace being recorded by `request.tracing()`.
+struct ApiTrace {
+    start_ms: u64,
+    events: Vec<String>,
+    next_call: u64,
+}
+
+/// `apiRequestContext.tracing`: records its calls into a Playwright trace.
+#[derive(Clone, Debug)]
+pub struct ApiTracing {
+    ctx: ApiRequestContext,
+}
+
+impl ApiTracing {
+    /// `tracing.start()`.
+    pub async fn start(&self, options: crate::application::tracing::TracingStart) -> Result<()> {
+        let inner = &self.ctx.inner;
+        let mut t = inner.trace.lock().unwrap();
+        if t.is_some() {
+            return Err(Error::InvalidArgument(
+                "Tracing has been already started".into(),
+            ));
+        }
+        let clock = &inner.services.clock;
+        let mut first: Value = serde_json::from_str(&crate::domain::trace::context_options_event(
+            "",
+            0,
+            0,
+            clock.wall_ms(),
+            0.0,
+            options.title.as_deref().unwrap_or_default(),
+            match inner.services.env.os() {
+                crate::domain::discovery::Os::Linux => "linux",
+                crate::domain::discovery::Os::MacOs => "darwin",
+                crate::domain::discovery::Os::Windows => "win32",
+            },
+        ))?;
+        first["options"] = serde_json::json!({});
+        *t = Some(ApiTrace {
+            start_ms: clock.now_ms(),
+            events: vec![first.to_string()],
+            next_call: 1,
+        });
+        Ok(())
+    }
+
+    /// `tracing.stop({ path })`: writes the trace when `path` is given.
+    pub async fn stop(&self, path: Option<&std::path::Path>) -> Result<()> {
+        let Some(t) = self.ctx.inner.trace.lock().unwrap().take() else {
+            return Err(Error::InvalidArgument("Tracing is not started".into()));
+        };
+        if let Some(path) = path {
+            let files: Vec<(&str, Vec<u8>)> = vec![
+                ("trace.trace", (t.events.join("\n") + "\n").into_bytes()),
+                ("trace.network", b"\n".to_vec()),
+                ("trace.stacks", br#"{"files":[],"stacks":[]}"#.to_vec()),
+            ];
+            self.ctx
+                .inner
+                .services
+                .fs
+                .write(path, &crate::domain::trace::zip_stored(&files))?;
+        }
+        Ok(())
+    }
 }
 
 /// `APIRequestContext`. Cheap to clone.
@@ -94,6 +162,7 @@ impl BrowserContext {
                 jar: Jar::Context(Arc::downgrade(&self.inner)),
                 browser_ua: Mutex::new(None),
                 disposed: AtomicBool::new(false),
+                trace: Mutex::new(None),
             }),
         }
     }
@@ -123,6 +192,7 @@ impl ApiRequestContext {
                 jar: Jar::Own(Mutex::new(cookies)),
                 browser_ua: Mutex::new(None),
                 disposed: AtomicBool::new(false),
+                trace: Mutex::new(None),
             }),
         }
     }
@@ -169,6 +239,27 @@ impl ApiRequestContext {
                 None => Err(Error::Request(CLOSED.into())),
             },
         }
+    }
+
+    /// `request.tracing`.
+    pub fn tracing(&self) -> ApiTracing {
+        ApiTracing { ctx: self.clone() }
+    }
+
+    /// Adds an event to the running trace; its time.
+    fn trace(&self, mut event: Value, time_key: &str) {
+        let clock = &self.inner.services.clock;
+        if let Some(t) = self.inner.trace.lock().unwrap().as_mut() {
+            event[time_key] = serde_json::json!(clock.now_ms().saturating_sub(t.start_ms) as f64);
+            t.events.push(event.to_string());
+        }
+    }
+
+    fn trace_call_id(&self) -> Option<String> {
+        let mut t = self.inner.trace.lock().unwrap();
+        let t = t.as_mut()?;
+        t.next_call += 1;
+        Some(format!("call@{}", t.next_call))
     }
 
     /// `request.dispose()`: later requests fail.
@@ -271,6 +362,45 @@ impl ApiRequestContext {
     }
 
     async fn run(&self, r: ApiRequest<'_>) -> Result<ApiResponse> {
+        let Some(call) = self.trace_call_id() else {
+            return self.run_inner(r, None).await;
+        };
+        let timeout = r
+            .timeout
+            .or(self.inner.options.timeout)
+            .unwrap_or(Duration::from_secs(30));
+        let headers: Vec<Value> = r
+            .headers
+            .iter()
+            .map(|(k, v)| serde_json::json!({"name": k, "value": v}))
+            .collect();
+        self.trace(
+            serde_json::json!({"type": "before", "callId": call, "class": "APIRequestContext",
+                "method": "fetch", "params": {
+                    "url": resolve_url(self.inner.options.base_url.as_deref(), &r.url),
+                    "method": r.method, "headers": headers, "timeout": timeout.as_millis() as u64}}),
+            "startTime",
+        );
+        let result = self.run_inner(r, Some(&call)).await;
+        let mut after = serde_json::json!({"type": "after", "callId": call});
+        match &result {
+            Ok(resp) => {
+                let rr = &resp.inner.response;
+                after["result"] = serde_json::json!({"response": {
+                    "url": rr.url, "status": rr.status, "statusText": rr.status_text,
+                    "headers": rr.headers.iter().map(|(k, v)| serde_json::json!({"name": k, "value": v})).collect::<Vec<_>>(),
+                    "serverAddr": rr.server_addr.as_ref().map(|(ip, port)| serde_json::json!({"ipAddress": ip, "port": port})),
+                }});
+            }
+            Err(e) => {
+                after["error"] = serde_json::json!({"message": e.to_string(), "name": "Error"})
+            }
+        }
+        self.trace(after, "endTime");
+        result
+    }
+
+    async fn run_inner(&self, r: ApiRequest<'_>, call: Option<&str>) -> Result<ApiResponse> {
         if self.inner.disposed.load(Ordering::SeqCst)
             || matches!(self.inner.jar, Jar::Context(_)) && self.context().is_none()
         {
@@ -355,6 +485,18 @@ impl ApiRequestContext {
                     send.headers.push(("cookie".into(), header));
                 }
             }
+            if let Some(call) = call {
+                let log = |m: String| {
+                    self.trace(
+                        serde_json::json!({"type": "log", "callId": call, "message": m}),
+                        "time",
+                    )
+                };
+                log(format!("→ {} {}", send.method, send.url));
+                for (k, v) in &send.headers {
+                    log(format!("  {}: {v}", k.to_ascii_lowercase()));
+                }
+            }
             let resp = self
                 .inner
                 .services
@@ -362,6 +504,18 @@ impl ApiRequestContext {
                 .send(send)
                 .await
                 .map_err(|e| Error::Request(e.to_string()))?;
+            if let Some(call) = call {
+                let log = |m: String| {
+                    self.trace(
+                        serde_json::json!({"type": "log", "callId": call, "message": m}),
+                        "time",
+                    )
+                };
+                log(format!("← {} {}", resp.status, resp.status_text));
+                for (k, v) in &resp.headers {
+                    log(format!("  {}: {v}", k.to_ascii_lowercase()));
+                }
+            }
             let now = self.inner.services.clock.wall_ms() / 1000.0;
             let set_cookies: Vec<NewCookie> = resp
                 .headers

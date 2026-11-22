@@ -56,7 +56,9 @@ pub use application::navigation::{Navigation, WaitForUrl};
 pub use application::network::{Request, Response, SecurityDetails, ServerAddr};
 pub use application::page::{Goto, Page};
 pub use application::pdf::Pdf;
-pub use application::request::{ApiRequest, ApiRequestContext, ApiRequestOptions, ApiResponse};
+pub use application::request::{
+    ApiRequest, ApiRequestContext, ApiRequestOptions, ApiResponse, ApiTracing,
+};
 pub use application::route::{
     Abort, Continue, FetchResponse, Fulfill, Route, RouteFetch, RouteRegistration,
 };
