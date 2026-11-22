@@ -249,7 +249,8 @@ pub fn compare_images(actual: &Image, expected: &Image, o: &CompareOptions) -> O
         height,
         o.threshold.unwrap_or(0.2),
     );
-    let total = expected.width as f64 * expected.height as f64;
+    // Playwright pads `expected` before measuring, so this is the padded size.
+    let total = width as f64 * height as f64;
     let by_ratio = o.max_diff_pixel_ratio.map(|r| total * r);
     let allowed = match (o.max_diff_pixels.map(|p| p as f64), by_ratio) {
         (Some(p), Some(r)) => p.min(r),
