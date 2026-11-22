@@ -159,3 +159,96 @@ impl Page {
         ctx.debugger().pause(title).await;
     }
 }
+
+/// Starts picking mode in the main frame: hover highlights the element with
+/// its locator, a click picks it (and does not reach the page).
+const PICK_START: &str = "(i) => {
+  if (window.__coxPick) window.__coxPick.stop(true);
+  const h = i._ensureHighlight();
+  let last = null;
+  const target = (e) => { const el = e.composedPath ? e.composedPath()[0] : e.target; return el instanceof Element ? el : null; };
+  const move = (e) => {
+    const el = target(e);
+    if (!el || el === last) return;
+    last = el;
+    h.updateHighlight([{ element: el, color: 'rgba(111, 168, 220, .498)', tooltipText: i.utils.asLocator('javascript', i.generateSelectorSimple(el)) }]);
+  };
+  const swallow = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
+  const click = (e) => {
+    swallow(e);
+    const el = target(e);
+    if (el) state.picked = i.generateSelectorSimple(el);
+    stop(false);
+  };
+  const kinds = ['mousedown', 'mouseup', 'pointerdown', 'pointerup', 'auxclick', 'dblclick', 'contextmenu'];
+  const stop = (cancelled) => {
+    removeEventListener('mousemove', move, true);
+    removeEventListener('click', click, true);
+    for (const k of kinds) removeEventListener(k, swallow, true);
+    h.updateHighlight([]);
+    state.done = true;
+    state.cancelled = cancelled;
+  };
+  const state = { picked: null, done: false, cancelled: false, stop };
+  addEventListener('mousemove', move, true);
+  addEventListener('click', click, true);
+  for (const k of kinds) addEventListener(k, swallow, true);
+  window.__coxPick = state;
+}";
+
+const PICK_POLL: &str = "() => { const s = window.__coxPick; if (!s) return { done: true, cancelled: true }; if (s.done) delete window.__coxPick; return { done: s.done, cancelled: s.cancelled, picked: s.picked }; }";
+
+impl Page {
+    /// `page.pickLocator()`: waits for the user to click an element and
+    /// returns its locator.
+    pub async fn pick_locator(&self) -> Result<crate::application::locator::Locator> {
+        let timeout = self.default_timeout();
+        self.injected_call(None, PICK_START, &[], true, timeout)
+            .await?;
+        let clock = self.inner.shared.services.clock.clone();
+        loop {
+            let s = self
+                .call_function(
+                    crate::domain::frame::World::Utility,
+                    &format!("function() {{ return ({PICK_POLL})(); }}"),
+                    &[],
+                    timeout,
+                    "picking a locator",
+                )
+                .await;
+            match s {
+                Ok(s) if s["done"] == Value::Bool(true) => {
+                    return match s["picked"].as_str() {
+                        Some(selector) if s["cancelled"] != Value::Bool(true) => {
+                            Ok(self.locator(selector))
+                        }
+                        _ => Err(Error::InvalidArgument(
+                            "Locator picking was cancelled".into(),
+                        )),
+                    };
+                }
+                // A navigation drops picking mode; so does closing the page.
+                Err(Error::TargetClosed(_)) => {
+                    return Err(Error::InvalidArgument(
+                        "Locator picking was cancelled".into(),
+                    ));
+                }
+                _ => {}
+            }
+            clock.sleep(std::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// `page.cancelPickLocator()`: leaves picking mode (no-op otherwise).
+    pub async fn cancel_pick_locator(&self) -> Result<()> {
+        self.call_function(
+            crate::domain::frame::World::Utility,
+            "function() { if (window.__coxPick && !window.__coxPick.done) window.__coxPick.stop(true); }",
+            &[],
+            self.default_timeout(),
+            "cancelling locator picking",
+        )
+        .await?;
+        Ok(())
+    }
+}
