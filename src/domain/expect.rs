@@ -61,6 +61,18 @@ pub fn quote(s: &str) -> String {
     serde_json::to_string(s).unwrap_or_default()
 }
 
+/// pretty-format's string printing (Playwright's `printExpected` for strings):
+/// double quotes, with `"` and `\\` escaped and line breaks kept.
+pub fn quote_keep_lines(s: &str) -> String {
+    unimplemented!()
+}
+
+/// jest's unified line diff, as Playwright prints it without colours:
+/// `- Expected  - n`, `+ Received  + m`, a blank line, then every line.
+pub fn line_diff(expected: &str, received: &str) -> String {
+    unimplemented!()
+}
+
 /// What an assertion is about.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Subject {
@@ -130,6 +142,37 @@ mod tests {
     use super::*;
     use crate::domain::selectors::TextMatch;
     use serde_json::json;
+
+    #[test]
+    fn line_diff_like_playwright() {
+        // Recorded from Playwright 1.63 toMatchAriaSnapshot failures.
+        assert_eq!(
+            line_diff(
+                "- list:\n  - listitem: Three",
+                "- list:\n  - listitem: One\n  - listitem:\n    - link \"Two\":\n      - /url: /two"
+            ),
+            "- Expected  - 1\n+ Received  + 4\n\n  - list:\n-   - listitem: Three\n+   - listitem: One\n+   - listitem:\n+     - link \"Two\":\n+       - /url: /two"
+        );
+        assert_eq!(
+            line_diff(
+                "- button \"Cancel\"",
+                "- heading \"Title\" [level=1]\n- button \"OK\""
+            ),
+            "- Expected  - 1\n+ Received  + 2\n\n- - button \"Cancel\"\n+ - heading \"Title\" [level=1]\n+ - button \"OK\""
+        );
+        assert_eq!(
+            line_diff("a\nb\nc", "a\nx\nc\nd"),
+            "- Expected  - 1\n+ Received  + 2\n\n  a\n- b\n+ x\n  c\n+ d"
+        );
+    }
+
+    #[test]
+    fn quote_keep_lines_escapes_quotes_only() {
+        assert_eq!(
+            quote_keep_lines("- link \"Two\":\n  - a\\b"),
+            "\"- link \\\"Two\\\":\n  - a\\\\b\""
+        );
+    }
 
     #[test]
     fn expected_text_like_playwright() {
