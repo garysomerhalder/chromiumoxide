@@ -27,6 +27,7 @@ pub mod protocol;
 pub mod route;
 pub mod screenshot;
 pub mod scripts;
+pub mod selectors;
 pub mod services;
 pub(crate) mod shared;
 pub mod shortcuts;

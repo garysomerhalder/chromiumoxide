@@ -2,6 +2,18 @@
 
 use regex::Regex;
 
+/// Resolves `url` against the context's `baseURL` (Playwright's
+/// `constructURLBasedOnBaseURL`); absolute URLs are kept.
+pub fn resolve_url(base: Option<&str>, url: &str) -> String {
+    match base.and_then(|b| url::Url::parse(b).ok()) {
+        Some(b) if url::Url::parse(url).is_err() => b
+            .join(url)
+            .map(|u| u.to_string())
+            .unwrap_or_else(|_| url.to_owned()),
+        _ => url.to_owned(),
+    }
+}
+
 /// What a URL must match (`page.waitForURL`, `page.route`, ...).
 #[derive(Debug, Clone)]
 pub enum UrlMatcher {
@@ -202,5 +214,17 @@ mod tests {
         let r = UrlMatcher::regex(r"/done\?x=\d$").unwrap();
         assert!(r.matches("http://h/done?x=1"));
         assert!(!r.matches("http://h/done?x=1/"));
+    }
+
+    #[test]
+    fn base_url_resolution() {
+        let base = Some("http://x.test/app/");
+        assert_eq!(resolve_url(base, "sub/page"), "http://x.test/app/sub/page");
+        assert_eq!(resolve_url(base, "/root"), "http://x.test/root");
+        assert_eq!(
+            resolve_url(base, "https://other.test/"),
+            "https://other.test/"
+        );
+        assert_eq!(resolve_url(None, "sub/page"), "sub/page");
     }
 }

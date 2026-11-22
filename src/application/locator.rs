@@ -103,7 +103,10 @@ impl Page {
         self.locator(&selectors::get_by_title(&text.into(), exact))
     }
     pub fn get_by_test_id(&self, id: impl Into<TextMatch>) -> Locator {
-        self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
+        self.locator(&selectors::get_by_test_id(
+            &self.page_ref().test_id_attribute(),
+            &id.into(),
+        ))
     }
 
     /// The utility-world context of the main frame with the injected script installed.
@@ -118,8 +121,8 @@ impl Page {
         if installed.pointer("/result/value") != Some(&Value::Bool(true)) {
             let options = json!({
                 "isUnderTest": false, "sdkLanguage": "javascript", "frameSeq": 0,
-                "testIdAttributeName": "data-testid", "stableRafCount": 1, "browserName": "chromium",
-                "isUtilityWorld": true, "customEngines": [{"name": "chromiumoxide-handle", "source": HANDLE_ENGINE}],
+                "testIdAttributeName": self.test_id_attribute(), "stableRafCount": 1, "browserName": "chromium",
+                "isUtilityWorld": true, "customEngines": self.custom_engines(),
             });
             let install = format!(
                 "(() => {{ if ({INJECTED}) return; const module = {{}};\n{INJECTED_SOURCE}\n{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); }})()"
@@ -338,7 +341,10 @@ impl Locator {
         self.locator(&selectors::get_by_placeholder(&text.into(), exact))
     }
     pub fn get_by_test_id(&self, id: impl Into<TextMatch>) -> Locator {
-        self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
+        self.locator(&selectors::get_by_test_id(
+            &self.page_ref().test_id_attribute(),
+            &id.into(),
+        ))
     }
     pub fn nth(&self, index: i64) -> Locator {
         self.with(compose::nth(&self.selector, index))
@@ -1468,6 +1474,12 @@ pub struct FrameLocator {
     selector: String,
 }
 
+impl FrameLocator {
+    pub(crate) fn page_of(&self) -> &Page {
+        &self.page
+    }
+}
+
 impl std::fmt::Debug for FrameLocator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "frameLocator({:?})", self.selector)
@@ -1501,7 +1513,10 @@ impl FrameLocator {
         self.locator(&selectors::get_by_placeholder(&text.into(), exact))
     }
     pub fn get_by_test_id(&self, id: impl Into<TextMatch>) -> Locator {
-        self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
+        self.locator(&selectors::get_by_test_id(
+            &self.page_ref().test_id_attribute(),
+            &id.into(),
+        ))
     }
     /// The `<iframe>` element itself.
     pub fn owner(&self) -> Locator {
@@ -1712,6 +1727,21 @@ impl Locator {
         Ok(v.as_str().unwrap_or_default().to_owned())
     }
 
+    /// `locator.ariaSnapshotJSON()`: the accessibility tree as JSON nodes.
+    pub async fn aria_snapshot_json(&self) -> Result<Value> {
+        let el = self
+            .element("taking an aria snapshot", self.timeout())
+            .await?;
+        self.page
+            .element_call(
+                &el,
+                "(i, node) => i.ariaSnapshotJSON(node, {mode: 'default'}).json",
+                &[],
+                true,
+            )
+            .await
+    }
+
     /// Playwright's `locator.toString()` (`getByRole('button', { name: 'Go' })`),
     /// computed by Playwright's own generator in the page.
     pub async fn to_playwright_string(&self) -> Result<String> {
@@ -1867,6 +1897,11 @@ impl Page {
     /// `page.ariaSnapshot()`: the accessibility tree of the page as YAML.
     pub async fn aria_snapshot(&self) -> Result<String> {
         self.locator("body").aria_snapshot().await
+    }
+
+    /// `page.ariaSnapshotJSON()`.
+    pub async fn aria_snapshot_json(&self) -> Result<Value> {
+        self.locator("body").aria_snapshot_json().await
     }
 
     /// `page.hideHighlight()`.

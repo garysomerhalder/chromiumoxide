@@ -17,6 +17,8 @@ pub(crate) struct Shared {
     pub(crate) browser_version: String,
     /// The browser that owns this connection (for `context.browser()`).
     pub(crate) browser: Mutex<std::sync::Weak<crate::application::browser::BrowserInner>>,
+    /// `selectors.setTestIdAttribute` / `selectors.register`.
+    pub(crate) selectors: Mutex<crate::application::selectors::SelectorConfig>,
     /// Contexts created through this connection, by `browserContextId`.
     pub(crate) contexts: Mutex<HashMap<String, Arc<ContextInner>>>,
     /// Where downloads are saved (created on first use).

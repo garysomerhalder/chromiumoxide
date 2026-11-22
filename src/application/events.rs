@@ -304,6 +304,45 @@ impl Page {
                 self.emit(PageEvent::Console(message));
                 true
             }
+            "Log.entryAdded" => {
+                // Browser log entries (network errors, CSP violations, ...) are
+                // console messages too, as in Playwright (worker ones excepted).
+                let entry = &p["entry"];
+                if entry.get("source").and_then(Value::as_str) == Some("worker") {
+                    return true;
+                }
+                let message = ConsoleMessage {
+                    kind: entry
+                        .get("level")
+                        .and_then(Value::as_str)
+                        .unwrap_or("log")
+                        .to_owned(),
+                    text: entry
+                        .get("text")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned(),
+                    args: Vec::new(),
+                    location: Location {
+                        url: entry
+                            .get("url")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned(),
+                        line_number: entry.get("lineNumber").and_then(Value::as_u64).unwrap_or(0)
+                            as u32,
+                        column_number: 0,
+                    },
+                    timestamp: entry
+                        .get("timestamp")
+                        .and_then(Value::as_f64)
+                        .unwrap_or(0.0),
+                    page: Arc::downgrade(&self.inner),
+                    worker: None,
+                };
+                self.emit(PageEvent::Console(message));
+                true
+            }
             "Runtime.exceptionThrown" => {
                 let error = exception_to_error(&p["exceptionDetails"]);
                 self.emit(PageEvent::PageError(error));

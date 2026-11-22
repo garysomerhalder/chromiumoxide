@@ -904,7 +904,10 @@ impl<'a> IntoFuture for Goto<'a> {
                     "goto",
                     json!({"url": self.url, "timeout": timeout.as_millis() as u64}),
                     self.page.navigate(
-                        &self.url,
+                        &crate::domain::url_matcher::resolve_url(
+                            self.page.inner.options.base_url.as_deref(),
+                            &self.url,
+                        ),
                         self.wait_until,
                         timeout,
                         self.referer.as_deref(),

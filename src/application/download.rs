@@ -114,7 +114,7 @@ impl Download {
     pub async fn cancel(&self) -> Result<()> {
         let context = self.inner.page.context_id();
         let mut params = json!({"guid": self.inner.guid});
-        if let Some(id) = context {
+        if let Some(id) = context.filter(|id| !id.is_empty()) {
             params["browserContextId"] = json!(id);
         }
         self.inner

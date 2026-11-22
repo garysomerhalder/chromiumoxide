@@ -164,7 +164,9 @@ impl Page {
 
 impl BrowserContext {
     async fn browser_call(&self, method: &str, mut params: Value) -> Result<Value> {
-        params["browserContextId"] = json!(self.inner.id);
+        if !self.inner.id.is_empty() {
+            params["browserContextId"] = json!(self.inner.id);
+        }
         self.inner.shared.cdp.call(None, method, params).await
     }
 

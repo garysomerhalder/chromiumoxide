@@ -36,6 +36,8 @@ pub(crate) struct ContextInner {
     pub(crate) tracing: crate::application::tracing::TracingState,
     pub(crate) default_timeout: Mutex<Option<std::time::Duration>>,
     pub(crate) navigation_timeout: Mutex<Option<std::time::Duration>>,
+    /// The browser of a persistent context (closed with it).
+    pub(crate) owner: Mutex<Option<crate::application::browser::Browser>>,
 }
 
 /// Something that happened in a context (Playwright's `context.on(...)`).
@@ -135,6 +137,15 @@ impl BrowserContext {
             .and_then(Value::as_str)
             .ok_or_else(|| Error::Serde("createBrowserContext returned no id".into()))?
             .to_owned();
+        Self::register(shared, options, id).await
+    }
+
+    /// Registers a context (`id` empty: the browser's default context).
+    pub(crate) async fn register(
+        shared: Arc<Shared>,
+        options: ContextOptions,
+        id: String,
+    ) -> Result<BrowserContext> {
         let (changed, _) = watch::channel(0);
         let har_state = crate::application::har::recording(&options.record_har);
         let inner = Arc::new(ContextInner {
@@ -159,6 +170,7 @@ impl BrowserContext {
             tracing: Mutex::new(None),
             default_timeout: Mutex::new(None),
             navigation_timeout: Mutex::new(None),
+            owner: Mutex::new(None),
         });
         shared.contexts.lock().unwrap().insert(id, inner.clone());
         if inner.options.service_workers == crate::domain::emulation::ServiceWorkers::Block {
@@ -171,9 +183,11 @@ impl BrowserContext {
         let accept = context.inner.options.accept_downloads;
         let mut params = json!({
             "behavior": if accept { "allowAndName" } else { "deny" },
-            "browserContextId": context.inner.id,
             "eventsEnabled": true,
         });
+        if !context.inner.id.is_empty() {
+            params["browserContextId"] = json!(context.inner.id);
+        }
         if let Ok(dir) = shared.downloads_dir() {
             params["downloadPath"] = json!(dir.to_string_lossy());
         }
@@ -218,7 +232,11 @@ impl BrowserContext {
             .call(
                 None,
                 "Target.createTarget",
-                json!({"url": "about:blank", "browserContextId": self.inner.id}),
+                if self.inner.id.is_empty() {
+                    json!({"url": "about:blank"})
+                } else {
+                    json!({"url": "about:blank", "browserContextId": self.inner.id})
+                },
             )
             .await?;
         let target_id = r
@@ -286,6 +304,11 @@ impl BrowserContext {
             return Ok(());
         }
         let _ = self.flush_har().await;
+        // A persistent (default) context closes its browser.
+        let owner = self.inner.owner.lock().unwrap().take();
+        if let Some(browser) = owner {
+            return browser.close().await;
+        }
         let shared = &self.inner.shared;
         let _ = shared
             .cdp

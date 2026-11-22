@@ -56,6 +56,7 @@ pub use application::route::{
 };
 pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
+pub use application::selectors::Selectors;
 pub use application::services::Services;
 pub use application::storage::WebStorage;
 pub use application::tracing::{Tracing, TracingStart};
@@ -106,6 +107,15 @@ impl Chromium {
     /// Discovers and launches Chromium (Playwright's `chromium.launch`).
     pub async fn launch(options: LaunchOptions) -> Result<Browser> {
         Browser::launch(Self::services(), options).await
+    }
+
+    /// Playwright's `chromium.launchPersistentContext(userDataDir, options)`.
+    pub async fn launch_persistent_context(
+        user_data_dir: impl Into<std::path::PathBuf>,
+        options: LaunchOptions,
+        context: ContextOptions,
+    ) -> Result<BrowserContext> {
+        Browser::launch_persistent(Self::services(), user_data_dir.into(), options, context).await
     }
 
     /// The executable that [`Chromium::launch`] would run.

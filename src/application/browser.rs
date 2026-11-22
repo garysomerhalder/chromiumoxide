@@ -72,6 +72,8 @@ pub(crate) struct BrowserInner {
     closed: AtomicBool,
     /// Session of `browser.startTracing` (`None` inside: the browser session).
     tracing: Mutex<Option<Option<String>>>,
+    /// Delete the profile on close (temporary profiles only).
+    remove_profile: bool,
 }
 
 impl Drop for BrowserInner {
@@ -79,7 +81,7 @@ impl Drop for BrowserInner {
         if !self.closed.load(Ordering::SeqCst) {
             // Dropping the process kills it; then the profile can go.
             drop(self.process.lock().unwrap().take());
-            if let Some(dir) = &self.user_data_dir {
+            if let Some(dir) = self.user_data_dir.as_ref().filter(|_| self.remove_profile) {
                 let _ = self.services.fs.remove_dir_all(dir);
             }
         }
@@ -89,12 +91,40 @@ impl Drop for BrowserInner {
 impl Browser {
     /// Discovers, launches and connects to a browser.
     pub async fn launch(services: Services, options: LaunchOptions) -> Result<Browser> {
+        Ok(Self::launch_impl(services, options, None).await?.0)
+    }
+
+    /// `chromium.launchPersistentContext(userDataDir, options)`: a browser on a
+    /// kept profile; its default context is returned. Closing the context
+    /// closes the browser.
+    pub async fn launch_persistent(
+        services: Services,
+        user_data_dir: PathBuf,
+        options: LaunchOptions,
+        context: ContextOptions,
+    ) -> Result<BrowserContext> {
+        context.validate()?;
+        let (browser, ctx) =
+            Self::launch_impl(services, options, Some((user_data_dir, context))).await?;
+        let ctx = ctx.expect("persistent launches have a default context");
+        *ctx.inner.owner.lock().unwrap() = Some(browser);
+        Ok(ctx)
+    }
+
+    async fn launch_impl(
+        services: Services,
+        options: LaunchOptions,
+        persistent: Option<(PathBuf, ContextOptions)>,
+    ) -> Result<(Browser, Option<BrowserContext>)> {
         let found = discover(
             &*services.fs,
             &*services.env,
             options.executable_path.as_deref(),
         )?;
-        let user_data_dir = services.fs.create_temp_dir("chromiumoxide-profile-")?;
+        let user_data_dir = match &persistent {
+            Some((dir, _)) => dir.clone(),
+            None => services.fs.create_temp_dir("chromiumoxide-profile-")?,
+        };
         let spec = LaunchSpec {
             kind: found.kind,
             headless: options.headless,
@@ -102,7 +132,11 @@ impl Browser {
             ignore_default_args: options.ignore_default_args,
             user_data_dir: user_data_dir.clone(),
         };
-        let mut args = command_line(&spec);
+        let mut args = if persistent.is_some() {
+            crate::domain::launch::persistent_command_line(&spec)
+        } else {
+            command_line(&spec)
+        };
         if options.channel == Channel::WebSocket {
             for a in &mut args {
                 if a == "--remote-debugging-pipe" {
@@ -121,7 +155,9 @@ impl Browser {
         let launched = match services.launcher.launch(command).await {
             Ok(l) => l,
             Err(e) => {
-                let _ = services.fs.remove_dir_all(&user_data_dir);
+                if persistent.is_none() {
+                    let _ = services.fs.remove_dir_all(&user_data_dir);
+                }
                 return Err(e);
             }
         };
@@ -137,13 +173,17 @@ impl Browser {
                 ws_endpoint: launched.ws_endpoint,
                 closed: AtomicBool::new(false),
                 tracing: Mutex::new(None),
+                remove_profile: persistent.is_none(),
             }),
         };
-        if let Err(e) = browser.handshake().await {
-            let _ = browser.close().await;
-            return Err(e);
+        let default_options = persistent.map(|(_, o)| o);
+        match browser.handshake(default_options).await {
+            Ok(ctx) => Ok((browser, ctx)),
+            Err(e) => {
+                let _ = browser.close().await;
+                Err(e)
+            }
         }
-        Ok(browser)
     }
 
     /// Attaches to an already running browser (`connectOverCDP`). Closing it
@@ -165,9 +205,10 @@ impl Browser {
                 ws_endpoint,
                 closed: AtomicBool::new(false),
                 tracing: Mutex::new(None),
+                remove_profile: false,
             }),
         };
-        browser.handshake().await?;
+        browser.handshake(None).await?;
         Ok(browser)
     }
 
@@ -178,7 +219,10 @@ impl Browser {
 
     /// Playwright's connection handshake on the browser target, and the
     /// event loop that resumes or initialises auto-attached targets.
-    async fn handshake(&self) -> Result<()> {
+    async fn handshake(
+        &self,
+        default_context: Option<ContextOptions>,
+    ) -> Result<Option<BrowserContext>> {
         let cdp = &self.inner.cdp;
         let events = cdp.subscribe();
         let version = cdp.call(None, "Browser.getVersion", json!({})).await?;
@@ -201,8 +245,14 @@ impl Browser {
             downloads_dir: Mutex::new(None),
             downloads: Mutex::new(HashMap::new()),
             browser: Mutex::new(Arc::downgrade(&self.inner)),
+            selectors: Mutex::new(Default::default()),
         });
         *self.inner.shared.lock().unwrap() = Some(shared.clone());
+        // The default context must exist before targets attach.
+        let ctx = match default_context {
+            Some(o) => Some(BrowserContext::register(shared.clone(), o, String::new()).await?),
+            None => None,
+        };
         tokio::spawn(target_loop(Arc::downgrade(&shared), events));
         cdp.call(
             None,
@@ -210,7 +260,7 @@ impl Browser {
             json!({"autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true}),
         )
         .await?;
-        Ok(())
+        Ok(ctx)
     }
 
     fn shared(&self) -> Result<Arc<Shared>> {
@@ -327,7 +377,12 @@ impl Browser {
         if let Some(process) = process {
             process.shutdown().await;
         }
-        if let Some(dir) = &self.inner.user_data_dir {
+        if let Some(dir) = self
+            .inner
+            .user_data_dir
+            .as_ref()
+            .filter(|_| self.inner.remove_profile)
+        {
             let _ = self.inner.services.fs.remove_dir_all(dir);
         }
         Ok(())
@@ -375,10 +430,14 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
             .get("openerId")
             .and_then(Value::as_str)
             .map(str::to_owned);
-        let context = info
-            .get("browserContextId")
-            .and_then(Value::as_str)
-            .and_then(|id| shared.contexts.lock().unwrap().get(id).cloned());
+        let context = {
+            let contexts = shared.contexts.lock().unwrap();
+            info.get("browserContextId")
+                .and_then(Value::as_str)
+                .and_then(|id| contexts.get(id).cloned())
+                // Targets of the default context (persistent launches).
+                .or_else(|| contexts.get("").cloned())
+        };
         match context {
             Some(context) if kind == "page" && event.session_id.is_none() => {
                 let shared = shared.clone();
@@ -442,6 +501,12 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
                 tokio::spawn(fut);
             }
         }
+    }
+}
+
+impl Browser {
+    pub(crate) fn shared_ref(&self) -> Option<Arc<Shared>> {
+        self.inner.shared.lock().unwrap().clone()
     }
 }
 
