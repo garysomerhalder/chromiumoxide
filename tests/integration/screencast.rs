@@ -203,3 +203,49 @@ async fn screencast_show_actions_annotates_input() {
     assert_eq!(page.evaluate::<i64>("window.n").await.unwrap(), 2);
     browser.close().await.unwrap();
 }
+
+/// Playwright 1.64's `showActions({ style })`: CSS for the point marker drawn
+/// at the action point (here a red disc on a white page).
+#[tokio::test]
+async fn screencast_show_actions_style() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let ctx = browser
+        .new_context(ContextOptions {
+            viewport: Some(Viewport::new(400, 200)),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = ctx.new_page().await.unwrap();
+    page.set_content("<style>body{margin:0;background:#fff} button{position:absolute;left:150px;top:80px;width:100px;height:40px;border:0;background:#fff}</style><button>Go</button>")
+        .await
+        .unwrap();
+    page.screencast()
+        .show_actions(
+            chromiumoxide::ShowActions::default()
+                .duration(Duration::from_millis(800))
+                .cursor(false)
+                .style(chromiumoxide::ActionStyle {
+                    point: Some(
+                        "width: 30px; height: 30px; border-radius: 50%; background: rgb(255, 0, 0)"
+                            .into(),
+                    ),
+                    ..Default::default()
+                }),
+        )
+        .await
+        .unwrap();
+    let click = tokio::spawn({
+        let button = page.locator("button");
+        async move { button.click().await }
+    });
+    tokio::time::sleep(Duration::from_millis(350)).await;
+    let during = page.screenshot().await.unwrap();
+    let [r, g, b] = pixel(&during, 200, 100);
+    assert!(
+        r > 200 && g < 80 && b < 80,
+        "point marker at the click: {r},{g},{b}"
+    );
+    click.await.unwrap().unwrap();
+    browser.close().await.unwrap();
+}
