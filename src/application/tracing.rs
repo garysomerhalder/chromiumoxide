@@ -23,7 +23,7 @@ use crate::domain::trace::{context_options_event, zip_stored};
 pub struct TracingStart {
     /// Record screencast frames (filmstrip).
     pub screenshots: bool,
-    /// DOM snapshots: not recorded yet (accepted for compatibility).
+    /// Record DOM snapshots before and after each action.
     pub snapshots: bool,
     pub name: Option<String>,
     pub title: Option<String>,

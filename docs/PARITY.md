@@ -200,7 +200,7 @@ Chrome for Testing and chrome-headless-shell.
 | `credentials` | M4 | ✅ via Chromium's virtual WebAuthn authenticator |
 | `debugger` | M6 | ✅ requestPause, next, resume, pausedDetails (title), events; no source locations / `runTo` |
 | `request` | M6 | ✅ |
-| `tracing` | M5 | ✅ actions, console, network, screencast (no DOM snapshots yet) |
+| `tracing` | M5 | ✅ actions, console, network, screencast, DOM snapshots |
 
 ### Page
 

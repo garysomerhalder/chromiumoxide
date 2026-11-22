@@ -109,6 +109,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `tokio-rustls` and `rustls-native-certs`); `Services` gains `http`.
   - `context.debugger()`, `page.pause()`, `page.request_gc()`,
     `page.pick_locator()` / `cancel_pick_locator()`.
+  - `Chromium::launch_server()` / `Chromium::connect()`; closing a connected
+    browser now disconnects (like Playwright) instead of closing it.
+  - `APIResponse` `server_addr`, `security_details`, `timing`;
+    `request.tracing()`.
+  - Context-level events (`request`, `response`, `console`, `dialog`,
+    `weberror`, ...) and `request.service_worker()`.
+  - `frame.wait_for_navigation()` for child frames; routes, init scripts and
+    bindings inside cross-site iframes.
+  - Storage state with IndexedDB (`StorageStateOptions`).
+  - Trace DOM snapshots (`TracingStart { snapshots: true }`).
 
 ### Fixed
 
