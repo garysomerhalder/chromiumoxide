@@ -43,6 +43,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Page::execute(cmd)` / `Browser::execute(cmd)` for any generated command,
     `Page::events::<E>()` / `Browser::events::<E>()` for any generated event.
 
+- Milestone 3 (in progress):
+  - `reload`, `go_back`, `go_forward`, `wait_for_url` (Playwright globs and
+    regexes), `wait_for_timeout`.
+  - `add_init_script` (page and context), `add_script_tag`, `expose_function`
+    (page and context).
+  - `keyboard()`, `mouse()`, `touchscreen()` with Playwright's US layout.
+  - Locators: `locator`, `get_by_role/text/label/placeholder/alt_text/title/test_id`,
+    `nth/first/last/filter/and/or`, auto-waiting with Playwright's actionability
+    checks and strict mode, click/dblclick/hover/tap/fill/clear/press/
+    press_sequentially/check/uncheck/select_option/set_input_files/focus/blur/
+    dispatch_event/scroll_into_view_if_needed/screenshot, and text/state queries.
+    Selector engines run Playwright's injected script (see THIRD_PARTY_NOTICES.md).
+
 ### Fixed
 
 - PDL generator: deprecated event variants produced invalid code; array
