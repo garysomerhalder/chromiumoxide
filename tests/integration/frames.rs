@@ -60,3 +60,29 @@ async fn frame_locators_click_inside_nested_iframes() {
     assert_eq!(text.inner_text().await.unwrap(), "outer text");
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn frame_evaluate_runs_statement_strings() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content("<iframe name=f srcdoc='<title>child</title>'></iframe>")
+        .await
+        .unwrap();
+    page.wait_for_function("() => window.frames[0] && window.frames[0].document.title === 'child'")
+        .await
+        .unwrap();
+    let frame = page.frame("f").unwrap();
+    assert_eq!(
+        frame.evaluate::<i64>("const a = 1; a + 1").await.unwrap(),
+        2
+    );
+    assert_eq!(
+        frame
+            .evaluate::<String>("let t = document.title; t")
+            .await
+            .unwrap(),
+        "child"
+    );
+    assert_eq!(frame.evaluate::<i64>("() => 3").await.unwrap(), 3);
+    browser.close().await.unwrap();
+}
