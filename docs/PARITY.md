@@ -83,7 +83,7 @@ Chrome for Testing and chrome-headless-shell.
 | `acceptDownloads` | M4 | ✅ |
 | `recordHar` | M5 | ⬜ |
 | `recordVideo` | M5 | ⬜ |
-| `serviceWorkers` | M4 | ⬜ |
+| `serviceWorkers` | M4 | ✅ `allow` / `block` |
 | `baseURL` | M3 | ⬜ |
 | Device descriptors (`playwright.devices`) | M1 | ✅ |
 
@@ -165,7 +165,7 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `exposeBinding` | M3 | ⬜ |
+| `exposeBinding` | M3 | ✅ |
 | `addInitScript` | M3 | ✅ |
 | `addCookies` | M4 | ✅ |
 | `backgroundPages` | M4 | ⬜ |
@@ -182,15 +182,15 @@ Chrome for Testing and chrome-headless-shell.
 | `pages` | M1 | ✅ |
 | `route` | M4 | ✅ |
 | `routeFromHAR` | M5 | ⬜ |
-| `routeWebSocket` | M4 | ⬜ |
+| `routeWebSocket` | M4 | ✅ |
 | `serviceWorkers` | M4 | ⬜ |
 | `setDefaultNavigationTimeout` | M3 | ⬜ |
 | `setDefaultTimeout` | M3 | ⬜ |
 | `setExtraHTTPHeaders` | M4 | ✅ |
 | `setGeolocation` | M4 | ✅ |
-| `setHTTPCredentials` | M1 | ⬜ |
+| `setHTTPCredentials` | M1 | ✅ |
 | `setOffline` | M4 | ✅ |
-| `setStorageState` | M4 | ⬜ |
+| `setStorageState` | M4 | ✅ |
 | `storageState` | M4 | ✅ |
 | `unroute` | M4 | ✅ |
 | `unrouteAll` | M4 | ✅ |
@@ -219,8 +219,8 @@ Chrome for Testing and chrome-headless-shell.
 | `bringToFront` | M3 | ⬜ |
 | `cancelPickLocator` | M6 | ⬜ |
 | `check` | M3 | ✅ |
-| `clearConsoleMessages` | M4 | ⬜ |
-| `clearPageErrors` | M4 | ⬜ |
+| `clearConsoleMessages` | M4 | ✅ |
+| `clearPageErrors` | M4 | ✅ |
 | `click` | M3 | ✅ |
 | `close` | M1 | ✅ |
 | `consoleMessages` | M4 | ✅ |
@@ -270,10 +270,10 @@ Chrome for Testing and chrome-headless-shell.
 | `reload` | M3 | ✅ |
 | `removeLocatorHandler` | M3 | ⬜ |
 | `requestGC` | M6 | ⬜ |
-| `requests` | M4 | ⬜ |
+| `requests` | M4 | ✅ |
 | `route` | M4 | ✅ |
 | `routeFromHAR` | M5 | ⬜ |
-| `routeWebSocket` | M4 | ⬜ |
+| `routeWebSocket` | M4 | ✅ |
 | `screenshot` | M1 | ✅ |
 | `selectOption` | M3 | ✅ |
 | `setChecked` | M3 | ✅ |
@@ -530,7 +530,7 @@ Chrome for Testing and chrome-headless-shell.
 | Member | Milestone | Status |
 |---|---|---|
 | `allHeaders` | M4 | ✅ |
-| `existingResponse` | M4 | ⬜ |
+| `existingResponse` | M4 | ✅ |
 | `failure` | M4 | ✅ |
 | `frame` | M4 | ✅ |
 | `headers` | M4 | ✅ |
@@ -546,7 +546,7 @@ Chrome for Testing and chrome-headless-shell.
 | `resourceType` | M4 | ✅ |
 | `response` | M4 | ✅ |
 | `serviceWorker` | M4 | ⬜ |
-| `sizes` | M4 | ⬜ |
+| `sizes` | M4 | ✅ |
 | `timing` | M4 | ✅ |
 | `url` | M4 | ✅ |
 
@@ -563,7 +563,7 @@ Chrome for Testing and chrome-headless-shell.
 | `headersArray` | M4 | 🟡 implemented, not yet covered by a test |
 | `headerValue` | M4 | ✅ |
 | `headerValues` | M4 | ✅ |
-| `httpVersion` | M4 | ⬜ |
+| `httpVersion` | M4 | ✅ |
 | `json` | M4 | ✅ |
 | `ok` | M4 | ✅ |
 | `request` | M4 | ✅ |
@@ -581,8 +581,8 @@ Chrome for Testing and chrome-headless-shell.
 | `abort` | M4 | ✅ |
 | `continue` | M4 | ✅ |
 | `fallback` | M4 | ✅ |
-| `fetch` | M4 | ⬜ |
-| `fulfill` | M4 | ✅ status, headers, contentType, body, json (`path`/`response` not yet) |
+| `fetch` | M4 | ✅ via the browser (Fetch response stage) |
+| `fulfill` | M4 | ✅ status, headers, contentType, body, json, path, response |
 | `request` | M4 | ✅ |
 
 ### WebSocket
@@ -597,13 +597,13 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `onMessage` | M4 | ⬜ |
-| `onClose` | M4 | ⬜ |
-| `close` | M4 | ⬜ |
-| `connectToServer` | M4 | ⬜ |
-| `protocols` | M4 | ⬜ |
-| `send` | M4 | ⬜ |
-| `url` | M4 | ⬜ |
+| `onMessage` | M4 | ✅ |
+| `onClose` | M4 | ✅ |
+| `close` | M4 | ✅ |
+| `connectToServer` | M4 | ✅ |
+| `protocols` | M4 | ✅ |
+| `send` | M4 | ✅ |
+| `url` | M4 | ✅ |
 
 ### Download
 
@@ -634,10 +634,10 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `element` | M4 | ⬜ |
-| `isMultiple` | M4 | ⬜ |
-| `page` | M4 | ⬜ |
-| `setFiles` | M4 | ⬜ |
+| `element` | M4 | ✅ |
+| `isMultiple` | M4 | ✅ |
+| `page` | M4 | ✅ |
+| `setFiles` | M4 | ✅ |
 
 ### ConsoleMessage
 
@@ -645,11 +645,11 @@ Chrome for Testing and chrome-headless-shell.
 |---|---|---|
 | `args` | M4 | ✅ |
 | `location` | M4 | ✅ |
-| `page` | M4 | ⬜ |
+| `page` | M4 | ✅ |
 | `text` | M4 | ✅ |
-| `timestamp` | M4 | ⬜ |
+| `timestamp` | M4 | ✅ |
 | `type` | M4 | ✅ |
-| `worker` | M4 | ⬜ |
+| `worker` | M4 | ✅ |
 
 ### Worker
 
