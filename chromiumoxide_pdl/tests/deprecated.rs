@@ -28,12 +28,13 @@ fn deprecated_event_variants_get_a_real_attribute() {
         .unwrap();
     let code = std::fs::read_to_string(dir.join("cdp.rs")).unwrap();
     let _ = std::fs::remove_dir_all(&dir);
+    let compact: String = code.chars().filter(|c| !c.is_whitespace()).collect();
     assert!(
-        !code.contains(", [deprecated]") && !code.contains("{ [deprecated]"),
+        !compact.contains(",[deprecated]") && !compact.contains("{[deprecated]"),
         "bare `[deprecated]` emitted"
     );
     assert!(
-        code.contains("# [deprecated] DemoOldThing"),
+        compact.contains("#[deprecated]DemoOldThing("),
         "variant not marked deprecated"
     );
 }

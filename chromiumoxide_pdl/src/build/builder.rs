@@ -140,28 +140,35 @@ impl Builder {
                     (format_ident!("{}s", s), field_name.clone())
                 };
 
-                // create from iterator
-                setters.extend(
-                  quote! {
-                     pub fn #single_setter_name(mut self, #single_setter_name: impl Into<#ty>) -> Self {
-                        let v = self.#field_name.get_or_insert(Vec::new());
-                        v.push(#single_setter_name.into());
-                        self
-                     }
-
-                    pub fn #iter_setter_name<I, S>(mut self, #iter_setter_name: I) -> Self
-                    where
-                        I: IntoIterator<Item = S>,
-                        S: Into<#ty>,
-                    {
-                        let v = self.#field_name.get_or_insert(Vec::new());
-                        for val in #iter_setter_name {
-                            v.push(val.into());
+                // A derived setter name can collide with a real field
+                // (e.g. `currentTime` next to `currentTimes`): skip it then.
+                let taken = |ident: &Ident| {
+                    *ident != *field_name && self.fields.iter().any(|(_, f)| f.name_ident == *ident)
+                };
+                if !taken(&single_setter_name) {
+                    setters.extend(quote! {
+                        pub fn #single_setter_name(mut self, #single_setter_name: impl Into<#ty>) -> Self {
+                            let v = self.#field_name.get_or_insert(Vec::new());
+                            v.push(#single_setter_name.into());
+                            self
                         }
-                        self
-                    }
-                  }
-                );
+                    });
+                }
+                if !taken(&iter_setter_name) {
+                    setters.extend(quote! {
+                        pub fn #iter_setter_name<I, S>(mut self, #iter_setter_name: I) -> Self
+                        where
+                            I: IntoIterator<Item = S>,
+                            S: Into<#ty>,
+                        {
+                            let v = self.#field_name.get_or_insert(Vec::new());
+                            for val in #iter_setter_name {
+                                v.push(val.into());
+                            }
+                            self
+                        }
+                    });
+                }
             } else {
                 setters.extend(quote! {
                     pub fn #field_name(mut self, #field_name : #ty_param ) -> Self {
