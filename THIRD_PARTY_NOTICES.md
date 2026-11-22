@@ -5,12 +5,15 @@ Copyright (c) Microsoft Corporation, licensed under the Apache License, Version 
 (https://www.apache.org/licenses/LICENSE-2.0):
 
 - `src/application/scripts/injected.js` — Playwright's injected script (selector
-  engines, actionability and expect helpers), playwright-core 1.63.0, unmodified
+  engines, actionability and expect helpers), playwright-core 1.65.1, unmodified
   apart from a header comment.
+- `src/application/scripts/clock.js`, `storage.js`, `snapshot_streamer.js` and
+  `webmcp.js` — Playwright's clock, storage-state, trace snapshot and WebMCP
+  scripts, playwright-core 1.65.1, unmodified apart from a header comment.
 - `src/application/scripts/prepare_screenshot.js` — Playwright's screenshot
   preparation function.
 - `src/application/scripts/websocket_mock.js` — Playwright's WebSocket mock used
-  by `routeWebSocket`, playwright-core 1.63.0, unmodified.
+  by `routeWebSocket`, playwright-core 1.63.0 (identical in 1.65.1), unmodified.
 - `src/domain/data/devices.json` — Playwright's device descriptors.
 - `src/domain/data/us_keyboard_layout.json` — Playwright's US keyboard layout.
 - `src/domain/data/font_families.json` — Playwright's default font families.

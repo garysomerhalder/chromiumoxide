@@ -2,20 +2,24 @@
 
 Legend: ✅ done (tested) · 🟡 partial · ⬜ not started. Milestones: M1 device-mockup
 needs, M2 protocol regenerated, M3 navigation/waiting/locators/input, M4 network,
-storage, downloads, dialogs, M5 tracing/video/HAR/PDF/assertions, M6 the rest.
+storage, downloads, dialogs, M5 tracing/video/HAR/PDF/assertions, M6 the rest,
+M7 Playwright 1.64/1.65 (section 7).
 
-Playwright reference: **1.63.0** (`playwright-core/types/types.d.ts`).
+Playwright reference: **1.65.1** (`playwright-core/types/types.d.ts`; M1-M6
+were built against 1.63.0, M7 brings everything to 1.65.1).
 Firefox and WebKit are out of scope (this is a CDP client).
 
 ### Notes
 
 - **Launch preset.** The default switches are the device-mockup contract
   (`domain::launch`), read from `/proc/<pid>/cmdline` of a real Playwright
-  1.63 launch of `chromium_headless_shell-1243` in the container image (that
+  launch of `chromium_headless_shell-1243` in the container image (that
   install's wrapper adds `--utility-cmd-prefix`, which is left out). A
   `pw:browser` debug log of Playwright's own argument list differs because
   the image's browser wrapper adjusts switches. The parity test gives
-  Playwright exactly our command line.
+  Playwright exactly our command line. M7 moved the preset from 1.63 to
+  1.65.1 (agreed with device-mockup); the 1.63 list is kept in the
+  `domain::launch` tests as `PRESET_1_63` so pixel changes can be traced.
 - **Known Chromium race (shared with Playwright).** Chromium sometimes styles a
   new page's initial `about:blank` document before the emulated device metrics
   reach the renderer; `setContent` (`document.open`) reuses that document, so
@@ -761,3 +765,36 @@ Chrome for Testing and chrome-headless-shell.
 |---|---|---|
 | `register` | M3 | ✅ |
 | `setTestIdAttribute` | M3 | ✅ |
+
+## 7. Playwright 1.64 and 1.65 (M7)
+
+From the 1.64.0, 1.64.1, 1.65.0 and 1.65.1 release notes and a diff of
+`types.d.ts` 1.63.0 -> 1.65.1. Expected values recorded with Playwright 1.65.1.
+
+| Item | Milestone | Status |
+|---|---|---|
+| Vendored injected, clock, storage, snapshot and WebMCP scripts from playwright-core 1.65.1 | M7 | ✅ |
+| Elements inside hidden iframes are hidden (actions wait, `isVisible`, `toBeVisible`) | M7 | ✅ |
+| Actions wait until the element is not inert ("element is inert") | M7 | ✅ |
+| Unrendered text left out of accessible names and aria snapshots | M7 | ✅ |
+| `ariaSnapshot({ mode: 'ai', depth, boxes })` (page and locator; iframes merged) | M7 | ✅ |
+| `page.getByRef(ref)` (refs in child frames: `f1e3`) | M7 | ✅ |
+| `locator.within(locator)` | M7 | ✅ |
+| `page.content({ includeShadow })`, `frame.content({ includeShadow })` | M7 | ✅ |
+| `page.webmcp` / `frame.webmcp`: `tools()`, `callTool(name, input)` | M7 | ✅ |
+| `apiRequestContext.addCookies()`, `cookies()`, `clearCookies()` | M7 | ✅ |
+| RFC 6265 cookie matching for `cookies(urls)`; nameless cookies | M7 | ✅ |
+| `params` appended to an existing URL query | M7 | ✅ (already) |
+| `proxy` option (launch and context); proxy credentials only for proxy challenges | M7 | ✅ |
+| `recordVideo.fps`, `screencast.start({ fps })`; VP9 videos (VP8 if ffmpeg lacks VP9) | M7 | ✅ |
+| `screencast.showActions({ style })`; `fontSize` folded into the title style | M7 | ✅ |
+| Action cursor rests at the last point and survives navigations | M7 | ✅ |
+| `credentials.create({ signCount })`, `signCount` on create/get | M7 | ✅ |
+| `cdpSession.send(method, params, { timeout })` | M7 | ✅ |
+| Device descriptors from 1.65.1 | M7 | ✅ |
+| Default launch switches from 1.65.1 | M7 | ✅ |
+| Trace format 10 | M7 | ✅ |
+| Device `screen` forwarded to contexts | M7 | ✅ (already) |
+| `signal` (AbortSignal) options | M7 | n/a: drop the Rust future to cancel |
+| `Disposable` return values (`await using`) | M7 | n/a: no async drop in Rust; call the matching stop/remove |
+| Test runner: reporters, `--shuffle`, locks, `testProject.default`, `toHaveScreenshot.type`, Bun, JSX | M7 | out of scope (test runner) |
