@@ -141,6 +141,12 @@ pub fn redirect_request(req: &HttpRequest, status: u16, location: &str) -> Optio
     Some(next)
 }
 
+/// The `Cookie` request header for `cookies` (Playwright's
+/// `serializeCookieNameValue`: a nameless cookie is just its value).
+pub fn cookie_header(cookies: &[crate::domain::storage::Cookie]) -> String {
+    unimplemented!()
+}
+
 /// A `Set-Cookie` header as a cookie for `request_url` (`now_s`: Unix seconds).
 pub fn parse_set_cookie(header: &str, request_url: &str, now_s: f64) -> Option<NewCookie> {
     let url = url::Url::parse(request_url).ok()?;
@@ -371,7 +377,40 @@ mod tests {
         )
         .unwrap();
         assert_eq!(c.expires, Some(1_445_412_480.0));
-        assert!(parse_set_cookie("novalue", "http://h/", 0.0).is_none());
+        // Playwright 1.65 (cookieStore.ts): a pair without `=` is a nameless cookie.
+        let c = parse_set_cookie("token", "http://h/", 0.0).unwrap();
+        assert_eq!((c.name.as_str(), c.value.as_str()), ("", "token"));
+        assert!(parse_set_cookie(" ; Path=/", "http://h/", 0.0).is_none());
+        // A dotless Domain stays host-only; Max-Age must be an integer.
+        let c = parse_set_cookie(
+            "a=1; Domain=localhost; Max-Age=1.5",
+            "http://localhost/",
+            0.0,
+        )
+        .unwrap();
+        assert_eq!(
+            (c.domain.as_deref(), c.expires),
+            (Some("localhost"), Some(-1.0))
+        );
+        // A Domain the response host does not belong to drops the cookie.
+        assert!(parse_set_cookie("a=1; Domain=other.test", "http://a.example.com/", 0.0).is_none());
+    }
+
+    #[test]
+    fn cookie_headers_serialize_nameless_cookies_as_their_value() {
+        use crate::domain::storage::{Cookie, SameSite};
+        let c = |name: &str, value: &str| Cookie {
+            name: name.into(),
+            value: value.into(),
+            domain: "h".into(),
+            path: "/".into(),
+            expires: -1.0,
+            http_only: false,
+            secure: false,
+            same_site: SameSite::Lax,
+            partition_key: None,
+        };
+        assert_eq!(cookie_header(&[c("a", "1"), c("", "x")]), "a=1; x");
     }
 
     #[test]

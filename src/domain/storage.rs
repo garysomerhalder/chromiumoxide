@@ -428,6 +428,35 @@ mod tests {
         assert_eq!(names(&["http://other.test/"]), Vec::<String>::new());
     }
 
+    /// Playwright 1.65 matches cookies to URLs like RFC 6265.
+    #[test]
+    fn filter_cookies_follows_rfc_6265() {
+        let all = vec![
+            cookie("host_only", "example.com", "/", false),
+            cookie("api", "example.com", "/api", false),
+            cookie("foo_dir", "example.com", "/foo/", false),
+            cookie("secure_local", "127.0.0.1", "/", true),
+            cookie("secure_v6", "[::1]", "/", true),
+        ];
+        let names = |url: &str| -> Vec<String> {
+            filter_cookies(all.clone(), &[url])
+                .into_iter()
+                .map(|c| c.name)
+                .collect()
+        };
+        assert_eq!(names("http://www.example.com/api"), Vec::<String>::new());
+        assert_eq!(names("http://example.com/apiv2"), ["host_only"]);
+        assert_eq!(names("http://example.com/api"), ["host_only", "api"]);
+        assert_eq!(names("http://example.com/api/x"), ["host_only", "api"]);
+        assert_eq!(names("http://example.com/foo"), ["host_only"]);
+        assert_eq!(
+            names("http://example.com/foo/bar"),
+            ["host_only", "foo_dir"]
+        );
+        assert_eq!(names("http://127.0.0.1:9/"), ["secure_local"]);
+        assert_eq!(names("http://[::1]:9/"), ["secure_v6"]);
+    }
+
     #[test]
     fn new_cookies_from_a_url() {
         let c = NewCookie::new("a", "1").url("https://example.com/dir/page.html");

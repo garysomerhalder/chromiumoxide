@@ -4,8 +4,8 @@
 use std::collections::HashMap;
 
 use chromiumoxide::{
-    ApiRequestOptions, Chromium, ContextOptions, HttpCredentials, LaunchOptions, MultipartValue,
-    NewCookie,
+    ApiRequestOptions, Chromium, ClearCookies, ContextOptions, HttpCredentials, LaunchOptions,
+    MultipartValue, NewCookie,
 };
 use serde_json::{Value, json};
 
@@ -353,4 +353,65 @@ async fn request_context_tracing() {
     assert_eq!(after["result"]["response"]["status"], 200);
     assert_eq!(after["result"]["response"]["url"], json!(url));
     let _ = std::fs::remove_dir_all(dir);
+}
+
+/// 1.64: `request.addCookies()`, `request.cookies()`, `request.clearCookies()`
+/// on a standalone context (its own jar) and on `context.request`.
+#[tokio::test]
+async fn request_context_cookie_methods() {
+    let server = TestServer::start().await;
+    let rq = Chromium::request_context(ApiRequestOptions {
+        base_url: Some(server.url("")),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let url = server.url("/dump");
+    rq.add_cookies(&[
+        NewCookie::new("session-id", "42").url(&url),
+        NewCookie::new("other", "1").url(&url),
+    ])
+    .await
+    .unwrap();
+    let names = |cookies: Vec<chromiumoxide::Cookie>| -> Vec<String> {
+        cookies.into_iter().map(|c| c.name).collect()
+    };
+    assert_eq!(
+        names(rq.cookies_for(&[&url]).await.unwrap()),
+        ["session-id", "other"]
+    );
+    let j: Value = rq.get("/dump").await.unwrap().json().await.unwrap();
+    assert!(
+        j["headers"]["cookie"]
+            .as_str()
+            .unwrap()
+            .starts_with("session-id=42; other=1"),
+        "{j}"
+    );
+    rq.clear_cookies_matching(ClearCookies::default().name("session-id"))
+        .await
+        .unwrap();
+    assert_eq!(
+        names(rq.cookies_for(&[&url]).await.unwrap()),
+        ["other", "from_server"]
+    );
+    rq.clear_cookies().await.unwrap();
+    assert!(rq.cookies().await.unwrap().is_empty());
+    rq.dispose().await;
+
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    let request = context.request();
+    request
+        .add_cookies(&[NewCookie::new("shared", "yes").url(&url)])
+        .await
+        .unwrap();
+    assert_eq!(names(context.cookies().await.unwrap()), ["shared"]);
+    assert_eq!(names(request.cookies().await.unwrap()), ["shared"]);
+    request.clear_cookies().await.unwrap();
+    assert!(context.cookies().await.unwrap().is_empty());
+    browser.close().await.unwrap();
 }
