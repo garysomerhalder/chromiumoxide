@@ -42,6 +42,8 @@ pub(crate) struct PageState {
     pub(crate) main_navigations: u64,
     /// Whether the latest main-frame navigation stayed in the same document.
     pub(crate) last_navigation_same_document: bool,
+    /// Per frame: navigations so far and whether the last stayed in the document.
+    pub(crate) frame_navigations: HashMap<String, (u64, bool)>,
 }
 
 pub(crate) struct PageInner {
@@ -338,6 +340,8 @@ impl Page {
                         st.main_navigations += 1;
                         st.last_navigation_same_document = false;
                     }
+                    let n = st.frame_navigations.entry(s(f, "id")).or_default();
+                    *n = (n.0 + 1, false);
                     effects = st.tree.navigated(
                         &s(f, "id"),
                         f.get("parentId").and_then(Value::as_str),
@@ -352,6 +356,8 @@ impl Page {
                         st.main_navigations += 1;
                         st.last_navigation_same_document = true;
                     }
+                    let n = st.frame_navigations.entry(frame_id.clone()).or_default();
+                    *n = (n.0 + 1, true);
                     st.tree.navigated_within_document(&frame_id, &s(p, "url"));
                 }
                 "Page.frameDetached" => {

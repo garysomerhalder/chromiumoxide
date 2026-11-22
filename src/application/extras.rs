@@ -205,6 +205,7 @@ impl Page {
     pub fn wait_for_navigation(&self) -> WaitForNavigation<'_> {
         WaitForNavigation {
             page: self,
+            frame: None,
             url: None,
             wait_until: LifecycleEvent::Load,
             timeout: None,
@@ -216,12 +217,19 @@ impl Page {
 #[must_use = "does nothing until awaited"]
 pub struct WaitForNavigation<'a> {
     page: &'a Page,
+    /// `None`: the main frame.
+    frame: Option<String>,
     url: Option<UrlMatcher>,
     wait_until: LifecycleEvent,
     timeout: Option<Duration>,
 }
 
 impl<'a> WaitForNavigation<'a> {
+    /// Waits for `frame_id`'s navigation instead of the main frame's.
+    pub(crate) fn for_frame(mut self, frame_id: &str) -> Self {
+        self.frame = Some(frame_id.to_owned());
+        self
+    }
     pub fn url(mut self, url: impl Into<UrlMatcher>) -> Self {
         self.url = Some(url.into());
         self
@@ -235,12 +243,22 @@ impl<'a> WaitForNavigation<'a> {
         self
     }
 
+    /// The waited frame's navigation count.
+    fn count(&self) -> u64 {
+        let st = self.page.inner.state.lock().unwrap();
+        match &self.frame {
+            None => st.main_navigations,
+            Some(id) => st.frame_navigations.get(id).map_or(0, |n| n.0),
+        }
+    }
+
     async fn wait_after(self, before: u64) -> Result<Option<Response>> {
         let page = self.page;
         let timeout = self.timeout.unwrap_or_else(|| page.navigation_timeout());
         let inner = &page.inner;
         let url = self.url;
         let wait = self.wait_until;
+        let frame_id = self.frame;
         wait_until(
             &*inner.shared.services.clock,
             &inner.changed,
@@ -251,20 +269,34 @@ impl<'a> WaitForNavigation<'a> {
                     return Some(Err(Error::TargetClosed("page has been closed".into())));
                 }
                 let st = inner.state.lock().unwrap();
-                if st.main_navigations == before {
+                let (count, same_document) = match &frame_id {
+                    None => (st.main_navigations, st.last_navigation_same_document),
+                    Some(id) => st.frame_navigations.get(id).copied().unwrap_or_default(),
+                };
+                if count == before {
                     return None;
                 }
-                let main = st.tree.main_frame()?;
-                if url.as_ref().is_some_and(|m| !m.matches(&main.url)) {
+                let frame = match &frame_id {
+                    None => st.tree.main_frame()?,
+                    Some(id) => match st.tree.frame(id) {
+                        Some(f) => f,
+                        None => {
+                            return Some(Err(Error::TargetClosed(
+                                "frame has been detached".into(),
+                            )));
+                        }
+                    },
+                };
+                if url.as_ref().is_some_and(|m| !m.matches(&frame.url)) {
                     return None;
                 }
-                if st.last_navigation_same_document {
+                if same_document {
                     return Some(Ok(None));
                 }
-                if !main.has(wait) {
+                if !frame.has(wait) {
                     return None;
                 }
-                Some(Ok(main
+                Some(Ok(frame
                     .loader_id
                     .as_ref()
                     .and_then(|l| st.responses.get(l))
@@ -279,7 +311,7 @@ impl<'a> WaitForNavigation<'a> {
     where
         A: IntoFuture<Output = Result<R>>,
     {
-        let before = self.page.inner.state.lock().unwrap().main_navigations;
+        let before = self.count();
         action.await?;
         self.wait_after(before).await
     }
@@ -290,7 +322,7 @@ impl<'a> IntoFuture for WaitForNavigation<'a> {
     type IntoFuture = BoxFuture<'a, Result<Option<Response>>>;
     fn into_future(self) -> Self::IntoFuture {
         async move {
-            let before = self.page.inner.state.lock().unwrap().main_navigations;
+            let before = self.count();
             self.wait_after(before).await
         }
         .boxed()
