@@ -8,6 +8,7 @@ pub mod error;
 pub mod expect;
 pub mod frame;
 pub mod har;
+pub mod image;
 pub mod input;
 pub mod launch;
 pub mod network;
