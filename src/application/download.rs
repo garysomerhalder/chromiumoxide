@@ -104,6 +104,12 @@ impl Download {
         Ok(())
     }
 
+    /// Waits for the download and returns its bytes (`createReadStream`).
+    pub async fn read(&self) -> Result<Vec<u8>> {
+        let path = self.path().await?;
+        Ok(self.inner.page.inner.shared.services.fs.read(&path)?)
+    }
+
     /// Cancels an unfinished download.
     pub async fn cancel(&self) -> Result<()> {
         let context = self.inner.page.context_id();

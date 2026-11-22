@@ -144,6 +144,7 @@ impl Page {
         for (method, params) in crate::application::storage::runtime_commands(context) {
             calls.push(cdp.call(sid, method, params));
         }
+        crate::application::credentials::setup_page(&cdp, &sid_owned, &target_id, context).await?;
         calls.push(cdp.call(sid, "Runtime.runIfWaitingForDebugger", json!({})));
         let tree = frame_tree.await?;
 

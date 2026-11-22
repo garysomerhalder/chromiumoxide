@@ -22,7 +22,9 @@ pub struct Worker {
 }
 
 struct WorkerInner {
-    page: Page,
+    /// The page of a dedicated worker; `None` for service workers.
+    page: Option<Page>,
+    shared: Arc<crate::application::shared::Shared>,
     session_id: String,
     url: String,
     /// The worker's execution context, once created.
@@ -96,36 +98,39 @@ impl Worker {
             .map_err(|e| Error::Evaluation(format!("cannot deserialize result: {e}")))
     }
 
-    async fn call(&self, source: &str, arg: Option<Value>) -> Result<Value> {
-        let page = &self.inner.page;
-        let rx = self.inner.context.subscribe();
-        let context_id = {
-            let mut rx = rx;
-            let timeout = page.default_timeout();
-            let wait = async {
-                loop {
-                    if self.is_closed() {
-                        return Err(Error::TargetClosed("worker has been closed".into()));
-                    }
-                    if let Some(id) = *rx.borrow() {
-                        return Ok(id);
-                    }
-                    if rx.changed().await.is_err() {
-                        return Err(Error::TargetClosed("worker has been closed".into()));
-                    }
+    async fn call_raw(&self, source: &str, arg: Option<Value>, by_value: bool) -> Result<Value> {
+        let timeout = self
+            .inner
+            .page
+            .as_ref()
+            .map_or(crate::application::page::DEFAULT_TIMEOUT, |p| {
+                p.default_timeout()
+            });
+        let mut rx = self.inner.context.subscribe();
+        let wait = async {
+            loop {
+                if self.is_closed() {
+                    return Err(Error::TargetClosed("worker has been closed".into()));
                 }
-            };
-            crate::application::wait::with_timeout(
-                &*page.inner.shared.services.clock,
-                timeout,
-                "waiting for the worker",
-                wait,
-            )
-            .await?
+                if let Some(id) = *rx.borrow() {
+                    return Ok(id);
+                }
+                if rx.changed().await.is_err() {
+                    return Err(Error::TargetClosed("worker has been closed".into()));
+                }
+            }
         };
+        let context_id = crate::application::wait::with_timeout(
+            &*self.inner.shared.services.clock,
+            timeout,
+            "waiting for the worker",
+            wait,
+        )
+        .await?;
         let args: Vec<Value> = arg.into_iter().collect();
-        let params = js::call_params(&js::function_declaration(source), context_id, &args);
-        let r = page
+        let mut params = js::call_params(&js::function_declaration(source), context_id, &args);
+        params["returnByValue"] = json!(by_value);
+        let r = self
             .inner
             .shared
             .cdp
@@ -135,7 +140,32 @@ impl Worker {
                 params,
             )
             .await?;
-        js::result_value(&r)
+        if by_value {
+            js::result_value(&r)
+        } else {
+            js::result_value(&r)?;
+            Ok(r["result"].clone())
+        }
+    }
+
+    async fn call(&self, source: &str, arg: Option<Value>) -> Result<Value> {
+        self.call_raw(source, arg, true).await
+    }
+
+    /// `worker.evaluateHandle(pageFunction)` (dedicated workers).
+    pub async fn evaluate_handle(
+        &self,
+        source: &str,
+    ) -> Result<crate::application::handle::JsHandle> {
+        let page = self.inner.page.as_ref().ok_or_else(|| {
+            Error::InvalidArgument("evaluate_handle is not supported for service workers".into())
+        })?;
+        let remote = self.call_raw(source, None, false).await?;
+        Ok(crate::application::handle::JsHandle::from_worker(
+            page,
+            &self.inner.session_id,
+            &remote,
+        ))
     }
 
     fn mark_closed(&self) {
@@ -148,37 +178,13 @@ impl Worker {
 impl Page {
     /// A worker target attached under this page.
     pub(crate) fn attach_worker(&self, session_id: String, url: String) {
-        let (context, _) = watch::channel(None);
-        let worker = Worker {
-            inner: Arc::new(WorkerInner {
-                page: self.clone(),
-                session_id: session_id.clone(),
-                url,
-                context,
-                closed: AtomicBool::new(false),
-            }),
-        };
+        let worker = Worker::attach(
+            self.inner.shared.clone(),
+            Some(self.clone()),
+            session_id,
+            url,
+        );
         self.inner.workers.lock().unwrap().push(worker.clone());
-        let cdp = self.inner.shared.cdp.clone();
-        let mut events = cdp.subscribe();
-        let w = worker.clone();
-        tokio::spawn(async move {
-            while let Some(e) = events.next().await {
-                if e.session_id.as_deref() != Some(w.inner.session_id.as_str()) {
-                    continue;
-                }
-                w.handle_event(&e);
-                if w.is_closed() {
-                    break;
-                }
-            }
-        });
-        let sid = Some(session_id.as_str());
-        let enable = cdp.call(sid, "Runtime.enable", json!({}));
-        let run = cdp.call(sid, "Runtime.runIfWaitingForDebugger", json!({}));
-        tokio::spawn(async move {
-            let _ = futures::join!(enable, run);
-        });
         self.emit(PageEvent::Worker(worker));
     }
 
@@ -219,6 +225,55 @@ impl Page {
 }
 
 impl Worker {
+    /// Starts tracking a worker target and resumes it.
+    pub(crate) fn attach(
+        shared: Arc<crate::application::shared::Shared>,
+        page: Option<Page>,
+        session_id: String,
+        url: String,
+    ) -> Worker {
+        let (context, _) = watch::channel(None);
+        let worker = Worker {
+            inner: Arc::new(WorkerInner {
+                page,
+                shared: shared.clone(),
+                session_id: session_id.clone(),
+                url,
+                context,
+                closed: AtomicBool::new(false),
+            }),
+        };
+        let cdp = shared.cdp.clone();
+        let mut events = cdp.subscribe();
+        let w = worker.clone();
+        tokio::spawn(async move {
+            while let Some(e) = events.next().await {
+                if e.session_id.as_deref() != Some(w.inner.session_id.as_str()) {
+                    continue;
+                }
+                w.handle_event(&e);
+                if w.is_closed() {
+                    break;
+                }
+            }
+        });
+        let sid = Some(session_id.as_str());
+        let enable = cdp.call(sid, "Runtime.enable", json!({}));
+        let run = cdp.call(sid, "Runtime.runIfWaitingForDebugger", json!({}));
+        tokio::spawn(async move {
+            let _ = futures::join!(enable, run);
+        });
+        worker
+    }
+
+    pub(crate) fn session_id(&self) -> &str {
+        &self.inner.session_id
+    }
+
+    pub(crate) fn close(&self) {
+        self.mark_closed();
+    }
+
     fn handle_event(&self, e: &RawEvent) {
         let p = &e.params;
         match e.method.as_str() {
@@ -228,8 +283,10 @@ impl Worker {
                 }
             }
             "Runtime.consoleAPICalled" => {
-                let message = ConsoleMessage::from_worker(self, &self.inner.page, p);
-                self.inner.page.emit(PageEvent::Console(message));
+                if let Some(page) = &self.inner.page {
+                    let message = ConsoleMessage::from_worker(self, page, p);
+                    page.emit(PageEvent::Console(message));
+                }
             }
             _ => {}
         }

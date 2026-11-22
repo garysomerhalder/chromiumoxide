@@ -3,6 +3,7 @@
 pub mod actions;
 pub mod browser;
 pub mod context;
+pub mod credentials;
 pub mod discovery;
 pub mod download;
 pub mod events;

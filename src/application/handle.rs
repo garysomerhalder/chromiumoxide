@@ -22,6 +22,8 @@ pub struct JsHandle {
     value: Value,
     subtype: Option<String>,
     disposed: Arc<AtomicBool>,
+    /// A worker's session, when the object lives in a worker.
+    session: Option<String>,
 }
 
 impl std::fmt::Debug for JsHandle {
@@ -34,6 +36,33 @@ impl std::fmt::Debug for JsHandle {
 }
 
 impl JsHandle {
+    /// A handle to an object in a worker reached through `session`.
+    pub(crate) fn from_worker(page: &Page, session: &str, remote: &Value) -> JsHandle {
+        let mut h = JsHandle::from_remote(page, remote);
+        h.session = Some(session.to_owned());
+        h
+    }
+
+    fn child(&self, remote: &Value) -> JsHandle {
+        let mut h = JsHandle::from_remote(&self.page, remote);
+        h.session = self.session.clone();
+        h
+    }
+
+    async fn send(&self, method: &str, params: Value) -> Result<Value> {
+        match &self.session {
+            Some(sid) => {
+                self.page
+                    .inner
+                    .shared
+                    .cdp
+                    .call(Some(sid), method, params)
+                    .await
+            }
+            None => self.page.send(method, params).await,
+        }
+    }
+
     pub(crate) fn from_remote(page: &Page, remote: &Value) -> JsHandle {
         JsHandle {
             page: page.clone(),
@@ -47,6 +76,7 @@ impl JsHandle {
                 .and_then(Value::as_str)
                 .map(str::to_owned),
             disposed: Arc::new(AtomicBool::new(false)),
+            session: None,
         }
     }
 
@@ -85,7 +115,7 @@ impl JsHandle {
                 ));
             }
         }
-        let r = self.page.send("Runtime.callFunctionOn", params).await?;
+        let r = self.send("Runtime.callFunctionOn", params).await?;
         if by_value {
             js::result_value(&r)
         } else {
@@ -117,7 +147,7 @@ impl JsHandle {
     /// `handle.evaluateHandle(fn)`.
     pub async fn evaluate_handle(&self, function: &str) -> Result<JsHandle> {
         let remote = self.call(function, None, false).await?;
-        Ok(JsHandle::from_remote(&self.page, &remote))
+        Ok(self.child(&remote))
     }
 
     /// `handle.jsonValue()`.
@@ -136,7 +166,7 @@ impl JsHandle {
         let remote = self
             .call("(o, name) => o[name]", Some(json!(name)), false)
             .await?;
-        Ok(JsHandle::from_remote(&self.page, &remote))
+        Ok(self.child(&remote))
     }
 
     /// `handle.getProperties()`: own enumerable properties.
@@ -146,7 +176,6 @@ impl JsHandle {
             return Ok(BTreeMap::new());
         };
         let r = self
-            .page
             .send(
                 "Runtime.getProperties",
                 json!({"objectId": id, "ownProperties": true}),
@@ -165,7 +194,7 @@ impl JsHandle {
             if let (Some(name), Some(value)) =
                 (p.get("name").and_then(Value::as_str), p.get("value"))
             {
-                out.insert(name.to_owned(), JsHandle::from_remote(&self.page, value));
+                out.insert(name.to_owned(), self.child(value));
             }
         }
         Ok(out)
@@ -184,7 +213,6 @@ impl JsHandle {
         }
         if let Some(id) = &self.object_id {
             let _ = self
-                .page
                 .send("Runtime.releaseObject", json!({"objectId": id}))
                 .await;
         }

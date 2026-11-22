@@ -322,6 +322,15 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
             shared.handle_download_event(&event.method, &event.params);
             continue;
         }
+        if event.session_id.is_none() && event.method == "Target.detachedFromTarget" {
+            if let Some(sid) = event.params.get("sessionId").and_then(Value::as_str) {
+                let contexts: Vec<_> = shared.contexts.lock().unwrap().values().cloned().collect();
+                for c in contexts {
+                    c.detach_service_worker(sid);
+                }
+            }
+            continue;
+        }
         if event.method != "Target.attachedToTarget" {
             continue;
         }
@@ -359,6 +368,20 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
                         Err(e) => context.page_failed(&target_id, &e),
                     }
                 });
+            }
+            Some(context) if kind == "service_worker" && event.session_id.is_none() => {
+                let url = info
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                let worker = crate::application::worker::Worker::attach(
+                    shared.clone(),
+                    None,
+                    session_id,
+                    url,
+                );
+                context.add_service_worker(worker);
             }
             _ if kind == "worker" && event.session_id.is_some() => {
                 let page = event

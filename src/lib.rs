@@ -31,6 +31,7 @@ pub use chromiumoxide_fetcher as fetcher;
 pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::browser::{Browser, LaunchOptions};
 pub use application::context::{BrowserContext, ContextEvent, PageWaiter};
+pub use application::credentials::{Credential, Credentials, NewCredential};
 pub use application::discovery::Discovered;
 pub use application::download::Download;
 pub use application::events::{ConsoleMessage, Dialog, EventWaiter, PageEvent};
@@ -50,6 +51,7 @@ pub use application::route::{
 pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
 pub use application::services::Services;
+pub use application::storage::WebStorage;
 pub use application::websocket::{WebSocket, WebSocketEvent, WsPayload};
 pub use application::websocket_route::{WebSocketRoute, WebSocketServer};
 pub use application::worker::Worker;

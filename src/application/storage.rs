@@ -148,7 +148,7 @@ impl Page {
         Ok(())
     }
 
-    async fn local_storage(&self) -> Result<Vec<NameValue>> {
+    async fn collect_local_storage(&self) -> Result<Vec<NameValue>> {
         let v = self
             .call_function(
                 World::Utility,
@@ -334,7 +334,7 @@ impl BrowserContext {
             if !pending.contains(&origin) {
                 continue;
             }
-            if let Ok(local_storage) = page.local_storage().await {
+            if let Ok(local_storage) = page.collect_local_storage().await {
                 if !local_storage.is_empty() {
                     origins.push(OriginState {
                         origin: origin.clone(),
@@ -348,7 +348,7 @@ impl BrowserContext {
             self.with_storage_page(&pending, |page, origin| {
                 let origin = origin.to_owned();
                 async move {
-                    let local_storage = page.local_storage().await?;
+                    let local_storage = page.collect_local_storage().await?;
                     Ok((!local_storage.is_empty()).then_some(OriginState {
                         origin,
                         local_storage,
@@ -440,5 +440,85 @@ impl BrowserContext {
         let result = run.await;
         let _ = page.close().await;
         result
+    }
+}
+
+/// `page.localStorage` / `page.sessionStorage` of the main frame's origin.
+#[derive(Debug, Clone)]
+pub struct WebStorage {
+    page: Page,
+    name: &'static str,
+}
+
+impl WebStorage {
+    async fn call(&self, function: &str, args: &[Value]) -> Result<Value> {
+        let declaration = format!(
+            "(name, ...args) => {{ const s = globalThis[name]; return ({function})(s, ...args); }}"
+        );
+        let mut all = vec![json!(self.name)];
+        all.extend_from_slice(args);
+        self.page
+            .call_function(
+                World::Utility,
+                &declaration,
+                &all,
+                self.page.default_timeout(),
+                "using web storage",
+            )
+            .await
+    }
+
+    /// All entries.
+    pub async fn items(&self) -> Result<Vec<NameValue>> {
+        let v = self
+            .call(
+                "s => Object.keys(s).map(name => ({name, value: s.getItem(name)}))",
+                &[],
+            )
+            .await?;
+        Ok(serde_json::from_value(v)?)
+    }
+
+    pub async fn get_item(&self, name: &str) -> Result<Option<String>> {
+        let v = self.call("(s, k) => s.getItem(k)", &[json!(name)]).await?;
+        Ok(v.as_str().map(str::to_owned))
+    }
+
+    pub async fn set_item(&self, name: &str, value: &str) -> Result<()> {
+        self.call(
+            "(s, k, v) => { s.setItem(k, v); }",
+            &[json!(name), json!(value)],
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn remove_item(&self, name: &str) -> Result<()> {
+        self.call("(s, k) => { s.removeItem(k); }", &[json!(name)])
+            .await?;
+        Ok(())
+    }
+
+    pub async fn clear(&self) -> Result<()> {
+        self.call("s => { s.clear(); }", &[]).await?;
+        Ok(())
+    }
+}
+
+impl Page {
+    /// `page.localStorage`.
+    pub fn local_storage(&self) -> WebStorage {
+        WebStorage {
+            page: self.clone(),
+            name: "localStorage",
+        }
+    }
+
+    /// `page.sessionStorage`.
+    pub fn session_storage(&self) -> WebStorage {
+        WebStorage {
+            page: self.clone(),
+            name: "sessionStorage",
+        }
     }
 }

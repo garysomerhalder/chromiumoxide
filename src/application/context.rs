@@ -30,6 +30,8 @@ pub(crate) struct ContextInner {
     pub(crate) subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<ContextEvent>>>,
     pub(crate) ws_routes: crate::application::websocket_route::WsRoutes,
     pub(crate) ws_routing: Mutex<crate::application::websocket_route::WsRouting>,
+    pub(crate) service_workers: Mutex<Vec<crate::application::worker::Worker>>,
+    pub(crate) credentials: crate::application::credentials::CredentialsState,
 }
 
 /// Something that happened in a context (Playwright's `context.on(...)`).
@@ -38,11 +40,30 @@ pub(crate) struct ContextInner {
 pub enum ContextEvent {
     /// A page was created (`context.on('page')`), including popups.
     Page(Page),
+    /// A service worker started (`context.on('serviceworker')`).
+    ServiceWorker(crate::application::worker::Worker),
     /// The context was closed.
     Close,
 }
 
 impl ContextInner {
+    pub(crate) fn add_service_worker(&self, worker: crate::application::worker::Worker) {
+        self.service_workers.lock().unwrap().push(worker.clone());
+        self.emit(ContextEvent::ServiceWorker(worker));
+    }
+
+    pub(crate) fn detach_service_worker(&self, session_id: &str) {
+        let mut list = self.service_workers.lock().unwrap();
+        list.retain(|w| {
+            if w.session_id() == session_id {
+                w.close();
+                false
+            } else {
+                true
+            }
+        });
+    }
+
     pub(crate) fn add_page(&self, page: Page) {
         self.pages.lock().unwrap().push(page.clone());
         self.changed.send_modify(|v| *v += 1);
@@ -127,6 +148,8 @@ impl BrowserContext {
             subscribers: Mutex::new(Vec::new()),
             ws_routes: Mutex::new(Vec::new()),
             ws_routing: Mutex::new(Default::default()),
+            service_workers: Mutex::new(Vec::new()),
+            credentials: Mutex::new(Default::default()),
         });
         shared.contexts.lock().unwrap().insert(id, inner.clone());
         if inner.options.service_workers == crate::domain::emulation::ServiceWorkers::Block {
@@ -234,6 +257,11 @@ impl BrowserContext {
         }
     }
 
+    /// `context.serviceWorkers()`: running service workers.
+    pub fn service_workers(&self) -> Vec<crate::application::worker::Worker> {
+        self.inner.service_workers.lock().unwrap().clone()
+    }
+
     /// Open pages.
     pub fn pages(&self) -> Vec<Page> {
         self.inner.pages.lock().unwrap().clone()
@@ -298,8 +326,12 @@ impl<'a> PageWaiter<'a> {
         use futures::StreamExt;
         let timeout = self.timeout.unwrap_or(DEFAULT_TIMEOUT);
         let find = async move {
-            if let Some(ContextEvent::Page(p)) = events.next().await {
-                return Ok(p);
+            while let Some(e) = events.next().await {
+                match e {
+                    ContextEvent::Page(p) => return Ok(p),
+                    ContextEvent::Close => break,
+                    ContextEvent::ServiceWorker(_) => {}
+                }
             }
             Err(Error::TargetClosed(
                 "context closed while waiting for a page".into(),
