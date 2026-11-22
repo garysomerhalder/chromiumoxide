@@ -78,13 +78,13 @@ Chrome for Testing and chrome-headless-shell.
 | `permissions` | M4 | ✅ Playwright permission names (and `grant_permissions` / `clear_permissions`) |
 | `offline` | M4 | ✅ (and `context.set_offline`) |
 | `extraHTTPHeaders` | M4 | ✅ (and context / page `set_extra_http_headers`) |
-| `javaScriptEnabled`, `bypassCSP`, `ignoreHTTPSErrors` | M4 | 🟡 set at creation |
-| `storageState` | M4 | ✅ cookies + localStorage, JSON-compatible with Playwright files (IndexedDB not yet) |
+| `javaScriptEnabled`, `bypassCSP`, `ignoreHTTPSErrors` | M4 | ✅ |
+| `storageState` | M4 | ✅ cookies, localStorage and IndexedDB (`StorageStateOptions`), JSON-compatible with Playwright files |
 | `acceptDownloads` | M4 | ✅ |
-| `recordHar` | M5 | ⬜ |
-| `recordVideo` | M5 | ⬜ |
+| `recordHar` | M5 | ✅ `record_har` (embedded or omitted content, URL filter) |
+| `recordVideo` | M5 | ✅ VP8 `.webm` via Playwright's ffmpeg; default size like Playwright |
 | `serviceWorkers` | M4 | ✅ `allow` / `block` |
-| `baseURL` | M3 | ⬜ |
+| `baseURL` | M3 | ✅ |
 | Device descriptors (`playwright.devices`) | M1 | ✅ |
 
 ## 4. Screenshots
@@ -98,10 +98,10 @@ Chrome for Testing and chrome-headless-shell.
 | `type` png/jpeg, `quality` | M1 | ✅ |
 | `omitBackground` | M1 | ✅ |
 | `scale: css / device` | M1 | ✅ |
-| `animations: disabled` | M3 | 🟡 wired through Playwright's script, not yet tested |
-| `caret: initial` | M3 | 🟡 wired through Playwright's script, not yet tested |
-| `style` | M3 | 🟡 wired through Playwright's script, not yet tested |
-| `mask`, `maskColor` | M3 | ⬜ |
+| `animations: disabled` | M3 | ✅ |
+| `caret: initial` | M3 | ✅ |
+| `style` | M3 | ✅ |
+| `mask`, `maskColor` | M3 | ✅ |
 | Element / locator screenshots | M3 | ✅ |
 | Pixel parity with Playwright proven by test | M1 | ✅ |
 
@@ -109,38 +109,38 @@ Chrome for Testing and chrome-headless-shell.
 
 | Assertion | Milestone | Status |
 |---|---|---|
-| locator `toBeAttached` | M5 | ⬜ |
-| locator `toBeChecked` | M5 | ⬜ |
-| locator `toBeDisabled` | M5 | ⬜ |
-| locator `toBeEditable` | M5 | ⬜ |
-| locator `toBeEmpty` | M5 | ⬜ |
-| locator `toBeEnabled` | M5 | ⬜ |
-| locator `toBeFocused` | M5 | ⬜ |
-| locator `toBeHidden` | M5 | ⬜ |
-| locator `toBeInViewport` | M5 | ⬜ |
-| locator `toBeVisible` | M5 | ⬜ |
-| locator `toContainClass` | M5 | ⬜ |
-| locator `toContainText` | M5 | ⬜ |
-| locator `toHaveAccessibleDescription` | M5 | ⬜ |
-| locator `toHaveAccessibleErrorMessage` | M5 | ⬜ |
-| locator `toHaveAccessibleName` | M5 | ⬜ |
-| locator `toHaveAttribute` | M5 | ⬜ |
-| locator `toHaveCSS` | M5 | ⬜ |
-| locator `toHaveClass` | M5 | ⬜ |
-| locator `toHaveCount` | M5 | ⬜ |
-| locator `toHaveId` | M5 | ⬜ |
-| locator `toHaveJSProperty` | M5 | ⬜ |
-| locator `toHaveRole` | M5 | ⬜ |
-| locator `toHaveScreenshot` | M5 | ⬜ |
-| locator `toHaveText` | M5 | ⬜ |
-| locator `toHaveValue` | M5 | ⬜ |
-| locator `toHaveValues` | M5 | ⬜ |
-| locator `toMatchAriaSnapshot` | M5 | ⬜ |
-| page `toHaveScreenshot` | M5 | ⬜ |
-| page `toHaveTitle` | M5 | ⬜ |
-| page `toHaveURL` | M5 | ⬜ |
-| page `toMatchAriaSnapshot` | M5 | ⬜ |
-| response `toBeOK` | M5 | ⬜ |
+| locator `toBeAttached` | M5 | ✅ |
+| locator `toBeChecked` | M5 | ✅ |
+| locator `toBeDisabled` | M5 | ✅ |
+| locator `toBeEditable` | M5 | ✅ |
+| locator `toBeEmpty` | M5 | ✅ |
+| locator `toBeEnabled` | M5 | ✅ |
+| locator `toBeFocused` | M5 | ✅ |
+| locator `toBeHidden` | M5 | ✅ |
+| locator `toBeInViewport` | M5 | ✅ |
+| locator `toBeVisible` | M5 | ✅ |
+| locator `toContainClass` | M5 | ✅ |
+| locator `toContainText` | M5 | ✅ |
+| locator `toHaveAccessibleDescription` | M5 | ✅ |
+| locator `toHaveAccessibleErrorMessage` | M5 | ✅ |
+| locator `toHaveAccessibleName` | M5 | ✅ |
+| locator `toHaveAttribute` | M5 | ✅ |
+| locator `toHaveCSS` | M5 | ✅ |
+| locator `toHaveClass` | M5 | ✅ |
+| locator `toHaveCount` | M5 | ✅ |
+| locator `toHaveId` | M5 | ✅ |
+| locator `toHaveJSProperty` | M5 | ✅ |
+| locator `toHaveRole` | M5 | ✅ |
+| locator `toHaveScreenshot` | M5 | ✅ PNG snapshots (no webp) |
+| locator `toHaveText` | M5 | ✅ |
+| locator `toHaveValue` | M5 | ✅ |
+| locator `toHaveValues` | M5 | ✅ |
+| locator `toMatchAriaSnapshot` | M5 | ✅ (+ template files) |
+| page `toHaveScreenshot` | M5 | ✅ PNG snapshots (no webp) |
+| page `toHaveTitle` | M5 | ✅ |
+| page `toHaveURL` | M5 | ✅ |
+| page `toMatchAriaSnapshot` | M5 | ✅ (+ template files) |
+| response `toBeOK` | M5 | ✅ |
 
 ## 6. Playwright API, member by member
 
@@ -148,17 +148,17 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `bind` | M3 | ⬜ |
-| `browserType` | M1 | ⬜ |
+| `bind` | M3 | ✅ `browser.bind()` (CDP endpoint, works for pipe launches) |
+| `browserType` | M1 | ✅ |
 | `close` | M1 | ✅ |
 | `contexts` | M1 | ✅ |
 | `isConnected` | M1 | ✅ |
-| `newBrowserCDPSession` | M3 | ⬜ |
+| `newBrowserCDPSession` | M3 | ✅ |
 | `newContext` | M1 | ✅ |
 | `newPage` | M1 | ✅ |
-| `startTracing` | M3 | ⬜ |
-| `stopTracing` | M3 | ⬜ |
-| `unbind` | M3 | ⬜ |
+| `startTracing` | M3 | ✅ |
+| `stopTracing` | M3 | ✅ |
+| `unbind` | M3 | ✅ `browser.unbind()` |
 | `version` | M1 | ✅ |
 
 ### BrowserContext
@@ -168,8 +168,8 @@ Chrome for Testing and chrome-headless-shell.
 | `exposeBinding` | M3 | ✅ |
 | `addInitScript` | M3 | ✅ |
 | `addCookies` | M4 | ✅ |
-| `backgroundPages` | M4 | ➖ deprecated in Playwright (always empty with Manifest V3 extensions); not provided |
-| `browser` | M1 | ⬜ |
+| `backgroundPages` | M4 | ✅ always empty, like Playwright (deprecated there) |
+| `browser` | M1 | ✅ |
 | `clearCookies` | M4 | ✅ |
 | `clearPermissions` | M4 | ✅ |
 | `close` | M1 | ✅ |
@@ -177,15 +177,15 @@ Chrome for Testing and chrome-headless-shell.
 | `exposeFunction` | M3 | ✅ |
 | `grantPermissions` | M4 | ✅ |
 | `isClosed` | M1 | ✅ |
-| `newCDPSession` | M3 | ⬜ |
+| `newCDPSession` | M3 | ✅ |
 | `newPage` | M1 | ✅ |
 | `pages` | M1 | ✅ |
 | `route` | M4 | ✅ |
-| `routeFromHAR` | M5 | ⬜ |
+| `routeFromHAR` | M5 | ✅ |
 | `routeWebSocket` | M4 | ✅ |
 | `serviceWorkers` | M4 | ✅ |
-| `setDefaultNavigationTimeout` | M3 | ⬜ |
-| `setDefaultTimeout` | M3 | ⬜ |
+| `setDefaultNavigationTimeout` | M3 | ✅ |
+| `setDefaultTimeout` | M3 | ✅ |
 | `setExtraHTTPHeaders` | M4 | ✅ |
 | `setGeolocation` | M4 | ✅ |
 | `setHTTPCredentials` | M1 | ✅ |
@@ -194,12 +194,13 @@ Chrome for Testing and chrome-headless-shell.
 | `storageState` | M4 | ✅ |
 | `unroute` | M4 | ✅ |
 | `unrouteAll` | M4 | ✅ |
-| `waitForEvent` | M3 | 🟡 `events()` stream and `wait_for_page()` |
-| `clock` | M6 | ⬜ |
+| `waitForEvent` | M3 | ✅ `events()` stream, `wait_for_page()` |
+| events: `page`, `serviceworker`, `close`, `request`, `response`, `requestfinished`, `requestfailed`, `console`, `dialog`, `weberror` | M4 | ✅ `ContextEvent` |
+| `clock` | M6 | ✅ |
 | `credentials` | M4 | ✅ via Chromium's virtual WebAuthn authenticator |
-| `debugger` | M6 | ⬜ |
-| `request` | M6 | ⬜ |
-| `tracing` | M5 | ⬜ |
+| `debugger` | M6 | ✅ requestPause, next, resume, pausedDetails (title), events; no source locations / `runTo` |
+| `request` | M6 | ✅ |
+| `tracing` | M5 | ✅ actions, console, network, screencast, DOM snapshots |
 
 ### Page
 
@@ -211,13 +212,13 @@ Chrome for Testing and chrome-headless-shell.
 | `waitForFunction` | M1 | ✅ |
 | `waitForSelector` | M3 | ✅ |
 | `exposeBinding` | M3 | ✅ |
-| `addLocatorHandler` | M3 | ⬜ |
+| `addLocatorHandler` | M3 | ✅ |
 | `addScriptTag` | M3 | ✅ |
 | `addStyleTag` | M1 | ✅ |
-| `ariaSnapshot` | M5 | ⬜ |
-| `ariaSnapshotJSON` | M5 | ⬜ |
-| `bringToFront` | M3 | ⬜ |
-| `cancelPickLocator` | M6 | ⬜ |
+| `ariaSnapshot` | M5 | ✅ |
+| `ariaSnapshotJSON` | M5 | ✅ |
+| `bringToFront` | M3 | ✅ |
+| `cancelPickLocator` | M6 | ✅ |
 | `check` | M3 | ✅ |
 | `clearConsoleMessages` | M4 | ✅ |
 | `clearPageErrors` | M4 | ✅ |
@@ -225,17 +226,17 @@ Chrome for Testing and chrome-headless-shell.
 | `close` | M1 | ✅ |
 | `consoleMessages` | M4 | ✅ |
 | `content` | M1 | ✅ |
-| `context` | M1 | ⬜ |
+| `context` | M1 | ✅ |
 | `dblclick` | M3 | ✅ |
 | `dispatchEvent` | M3 | ✅ |
-| `dragAndDrop` | M3 | 🟡 mouse-driven drags; HTML5 drag-and-drop interception not yet |
-| `emulateMedia` | M3 | ⬜ |
+| `dragAndDrop` | M3 | ✅ mouse and HTML5 drags |
+| `emulateMedia` | M3 | ✅ |
 | `exposeFunction` | M3 | ✅ |
 | `fill` | M3 | ✅ |
 | `focus` | M3 | ✅ |
 | `frame` | M3 | ✅ |
 | `frameLocator` | M3 | ✅ |
-| `frames` | M3 | 🟡 same-process frames; out-of-process (cross-site) iframes not yet |
+| `frames` | M3 | ✅ incl. out-of-process (cross-site) iframes, with routes, init scripts and bindings |
 | `getAttribute` | M3 | ✅ |
 | `getByAltText` | M3 | ✅ |
 | `getByLabel` | M3 | ✅ |
@@ -247,7 +248,7 @@ Chrome for Testing and chrome-headless-shell.
 | `goBack` | M3 | ✅ |
 | `goForward` | M3 | ✅ |
 | `goto` | M1 | ✅ |
-| `hideHighlight` | M3 | ⬜ |
+| `hideHighlight` | M3 | ✅ |
 | `hover` | M3 | ✅ |
 | `innerHTML` | M3 | ✅ |
 | `innerText` | M3 | ✅ |
@@ -263,22 +264,22 @@ Chrome for Testing and chrome-headless-shell.
 | `mainFrame` | M1 | ✅ |
 | `opener` | M3 | ✅ |
 | `pageErrors` | M4 | ✅ |
-| `pause` | M6 | ⬜ |
-| `pdf` | M5 | ⬜ |
-| `pickLocator` | M6 | ⬜ |
+| `pause` | M6 | ✅ resumed through `context.debugger()` |
+| `pdf` | M5 | ✅ |
+| `pickLocator` | M6 | ✅ |
 | `press` | M3 | ✅ |
 | `reload` | M3 | ✅ |
-| `removeLocatorHandler` | M3 | ⬜ |
-| `requestGC` | M6 | ⬜ |
+| `removeLocatorHandler` | M3 | ✅ |
+| `requestGC` | M6 | ✅ |
 | `requests` | M4 | ✅ |
 | `route` | M4 | ✅ |
-| `routeFromHAR` | M5 | ⬜ |
+| `routeFromHAR` | M5 | ✅ |
 | `routeWebSocket` | M4 | ✅ |
 | `screenshot` | M1 | ✅ |
 | `selectOption` | M3 | ✅ |
 | `setChecked` | M3 | ✅ |
 | `setContent` | M1 | ✅ |
-| `setDefaultNavigationTimeout` | M3 | ⬜ |
+| `setDefaultNavigationTimeout` | M3 | ✅ |
 | `setDefaultTimeout` | M3 | ✅ |
 | `setExtraHTTPHeaders` | M4 | ✅ |
 | `setInputFiles` | M3 | ✅ |
@@ -291,23 +292,23 @@ Chrome for Testing and chrome-headless-shell.
 | `unroute` | M4 | ✅ |
 | `unrouteAll` | M4 | ✅ |
 | `url` | M1 | ✅ |
-| `video` | M5 | ⬜ |
+| `video` | M5 | ✅ |
 | `viewportSize` | M1 | ✅ |
 | `waitForEvent` | M3 | ✅ `events()` stream, `wait_for_event(matcher)` and typed waiters (console, pageerror, popup, download, websocket, worker, request, response) |
 | `waitForLoadState` | M1 | ✅ |
-| `waitForNavigation` | M3 | ⬜ |
+| `waitForNavigation` | M3 | ✅ |
 | `waitForRequest` | M4 | ✅ |
 | `waitForResponse` | M4 | ✅ |
 | `waitForTimeout` | M3 | ✅ |
 | `waitForURL` | M3 | ✅ |
 | `workers` | M3 | ✅ |
-| `clock` | M6 | ⬜ |
-| `coverage` | M6 | ⬜ |
+| `clock` | M6 | ✅ |
+| `coverage` | M6 | ✅ |
 | `keyboard` | M3 | ✅ |
 | `localStorage` | M4 | ✅ |
 | `mouse` | M3 | ✅ |
-| `request` | M6 | ⬜ |
-| `screencast` | M5 | ⬜ |
+| `request` | M6 | ✅ |
+| `screencast` | M5 | ✅ start/stop (frames, `.webm`), overlays, chapters, actions |
 | `sessionStorage` | M4 | ✅ |
 | `touchscreen` | M3 | ✅ |
 
@@ -316,79 +317,79 @@ Chrome for Testing and chrome-headless-shell.
 | Member | Milestone | Status |
 |---|---|---|
 | `evaluate` | M1 | ✅ |
-| `evaluateHandle` | M3 | ⬜ |
-| `waitForFunction` | M1 | ⬜ |
-| `waitForSelector` | M3 | ⬜ |
-| `addScriptTag` | M3 | ⬜ |
-| `addStyleTag` | M1 | ⬜ |
-| `check` | M3 | ⬜ |
+| `evaluateHandle` | M3 | ✅ |
+| `waitForFunction` | M1 | ✅ |
+| `waitForSelector` | M3 | ✅ |
+| `addScriptTag` | M3 | ✅ |
+| `addStyleTag` | M1 | ✅ |
+| `check` | M3 | ✅ |
 | `childFrames` | M3 | ✅ |
-| `click` | M3 | ⬜ |
+| `click` | M3 | ✅ |
 | `content` | M1 | ✅ |
-| `dblclick` | M3 | ⬜ |
-| `dispatchEvent` | M3 | ⬜ |
-| `dragAndDrop` | M3 | ⬜ |
-| `fill` | M3 | ⬜ |
-| `focus` | M3 | ⬜ |
-| `frameElement` | M3 | ⬜ |
+| `dblclick` | M3 | ✅ |
+| `dispatchEvent` | M3 | ✅ |
+| `dragAndDrop` | M3 | ✅ |
+| `fill` | M3 | ✅ |
+| `focus` | M3 | ✅ |
+| `frameElement` | M3 | ✅ |
 | `frameLocator` | M3 | ✅ |
-| `getAttribute` | M3 | ⬜ |
-| `getByAltText` | M3 | ⬜ |
+| `getAttribute` | M3 | ✅ |
+| `getByAltText` | M3 | ✅ |
 | `getByLabel` | M3 | ✅ |
-| `getByPlaceholder` | M3 | ⬜ |
+| `getByPlaceholder` | M3 | ✅ |
 | `getByRole` | M3 | ✅ |
 | `getByTestId` | M3 | ✅ |
 | `getByText` | M3 | ✅ |
-| `getByTitle` | M3 | ⬜ |
-| `goto` | M1 | ⬜ |
-| `hover` | M3 | ⬜ |
-| `innerHTML` | M3 | ⬜ |
-| `innerText` | M3 | ⬜ |
-| `inputValue` | M3 | ⬜ |
-| `isChecked` | M3 | ⬜ |
+| `getByTitle` | M3 | ✅ |
+| `goto` | M1 | ✅ |
+| `hover` | M3 | ✅ |
+| `innerHTML` | M3 | ✅ |
+| `innerText` | M3 | ✅ |
+| `inputValue` | M3 | ✅ |
+| `isChecked` | M3 | ✅ |
 | `isDetached` | M3 | ✅ |
-| `isDisabled` | M3 | ⬜ |
-| `isEditable` | M3 | ⬜ |
-| `isEnabled` | M3 | ⬜ |
-| `isHidden` | M3 | ⬜ |
-| `isVisible` | M3 | ⬜ |
+| `isDisabled` | M3 | ✅ |
+| `isEditable` | M3 | ✅ |
+| `isEnabled` | M3 | ✅ |
+| `isHidden` | M3 | ✅ |
+| `isVisible` | M3 | ✅ |
 | `locator` | M3 | ✅ |
 | `name` | M1 | ✅ |
 | `page` | M1 | ✅ |
 | `parentFrame` | M3 | ✅ |
-| `press` | M3 | ⬜ |
-| `selectOption` | M3 | ⬜ |
-| `setChecked` | M3 | ⬜ |
-| `setContent` | M1 | ⬜ |
-| `setInputFiles` | M3 | ⬜ |
-| `tap` | M3 | ⬜ |
-| `textContent` | M3 | ⬜ |
+| `press` | M3 | ✅ |
+| `selectOption` | M3 | ✅ |
+| `setChecked` | M3 | ✅ |
+| `setContent` | M1 | ✅ |
+| `setInputFiles` | M3 | ✅ |
+| `tap` | M3 | ✅ |
+| `textContent` | M3 | ✅ |
 | `title` | M1 | ✅ |
-| `type` | M3 | ⬜ |
-| `uncheck` | M3 | ⬜ |
+| `type` | M3 | ✅ |
+| `uncheck` | M3 | ✅ |
 | `url` | M1 | ✅ |
-| `waitForLoadState` | M1 | ⬜ |
-| `waitForNavigation` | M3 | ⬜ |
-| `waitForTimeout` | M3 | ⬜ |
-| `waitForURL` | M3 | ⬜ |
+| `waitForLoadState` | M1 | ✅ |
+| `waitForNavigation` | M3 | ✅ |
+| `waitForTimeout` | M3 | ✅ |
+| `waitForURL` | M3 | ✅ |
 
 ### Locator
 
 | Member | Milestone | Status |
 |---|---|---|
 | `evaluate` | M3 | ✅ |
-| `evaluateHandle` | M3 | ⬜ |
-| `evaluateAll` | M3 | ⬜ |
-| `waitForFunction` | M3 | ⬜ |
-| `elementHandle` | M3 | ⬜ |
-| `highlight` | M3 | ⬜ |
-| `toString` | M3 | ⬜ |
+| `evaluateHandle` | M3 | ✅ |
+| `evaluateAll` | M3 | ✅ |
+| `waitForFunction` | M3 | ✅ |
+| `elementHandle` | M3 | ✅ |
+| `highlight` | M3 | ✅ |
+| `toString` | M3 | ✅ `Display` (Playwright's generator, ported) and async `to_playwright_string()` |
 | `all` | M3 | ✅ |
 | `allInnerTexts` | M3 | ✅ |
 | `allTextContents` | M3 | ✅ |
 | `and` | M3 | ✅ |
-| `ariaSnapshot` | M5 | ⬜ |
-| `ariaSnapshotJSON` | M5 | ⬜ |
+| `ariaSnapshot` | M5 | ✅ |
+| `ariaSnapshotJSON` | M5 | ✅ |
 | `blur` | M3 | ✅ |
 | `boundingBox` | M3 | ✅ |
 | `check` | M3 | ✅ |
@@ -397,26 +398,26 @@ Chrome for Testing and chrome-headless-shell.
 | `contentFrame` | M3 | ✅ |
 | `count` | M3 | ✅ |
 | `dblclick` | M3 | ✅ |
-| `describe` | M3 | ⬜ |
-| `description` | M3 | ⬜ |
+| `describe` | M3 | ✅ |
+| `description` | M3 | ✅ |
 | `dispatchEvent` | M3 | ✅ |
-| `dragTo` | M3 | 🟡 mouse-driven drags; HTML5 drag-and-drop interception not yet |
-| `drop` | M3 | ⬜ |
-| `elementHandles` | M3 | ⬜ |
+| `dragTo` | M3 | ✅ mouse and HTML5 drags |
+| `drop` | M3 | ✅ |
+| `elementHandles` | M3 | ✅ |
 | `fill` | M3 | ✅ |
 | `filter` | M3 | ✅ |
 | `first` | M3 | ✅ |
 | `focus` | M3 | ✅ |
 | `frameLocator` | M3 | ✅ |
 | `getAttribute` | M3 | ✅ |
-| `getByAltText` | M3 | ⬜ |
+| `getByAltText` | M3 | ✅ |
 | `getByLabel` | M3 | ✅ |
 | `getByPlaceholder` | M3 | ✅ |
 | `getByRole` | M3 | ✅ |
 | `getByTestId` | M3 | ✅ |
 | `getByText` | M3 | ✅ |
-| `getByTitle` | M3 | ⬜ |
-| `hideHighlight` | M3 | ⬜ |
+| `getByTitle` | M3 | ✅ |
+| `hideHighlight` | M3 | ✅ |
 | `hover` | M3 | ✅ |
 | `innerHTML` | M3 | ✅ |
 | `innerText` | M3 | ✅ |
@@ -429,7 +430,7 @@ Chrome for Testing and chrome-headless-shell.
 | `isVisible` | M3 | ✅ |
 | `last` | M3 | ✅ |
 | `locator` | M3 | ✅ |
-| `normalize` | M3 | ⬜ |
+| `normalize` | M3 | ✅ |
 | `nth` | M3 | ✅ |
 | `or` | M3 | ✅ |
 | `page` | M3 | ✅ |
@@ -438,53 +439,53 @@ Chrome for Testing and chrome-headless-shell.
 | `screenshot` | M3 | ✅ |
 | `scrollIntoViewIfNeeded` | M3 | ✅ |
 | `selectOption` | M3 | ✅ |
-| `selectText` | M3 | ⬜ |
+| `selectText` | M3 | ✅ |
 | `setChecked` | M3 | ✅ |
 | `setInputFiles` | M3 | ✅ |
 | `tap` | M3 | ✅ |
 | `textContent` | M3 | ✅ |
-| `type` | M3 | ⬜ |
+| `type` | M3 | ✅ |
 | `uncheck` | M3 | ✅ |
-| `visible` | M3 | ⬜ |
+| `visible` | M3 | ✅ |
 | `waitFor` | M3 | ✅ |
 
 ### ElementHandle
 
 | Member | Milestone | Status |
 |---|---|---|
-| `waitForSelector` | M3 | ⬜ |
-| `boundingBox` | M3 | ⬜ |
-| `check` | M3 | ⬜ |
-| `click` | M3 | ⬜ |
-| `contentFrame` | M3 | ⬜ |
-| `dblclick` | M3 | ⬜ |
-| `dispatchEvent` | M3 | ⬜ |
-| `fill` | M3 | ⬜ |
-| `focus` | M3 | ⬜ |
-| `getAttribute` | M3 | ⬜ |
-| `hover` | M3 | ⬜ |
-| `innerHTML` | M3 | ⬜ |
-| `innerText` | M3 | ⬜ |
-| `inputValue` | M3 | ⬜ |
-| `isChecked` | M3 | ⬜ |
-| `isDisabled` | M3 | ⬜ |
-| `isEditable` | M3 | ⬜ |
-| `isEnabled` | M3 | ⬜ |
-| `isHidden` | M3 | ⬜ |
-| `isVisible` | M3 | ⬜ |
-| `ownerFrame` | M3 | ⬜ |
-| `press` | M3 | ⬜ |
-| `screenshot` | M3 | ⬜ |
-| `scrollIntoViewIfNeeded` | M3 | ⬜ |
-| `selectOption` | M3 | ⬜ |
-| `selectText` | M3 | ⬜ |
-| `setChecked` | M3 | ⬜ |
-| `setInputFiles` | M3 | ⬜ |
-| `tap` | M3 | ⬜ |
-| `textContent` | M3 | ⬜ |
-| `type` | M3 | ⬜ |
-| `uncheck` | M3 | ⬜ |
-| `waitForElementState` | M3 | ⬜ |
+| `waitForSelector` | M3 | ✅ |
+| `boundingBox` | M3 | ✅ |
+| `check` | M3 | ✅ |
+| `click` | M3 | ✅ |
+| `contentFrame` | M3 | ✅ |
+| `dblclick` | M3 | ✅ |
+| `dispatchEvent` | M3 | ✅ |
+| `fill` | M3 | ✅ |
+| `focus` | M3 | ✅ |
+| `getAttribute` | M3 | ✅ |
+| `hover` | M3 | ✅ |
+| `innerHTML` | M3 | ✅ |
+| `innerText` | M3 | ✅ |
+| `inputValue` | M3 | ✅ |
+| `isChecked` | M3 | ✅ |
+| `isDisabled` | M3 | ✅ |
+| `isEditable` | M3 | ✅ |
+| `isEnabled` | M3 | ✅ |
+| `isHidden` | M3 | ✅ |
+| `isVisible` | M3 | ✅ |
+| `ownerFrame` | M3 | ✅ |
+| `press` | M3 | ✅ |
+| `screenshot` | M3 | ✅ |
+| `scrollIntoViewIfNeeded` | M3 | ✅ |
+| `selectOption` | M3 | ✅ |
+| `selectText` | M3 | ✅ |
+| `setChecked` | M3 | ✅ |
+| `setInputFiles` | M3 | ✅ |
+| `tap` | M3 | ✅ |
+| `textContent` | M3 | ✅ |
+| `type` | M3 | ✅ |
+| `uncheck` | M3 | ✅ |
+| `waitForElementState` | M3 | ✅ |
 
 ### JSHandle
 
@@ -534,18 +535,18 @@ Chrome for Testing and chrome-headless-shell.
 | `failure` | M4 | ✅ |
 | `frame` | M4 | ✅ |
 | `headers` | M4 | ✅ |
-| `headersArray` | M4 | 🟡 implemented, not yet covered by a test |
-| `headerValue` | M4 | 🟡 implemented, not yet covered by a test |
+| `headersArray` | M4 | ✅ |
+| `headerValue` | M4 | ✅ |
 | `isNavigationRequest` | M4 | ✅ |
 | `method` | M4 | ✅ |
 | `postData` | M4 | ✅ |
 | `postDataBuffer` | M4 | ✅ |
-| `postDataJSON` | M4 | 🟡 implemented, not yet covered by a test |
+| `postDataJSON` | M4 | ✅ |
 | `redirectedFrom` | M4 | ✅ |
 | `redirectedTo` | M4 | ✅ |
 | `resourceType` | M4 | ✅ |
 | `response` | M4 | ✅ |
-| `serviceWorker` | M4 | 🟡 service-worker requests are not tracked yet |
+| `serviceWorker` | M4 | ✅ |
 | `sizes` | M4 | ✅ |
 | `timing` | M4 | ✅ |
 | `url` | M4 | ✅ |
@@ -560,14 +561,14 @@ Chrome for Testing and chrome-headless-shell.
 | `frame` | M4 | ✅ |
 | `fromServiceWorker` | M4 | ✅ |
 | `headers` | M4 | ✅ |
-| `headersArray` | M4 | 🟡 implemented, not yet covered by a test |
+| `headersArray` | M4 | ✅ |
 | `headerValue` | M4 | ✅ |
 | `headerValues` | M4 | ✅ |
 | `httpVersion` | M4 | ✅ |
 | `json` | M4 | ✅ |
 | `ok` | M4 | ✅ |
 | `request` | M4 | ✅ |
-| `securityDetails` | M4 | 🟡 implemented, not yet covered by a test |
+| `securityDetails` | M4 | ✅ `None` for plain HTTP |
 | `serverAddr` | M4 | ✅ |
 | `status` | M4 | ✅ |
 | `statusText` | M4 | ✅ |
@@ -627,7 +628,7 @@ Chrome for Testing and chrome-headless-shell.
 | `defaultValue` | M4 | ✅ |
 | `dismiss` | M4 | ✅ |
 | `message` | M4 | ✅ |
-| `page` | M4 | 🟡 implemented, not yet covered by a test |
+| `page` | M4 | ✅ |
 | `type` | M4 | ✅ |
 
 ### FileChooser
@@ -664,99 +665,99 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `group` | M5 | ⬜ |
-| `groupEnd` | M5 | ⬜ |
-| `start` | M5 | ⬜ |
-| `startChunk` | M5 | ⬜ |
-| `startHar` | M5 | ⬜ |
-| `stop` | M5 | ⬜ |
-| `stopChunk` | M5 | ⬜ |
-| `stopHar` | M5 | ⬜ |
+| `group` | M5 | ✅ |
+| `groupEnd` | M5 | ✅ |
+| `start` | M5 | ✅ |
+| `startChunk` | M5 | ✅ |
+| `startHar` | M5 | ✅ |
+| `stop` | M5 | ✅ |
+| `stopChunk` | M5 | ✅ |
+| `stopHar` | M5 | ✅ |
 
 ### Video
 
 | Member | Milestone | Status |
 |---|---|---|
-| `delete` | M5 | ⬜ |
-| `path` | M5 | ⬜ |
-| `saveAs` | M5 | ⬜ |
+| `delete` | M5 | ✅ |
+| `path` | M5 | ✅ |
+| `saveAs` | M5 | ✅ |
 
 ### Clock
 
 | Member | Milestone | Status |
 |---|---|---|
-| `fastForward` | M6 | ⬜ |
-| `install` | M6 | ⬜ |
-| `pauseAt` | M6 | ⬜ |
-| `resume` | M6 | ⬜ |
-| `runFor` | M6 | ⬜ |
-| `setFixedTime` | M6 | ⬜ |
-| `setSystemTime` | M6 | ⬜ |
+| `fastForward` | M6 | ✅ |
+| `install` | M6 | ✅ |
+| `pauseAt` | M6 | ✅ |
+| `resume` | M6 | ✅ |
+| `runFor` | M6 | ✅ |
+| `setFixedTime` | M6 | ✅ |
+| `setSystemTime` | M6 | ✅ |
 
 ### Coverage
 
 | Member | Milestone | Status |
 |---|---|---|
-| `startCSSCoverage` | M6 | ⬜ |
-| `startJSCoverage` | M6 | ⬜ |
-| `stopCSSCoverage` | M6 | ⬜ |
-| `stopJSCoverage` | M6 | ⬜ |
+| `startCSSCoverage` | M6 | ✅ |
+| `startJSCoverage` | M6 | ✅ |
+| `stopCSSCoverage` | M6 | ✅ |
+| `stopJSCoverage` | M6 | ✅ |
 
 ### CDPSession
 
 | Member | Milestone | Status |
 |---|---|---|
 | `send` | M2 | ✅ |
-| `detach` | M3 | ⬜ |
+| `detach` | M3 | ✅ |
 
 ### APIRequestContext
 
 | Member | Milestone | Status |
 |---|---|---|
-| `delete` | M6 | ⬜ |
-| `dispose` | M6 | ⬜ |
-| `fetch` | M6 | ⬜ |
-| `get` | M6 | ⬜ |
-| `head` | M6 | ⬜ |
-| `patch` | M6 | ⬜ |
-| `post` | M6 | ⬜ |
-| `put` | M6 | ⬜ |
-| `storageState` | M6 | ⬜ |
-| `tracing` | M6 | ⬜ |
+| `delete` | M6 | ✅ |
+| `dispose` | M6 | ✅ |
+| `fetch` | M6 | ✅ |
+| `get` | M6 | ✅ |
+| `head` | M6 | ✅ |
+| `patch` | M6 | ✅ |
+| `post` | M6 | ✅ |
+| `put` | M6 | ✅ |
+| `storageState` | M6 | ✅ |
+| `tracing` | M6 | ✅ |
 
 ### APIResponse
 
 | Member | Milestone | Status |
 |---|---|---|
-| `json` | M6 | ⬜ |
-| `body` | M6 | ⬜ |
-| `dispose` | M6 | ⬜ |
-| `headers` | M6 | ⬜ |
-| `headersArray` | M6 | ⬜ |
-| `ok` | M6 | ⬜ |
-| `securityDetails` | M6 | ⬜ |
-| `serverAddr` | M6 | ⬜ |
-| `status` | M6 | ⬜ |
-| `statusText` | M6 | ⬜ |
-| `text` | M6 | ⬜ |
-| `timing` | M6 | ⬜ |
-| `url` | M6 | ⬜ |
+| `json` | M6 | ✅ |
+| `body` | M6 | ✅ |
+| `dispose` | M6 | ✅ |
+| `headers` | M6 | ✅ |
+| `headersArray` | M6 | ✅ |
+| `ok` | M6 | ✅ |
+| `securityDetails` | M6 | ✅ |
+| `serverAddr` | M6 | ✅ |
+| `status` | M6 | ✅ |
+| `statusText` | M6 | ✅ |
+| `text` | M6 | ✅ |
+| `timing` | M6 | ✅ |
+| `url` | M6 | ✅ |
 
 ### BrowserType
 
 | Member | Milestone | Status |
 |---|---|---|
 | `connectOverCDP` | M1 | ✅ |
-| `connect` | M6 | ⬜ |
+| `connect` | M6 | ✅ to a `launch_server` (CDP endpoint, not Playwright's protocol) |
 | `executablePath` | M1 | ✅ |
 | `launch` | M1 | ✅ |
-| `launchPersistentContext` | M3 | ⬜ |
-| `launchServer` | M6 | ⬜ |
-| `name` | M1 | ⬜ |
+| `launchPersistentContext` | M3 | ✅ |
+| `launchServer` | M6 | ✅ `BrowserServer` (CDP endpoint) |
+| `name` | M1 | ✅ |
 
 ### Selectors
 
 | Member | Milestone | Status |
 |---|---|---|
-| `register` | M3 | ⬜ |
-| `setTestIdAttribute` | M3 | ⬜ |
+| `register` | M3 | ✅ |
+| `setTestIdAttribute` | M3 | ✅ |

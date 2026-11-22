@@ -314,3 +314,20 @@ async fn element_screenshot_and_scrolling() {
     page.locator("#t").dispatch_event("click").await.unwrap();
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn locators_display_like_playwright() {
+    let browser = chromiumoxide::Chromium::launch(chromiumoxide::LaunchOptions::default())
+        .await
+        .unwrap();
+    let page = browser.new_page().await.unwrap();
+    let l = page
+        .locator("ul")
+        .get_by_role("listitem", Default::default())
+        .nth(1);
+    assert_eq!(l.to_string(), "locator('ul').getByRole('listitem').nth(1)");
+    assert_eq!(l.to_string(), l.to_playwright_string().await.unwrap());
+    let d = page.locator("button").describe("Submit");
+    assert_eq!(d.to_string(), "Submit");
+    browser.close().await.unwrap();
+}

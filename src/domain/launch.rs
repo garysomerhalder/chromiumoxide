@@ -65,6 +65,16 @@ pub fn command_line(spec: &LaunchSpec) -> Vec<String> {
     args
 }
 
+/// The command line for a persistent context (`launchPersistentContext`):
+/// like [`command_line`], but opening `about:blank` instead of no window.
+pub fn persistent_command_line(spec: &LaunchSpec) -> Vec<String> {
+    let mut args = command_line(spec);
+    if let Some(last) = args.last_mut() {
+        *last = "about:blank".to_owned();
+    }
+    args
+}
+
 /// Playwright's default Chromium switches (device-mockup contract; do not edit
 /// without telling device-mockup).
 const DEFAULT_ARGS: &[&str] = &[
@@ -240,5 +250,24 @@ mod tests {
         ] {
             assert_eq!(BrowserKind::from_executable(Path::new(p)), k, "{p}");
         }
+    }
+}
+
+#[cfg(test)]
+mod persistent_tests {
+    use super::*;
+
+    #[test]
+    fn persistent_launches_open_about_blank_like_playwright() {
+        let spec = LaunchSpec {
+            kind: BrowserKind::HeadlessShell,
+            headless: true,
+            args: Vec::new(),
+            ignore_default_args: false,
+            user_data_dir: "/tmp/profile-1".into(),
+        };
+        let args = persistent_command_line(&spec);
+        assert_eq!(args.last().map(String::as_str), Some("about:blank"));
+        assert!(!args.iter().any(|a| a == "--no-startup-window"));
     }
 }

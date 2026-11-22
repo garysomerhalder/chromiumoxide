@@ -74,6 +74,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `wait_for_page`), downloads (`Download`, `ContextOptions::accept_downloads`),
     WebSockets (`WebSocket`, frames and close) and dedicated workers (`Worker`).
 
+- Milestone 4 (completed): request sizes, HTTP version, service workers and
+  `ServiceWorkers::Block`, runtime `set_http_credentials`, `route.fetch()`,
+  `fulfill().path()/.response()`, `routeWebSocket`, `page.local_storage()` /
+  `session_storage()`, `context.credentials()` (WebAuthn), file chooser,
+  `page.requests()`, `set_storage_state`.
+- Milestone 5 (completed):
+  - `page.pdf()` with Playwright's options.
+  - Web-first assertions: `expect(&locator | &page | &response)` with
+    Playwright's matchers, retry schedule and failure messages.
+  - HAR: `ContextOptions::record_har`, `route_from_har`.
+  - Video: `ContextOptions::record_video`, `page.video()` (needs ffmpeg; uses
+    Playwright's build when installed).
+  - Tracing: `context.tracing().start/stop` writing a Playwright-style trace.zip.
+  - `ContextOptions::base_url`, `java_script_enabled`, `bypass_csp` (tested);
+    `browser.selectors()` (`set_test_id_attribute`, `register`);
+    `locator.aria_snapshot_json()`; `Chromium::launch_persistent_context`;
+    request/response `headers_array`/`header_value`, `post_data_json`.
+  - `add_script_tag` fails fast when the page's CSP blocks it.
+  - Screenshot `mask` / `mask_color`; `locator.screenshot_builder()`.
+  - `expect(page | locator).to_have_screenshot(path)` with Playwright's
+    pixelmatch comparison, update modes and messages (PNG snapshots).
+  - `expect(page | locator).to_match_aria_snapshot(template)` and
+    `to_match_aria_snapshot_file(path)`.
+  - `page.screencast()`: frames, `.webm` recording, overlays, chapters and
+    `show_actions` annotations.
+- Milestone 3/4 follow-ups: HTML5 drag-and-drop and `locator.drop()`,
+  out-of-process (cross-site) iframes, an `ignoreHTTPSErrors` test.
+- Milestone 6 (completed):
+  - `page.clock()` / `context.clock()` (Playwright's fake timers).
+  - `page.coverage()`: JS and CSS coverage.
+  - `context.request()`, `page.request()`, `Chromium::request_context()`:
+    `APIRequestContext` / `APIResponse` over a small HTTP/1.1 client (adds
+    `tokio-rustls` and `rustls-native-certs`); `Services` gains `http`.
+  - `context.debugger()`, `page.pause()`, `page.request_gc()`,
+    `page.pick_locator()` / `cancel_pick_locator()`.
+  - `Chromium::launch_server()` / `Chromium::connect()`; closing a connected
+    browser now disconnects (like Playwright) instead of closing it.
+  - `APIResponse` `server_addr`, `security_details`, `timing`;
+    `request.tracing()`.
+  - Context-level events (`request`, `response`, `console`, `dialog`,
+    `weberror`, ...) and `request.service_worker()`.
+  - `frame.wait_for_navigation()` for child frames; routes, init scripts and
+    bindings inside cross-site iframes.
+  - Storage state with IndexedDB (`StorageStateOptions`).
+  - Trace DOM snapshots (`TracingStart { snapshots: true }`).
+  - `Locator` implements `Display` like Playwright's `locator.toString()`.
+  - `browser.bind()` / `unbind()`: share a launched browser with other
+    clients over a local CDP WebSocket; `Services` gains `bridge`.
+
 ### Fixed
 
 - `ContextOptions::permissions` now takes Playwright's permission names
@@ -89,6 +138,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ContextOptions` gained `storage_state` and `accept_downloads` (use
   `..Default::default()` when building it); `Response` gained methods and
   private state (its public fields are unchanged).
+- `ContextOptions` also gained `service_workers`, `record_har`, `record_video`;
+  `Services` gained `video` (an encoder port) and the `Clock` port `wall_ms()`;
+  `Error` gained `Assertion`.
 - Typed protocol events moved from `page.events::<E>()` to
   `page.cdp_events::<E>()`; `page.events()` now streams Playwright page events.
 - Derive `Clone` for `Element`, `ScreenshotParams` and `ScreenshotParamsBuilder`

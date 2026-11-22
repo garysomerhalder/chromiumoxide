@@ -42,6 +42,8 @@ pub(crate) struct PageState {
     pub(crate) main_navigations: u64,
     /// Whether the latest main-frame navigation stayed in the same document.
     pub(crate) last_navigation_same_document: bool,
+    /// Per frame: navigations so far and whether the last stayed in the document.
+    pub(crate) frame_navigations: HashMap<String, (u64, bool)>,
 }
 
 pub(crate) struct PageInner {
@@ -76,6 +78,24 @@ pub(crate) struct PageInner {
     /// `route.fetch()` calls waiting for their response stage, by interception id.
     pub(crate) response_waiters: Mutex<HashMap<String, futures::channel::oneshot::Sender<Value>>>,
     pub(crate) ws_routes: crate::application::websocket_route::WsRoutes,
+    pub(crate) video: Mutex<Option<crate::application::video::Video>>,
+    pub(crate) screencast: Mutex<crate::application::screencast::ScreencastState>,
+    /// The API calls running on this page (method, params), innermost last.
+    pub(crate) calls: Mutex<Vec<(String, Value)>>,
+    /// The data of an HTML5 drag in progress (`Input.dragIntercepted`).
+    pub(crate) drag: Mutex<Option<Value>>,
+    /// Sessions of out-of-process iframes.
+    pub(crate) oopifs: Mutex<Vec<crate::application::oopif::Oopif>>,
+    pub(crate) coverage: Mutex<crate::application::coverage::CoverageState>,
+    /// Setup commands to replay on out-of-process iframes (see `oopif`).
+    pub(crate) setup_log: Mutex<Vec<(String, Value)>>,
+    /// `page.pickLocator()` is waiting for a pick.
+    pub(crate) picking: AtomicBool,
+    pub(crate) navigation_timeout: Mutex<Option<Duration>>,
+    pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
+    pub(crate) locator_handlers: Mutex<Vec<crate::application::extras::LocatorHandler>>,
+    /// A locator handler is running (actions inside it skip the handlers).
+    pub(crate) handling_locator: AtomicBool,
 }
 
 impl PartialEq for Page {
@@ -131,19 +151,24 @@ impl Page {
             window_id,
             utility_world: UTILITY_WORLD,
         });
-        let mut calls: Vec<_> = plan
+        let commands: Vec<(&str, Value)> = plan
+            .into_iter()
+            .chain(crate::application::scripts::context_script_commands(
+                context,
+            ))
+            .chain(crate::application::route::context_route_commands(context))
+            .chain(crate::application::storage::runtime_commands(context))
+            .collect();
+        // Out-of-process iframes get the same setup when they attach.
+        let setup: Vec<(String, Value)> = commands
+            .iter()
+            .filter(|(m, _)| crate::application::oopif::BROADCAST.contains(m))
+            .map(|(m, p)| ((*m).to_owned(), p.clone()))
+            .collect();
+        let mut calls: Vec<_> = commands
             .into_iter()
             .map(|(method, params)| cdp.call(sid, method, params))
             .collect();
-        for (method, params) in crate::application::scripts::context_script_commands(context) {
-            calls.push(cdp.call(sid, method, params));
-        }
-        for (method, params) in crate::application::route::context_route_commands(context) {
-            calls.push(cdp.call(sid, method, params));
-        }
-        for (method, params) in crate::application::storage::runtime_commands(context) {
-            calls.push(cdp.call(sid, method, params));
-        }
         crate::application::credentials::setup_page(&cdp, &sid_owned, &target_id, context).await?;
         calls.push(cdp.call(sid, "Runtime.runIfWaitingForDebugger", json!({})));
         let tree = frame_tree.await?;
@@ -160,7 +185,13 @@ impl Page {
             changed,
             closed: AtomicBool::new(false),
             owns_context: AtomicBool::new(false),
-            default_timeout: Mutex::new(DEFAULT_TIMEOUT),
+            default_timeout: Mutex::new(
+                context
+                    .default_timeout
+                    .lock()
+                    .unwrap()
+                    .unwrap_or(DEFAULT_TIMEOUT),
+            ),
             bindings: Mutex::new(HashMap::new()),
             keyboard: tokio::sync::Mutex::new(crate::domain::input::Keyboard::new(
                 shared.font_platform == crate::domain::emulation::FontPlatform::Mac,
@@ -176,6 +207,18 @@ impl Page {
             file_chooser_waiters: std::sync::atomic::AtomicI64::new(0),
             response_waiters: Mutex::new(HashMap::new()),
             ws_routes: Mutex::new(Vec::new()),
+            video: Mutex::new(None),
+            screencast: Mutex::new(Default::default()),
+            calls: Mutex::new(Vec::new()),
+            drag: Mutex::new(None),
+            oopifs: Mutex::new(Vec::new()),
+            coverage: Mutex::new(Default::default()),
+            setup_log: Mutex::new(setup),
+            picking: AtomicBool::new(false),
+            navigation_timeout: Mutex::new(*context.navigation_timeout.lock().unwrap()),
+            media: Mutex::new(Default::default()),
+            locator_handlers: Mutex::new(Vec::new()),
+            handling_locator: AtomicBool::new(false),
             intercepting: AtomicBool::new(
                 options.http_credentials.is_some() || !context.routes.lock().unwrap().is_empty(),
             ),
@@ -188,6 +231,7 @@ impl Page {
         }
         page.apply_effects(effects);
         page.spawn_event_loop(events);
+        page.start_video();
 
         for result in futures::future::join_all(calls).await {
             result?;
@@ -223,6 +267,11 @@ impl Page {
                 let page = Page { inner };
                 if event.session_id.as_deref() == Some(session.as_str()) {
                     page.handle_event(&event);
+                } else if let Some(no) = event.session_id.as_deref().and_then(|s| page.oopif_no(s))
+                {
+                    if let Some(e) = page.oopif_event(no, &event) {
+                        page.handle_event(&e);
+                    }
                 } else if event.session_id.is_none()
                     && event.method == "Target.detachedFromTarget"
                     && event.params.get("sessionId").and_then(Value::as_str)
@@ -251,6 +300,21 @@ impl Page {
         }
         if e.method.starts_with("Network.") {
             self.handle_network_event(e);
+        }
+        if e.method == "Target.attachedToTarget"
+            && e.params.pointer("/targetInfo/type").and_then(Value::as_str) == Some("iframe")
+        {
+            let session = e.params.get("sessionId").and_then(Value::as_str);
+            let target = e
+                .params
+                .pointer("/targetInfo/targetId")
+                .and_then(Value::as_str);
+            if let (Some(session), Some(target)) = (session, target) {
+                let page = self.clone();
+                let (session, target) = (session.to_owned(), target.to_owned());
+                tokio::spawn(async move { page.attach_oopif(session, target).await });
+            }
+            return;
         }
         if e.method == "Target.detachedFromTarget" {
             if let Some(sid) = e.params.get("sessionId").and_then(Value::as_str) {
@@ -287,6 +351,8 @@ impl Page {
                         st.main_navigations += 1;
                         st.last_navigation_same_document = false;
                     }
+                    let n = st.frame_navigations.entry(s(f, "id")).or_default();
+                    *n = (n.0 + 1, false);
                     effects = st.tree.navigated(
                         &s(f, "id"),
                         f.get("parentId").and_then(Value::as_str),
@@ -301,6 +367,8 @@ impl Page {
                         st.main_navigations += 1;
                         st.last_navigation_same_document = true;
                     }
+                    let n = st.frame_navigations.entry(frame_id.clone()).or_default();
+                    *n = (n.0 + 1, true);
                     st.tree.navigated_within_document(&frame_id, &s(p, "url"));
                 }
                 "Page.frameDetached" => {
@@ -372,12 +440,12 @@ impl Page {
                     } else {
                         json!({"response": "Default"})
                     };
-                    let fut = self.inner.shared.cdp.call(
-                        Some(&self.inner.session_id),
-                        "Fetch.continueWithAuth",
-                        json!({"requestId": request_id, "authChallengeResponse": response}),
-                    );
-                    tokio::spawn(fut);
+                    let page = self.clone();
+                    let params =
+                        json!({"requestId": request_id, "authChallengeResponse": response});
+                    tokio::spawn(async move {
+                        let _ = page.send("Fetch.continueWithAuth", params).await;
+                    });
                 }
                 "Runtime.bindingCalled" => {
                     drop(st);
@@ -396,7 +464,7 @@ impl Page {
         self.bump();
     }
 
-    fn apply_effects(&self, effects: Vec<Effect>) {
+    pub(crate) fn apply_effects(&self, effects: Vec<Effect>) {
         for Effect::StartNetworkIdleTimer {
             frame_id,
             generation,
@@ -452,7 +520,18 @@ impl Page {
     /// Sends a raw protocol command to this page's session.
     pub async fn send(&self, method: &str, params: Value) -> Result<Value> {
         self.ensure_open()?;
-        self.cdp_session().call(self.sid(), method, params).await
+        if crate::application::oopif::BROADCAST.contains(&method) {
+            self.record_setup(method, &params);
+            self.broadcast_setup(method, &params).await;
+        }
+        if self.inner.oopifs.lock().unwrap().is_empty() {
+            return self.cdp_session().call(self.sid(), method, params).await;
+        }
+        let mut params = params;
+        match self.route_session(method, &mut params) {
+            0 => self.cdp_session().call(self.sid(), method, params).await,
+            no => self.send_in_session(no, method, params).await,
+        }
     }
 
     fn ensure_open(&self) -> Result<()> {
@@ -664,11 +743,7 @@ impl Page {
             loop {
                 let context_id = self.frame_context(frame, world, timeout).await?;
                 let params = js::call_params(declaration, context_id, args);
-                match self
-                    .cdp_session()
-                    .call(self.sid(), "Runtime.callFunctionOn", params)
-                    .await
-                {
+                match self.send("Runtime.callFunctionOn", params).await {
                     Ok(response) => match js::result_value(&response) {
                         Err(e) if js::is_context_lost(&e) => continue,
                         other => return other,
@@ -877,16 +952,31 @@ impl<'a> IntoFuture for Goto<'a> {
 
     fn into_future(self) -> Self::IntoFuture {
         async move {
-            let timeout = self.timeout.unwrap_or_else(|| self.page.default_timeout());
+            let timeout = self
+                .timeout
+                .unwrap_or_else(|| self.page.navigation_timeout());
             self.page
-                .navigate(&self.url, self.wait_until, timeout, self.referer.as_deref())
+                .traced(
+                    "Frame",
+                    "goto",
+                    json!({"url": self.url, "timeout": timeout.as_millis() as u64}),
+                    self.page.navigate(
+                        &crate::domain::url_matcher::resolve_url(
+                            self.page.inner.options.base_url.as_deref(),
+                            &self.url,
+                        ),
+                        self.wait_until,
+                        timeout,
+                        self.referer.as_deref(),
+                    ),
+                )
                 .await
         }
         .boxed()
     }
 }
 
-fn load_frame_tree(
+pub(crate) fn load_frame_tree(
     tree: &mut FrameTree,
     node: &Value,
     parent: Option<&str>,

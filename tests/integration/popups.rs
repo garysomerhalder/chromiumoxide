@@ -39,9 +39,20 @@ async fn popups_and_context_pages() {
     assert_eq!(popup.title().await.unwrap(), "pop");
     assert_eq!(popup.opener().unwrap(), page);
     assert_eq!(context.pages().len(), 2);
-    match events.next().await.unwrap() {
-        ContextEvent::Page(p) => assert_eq!(p, popup),
-        other => panic!("{other:?}"),
+    // The first page event is the popup (request/console events interleave).
+    loop {
+        match events.next().await.unwrap() {
+            ContextEvent::Page(p) => {
+                assert_eq!(p, popup);
+                break;
+            }
+            ContextEvent::Request(_)
+            | ContextEvent::Response(_)
+            | ContextEvent::RequestFinished(_)
+            | ContextEvent::RequestFailed(_)
+            | ContextEvent::Console(_) => {}
+            other => panic!("{other:?}"),
+        }
     }
 
     // context.wait_for_page

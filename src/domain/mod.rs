@@ -1,15 +1,27 @@
 //! Pure domain model: no I/O, no async runtime, no protocol types.
 pub mod actionability;
+pub mod aria_template;
+pub mod clock;
 pub mod console;
+pub mod coverage;
 pub mod devices;
 pub mod discovery;
 pub mod emulation;
 pub mod error;
+pub mod expect;
 pub mod frame;
+pub mod har;
+pub mod http;
+pub mod image;
 pub mod input;
 pub mod launch;
+pub mod locator_gen;
 pub mod network;
+pub mod pdf;
 pub mod screenshot;
 pub mod selectors;
 pub mod storage;
+pub mod trace;
 pub mod url_matcher;
+pub mod video;
+pub mod x509;

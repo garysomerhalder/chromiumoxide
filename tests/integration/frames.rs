@@ -86,3 +86,47 @@ async fn frame_evaluate_runs_statement_strings() {
     assert_eq!(frame.evaluate::<i64>("() => 3").await.unwrap(), 3);
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn child_frame_wait_for_navigation() {
+    let server = crate::server::TestServer::start().await;
+    server.route("/a.html", "text/html", "<p>a</p>", 0);
+    server.route("/b.html", "text/html", "<p>b</p>", 0);
+    server.route(
+        "/top.html",
+        "text/html",
+        "<iframe name=f src='/a.html'></iframe>",
+        0,
+    );
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.goto(&server.url("/top.html")).await.unwrap();
+    let frame = page.frame("f").expect("child frame");
+
+    let response = frame
+        .wait_for_navigation()
+        .run(frame.evaluate::<()>("() => { location.href = '/b.html'; }"))
+        .await
+        .unwrap()
+        .expect("a response");
+    assert_eq!(response.url, server.url("/b.html"));
+    assert!(frame.url().ends_with("/b.html"));
+
+    // Same-document navigations resolve without a response.
+    let r = frame
+        .wait_for_navigation()
+        .run(frame.evaluate::<()>("() => { location.hash = 'x'; }"))
+        .await
+        .unwrap();
+    assert!(r.is_none());
+
+    // The page's (main frame's) wait ignores child navigations.
+    let err = page
+        .wait_for_navigation()
+        .timeout(std::time::Duration::from_millis(500))
+        .run(frame.evaluate::<()>("() => { location.href = '/a.html'; }"))
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("waiting for navigation"), "{err}");
+    browser.close().await.unwrap();
+}

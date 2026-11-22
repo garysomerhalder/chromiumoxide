@@ -18,6 +18,9 @@ pub(crate) struct ContextInner {
     pub(crate) options: Arc<ContextOptions>,
     pub(crate) shared: Arc<Shared>,
     pub(crate) pages: Mutex<Vec<Page>>,
+    /// `context.clock` has installed its script.
+    pub(crate) clock_installed: std::sync::atomic::AtomicBool,
+    pub(crate) debugger: Mutex<crate::application::debugger::DebuggerState>,
     pub(crate) init_errors: Mutex<HashMap<String, String>>,
     pub(crate) init_scripts: Mutex<Vec<String>>,
     pub(crate) bindings: Mutex<HashMap<String, crate::application::scripts::BindingFn>>,
@@ -32,6 +35,12 @@ pub(crate) struct ContextInner {
     pub(crate) ws_routing: Mutex<crate::application::websocket_route::WsRouting>,
     pub(crate) service_workers: Mutex<Vec<crate::application::worker::Worker>>,
     pub(crate) credentials: crate::application::credentials::CredentialsState,
+    pub(crate) har: crate::application::har::HarState,
+    pub(crate) tracing: crate::application::tracing::TracingState,
+    pub(crate) default_timeout: Mutex<Option<std::time::Duration>>,
+    pub(crate) navigation_timeout: Mutex<Option<std::time::Duration>>,
+    /// The browser of a persistent context (closed with it).
+    pub(crate) owner: Mutex<Option<crate::application::browser::Browser>>,
 }
 
 /// Something that happened in a context (Playwright's `context.on(...)`).
@@ -44,10 +53,32 @@ pub enum ContextEvent {
     ServiceWorker(crate::application::worker::Worker),
     /// The context was closed.
     Close,
+    /// A request of any page or service worker (`context.on('request')`).
+    Request(crate::application::network::Request),
+    /// `context.on('response')`.
+    Response(crate::application::network::Response),
+    /// `context.on('requestfinished')`.
+    RequestFinished(crate::application::network::Request),
+    /// `context.on('requestfailed')`.
+    RequestFailed(crate::application::network::Request),
+    /// A console message of any page (`context.on('console')`).
+    Console(crate::application::events::ConsoleMessage),
+    /// An uncaught page error (`context.on('weberror')`).
+    WebError(WebError),
+    /// A dialog of any page (`context.on('dialog')`).
+    Dialog(crate::application::events::Dialog),
+}
+
+/// Playwright's `WebError`: an uncaught error and its page.
+#[derive(Debug, Clone)]
+pub struct WebError {
+    pub page: Option<Page>,
+    pub error: crate::domain::console::PageError,
 }
 
 impl ContextInner {
-    pub(crate) fn add_service_worker(&self, worker: crate::application::worker::Worker) {
+    pub(crate) fn add_service_worker(self: &Arc<Self>, worker: crate::application::worker::Worker) {
+        worker.set_owner(self);
         self.service_workers.lock().unwrap().push(worker.clone());
         self.emit(ContextEvent::ServiceWorker(worker));
     }
@@ -131,7 +162,17 @@ impl BrowserContext {
             .and_then(Value::as_str)
             .ok_or_else(|| Error::Serde("createBrowserContext returned no id".into()))?
             .to_owned();
+        Self::register(shared, options, id).await
+    }
+
+    /// Registers a context (`id` empty: the browser's default context).
+    pub(crate) async fn register(
+        shared: Arc<Shared>,
+        options: ContextOptions,
+        id: String,
+    ) -> Result<BrowserContext> {
         let (changed, _) = watch::channel(0);
+        let har_state = crate::application::har::recording(&options.record_har);
         let inner = Arc::new(ContextInner {
             id: id.clone(),
             options: Arc::new(options),
@@ -139,6 +180,8 @@ impl BrowserContext {
             pages: Mutex::new(Vec::new()),
             init_errors: Mutex::new(HashMap::new()),
             init_scripts: Mutex::new(Vec::new()),
+            clock_installed: std::sync::atomic::AtomicBool::new(false),
+            debugger: Mutex::new(Default::default()),
             bindings: Mutex::new(HashMap::new()),
             changed,
             closed: AtomicBool::new(false),
@@ -150,6 +193,11 @@ impl BrowserContext {
             ws_routing: Mutex::new(Default::default()),
             service_workers: Mutex::new(Vec::new()),
             credentials: Mutex::new(Default::default()),
+            har: har_state,
+            tracing: Mutex::new(None),
+            default_timeout: Mutex::new(None),
+            navigation_timeout: Mutex::new(None),
+            owner: Mutex::new(None),
         });
         shared.contexts.lock().unwrap().insert(id, inner.clone());
         if inner.options.service_workers == crate::domain::emulation::ServiceWorkers::Block {
@@ -162,9 +210,11 @@ impl BrowserContext {
         let accept = context.inner.options.accept_downloads;
         let mut params = json!({
             "behavior": if accept { "allowAndName" } else { "deny" },
-            "browserContextId": context.inner.id,
             "eventsEnabled": true,
         });
+        if !context.inner.id.is_empty() {
+            params["browserContextId"] = json!(context.inner.id);
+        }
         if let Ok(dir) = shared.downloads_dir() {
             params["downloadPath"] = json!(dir.to_string_lossy());
         }
@@ -209,7 +259,11 @@ impl BrowserContext {
             .call(
                 None,
                 "Target.createTarget",
-                json!({"url": "about:blank", "browserContextId": self.inner.id}),
+                if self.inner.id.is_empty() {
+                    json!({"url": "about:blank"})
+                } else {
+                    json!({"url": "about:blank", "browserContextId": self.inner.id})
+                },
             )
             .await?;
         let target_id = r
@@ -276,6 +330,12 @@ impl BrowserContext {
         if self.inner.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
+        let _ = self.flush_har().await;
+        // A persistent (default) context closes its browser.
+        let owner = self.inner.owner.lock().unwrap().take();
+        if let Some(browser) = owner {
+            return browser.close().await;
+        }
         let shared = &self.inner.shared;
         let _ = shared
             .cdp
@@ -330,7 +390,7 @@ impl<'a> PageWaiter<'a> {
                 match e {
                     ContextEvent::Page(p) => return Ok(p),
                     ContextEvent::Close => break,
-                    ContextEvent::ServiceWorker(_) => {}
+                    _ => {}
                 }
             }
             Err(Error::TargetClosed(

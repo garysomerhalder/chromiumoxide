@@ -226,7 +226,10 @@ impl Frame {
         self.locator(&selectors::get_by_label(&text.into(), exact))
     }
     pub fn get_by_test_id(&self, id: impl Into<TextMatch>) -> Locator {
-        self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
+        self.locator(&selectors::get_by_test_id(
+            &self.page_ref().test_id_attribute(),
+            &id.into(),
+        ))
     }
     /// `frame.frameLocator(selector)`.
     pub fn frame_locator(&self, selector: &str) -> FrameLocator {

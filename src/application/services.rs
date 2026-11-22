@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::ports::{BrowserLauncher, Clock, Environment, FileSystem};
+use crate::ports::{BrowserLauncher, Clock, Environment, FileSystem, VideoEncoder};
 
 /// Port implementations, injected by the composition root (or by tests).
 #[derive(Clone)]
@@ -11,4 +11,10 @@ pub struct Services {
     pub env: Arc<dyn Environment>,
     pub launcher: Arc<dyn BrowserLauncher>,
     pub clock: Arc<dyn Clock>,
+    /// Encodes recorded videos (`recordVideo`).
+    pub video: Arc<dyn VideoEncoder>,
+    /// Sends `APIRequestContext` requests.
+    pub http: Arc<dyn crate::ports::HttpClient>,
+    /// Serves a browser connection to other clients (`browser.bind()`).
+    pub bridge: Arc<dyn crate::ports::CdpBridge>,
 }

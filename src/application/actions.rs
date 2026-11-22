@@ -301,7 +301,13 @@ impl<'a> IntoFuture for SetContent<'a> {
         async move {
             let timeout = self.timeout.unwrap_or_else(|| self.page.default_timeout());
             self.page
-                .run_set_content(&self.html, self.wait_until, timeout)
+                .traced(
+                    "Frame",
+                    "setContent",
+                    serde_json::json!({"html": self.html, "timeout": timeout.as_millis() as u64}),
+                    self.page
+                        .run_set_content(&self.html, self.wait_until, timeout),
+                )
                 .await
         }
         .boxed()

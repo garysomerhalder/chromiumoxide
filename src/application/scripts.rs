@@ -220,15 +220,33 @@ impl Page {
         } else {
             Value::Null
         };
-        self.call_function(
+        // Like Playwright, a Content-Security-Policy console error fails the call.
+        let mut events = self.events();
+        let csp = async move {
+            use futures::StreamExt;
+            while let Some(e) = events.next().await {
+                if let crate::application::events::PageEvent::Console(m) = e
+                    && m.kind() == "error"
+                    && (m.text().contains("Content-Security-Policy")
+                        || m.text().contains("Content Security Policy"))
+                {
+                    return m.text().to_owned();
+                }
+            }
+            futures::future::pending().await
+        };
+        let args = [content, url, kind];
+        let add = self.call_function(
             World::Main,
             ADD_SCRIPT,
-            &[content, url, kind],
+            &args,
             self.default_timeout(),
             "adding a script tag",
-        )
-        .await?;
-        Ok(())
+        );
+        tokio::select! {
+            r = add => { r?; Ok(()) }
+            msg = csp => Err(Error::Evaluation(msg)),
+        }
     }
 
     /// Playwright's `page.exposeFunction(name, fn)`: `window[name](...args)`

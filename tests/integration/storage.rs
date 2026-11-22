@@ -224,3 +224,66 @@ async fn page_extra_http_headers() {
     );
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn storage_state_with_indexed_db_round_trips() {
+    let server = crate::server::TestServer::start().await;
+    server.route("/", "text/html", "<p>x</p>", 0);
+    let browser = chromiumoxide::Chromium::launch(chromiumoxide::LaunchOptions::default())
+        .await
+        .unwrap();
+    let ctx = browser.new_context(Default::default()).await.unwrap();
+    let page = ctx.new_page().await.unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+    page.evaluate::<()>(r#"async () => {
+    localStorage.setItem('k', 'v');
+    await new Promise((res, rej) => {
+      const r = indexedDB.open('db1', 2);
+      r.onupgradeneeded = () => { const s = r.result.createObjectStore('items', { keyPath: 'id' }); s.createIndex('byName', 'name', { unique: false }); r.result.createObjectStore('free', { autoIncrement: true }); };
+      r.onsuccess = () => { const t = r.result.transaction(['items', 'free'], 'readwrite'); t.objectStore('items').put({ id: 1, name: 'a', when: new Date(0) }); t.objectStore('free').put('plain'); t.oncomplete = () => { r.result.close(); res(); }; };
+      r.onerror = rej;
+    });
+  }"#)
+    .await
+    .unwrap();
+    let state = ctx
+        .storage_state_with(chromiumoxide::StorageStateOptions { indexed_db: true })
+        .await
+        .unwrap();
+    // Recorded from Playwright 1.63 (storageState({ indexedDB: true })).
+    assert_eq!(
+        serde_json::to_value(&state.origins).unwrap(),
+        serde_json::json!([{"origin": server.url(""), "localStorage": [{"name": "k", "value": "v"}],
+            "indexedDB": [{"name": "db1", "version": 2, "stores": [
+                {"name": "free", "autoIncrement": true, "records": [{"key": 1, "value": "plain"}], "indexes": []},
+                {"name": "items", "autoIncrement": false, "keyPath": "id",
+                 "records": [{"valueEncoded": {"o": [{"k": "id", "v": 1}, {"k": "name", "v": "a"}, {"k": "when", "v": {"d": "1970-01-01T00:00:00.000Z"}}], "id": 1}}],
+                 "indexes": [{"name": "byName", "keyPath": "name", "multiEntry": false, "unique": false}]}]}]}])
+    );
+    // Without the option, IndexedDB is left out (like Playwright).
+    let plain = ctx.storage_state().await.unwrap();
+    assert!(
+        serde_json::to_value(&plain.origins).unwrap()[0]
+            .get("indexedDB")
+            .is_none()
+    );
+
+    let ctx2 = browser
+        .new_context(chromiumoxide::ContextOptions {
+            storage_state: Some(state),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let p2 = ctx2.new_page().await.unwrap();
+    p2.goto(&server.url("/")).await.unwrap();
+    let got: serde_json::Value = p2
+        .evaluate(r#"async () => { const db = await new Promise(r => { const o = indexedDB.open('db1'); o.onsuccess = () => r(o.result); }); const v = await new Promise(r => { const q = db.transaction('items').objectStore('items').get(1); q.onsuccess = () => r(q.result); }); return JSON.parse(JSON.stringify({ v, isDate: v.when instanceof Date, ls: localStorage.getItem('k'), version: db.version })); }"#)
+        .await
+        .unwrap();
+    assert_eq!(
+        got,
+        serde_json::json!({"v": {"id": 1, "name": "a", "when": "1970-01-01T00:00:00.000Z"}, "isDate": true, "ls": "v", "version": 2})
+    );
+    browser.close().await.unwrap();
+}

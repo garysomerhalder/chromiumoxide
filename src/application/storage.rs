@@ -29,11 +29,20 @@ pub(crate) struct RuntimeSettings {
 
 pub(crate) type Origins = Mutex<Vec<String>>;
 
-const COLLECT: &str =
-    "() => Object.keys(localStorage).map(name => ({name, value: localStorage.getItem(name)}))";
+/// Playwright's storage script, as a `StorageScript` instance.
+fn storage_script() -> String {
+    format!(
+        "(() => {{ const module = {{ exports: {{}} }};\n{}\nreturn new (module.exports.StorageScript())('chromium'); }})()",
+        include_str!("scripts/storage.js")
+    )
+}
 
-const RESTORE: &str = "(items) => { sessionStorage.clear(); localStorage.clear(); \
-     for (const {name, value} of items) localStorage.setItem(name, value); }";
+/// Playwright's `StorageStateOptions` for `storageState()`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct StorageStateOptions {
+    /// Also serialise IndexedDB databases.
+    pub indexed_db: bool,
+}
 
 /// The `http(s)` origin of `url`.
 pub(crate) fn origin_of(url: &str) -> Option<String> {
@@ -148,23 +157,34 @@ impl Page {
         Ok(())
     }
 
-    async fn collect_local_storage(&self) -> Result<Vec<NameValue>> {
+    /// localStorage (and IndexedDB when asked) of the current origin.
+    async fn collect_storage(
+        &self,
+        indexed_db: bool,
+    ) -> Result<(Vec<NameValue>, Option<Vec<Value>>)> {
         let v = self
             .call_function(
                 World::Utility,
-                COLLECT,
-                &[],
+                &format!(
+                    "async function(record) {{ return await {}.collect(record); }}",
+                    storage_script()
+                ),
+                &[json!({"indexedDB": indexed_db})],
                 DEFAULT_TIMEOUT,
                 "collecting storage",
             )
             .await?;
-        Ok(serde_json::from_value(v)?)
+        let local: Vec<NameValue> = serde_json::from_value(v["localStorage"].clone())?;
+        let dbs = v.get("indexedDB").and_then(Value::as_array).cloned();
+        Ok((local, dbs))
     }
 }
 
 impl BrowserContext {
     async fn browser_call(&self, method: &str, mut params: Value) -> Result<Value> {
-        params["browserContextId"] = json!(self.inner.id);
+        if !self.inner.id.is_empty() {
+            params["browserContextId"] = json!(self.inner.id);
+        }
         self.inner.shared.cdp.call(None, method, params).await
     }
 
@@ -324,9 +344,24 @@ impl BrowserContext {
     /// `context.storageState()`: cookies plus `localStorage` of every origin
     /// the context has visited.
     pub async fn storage_state(&self) -> Result<StorageState> {
+        self.storage_state_with(StorageStateOptions::default())
+            .await
+    }
+
+    /// `context.storageState({ indexedDB })`.
+    pub async fn storage_state_with(&self, options: StorageStateOptions) -> Result<StorageState> {
         let cookies = self.cookies().await?;
         let mut pending: Vec<String> = self.inner.origins.lock().unwrap().clone();
         let mut origins = Vec::new();
+        let keep =
+            |origin: String, (local_storage, indexed_db): (Vec<NameValue>, Option<Vec<Value>>)| {
+                let has_db = indexed_db.as_ref().is_some_and(|d| !d.is_empty());
+                (!local_storage.is_empty() || has_db).then_some(OriginState {
+                    origin,
+                    local_storage,
+                    indexed_db: indexed_db.filter(|d| !d.is_empty()),
+                })
+            };
         for page in self.live_pages() {
             let Some(origin) = origin_of(&page.url()) else {
                 continue;
@@ -334,25 +369,19 @@ impl BrowserContext {
             if !pending.contains(&origin) {
                 continue;
             }
-            if let Ok(local_storage) = page.collect_local_storage().await {
-                if !local_storage.is_empty() {
-                    origins.push(OriginState {
-                        origin: origin.clone(),
-                        local_storage,
-                    });
-                }
+            if let Ok(collected) = page.collect_storage(options.indexed_db).await {
                 pending.retain(|o| *o != origin);
+                origins.extend(keep(origin, collected));
             }
         }
         if !pending.is_empty() {
             self.with_storage_page(&pending, |page, origin| {
                 let origin = origin.to_owned();
                 async move {
-                    let local_storage = page.collect_local_storage().await?;
-                    Ok((!local_storage.is_empty()).then_some(OriginState {
+                    Ok(keep(
                         origin,
-                        local_storage,
-                    }))
+                        page.collect_storage(options.indexed_db).await?,
+                    ))
                 }
             })
             .await?
@@ -374,6 +403,7 @@ impl BrowserContext {
                 full.origins.push(OriginState {
                     origin,
                     local_storage: Vec::new(),
+                    indexed_db: None,
                 });
             }
         }
@@ -392,17 +422,15 @@ impl BrowserContext {
         let names: Vec<String> = state.origins.iter().map(|o| o.origin.clone()).collect();
         if !names.is_empty() {
             self.with_storage_page(&names, |page, origin| {
-                let items = state
-                    .origins
-                    .iter()
-                    .find(|o| o.origin == origin)
-                    .map(|o| o.local_storage.clone())
-                    .unwrap_or_default();
+                let origin_state = state.origins.iter().find(|o| o.origin == origin).cloned();
                 async move {
                     page.call_function(
                         World::Utility,
-                        RESTORE,
-                        &[serde_json::to_value(items)?],
+                        &format!(
+                            "async function(state) {{ await {}.restore(state); }}",
+                            storage_script()
+                        ),
+                        &[serde_json::to_value(origin_state)?],
                         DEFAULT_TIMEOUT,
                         "restoring storage",
                     )

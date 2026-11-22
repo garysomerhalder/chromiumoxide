@@ -114,7 +114,7 @@ impl Download {
     pub async fn cancel(&self) -> Result<()> {
         let context = self.inner.page.context_id();
         let mut params = json!({"guid": self.inner.guid});
-        if let Some(id) = context {
+        if let Some(id) = context.filter(|id| !id.is_empty()) {
             params["browserContextId"] = json!(id);
         }
         self.inner
@@ -166,7 +166,7 @@ impl Shared {
         contexts
             .iter()
             .flat_map(|c| c.pages.lock().unwrap().clone())
-            .find(|p| p.inner.session_id == session_id)
+            .find(|p| p.has_session(session_id))
     }
 
     fn page_with_frame(&self, frame_id: &str) -> Option<Page> {

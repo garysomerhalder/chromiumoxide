@@ -113,3 +113,55 @@ impl Environment for MapEnvironment {
         self.os
     }
 }
+
+/// A video encoder that writes nothing (unit tests).
+pub struct NullVideo;
+
+struct NullSink;
+
+impl crate::ports::VideoEncoder for NullVideo {
+    fn start(
+        &self,
+        _output: &Path,
+        _width: u32,
+        _height: u32,
+    ) -> futures::future::BoxFuture<'static, io::Result<Box<dyn crate::ports::VideoSink>>> {
+        Box::pin(async { Ok(Box::new(NullSink) as Box<dyn crate::ports::VideoSink>) })
+    }
+}
+
+impl crate::ports::VideoSink for NullSink {
+    fn write_frame<'a>(
+        &'a mut self,
+        _jpeg: &'a [u8],
+    ) -> futures::future::BoxFuture<'a, io::Result<()>> {
+        Box::pin(async { Ok(()) })
+    }
+    fn finish(self: Box<Self>) -> futures::future::BoxFuture<'static, io::Result<()>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
+/// An HTTP client that refuses every request (unit tests).
+pub struct NoHttp;
+
+impl crate::ports::HttpClient for NoHttp {
+    fn send(
+        &self,
+        _request: crate::domain::http::HttpRequest,
+    ) -> futures::future::BoxFuture<'static, io::Result<crate::domain::http::HttpResponse>> {
+        Box::pin(async { Err(io::Error::other("no network in unit tests")) })
+    }
+}
+
+/// A bridge that refuses to serve (unit tests).
+pub struct NoBridge;
+
+impl crate::ports::CdpBridge for NoBridge {
+    fn serve(
+        &self,
+        _cdp: std::sync::Arc<dyn crate::ports::CdpSession>,
+    ) -> futures::future::BoxFuture<'static, io::Result<Box<dyn crate::ports::BoundBridge>>> {
+        Box::pin(async { Err(io::Error::other("no network in unit tests")) })
+    }
+}

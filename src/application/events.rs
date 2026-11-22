@@ -220,6 +220,25 @@ impl Page {
         }
         st.subscribers
             .retain(|s| s.unbounded_send(event.clone()).is_ok());
+        drop(st);
+        // The context hears about its pages' traffic, console and errors.
+        use crate::application::context::{ContextEvent, WebError};
+        let forwarded = match event {
+            PageEvent::Request(r) => Some(ContextEvent::Request(r)),
+            PageEvent::Response(r) => Some(ContextEvent::Response(r)),
+            PageEvent::RequestFinished(r) => Some(ContextEvent::RequestFinished(r)),
+            PageEvent::RequestFailed(r) => Some(ContextEvent::RequestFailed(r)),
+            PageEvent::Console(m) => Some(ContextEvent::Console(m)),
+            PageEvent::Dialog(d) => Some(ContextEvent::Dialog(d)),
+            PageEvent::PageError(error) => Some(ContextEvent::WebError(WebError {
+                page: Some(self.clone()),
+                error,
+            })),
+            _ => None,
+        };
+        if let (Some(e), Some(ctx)) = (forwarded, self.inner.context.upgrade()) {
+            ctx.emit(e);
+        }
     }
 
     /// `page.consoleMessages()`: recent console messages.
@@ -298,6 +317,45 @@ impl Page {
                         .collect(),
                     location: location(p.get("stackTrace")),
                     timestamp: p.get("timestamp").and_then(Value::as_f64).unwrap_or(0.0),
+                    page: Arc::downgrade(&self.inner),
+                    worker: None,
+                };
+                self.emit(PageEvent::Console(message));
+                true
+            }
+            "Log.entryAdded" => {
+                // Browser log entries (network errors, CSP violations, ...) are
+                // console messages too, as in Playwright (worker ones excepted).
+                let entry = &p["entry"];
+                if entry.get("source").and_then(Value::as_str) == Some("worker") {
+                    return true;
+                }
+                let message = ConsoleMessage {
+                    kind: entry
+                        .get("level")
+                        .and_then(Value::as_str)
+                        .unwrap_or("log")
+                        .to_owned(),
+                    text: entry
+                        .get("text")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned(),
+                    args: Vec::new(),
+                    location: Location {
+                        url: entry
+                            .get("url")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned(),
+                        line_number: entry.get("lineNumber").and_then(Value::as_u64).unwrap_or(0)
+                            as u32,
+                        column_number: 0,
+                    },
+                    timestamp: entry
+                        .get("timestamp")
+                        .and_then(Value::as_f64)
+                        .unwrap_or(0.0),
                     page: Arc::downgrade(&self.inner),
                     worker: None,
                 };

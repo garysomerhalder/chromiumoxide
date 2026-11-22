@@ -111,6 +111,10 @@ pub struct ContextOptions {
     pub accept_downloads: bool,
     /// Whether pages may register service workers.
     pub service_workers: ServiceWorkers,
+    /// Record all traffic into a HAR file, written when the context closes.
+    pub record_har: Option<crate::domain::har::RecordHar>,
+    /// Record a `.webm` video of every page.
+    pub record_video: Option<crate::domain::video::RecordVideo>,
 }
 
 /// Playwright's `serviceWorkers` option.
@@ -149,6 +153,8 @@ impl Default for ContextOptions {
             storage_state: None,
             accept_downloads: true,
             service_workers: ServiceWorkers::Allow,
+            record_har: None,
+            record_video: None,
         }
     }
 }

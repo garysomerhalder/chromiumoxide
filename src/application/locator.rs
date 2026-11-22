@@ -6,6 +6,8 @@
 
 use std::future::{Future, IntoFuture};
 use std::path::PathBuf;
+
+use base64::Engine;
 use std::time::Duration;
 
 use futures::FutureExt;
@@ -55,6 +57,68 @@ pub struct BoundingBox {
 }
 
 /// One attempt's outcome inside the retry loop.
+/// Playwright's in-page part of `drop()`.
+const DROP: &str = "(i, node, payloads, data, point) => {
+  if (!node.isConnected || node.nodeType !== 1) return 'error:notconnected';
+  const dt = new DataTransfer();
+  for (const p of payloads) {
+    const bytes = Uint8Array.from(atob(p.buffer), (c) => c.charCodeAt(0));
+    dt.items.add(new File([bytes], p.name, { type: p.mimeType }));
+  }
+  for (const entry of data) dt.setData(entry.mimeType, entry.value);
+  const makeEvent = (type) => new DragEvent(type, { bubbles: true, cancelable: true, composed: true,
+    clientX: point.x, clientY: point.y, dataTransfer: dt });
+  node.dispatchEvent(makeEvent('dragenter'));
+  const over = makeEvent('dragover');
+  node.dispatchEvent(over);
+  if (!over.defaultPrevented) { node.dispatchEvent(makeEvent('dragleave')); return 'not-accepted'; }
+  node.dispatchEvent(makeEvent('drop'));
+  return 'accepted';
+}";
+
+/// An in-memory file for `locator.drop()`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DropFile {
+    pub name: String,
+    pub mime_type: String,
+    pub buffer: Vec<u8>,
+}
+
+impl DropFile {
+    pub fn new(name: &str, mime_type: &str, buffer: &[u8]) -> Self {
+        Self {
+            name: name.to_owned(),
+            mime_type: mime_type.to_owned(),
+            buffer: buffer.to_vec(),
+        }
+    }
+}
+
+/// What `locator.drop()` drops: files (paths or buffers) and/or data by MIME type.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DropPayload {
+    files: Vec<DropFile>,
+    paths: Vec<PathBuf>,
+    data: Vec<(String, String)>,
+}
+
+impl DropPayload {
+    pub fn file(mut self, file: DropFile) -> Self {
+        self.files.push(file);
+        self
+    }
+    /// A file read from disk (name and MIME type from the path).
+    pub fn path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.paths.push(path.into());
+        self
+    }
+    /// A data entry, e.g. `("text/plain", "hello")`.
+    pub fn data(mut self, mime_type: &str, value: &str) -> Self {
+        self.data.push((mime_type.to_owned(), value.to_owned()));
+        self
+    }
+}
+
 enum Attempt<T> {
     Done(T),
     Retry(String),
@@ -63,10 +127,21 @@ enum Attempt<T> {
 /// A way to find element(s) on a page, re-resolved on every use (Playwright's `Locator`).
 #[derive(Clone)]
 pub struct Locator {
-    page: Page,
+    pub(crate) page: Page,
     /// Frame the selector starts from (`None`: the main frame).
     frame: Option<String>,
     selector: String,
+}
+
+/// Playwright's `locator.toString()`: its description, or the locator code
+/// (`getByRole('button', { name: 'Go' })`).
+impl std::fmt::Display for Locator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.description() {
+            Some(d) => f.write_str(&d),
+            None => f.write_str(&crate::domain::locator_gen::as_locator(&self.selector)),
+        }
+    }
 }
 
 impl std::fmt::Debug for Locator {
@@ -103,7 +178,10 @@ impl Page {
         self.locator(&selectors::get_by_title(&text.into(), exact))
     }
     pub fn get_by_test_id(&self, id: impl Into<TextMatch>) -> Locator {
-        self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
+        self.locator(&selectors::get_by_test_id(
+            &self.page_ref().test_id_attribute(),
+            &id.into(),
+        ))
     }
 
     /// The utility-world context of the main frame with the injected script installed.
@@ -118,8 +196,8 @@ impl Page {
         if installed.pointer("/result/value") != Some(&Value::Bool(true)) {
             let options = json!({
                 "isUnderTest": false, "sdkLanguage": "javascript", "frameSeq": 0,
-                "testIdAttributeName": "data-testid", "stableRafCount": 1, "browserName": "chromium",
-                "isUtilityWorld": true, "customEngines": [],
+                "testIdAttributeName": self.test_id_attribute(), "stableRafCount": 1, "browserName": "chromium",
+                "isUtilityWorld": true, "customEngines": self.custom_engines(),
             });
             let install = format!(
                 "(() => {{ if ({INJECTED}) return; const module = {{}};\n{INJECTED_SOURCE}\n{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); }})()"
@@ -136,7 +214,7 @@ impl Page {
     }
 
     /// Calls `body(injected, ...args)` in the utility world.
-    async fn injected_call(
+    pub(crate) async fn injected_call(
         &self,
         frame: Option<&str>,
         body: &str,
@@ -338,7 +416,10 @@ impl Locator {
         self.locator(&selectors::get_by_placeholder(&text.into(), exact))
     }
     pub fn get_by_test_id(&self, id: impl Into<TextMatch>) -> Locator {
-        self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
+        self.locator(&selectors::get_by_test_id(
+            &self.page_ref().test_id_attribute(),
+            &id.into(),
+        ))
     }
     pub fn nth(&self, index: i64) -> Locator {
         self.with(compose::nth(&self.selector, index))
@@ -363,7 +444,7 @@ impl Locator {
 
     /// Resolves the iframe hops in the selector; returns the frame to query
     /// in, the remaining selector and the innermost iframe element.
-    async fn scope(
+    pub(crate) async fn scope(
         &self,
         timeout: Duration,
     ) -> Result<Option<(Option<String>, String, Option<String>)>> {
@@ -395,9 +476,17 @@ impl Locator {
     }
 
     async fn query(&self, strict: bool, timeout: Duration) -> Result<Option<ElementRef>> {
-        let Some((frame, selector, frame_owner)) = self.scope(timeout).await? else {
+        let Some((frame, selector, mut frame_owner)) = self.scope(timeout).await? else {
             return Ok(None);
         };
+        // A locator made from a child frame has no iframe hop: find the
+        // frame's <iframe> element so pointer coordinates can be converted.
+        if frame_owner.is_none()
+            && let Some(id) = frame.as_deref()
+            && self.page.main_frame_id().ok().as_deref() != Some(id)
+        {
+            frame_owner = self.page.frame_owner_object(id).await?;
+        }
         Ok(self
             .page
             .query_in(frame.as_deref(), &selector, strict, timeout)
@@ -421,6 +510,7 @@ impl Locator {
         let mut last = format!("waiting for {self:?}");
         let mut retry = 0usize;
         loop {
+            self.page.run_locator_handlers().await?;
             if retry > 0 {
                 let wait = retry_wait_ms(retry);
                 if clock.now_ms() + wait > deadline {
@@ -457,7 +547,7 @@ impl Locator {
         })
     }
 
-    fn timeout(&self) -> Duration {
+    pub(crate) fn timeout(&self) -> Duration {
         self.page.default_timeout()
     }
 
@@ -469,7 +559,7 @@ impl Locator {
     }
 
     /// Waits for the element (strict) and returns it.
-    async fn element(&self, what: &str, timeout: Duration) -> Result<ElementRef> {
+    pub(crate) async fn element(&self, what: &str, timeout: Duration) -> Result<ElementRef> {
         self.retry(what, timeout, |_| self.resolved(timeout)).await
     }
 
@@ -630,6 +720,7 @@ impl Locator {
             if o.trial {
                 return Ok(Attempt::Done(()));
             }
+            self.annotate(&el, Some(point)).await;
             let keyboard = self.page.keyboard();
             for m in &o.modifiers {
                 keyboard.down(m).await?;
@@ -692,6 +783,17 @@ impl Locator {
 
     /// `locator.fill(value)`.
     pub async fn fill(&self, value: &str) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "fill",
+                json!({"selector": self.selector, "value": value}),
+                self.fill_impl(value),
+            )
+            .await
+    }
+
+    async fn fill_impl(&self, value: &str) -> Result<()> {
         let timeout = self.timeout();
         self.retry("filling", timeout, |_| async move {
             let el = match self.resolved(timeout).await? {
@@ -701,6 +803,7 @@ impl Locator {
             if let Some(missing) = self.check_states(&el, Action::Fill).await? {
                 return Ok(Attempt::Retry(missing));
             }
+            self.annotate(&el, None).await;
             let r = self
                 .page
                 .element_call(
@@ -739,6 +842,7 @@ impl Locator {
                 Attempt::Done(el) => el,
                 Attempt::Retry(r) => return Ok(Attempt::Retry(r)),
             };
+            self.annotate(&el, None).await;
             let r = self
                 .page
                 .element_call(&el, "(i, node) => i.focusNode(node, true)", &[], true)
@@ -748,6 +852,78 @@ impl Locator {
             } else {
                 Attempt::Retry(r.to_string())
             })
+        })
+        .await
+    }
+
+    /// Shows the screencast action annotation (`screencast.showActions()`)
+    /// before an input action on `el`.
+    async fn annotate(&self, el: &ElementRef, point: Option<Point>) {
+        if !self.page.showing_actions() {
+            return;
+        }
+        let bbox = self.page.box_of(el).await.ok().flatten();
+        let locator = self.to_playwright_string().await.ok();
+        self.page
+            .show_action(point.map(|p| (p.x, p.y)), bbox, locator.as_deref())
+            .await;
+    }
+
+    /// `locator.drop(payload)`: an external drag-and-drop of files and/or
+    /// data onto the element's centre (`dragenter`, `dragover`, `drop`).
+    pub async fn drop(&self, payload: DropPayload) -> Result<()> {
+        if payload.files.is_empty() && payload.paths.is_empty() && payload.data.is_empty() {
+            return Err(Error::InvalidArgument(
+                "At least one of \"files\" or \"data\" must be provided.".into(),
+            ));
+        }
+        let fs = self.page.inner.shared.services.fs.clone();
+        let mut files: Vec<Value> = Vec::new();
+        for p in &payload.paths {
+            let bytes = fs.read(p)?;
+            let name = p
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let mime = crate::domain::network::mime_type_for_path(&name)
+                .unwrap_or("application/octet-stream");
+            files.push(json!({"name": name, "mimeType": mime,
+                              "buffer": base64::engine::general_purpose::STANDARD.encode(bytes)}));
+        }
+        for f in &payload.files {
+            files.push(json!({"name": f.name, "mimeType": f.mime_type,
+                              "buffer": base64::engine::general_purpose::STANDARD.encode(&f.buffer)}));
+        }
+        let data: Vec<Value> = payload
+            .data
+            .iter()
+            .map(|(m, v)| json!({"mimeType": m, "value": v}))
+            .collect();
+        let timeout = self.timeout();
+        let (files, data) = (&files, &data);
+        self.retry("dropping", timeout, |_| async move {
+            let el = match self.resolved(timeout).await? {
+                Attempt::Done(el) => el,
+                Attempt::Retry(r) => return Ok(Attempt::Retry(r)),
+            };
+            if let Some(missing) = self.check_states(&el, Action::Hover).await? {
+                return Ok(Attempt::Retry(missing));
+            }
+            let point = match self.pointer_point(&el, false, None).await? {
+                Ok(p) => p,
+                Err(reason) => return Ok(Attempt::Retry(reason)),
+            };
+            let r = self
+                .page
+                .element_call(&el, DROP, &[json!(files), json!(data), json!({"x": point.x, "y": point.y})], true)
+                .await?;
+            match r.as_str() {
+                Some("accepted") => Ok(Attempt::Done(())),
+                Some("not-accepted") => Err(Error::Evaluation(
+                    "Drop target did not accept the drop \u{2014} its dragover handler did not call preventDefault()".into(),
+                )),
+                _ => Ok(Attempt::Retry("element is not attached to the DOM".into())),
+            }
         })
         .await
     }
@@ -768,8 +944,17 @@ impl Locator {
 
     /// `locator.press("Control+A")`.
     pub async fn press(&self, key: &str) -> Result<()> {
-        self.focused("pressing").await?;
-        self.page.keyboard().press(key).await
+        self.page
+            .traced(
+                "Frame",
+                "press",
+                json!({"selector": self.selector, "key": key}),
+                async {
+                    self.focused("pressing").await?;
+                    self.page.keyboard().press(key).await
+                },
+            )
+            .await
     }
 
     /// `locator.pressSequentially(text)` (Playwright's former `type`).
@@ -780,6 +965,17 @@ impl Locator {
 
     /// `locator.setChecked(checked)`.
     pub async fn set_checked(&self, checked: bool) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                if checked { "check" } else { "uncheck" },
+                json!({"selector": self.selector}),
+                self.set_checked_impl(checked),
+            )
+            .await
+    }
+
+    async fn set_checked_impl(&self, checked: bool) -> Result<()> {
         let state = if checked { "checked" } else { "unchecked" };
         let timeout = self.timeout();
         let el = self.element("checking", timeout).await?;
@@ -836,6 +1032,21 @@ impl Locator {
     }
 
     async fn run_select_option(&self, values: &[String], timeout: Duration) -> Result<Vec<String>> {
+        self.page
+            .traced(
+                "Frame",
+                "selectOption",
+                json!({"selector": self.selector, "options": values}),
+                self.run_select_option_impl(values, timeout),
+            )
+            .await
+    }
+
+    async fn run_select_option_impl(
+        &self,
+        values: &[String],
+        timeout: Duration,
+    ) -> Result<Vec<String>> {
         let options: Vec<Value> = values.iter().map(|v| json!({"valueOrLabel": v})).collect();
         self.retry("selecting options", timeout, |_| {
             let options = options.clone();
@@ -1320,8 +1531,21 @@ impl<'a> IntoFuture for Click<'a> {
                 Action::DblClick => "double-clicking",
                 _ => "clicking",
             };
+            let method = match self.action {
+                Action::Hover => "hover",
+                Action::Tap => "tap",
+                Action::DblClick => "dblclick",
+                _ => "click",
+            };
             self.locator
-                .pointer_action(self.action, &self.options, what)
+                .page
+                .traced(
+                    "Frame",
+                    method,
+                    json!({"selector": self.locator.selector}),
+                    self.locator
+                        .pointer_action(self.action, &self.options, what),
+                )
                 .await
         }
         .boxed()
@@ -1400,6 +1624,12 @@ pub struct FrameLocator {
     selector: String,
 }
 
+impl FrameLocator {
+    pub(crate) fn page_of(&self) -> &Page {
+        &self.page
+    }
+}
+
 impl std::fmt::Debug for FrameLocator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "frameLocator({:?})", self.selector)
@@ -1433,7 +1663,10 @@ impl FrameLocator {
         self.locator(&selectors::get_by_placeholder(&text.into(), exact))
     }
     pub fn get_by_test_id(&self, id: impl Into<TextMatch>) -> Locator {
-        self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
+        self.locator(&selectors::get_by_test_id(
+            &self.page_ref().test_id_attribute(),
+            &id.into(),
+        ))
     }
     /// The `<iframe>` element itself.
     pub fn owner(&self) -> Locator {
@@ -1462,5 +1695,442 @@ impl Page {
             frame: None,
             selector: selector.to_owned(),
         }
+    }
+}
+
+// ---- extras: handles, evaluate_all, aria, descriptions --------------------
+
+/// Selector engine resolving element handles registered by id (utility world).
+pub(crate) const HANDLE_ENGINE: &str = "({ queryAll(root, id) { const m = globalThis.__chromiumoxide_handles; const e = m && m.get(id); return e && e.isConnected && (root === e || root.contains(e)) ? [e] : []; } })";
+
+impl Locator {
+    /// Adopts an element into the main world of its frame; the object id.
+    async fn main_world_object(&self, el: &ElementRef) -> Result<Value> {
+        let node = self
+            .page
+            .send("DOM.describeNode", json!({"objectId": el.object_id}))
+            .await?;
+        let backend = node
+            .pointer("/node/backendNodeId")
+            .cloned()
+            .unwrap_or(Value::Null);
+        let frame = self.scope(self.timeout()).await?.and_then(|(f, _, _)| f);
+        let main = self
+            .page
+            .frame_context(frame.as_deref(), World::Main, self.timeout())
+            .await?;
+        let adopted = self
+            .page
+            .send(
+                "DOM.resolveNode",
+                json!({"backendNodeId": backend, "executionContextId": main}),
+            )
+            .await?;
+        Ok(adopted["object"].clone())
+    }
+
+    /// Every matching element, as main-world remote objects.
+    async fn all_main_world_objects(&self) -> Result<Vec<Value>> {
+        let Some((frame, selector, frame_owner)) = self.scope(self.timeout()).await? else {
+            return Ok(Vec::new());
+        };
+        let list = self
+            .page
+            .injected_call(
+                frame.as_deref(),
+                "(i, selector) => i.querySelectorAll(i.parseSelector(selector), document)",
+                &[json!(selector)],
+                false,
+                self.timeout(),
+            )
+            .await?;
+        let Some(list_id) = list.get("objectId").and_then(Value::as_str) else {
+            return Ok(Vec::new());
+        };
+        let props = self
+            .page
+            .send(
+                "Runtime.getProperties",
+                json!({"objectId": list_id, "ownProperties": true}),
+            )
+            .await?;
+        let mut out = Vec::new();
+        for p in props
+            .get("result")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let is_index = p
+                .get("name")
+                .and_then(Value::as_str)
+                .is_some_and(|n| n.parse::<usize>().is_ok());
+            if let (true, Some(id)) = (
+                is_index,
+                p.pointer("/value/objectId").and_then(Value::as_str),
+            ) {
+                let el = ElementRef {
+                    object_id: id.to_owned(),
+                    frame_owner: frame_owner.clone(),
+                };
+                out.push(self.main_world_object(&el).await?);
+            }
+        }
+        Ok(out)
+    }
+
+    /// The frame the matched elements live in (after iframe hops).
+    async fn frame_for_handles(&self) -> Result<Option<String>> {
+        Ok(self.scope(self.timeout()).await?.and_then(|(f, _, _)| f))
+    }
+
+    /// `locator.evaluateHandle(fn)`: `fn(element)`, returned as a handle.
+    pub async fn evaluate_handle(
+        &self,
+        function: &str,
+    ) -> Result<crate::application::handle::JsHandle> {
+        let el = self.element("evaluating", self.timeout()).await?;
+        let handle = crate::application::handle::JsHandle::from_remote(
+            &self.page,
+            &self.main_world_object(&el).await?,
+        );
+        handle.evaluate_handle(function).await
+    }
+
+    /// `locator.elementHandle()`: the (single) element.
+    pub async fn element_handle(&self) -> Result<crate::application::handle::JsHandle> {
+        let el = self.element("getting the element", self.timeout()).await?;
+        let mut h = crate::application::handle::JsHandle::from_remote(
+            &self.page,
+            &self.main_world_object(&el).await?,
+        );
+        h.frame = self.frame_for_handles().await?;
+        Ok(h)
+    }
+
+    /// `locator.elementHandles()`: every matching element.
+    pub async fn element_handles(&self) -> Result<Vec<crate::application::handle::JsHandle>> {
+        let frame = self.frame_for_handles().await?;
+        Ok(self
+            .all_main_world_objects()
+            .await?
+            .iter()
+            .map(|o| {
+                let mut h = crate::application::handle::JsHandle::from_remote(&self.page, o);
+                h.frame = frame.clone();
+                h
+            })
+            .collect())
+    }
+
+    /// `locator.evaluateAll(fn)`: `fn(elements)` in the page.
+    pub async fn evaluate_all<T: DeserializeOwned>(&self, function: &str) -> Result<T> {
+        self.evaluate_all_with(function, Value::Null).await
+    }
+
+    /// `locator.evaluateAll(fn, arg)`.
+    pub async fn evaluate_all_with<T: DeserializeOwned, A: Serialize>(
+        &self,
+        function: &str,
+        arg: A,
+    ) -> Result<T> {
+        let objects = self.all_main_world_objects().await?;
+        let source = function.trim().trim_end_matches(';');
+        let declaration = format!(
+            "async function(arg, ...els) {{ const __v = (\n{source}\n); return typeof __v === 'function' ? await __v(els, arg) : __v; }}"
+        );
+        let mut arguments = vec![json!({"value": serde_json::to_value(arg)?})];
+        arguments.extend(objects.iter().map(|o| json!({"objectId": o["objectId"]})));
+        let mut params = json!({"functionDeclaration": declaration, "arguments": arguments,
+                                "returnByValue": true, "awaitPromise": true});
+        match objects.first() {
+            Some(o) => params["objectId"] = o["objectId"].clone(),
+            None => {
+                let frame = self.scope(self.timeout()).await?.and_then(|(f, _, _)| f);
+                params["executionContextId"] = json!(
+                    self.page
+                        .frame_context(frame.as_deref(), World::Main, self.timeout())
+                        .await?
+                );
+            }
+        }
+        let r = self.page.send("Runtime.callFunctionOn", params).await?;
+        let v = crate::application::js::result_value(&r)?;
+        serde_json::from_value(v)
+            .map_err(|e| Error::Evaluation(format!("cannot deserialize result: {e}")))
+    }
+
+    /// `locator.ariaSnapshot()`: the accessibility tree as YAML.
+    pub async fn aria_snapshot(&self) -> Result<String> {
+        let el = self
+            .element("taking an aria snapshot", self.timeout())
+            .await?;
+        let v = self
+            .page
+            .element_call(
+                &el,
+                "(i, node) => i.ariaSnapshot(node, {mode: 'default'})",
+                &[],
+                true,
+            )
+            .await?;
+        Ok(v.as_str().unwrap_or_default().to_owned())
+    }
+
+    /// `locator.ariaSnapshotJSON()`: the accessibility tree as JSON nodes.
+    pub async fn aria_snapshot_json(&self) -> Result<Value> {
+        let el = self
+            .element("taking an aria snapshot", self.timeout())
+            .await?;
+        self.page
+            .element_call(
+                &el,
+                "(i, node) => i.ariaSnapshotJSON(node, {mode: 'default'}).json",
+                &[],
+                true,
+            )
+            .await
+    }
+
+    /// Playwright's `locator.toString()` (`getByRole('button', { name: 'Go' })`),
+    /// computed by Playwright's own generator in the page.
+    pub async fn to_playwright_string(&self) -> Result<String> {
+        if let Some(d) = self.description() {
+            return Ok(d);
+        }
+        let frame = self.frame.clone();
+        let v = self
+            .page
+            .injected_call(
+                frame.as_deref(),
+                "(i, selector) => i.utils.asLocator('javascript', selector)",
+                &[json!(self.selector)],
+                true,
+                self.timeout(),
+            )
+            .await?;
+        Ok(v.as_str().unwrap_or_default().to_owned())
+    }
+
+    /// `locator.describe(description)`: a description for reports and traces.
+    pub fn describe(&self, description: &str) -> Locator {
+        self.with(format!(
+            "{} >> internal:describe={}",
+            self.selector,
+            serde_json::to_string(description).unwrap_or_default()
+        ))
+    }
+
+    /// `locator.description()`: the description given with `describe`.
+    pub fn description(&self) -> Option<String> {
+        let (_, last) = self.selector.rsplit_once(" >> ")?;
+        let value = last.strip_prefix("internal:describe=")?;
+        serde_json::from_str(value).ok()
+    }
+
+    /// `locator.normalize()`: the same element through Playwright's preferred locator.
+    pub async fn normalize(&self) -> Result<Locator> {
+        let el = self.element("normalizing", self.timeout()).await?;
+        let v = self
+            .page
+            .element_call(
+                &el,
+                "(i, node) => i.generateSelectorSimple(node)",
+                &[],
+                true,
+            )
+            .await?;
+        let selector = v
+            .as_str()
+            .ok_or_else(|| Error::Evaluation("no selector generated".into()))?;
+        Ok(Locator::in_frame(
+            &self.page,
+            self.frame.clone(),
+            selector.to_owned(),
+        ))
+    }
+
+    /// `locator.filter({visible})`.
+    pub fn visible(&self, visible: bool) -> Locator {
+        self.with(format!("{} >> visible={visible}", self.selector))
+    }
+
+    /// `locator.getByAltText(text)` inside this locator.
+    pub fn get_by_alt_text(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_alt_text(&text.into(), exact))
+    }
+
+    /// `locator.getByTitle(text)` inside this locator.
+    pub fn get_by_title(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_title(&text.into(), exact))
+    }
+
+    /// `locator.selectText()`.
+    pub async fn select_text(&self) -> Result<()> {
+        let el = self.element("selecting text", self.timeout()).await?;
+        self.page
+            .element_call(&el, "(i, node) => i.selectText(node)", &[], true)
+            .await?;
+        Ok(())
+    }
+
+    /// `locator.type(text)` (deprecated in Playwright: use `press_sequentially`).
+    #[deprecated(note = "use press_sequentially, like Playwright")]
+    pub async fn type_text(&self, text: &str) -> Result<()> {
+        self.press_sequentially(text).await
+    }
+
+    /// `locator.waitForFunction(fn)`: waits until `fn(element)` is truthy.
+    pub async fn wait_for_function(&self, function: &str) -> Result<()> {
+        let timeout = self.timeout();
+        let source = function.to_owned();
+        self.retry("waiting for function", timeout, |_| {
+            let source = source.clone();
+            async move {
+                if self.count().await? == 0 {
+                    return Ok(Attempt::Retry(format!("waiting for {self:?}")));
+                }
+                let v: Value = self.evaluate(&source).await?;
+                let truthy = !matches!(v, Value::Null | Value::Bool(false))
+                    && v != json!(0)
+                    && v != json!("");
+                Ok(if truthy {
+                    Attempt::Done(())
+                } else {
+                    Attempt::Retry("function returned a falsy value".into())
+                })
+            }
+        })
+        .await
+    }
+
+    /// `locator.highlight()`: outlines the matching elements.
+    pub async fn highlight(&self) -> Result<()> {
+        let Some((frame, selector, _)) = self.scope(self.timeout()).await? else {
+            return Ok(());
+        };
+        self.page
+            .injected_call(
+                frame.as_deref(),
+                "(i, selector) => i.setHighlights([{ selector: i.parseSelector(selector) }])",
+                &[json!(selector)],
+                true,
+                self.timeout(),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// `locator.hideHighlight()`.
+    pub async fn hide_highlight(&self) -> Result<()> {
+        self.page.hide_highlight().await
+    }
+}
+
+impl Page {
+    /// The selector of a child frame's `<iframe>` within its parent frame.
+    pub(crate) async fn frame_owner_selector(
+        &self,
+        frame_id: &str,
+        parent: Option<&str>,
+    ) -> Result<String> {
+        let timeout = self.default_timeout();
+        let context = self.injected_context(parent, timeout).await?;
+        let owner = self
+            .send("DOM.getFrameOwner", json!({"frameId": frame_id}))
+            .await?;
+        let r = self
+            .send(
+                "DOM.resolveNode",
+                json!({"backendNodeId": owner.get("backendNodeId"), "executionContextId": context}),
+            )
+            .await?;
+        let el = ElementRef {
+            object_id: r
+                .pointer("/object/objectId")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+            frame_owner: None,
+        };
+        let v = self
+            .element_call(
+                &el,
+                "(i, node) => i.generateSelectorSimple(node)",
+                &[],
+                true,
+            )
+            .await?;
+        Ok(v.as_str().unwrap_or_default().to_owned())
+    }
+
+    /// The `<iframe>` element of a child frame, as a remote object id.
+    pub(crate) async fn frame_owner_object(&self, frame_id: &str) -> Result<Option<String>> {
+        let owner = self
+            .send("DOM.getFrameOwner", json!({"frameId": frame_id}))
+            .await?;
+        let Some(backend) = owner.get("backendNodeId").cloned() else {
+            return Ok(None);
+        };
+        let r = self
+            .send("DOM.resolveNode", json!({"backendNodeId": backend}))
+            .await?;
+        Ok(r.pointer("/object/objectId")
+            .and_then(Value::as_str)
+            .map(str::to_owned))
+    }
+
+    /// `page.ariaSnapshot()`: the accessibility tree of the page as YAML.
+    pub async fn aria_snapshot(&self) -> Result<String> {
+        self.locator("body").aria_snapshot().await
+    }
+
+    /// `page.ariaSnapshotJSON()`.
+    pub async fn aria_snapshot_json(&self) -> Result<Value> {
+        self.locator("body").aria_snapshot_json().await
+    }
+
+    /// `page.hideHighlight()`.
+    pub async fn hide_highlight(&self) -> Result<()> {
+        self.injected_call(
+            None,
+            "(i) => i.setHighlights([])",
+            &[],
+            true,
+            self.default_timeout(),
+        )
+        .await?;
+        Ok(())
+    }
+}
+
+impl Locator {
+    /// Waits until the element has all `states` (`visible`, `stable`, ...).
+    pub(crate) async fn wait_for_states(&self, states: &[&str]) -> Result<()> {
+        let timeout = self.timeout();
+        let states: Vec<String> = states.iter().map(|s| (*s).to_owned()).collect();
+        self.retry("waiting for element state", timeout, |_| {
+            let states = states.clone();
+            async move {
+                let el = match self.resolved(timeout).await? {
+                    Attempt::Done(el) => el,
+                    Attempt::Retry(r) => return Ok(Attempt::Retry(r)),
+                };
+                let r = self
+                    .page
+                    .element_call(
+                        &el,
+                        "async (i, node, states) => await i.checkElementStates(node, states)",
+                        &[json!(states)],
+                        true,
+                    )
+                    .await?;
+                Ok(match r {
+                    Value::Null => Attempt::Done(()),
+                    other => Attempt::Retry(format!("element state not reached: {other}")),
+                })
+            }
+        })
+        .await
     }
 }
