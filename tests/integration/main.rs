@@ -1,6 +1,7 @@
 //! Integration tests against a real Chromium found by discovery.
 //! No transport mocks: these talk to the browser over the real pipe/WebSocket.
 
+mod assertions;
 mod context;
 mod events;
 mod extras;

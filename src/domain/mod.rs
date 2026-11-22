@@ -5,6 +5,7 @@ pub mod devices;
 pub mod discovery;
 pub mod emulation;
 pub mod error;
+pub mod expect;
 pub mod frame;
 pub mod input;
 pub mod launch;
