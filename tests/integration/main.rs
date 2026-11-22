@@ -24,6 +24,7 @@ mod scripts;
 mod server;
 mod shortcuts;
 mod storage;
+mod tracing;
 mod video;
 mod workers;
 

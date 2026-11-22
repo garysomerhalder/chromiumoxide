@@ -15,5 +15,6 @@ pub mod pdf;
 pub mod screenshot;
 pub mod selectors;
 pub mod storage;
+pub mod trace;
 pub mod url_matcher;
 pub mod video;
