@@ -373,7 +373,7 @@ mod tests {
     fn status_text_defaults() {
         assert_eq!(status_text(201), "Created");
         assert_eq!(status_text(404), "Not Found");
-        assert_eq!(status_text(799), "");
+        assert_eq!(status_text(799), "Unknown");
     }
 }
 
