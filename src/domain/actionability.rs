@@ -43,13 +43,22 @@ pub enum Action {
 }
 
 /// The checks Playwright performs before an action.
-pub fn required_states(_action: Action) -> &'static [ElementState] {
-    unimplemented!()
+pub fn required_states(action: Action) -> &'static [ElementState] {
+    use ElementState::*;
+    match action {
+        Action::Click | Action::DblClick | Action::Tap | Action::Check => {
+            &[Visible, Enabled, Stable]
+        }
+        Action::Hover | Action::ScrollIntoView => &[Visible, Stable],
+        Action::Fill => &[Visible, Enabled, Editable],
+        Action::SelectOption => &[Visible, Enabled],
+    }
 }
 
 /// Delay before attempt `retry` (1-based), Playwright's `[0, 20, 100, 100, 500]`.
-pub fn retry_wait_ms(_retry: usize) -> u64 {
-    unimplemented!()
+pub fn retry_wait_ms(retry: usize) -> u64 {
+    const WAITS: [u64; 5] = [0, 20, 100, 100, 500];
+    WAITS[retry.saturating_sub(1).min(WAITS.len() - 1)]
 }
 
 /// A point in CSS pixels.
@@ -71,11 +80,43 @@ pub enum PointError {
 /// Playwright's `_clickablePoint`: middle of the first content quad that
 /// overlaps the viewport by more than ~1 px², rounded to 1/100 px.
 pub fn clickable_point(
-    _quads: &[[Point; 4]],
-    _viewport_width: f64,
-    _viewport_height: f64,
+    quads: &[[Point; 4]],
+    viewport_width: f64,
+    viewport_height: f64,
 ) -> Result<Point, PointError> {
-    unimplemented!()
+    if quads.is_empty() {
+        return Err(PointError::NotVisible);
+    }
+    let clip = |q: &[Point; 4]| {
+        q.map(|p| Point {
+            x: p.x.clamp(0.0, viewport_width),
+            y: p.y.clamp(0.0, viewport_height),
+        })
+    };
+    let area = |q: &[Point; 4]| {
+        let mut a = 0.0;
+        for i in 0..4 {
+            let (p1, p2) = (q[i], q[(i + 1) % 4]);
+            a += (p1.x * p2.y - p2.x * p1.y) / 2.0;
+        }
+        f64::abs(a)
+    };
+    let quad = quads
+        .iter()
+        .map(clip)
+        .find(|q| area(q) > 0.99)
+        .ok_or(PointError::NotInViewport)?;
+    let x = quad.iter().map(|p| p.x).sum::<f64>() / 4.0;
+    let y = quad.iter().map(|p| p.y).sum::<f64>() / 4.0;
+    Ok(Point {
+        x: round(x),
+        y: round(y),
+    })
+}
+
+/// Playwright's `roundPoint` component (JS `Math.round(v * 100) / 100`).
+fn round(v: f64) -> f64 {
+    (v * 100.0 + 0.5).floor() / 100.0
 }
 
 #[cfg(test)]
