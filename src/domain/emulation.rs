@@ -179,26 +179,179 @@ pub struct UserAgentMetadata {
 impl ContextOptions {
     /// Playwright's `validateBrowserContextOptions`.
     pub fn validate(&self) -> Result<(), InvalidOptions> {
-        unimplemented!()
+        let fail = |m: &str| Err(InvalidOptions(m.to_owned()));
+        if self.viewport.is_none() && self.device_scale_factor.is_some() {
+            return fail(r#""deviceScaleFactor" option is not supported with null "viewport""#);
+        }
+        if self.viewport.is_none() && self.is_mobile {
+            return fail(r#""isMobile" option is not supported with null "viewport""#);
+        }
+        if let Some(g) = &self.geolocation {
+            if !(-180.0..=180.0).contains(&g.longitude) {
+                return fail(
+                    "geolocation.longitude: precondition -180 <= LONGITUDE <= 180 failed.",
+                );
+            }
+            if !(-90.0..=90.0).contains(&g.latitude) {
+                return fail("geolocation.latitude: precondition -90 <= LATITUDE <= 90 failed.");
+            }
+            if g.accuracy < 0.0 {
+                return fail("geolocation.accuracy: precondition 0 <= ACCURACY failed.");
+            }
+        }
+        Ok(())
     }
 
     /// Device metrics for a page with the given (possibly resized) viewport.
     /// `None` when viewport emulation is off.
-    pub fn device_metrics(&self, _viewport: Option<Viewport>) -> Option<DeviceMetrics> {
-        unimplemented!()
+    ///
+    /// Like Playwright, once a page's viewport was resized the screen follows it.
+    pub fn device_metrics(&self, resized: Option<Viewport>) -> Option<DeviceMetrics> {
+        let (viewport, screen) = match resized {
+            Some(v) => (v, v),
+            None => {
+                let v = self.viewport?;
+                (v, self.screen.unwrap_or(v))
+            }
+        };
+        let landscape = screen.width > screen.height;
+        let orientation = match (self.is_mobile, landscape) {
+            (true, true) => ScreenOrientation {
+                angle: 90,
+                kind: OrientationType::LandscapePrimary,
+            },
+            (true, false) => ScreenOrientation {
+                angle: 0,
+                kind: OrientationType::PortraitPrimary,
+            },
+            (false, _) => ScreenOrientation {
+                angle: 0,
+                kind: OrientationType::LandscapePrimary,
+            },
+        };
+        Some(DeviceMetrics {
+            mobile: self.is_mobile,
+            width: viewport.width,
+            height: viewport.height,
+            screen_width: screen.width,
+            screen_height: screen.height,
+            device_scale_factor: self
+                .device_scale_factor
+                .filter(|d| *d != 0.0)
+                .unwrap_or(1.0),
+            orientation,
+        })
     }
 
     /// UA client hints, derived from the user agent string (Playwright's
     /// `calculateUserAgentMetadata`).
     pub fn user_agent_metadata(&self) -> Option<UserAgentMetadata> {
-        unimplemented!()
+        let ua = self.user_agent.as_deref()?;
+        let mut m = UserAgentMetadata {
+            mobile: self.is_mobile,
+            model: String::new(),
+            architecture: "x86".into(),
+            platform: "Windows".into(),
+            platform_version: String::new(),
+        };
+        let windows = ua.find("Windows").and_then(|i| {
+            let rest = &ua[i + "Windows".len()..];
+            let skip = rest.find(|c: char| c.is_ascii_digit())?;
+            (skip > 0)
+                .then(|| version_at(&rest[skip..], '.', 3))
+                .flatten()
+        });
+        if let Some(v) = version_after(ua, "Android ", '.', 3) {
+            (m.platform, m.platform_version, m.architecture) = ("Android".into(), v, "arm".into());
+        } else if let Some(v) = version_after(ua, "iPhone OS ", '_', 2) {
+            (m.platform, m.platform_version, m.architecture) = ("iOS".into(), v, "arm".into());
+        } else if let Some(v) = version_after(ua, "iPad; CPU OS ", '_', 2) {
+            (m.platform, m.platform_version, m.architecture) = ("iOS".into(), v, "arm".into());
+        } else if let Some(v) = version_after(ua, "Mac OS X ", '_', 3) {
+            (m.platform, m.platform_version) = ("macOS".into(), v);
+            if !ua.contains("Intel") {
+                m.architecture = "arm".into();
+            }
+        } else if let Some(v) = windows {
+            (m.platform, m.platform_version) = ("Windows".into(), v);
+        } else if ua.to_lowercase().contains("linux") {
+            m.platform = "Linux".into();
+        }
+        if ua.contains("ARM") {
+            m.architecture = "arm".into();
+        }
+        Some(m)
     }
 
     /// The CSS media type and media features for `Emulation.setEmulatedMedia`
     /// (an empty value means "no override").
-    pub fn emulated_media(&self, _media: Media) -> (String, Vec<(String, String)>) {
-        unimplemented!()
+    pub fn emulated_media(&self, media: Media) -> (String, Vec<(String, String)>) {
+        let media = match media {
+            Media::Screen => "screen",
+            Media::Print => "print",
+            Media::NoOverride => "",
+        };
+        let color = match self.color_scheme.unwrap_or_default() {
+            ColorScheme::Light => "light",
+            ColorScheme::Dark => "dark",
+            ColorScheme::NoPreference => "no-preference",
+            ColorScheme::NoOverride => "",
+        };
+        let motion = match self.reduced_motion.unwrap_or_default() {
+            ReducedMotion::Reduce => "reduce",
+            ReducedMotion::NoPreference => "no-preference",
+            ReducedMotion::NoOverride => "",
+        };
+        let forced = match self.forced_colors.unwrap_or_default() {
+            ForcedColors::Active => "active",
+            ForcedColors::None => "none",
+            ForcedColors::NoOverride => "",
+        };
+        let contrast = match self.contrast.unwrap_or_default() {
+            Contrast::More => "more",
+            Contrast::NoPreference => "no-preference",
+            Contrast::NoOverride => "",
+        };
+        let features = [
+            ("prefers-color-scheme", color),
+            ("prefers-reduced-motion", motion),
+            ("forced-colors", forced),
+            ("prefers-contrast", contrast),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect();
+        (media.to_owned(), features)
     }
+}
+
+/// The version right after the first `prefix` in `s`.
+fn version_after(s: &str, prefix: &str, sep: char, max_parts: usize) -> Option<String> {
+    let i = s.find(prefix)?;
+    version_at(&s[i + prefix.len()..], sep, max_parts)
+}
+
+/// Parses `\d+(sep\d+){0,max_parts-1}` at the start of `s`.
+fn version_at(s: &str, sep: char, max_parts: usize) -> Option<String> {
+    let mut out = String::new();
+    let mut rest = s;
+    for part in 0..max_parts {
+        let body = if part == 0 {
+            rest
+        } else {
+            rest.strip_prefix(sep).unwrap_or("")
+        };
+        let digits = body.len() - body.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+        if digits == 0 {
+            break;
+        }
+        if part > 0 {
+            out.push(sep);
+        }
+        out.push_str(&body[..digits]);
+        rest = &body[digits..];
+    }
+    (!out.is_empty()).then_some(out)
 }
 
 #[cfg(test)]
