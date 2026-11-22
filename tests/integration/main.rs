@@ -4,6 +4,7 @@
 mod context;
 mod launch;
 mod page;
+mod screenshot;
 mod server;
 
 pub fn full_chromium() -> Option<std::path::PathBuf> {
