@@ -99,3 +99,14 @@ async fn service_worker_requests_carry_their_worker() {
     assert_eq!(resp.text().await.unwrap(), "data");
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn background_pages_is_always_empty_like_playwright() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let ctx = browser.new_context(ContextOptions::default()).await.unwrap();
+    let _page = ctx.new_page().await.unwrap();
+    #[allow(deprecated)]
+    let pages = ctx.background_pages();
+    assert!(pages.is_empty());
+    browser.close().await.unwrap();
+}
