@@ -4,6 +4,7 @@
 mod aria;
 mod assertions;
 mod context;
+mod dragdrop;
 mod events;
 mod extras;
 mod extras2;
