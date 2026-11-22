@@ -87,6 +87,8 @@ pub(crate) struct PageInner {
     /// Sessions of out-of-process iframes.
     pub(crate) oopifs: Mutex<Vec<crate::application::oopif::Oopif>>,
     pub(crate) coverage: Mutex<crate::application::coverage::CoverageState>,
+    /// Setup commands to replay on out-of-process iframes (see `oopif`).
+    pub(crate) setup_log: Mutex<Vec<(String, Value)>>,
     pub(crate) navigation_timeout: Mutex<Option<Duration>>,
     pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
     pub(crate) locator_handlers: Mutex<Vec<crate::application::extras::LocatorHandler>>,
@@ -147,19 +149,24 @@ impl Page {
             window_id,
             utility_world: UTILITY_WORLD,
         });
-        let mut calls: Vec<_> = plan
+        let commands: Vec<(&str, Value)> = plan
+            .into_iter()
+            .chain(crate::application::scripts::context_script_commands(
+                context,
+            ))
+            .chain(crate::application::route::context_route_commands(context))
+            .chain(crate::application::storage::runtime_commands(context))
+            .collect();
+        // Out-of-process iframes get the same setup when they attach.
+        let setup: Vec<(String, Value)> = commands
+            .iter()
+            .filter(|(m, _)| crate::application::oopif::BROADCAST.contains(m))
+            .map(|(m, p)| ((*m).to_owned(), p.clone()))
+            .collect();
+        let mut calls: Vec<_> = commands
             .into_iter()
             .map(|(method, params)| cdp.call(sid, method, params))
             .collect();
-        for (method, params) in crate::application::scripts::context_script_commands(context) {
-            calls.push(cdp.call(sid, method, params));
-        }
-        for (method, params) in crate::application::route::context_route_commands(context) {
-            calls.push(cdp.call(sid, method, params));
-        }
-        for (method, params) in crate::application::storage::runtime_commands(context) {
-            calls.push(cdp.call(sid, method, params));
-        }
         crate::application::credentials::setup_page(&cdp, &sid_owned, &target_id, context).await?;
         calls.push(cdp.call(sid, "Runtime.runIfWaitingForDebugger", json!({})));
         let tree = frame_tree.await?;
@@ -204,6 +211,7 @@ impl Page {
             drag: Mutex::new(None),
             oopifs: Mutex::new(Vec::new()),
             coverage: Mutex::new(Default::default()),
+            setup_log: Mutex::new(setup),
             navigation_timeout: Mutex::new(*context.navigation_timeout.lock().unwrap()),
             media: Mutex::new(Default::default()),
             locator_handlers: Mutex::new(Vec::new()),
@@ -429,12 +437,12 @@ impl Page {
                     } else {
                         json!({"response": "Default"})
                     };
-                    let fut = self.inner.shared.cdp.call(
-                        Some(&self.inner.session_id),
-                        "Fetch.continueWithAuth",
-                        json!({"requestId": request_id, "authChallengeResponse": response}),
-                    );
-                    tokio::spawn(fut);
+                    let page = self.clone();
+                    let params =
+                        json!({"requestId": request_id, "authChallengeResponse": response});
+                    tokio::spawn(async move {
+                        let _ = page.send("Fetch.continueWithAuth", params).await;
+                    });
                 }
                 "Runtime.bindingCalled" => {
                     drop(st);
@@ -509,6 +517,10 @@ impl Page {
     /// Sends a raw protocol command to this page's session.
     pub async fn send(&self, method: &str, params: Value) -> Result<Value> {
         self.ensure_open()?;
+        if crate::application::oopif::BROADCAST.contains(&method) {
+            self.record_setup(method, &params);
+            self.broadcast_setup(method, &params).await;
+        }
         if self.inner.oopifs.lock().unwrap().is_empty() {
             return self.cdp_session().call(self.sid(), method, params).await;
         }

@@ -39,7 +39,7 @@ fn untag(v: &mut Value, no: &mut usize) {
                             *val = json!(id % CTX_BASE);
                         }
                     }
-                    ("objectId", Value::String(s)) => {
+                    ("objectId" | "requestId", Value::String(s)) => {
                         if let Some(rest) = s.strip_prefix("oopif")
                             && let Some((n, id)) = rest.split_once(':')
                             && let Ok(n) = n.parse::<usize>()
@@ -72,7 +72,9 @@ fn tag(v: &mut Value, no: usize) {
                             *val = json!(no as i64 * CTX_BASE + id);
                         }
                     }
-                    ("objectId", Value::String(s)) => {
+                    ("objectId" | "requestId" | "networkId" | "loaderId", Value::String(s))
+                        if !s.is_empty() =>
+                    {
                         *val = json!(format!("{}{s}", prefix(no)));
                     }
                     _ => tag(val, no),
@@ -88,7 +90,49 @@ fn tag(v: &mut Value, no: usize) {
     }
 }
 
+/// Target-wide setup that every session of the page needs (init scripts,
+/// bindings, interception, headers): broadcast and replayed on new iframes.
+pub(crate) const BROADCAST: &[&str] = &[
+    "Page.addScriptToEvaluateOnNewDocument",
+    "Runtime.addBinding",
+    "Fetch.enable",
+    "Fetch.disable",
+    "Network.setExtraHTTPHeaders",
+    "Network.setCacheDisabled",
+    "Network.setUserAgentOverride",
+    "Emulation.setUserAgentOverride",
+];
+
 impl Page {
+    /// Records a setup command for iframes attached later.
+    pub(crate) fn record_setup(&self, method: &str, params: &Value) {
+        if BROADCAST.contains(&method) {
+            self.inner
+                .setup_log
+                .lock()
+                .unwrap()
+                .push((method.to_owned(), params.clone()));
+        }
+    }
+
+    /// Sends a setup command to every iframe session too.
+    pub(crate) async fn broadcast_setup(&self, method: &str, params: &Value) {
+        let sessions: Vec<String> = self
+            .inner
+            .oopifs
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|o| o.session_id.clone())
+            .collect();
+        for sid in sessions {
+            let _ = self
+                .cdp_session()
+                .call(Some(&sid), method, params.clone())
+                .await;
+        }
+    }
+
     pub(crate) fn oopif_no(&self, session_id: &str) -> Option<usize> {
         self.inner
             .oopifs
@@ -297,7 +341,12 @@ impl Page {
             }
             self.apply_effects(effects);
         }
+        let setup: Vec<(String, Value)> = self.inner.setup_log.lock().unwrap().clone();
+        for (method, params) in setup {
+            let _ = cdp.call(sid, &method, params).await;
+        }
         let _ = futures::future::join_all([
+            cdp.call(sid, "Network.enable", json!({})),
             cdp.call(sid, "Page.enable", json!({})),
             cdp.call(
                 sid,
