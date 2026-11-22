@@ -3,3 +3,4 @@ pub mod discovery;
 pub mod emulation;
 pub mod error;
 pub mod launch;
+pub mod screenshot;
