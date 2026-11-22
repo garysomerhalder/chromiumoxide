@@ -29,6 +29,7 @@ pub use application::browser::{Browser, LaunchOptions};
 pub use application::context::BrowserContext;
 pub use application::discovery::Discovered;
 pub use application::page::{Goto, Page, Response};
+pub use application::screenshot::Screenshot;
 pub use application::services::Services;
 pub use domain::discovery::Source as DiscoverySource;
 pub use domain::emulation::{
@@ -38,6 +39,9 @@ pub use domain::emulation::{
 pub use domain::error::{Error, Result};
 pub use domain::frame::LifecycleEvent as WaitUntil;
 pub use domain::launch::BrowserKind;
+pub use domain::screenshot::{
+    Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale,
+};
 pub use ports::Channel;
 
 /// Entry point, like Playwright's `chromium` browser type.
