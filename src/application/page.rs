@@ -84,6 +84,7 @@ pub(crate) struct PageInner {
     pub(crate) drag: Mutex<Option<Value>>,
     /// Sessions of out-of-process iframes.
     pub(crate) oopifs: Mutex<Vec<crate::application::oopif::Oopif>>,
+    pub(crate) coverage: Mutex<crate::application::coverage::CoverageState>,
     pub(crate) navigation_timeout: Mutex<Option<Duration>>,
     pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
     pub(crate) locator_handlers: Mutex<Vec<crate::application::extras::LocatorHandler>>,
@@ -200,6 +201,7 @@ impl Page {
             calls: Mutex::new(Vec::new()),
             drag: Mutex::new(None),
             oopifs: Mutex::new(Vec::new()),
+            coverage: Mutex::new(Default::default()),
             navigation_timeout: Mutex::new(*context.navigation_timeout.lock().unwrap()),
             media: Mutex::new(Default::default()),
             locator_handlers: Mutex::new(Vec::new()),

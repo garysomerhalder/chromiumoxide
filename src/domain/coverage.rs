@@ -17,7 +17,42 @@ pub struct Range {
 
 /// Flattens nested counted ranges into the covered, disjoint ranges.
 pub fn disjoint_ranges(nested: &[CountedRange]) -> Vec<Range> {
-    unimplemented!()
+    // (offset, is_end, range)
+    let mut points: Vec<(u64, bool, &CountedRange)> = nested
+        .iter()
+        .flat_map(|r| [(r.start, false, r), (r.end, true, r)])
+        .collect();
+    points.sort_by(|a, b| {
+        a.0.cmp(&b.0)
+            // Ends before starts at the same offset.
+            .then_with(|| b.1.cmp(&a.1))
+            .then_with(|| {
+                let (la, lb) = (a.2.end - a.2.start, b.2.end - b.2.start);
+                if a.1 { la.cmp(&lb) } else { lb.cmp(&la) }
+            })
+    });
+    let mut stack: Vec<u64> = Vec::new();
+    let mut results: Vec<Range> = Vec::new();
+    let mut last = 0;
+    for (offset, is_end, range) in points {
+        if stack.last().is_some_and(|c| *c > 0) && last < offset {
+            match results.last_mut() {
+                Some(r) if r.end == last => r.end = offset,
+                _ => results.push(Range {
+                    start: last,
+                    end: offset,
+                }),
+            }
+        }
+        last = offset;
+        if is_end {
+            stack.pop();
+        } else {
+            stack.push(range.count);
+        }
+    }
+    results.retain(|r| r.end - r.start > 1);
+    results
 }
 
 #[cfg(test)]

@@ -5,6 +5,7 @@ pub mod aria;
 pub mod browser;
 pub mod clock;
 pub mod context;
+pub mod coverage;
 pub mod credentials;
 pub mod discovery;
 pub mod download;

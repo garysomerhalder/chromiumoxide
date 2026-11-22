@@ -33,6 +33,7 @@ pub use application::aria::AriaAssertion;
 pub use application::browser::{Browser, LaunchOptions};
 pub use application::clock::Clock;
 pub use application::context::{BrowserContext, ContextEvent, PageWaiter};
+pub use application::coverage::{Coverage, CoverageOptions, CssCoverageEntry, JsCoverageEntry};
 pub use application::credentials::{Credential, Credentials, NewCredential};
 pub use application::discovery::Discovered;
 pub use application::download::Download;
@@ -73,6 +74,7 @@ pub use application::websocket_route::{WebSocketRoute, WebSocketServer};
 pub use application::worker::Worker;
 pub use domain::clock::{ClockTime, Ticks};
 pub use domain::console::{Location, PageError};
+pub use domain::coverage::Range as CoverageRange;
 pub use domain::devices::{Device, device, device_names};
 pub use domain::discovery::Source as DiscoverySource;
 pub use domain::emulation::{
