@@ -32,6 +32,7 @@ pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::browser::{Browser, LaunchOptions};
 pub use application::context::BrowserContext;
 pub use application::discovery::Discovered;
+pub use application::events::{ConsoleMessage, Dialog, EventWaiter, PageEvent};
 pub use application::frame::Frame;
 pub use application::handle::JsHandle;
 pub use application::input::{Keyboard, Mouse, Touchscreen};
@@ -43,6 +44,7 @@ pub use application::page::{Goto, Page, Response};
 pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
 pub use application::services::Services;
+pub use domain::console::{Location, PageError};
 pub use domain::devices::{Device, device, device_names};
 pub use domain::discovery::Source as DiscoverySource;
 pub use domain::emulation::{

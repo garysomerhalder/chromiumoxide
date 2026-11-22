@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     SmartCardEmulation, WebMCP); deprecated domains, commands and fields are
     now generated too (`Console`, `Schema`, ...).
   - `Page::execute(cmd)` / `Browser::execute(cmd)` for any generated command,
-    `Page::events::<E>()` / `Browser::events::<E>()` for any generated event.
+    `Page::cdp_events::<E>()` / `Browser::cdp_events::<E>()` for any generated event.
 
 - Milestone 3 (in progress):
   - `reload`, `go_back`, `go_forward`, `wait_for_url` (Playwright globs and

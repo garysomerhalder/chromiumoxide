@@ -4,6 +4,7 @@ pub mod actions;
 pub mod browser;
 pub mod context;
 pub mod discovery;
+pub mod events;
 pub mod frame;
 pub mod handle;
 pub mod input;

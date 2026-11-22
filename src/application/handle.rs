@@ -34,7 +34,7 @@ impl std::fmt::Debug for JsHandle {
 }
 
 impl JsHandle {
-    fn from_remote(page: &Page, remote: &Value) -> JsHandle {
+    pub(crate) fn from_remote(page: &Page, remote: &Value) -> JsHandle {
         JsHandle {
             page: page.clone(),
             object_id: remote

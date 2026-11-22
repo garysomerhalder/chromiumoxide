@@ -74,6 +74,7 @@ pub(crate) struct PageInner {
     pub(crate) bindings: Mutex<HashMap<String, crate::application::scripts::BindingFn>>,
     pub(crate) keyboard: tokio::sync::Mutex<crate::domain::input::Keyboard>,
     pub(crate) mouse: tokio::sync::Mutex<crate::domain::input::Mouse>,
+    pub(crate) events: Mutex<crate::application::events::EventState>,
 }
 
 /// A browser tab. Cheap to clone.
@@ -148,6 +149,7 @@ impl Page {
                 shared.font_platform == crate::domain::emulation::FontPlatform::Mac,
             )),
             mouse: tokio::sync::Mutex::new(crate::domain::input::Mouse::default()),
+            events: Mutex::new(Default::default()),
         });
         let page = Page { inner };
         let mut effects = Vec::new();
@@ -211,6 +213,9 @@ impl Page {
     }
 
     fn handle_event(&self, e: &RawEvent) {
+        if self.handle_page_event(e) {
+            return;
+        }
         let p = &e.params;
         let s = |v: &Value, k: &str| {
             v.get(k)
@@ -419,6 +424,7 @@ impl Page {
     pub(crate) fn mark_closed(&self) {
         if !self.inner.closed.swap(true, Ordering::SeqCst) {
             self.bump();
+            self.emit(crate::application::events::PageEvent::Close);
             if let Some(ctx) = self.inner.context.upgrade() {
                 ctx.forget_page(&self.inner.target_id);
             }

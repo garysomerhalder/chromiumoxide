@@ -143,6 +143,6 @@ Playwright defaults apply unless you chain an option.
 | `page.screenshot(ScreenshotParams)` | `page.screenshot()` builder (Playwright semantics) |
 | `page.pdf(PrintToPdfParams)` | `page.pdf()` builder |
 | `page.execute(cmd)` (raw CDP) | `page.cdp().execute(cmd)` (escape hatch, still typed) |
-| `page.event_listener::<E>()` | `page.cdp().events::<E>()` and high-level `page.on_*` streams |
+| `page.event_listener::<E>()` | `page.cdp_events::<E>()` (typed protocol events); `page.events()` for Playwright page events |
 | `chromiumoxide::cdp::*` | unchanged: `chromiumoxide::cdp::*` re-exports the generated protocol |
 | `chromiumoxide_fetcher` | unchanged crate, used by discovery as a fallback |
