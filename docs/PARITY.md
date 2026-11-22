@@ -74,13 +74,13 @@ Chrome for Testing and chrome-headless-shell.
 | `timezoneId` | M1 | ✅ |
 | `colorScheme`, `reducedMotion`, `forcedColors`, `contrast` | M1 | ✅ |
 | `httpCredentials` | M1 | ✅ |
-| `geolocation` | M4 | 🟡 set at creation; `setGeolocation` later |
-| `permissions` | M4 | 🟡 granted at creation |
-| `offline` | M4 | 🟡 set at creation; `setOffline` later |
-| `extraHTTPHeaders` | M4 | 🟡 set at creation |
+| `geolocation` | M4 | ✅ (and `context.set_geolocation`) |
+| `permissions` | M4 | ✅ Playwright permission names (and `grant_permissions` / `clear_permissions`) |
+| `offline` | M4 | ✅ (and `context.set_offline`) |
+| `extraHTTPHeaders` | M4 | ✅ (and context / page `set_extra_http_headers`) |
 | `javaScriptEnabled`, `bypassCSP`, `ignoreHTTPSErrors` | M4 | 🟡 set at creation |
-| `storageState` | M4 | ⬜ |
-| `acceptDownloads` | M4 | ⬜ |
+| `storageState` | M4 | ✅ cookies + localStorage, JSON-compatible with Playwright files (IndexedDB not yet) |
+| `acceptDownloads` | M4 | ✅ |
 | `recordHar` | M5 | ⬜ |
 | `recordVideo` | M5 | ⬜ |
 | `serviceWorkers` | M4 | ⬜ |
@@ -167,34 +167,34 @@ Chrome for Testing and chrome-headless-shell.
 |---|---|---|
 | `exposeBinding` | M3 | ⬜ |
 | `addInitScript` | M3 | ✅ |
-| `addCookies` | M4 | ⬜ |
+| `addCookies` | M4 | ✅ |
 | `backgroundPages` | M4 | ⬜ |
 | `browser` | M1 | ⬜ |
-| `clearCookies` | M4 | ⬜ |
-| `clearPermissions` | M4 | ⬜ |
+| `clearCookies` | M4 | ✅ |
+| `clearPermissions` | M4 | ✅ |
 | `close` | M1 | ✅ |
-| `cookies` | M4 | ⬜ |
+| `cookies` | M4 | ✅ |
 | `exposeFunction` | M3 | ✅ |
-| `grantPermissions` | M4 | ⬜ |
+| `grantPermissions` | M4 | ✅ |
 | `isClosed` | M1 | ✅ |
 | `newCDPSession` | M3 | ⬜ |
 | `newPage` | M1 | ✅ |
 | `pages` | M1 | ✅ |
-| `route` | M4 | ⬜ |
+| `route` | M4 | ✅ |
 | `routeFromHAR` | M5 | ⬜ |
 | `routeWebSocket` | M4 | ⬜ |
 | `serviceWorkers` | M4 | ⬜ |
 | `setDefaultNavigationTimeout` | M3 | ⬜ |
 | `setDefaultTimeout` | M3 | ⬜ |
-| `setExtraHTTPHeaders` | M4 | ⬜ |
-| `setGeolocation` | M4 | ⬜ |
+| `setExtraHTTPHeaders` | M4 | ✅ |
+| `setGeolocation` | M4 | ✅ |
 | `setHTTPCredentials` | M1 | ⬜ |
-| `setOffline` | M4 | ⬜ |
+| `setOffline` | M4 | ✅ |
 | `setStorageState` | M4 | ⬜ |
-| `storageState` | M4 | ⬜ |
-| `unroute` | M4 | ⬜ |
-| `unrouteAll` | M4 | ⬜ |
-| `waitForEvent` | M3 | ⬜ |
+| `storageState` | M4 | ✅ |
+| `unroute` | M4 | ✅ |
+| `unrouteAll` | M4 | ✅ |
+| `waitForEvent` | M3 | 🟡 `events()` stream and `wait_for_page()` |
 | `clock` | M6 | ⬜ |
 | `credentials` | M4 | ⬜ |
 | `debugger` | M6 | ⬜ |
@@ -223,7 +223,7 @@ Chrome for Testing and chrome-headless-shell.
 | `clearPageErrors` | M4 | ⬜ |
 | `click` | M3 | ✅ |
 | `close` | M1 | ✅ |
-| `consoleMessages` | M4 | ⬜ |
+| `consoleMessages` | M4 | ✅ |
 | `content` | M1 | ✅ |
 | `context` | M1 | ⬜ |
 | `dblclick` | M3 | ✅ |
@@ -261,8 +261,8 @@ Chrome for Testing and chrome-headless-shell.
 | `isVisible` | M3 | ✅ |
 | `locator` | M3 | ✅ |
 | `mainFrame` | M1 | ✅ |
-| `opener` | M3 | ⬜ |
-| `pageErrors` | M4 | ⬜ |
+| `opener` | M3 | ✅ |
+| `pageErrors` | M4 | ✅ |
 | `pause` | M6 | ⬜ |
 | `pdf` | M5 | ⬜ |
 | `pickLocator` | M6 | ⬜ |
@@ -271,7 +271,7 @@ Chrome for Testing and chrome-headless-shell.
 | `removeLocatorHandler` | M3 | ⬜ |
 | `requestGC` | M6 | ⬜ |
 | `requests` | M4 | ⬜ |
-| `route` | M4 | ⬜ |
+| `route` | M4 | ✅ |
 | `routeFromHAR` | M5 | ⬜ |
 | `routeWebSocket` | M4 | ⬜ |
 | `screenshot` | M1 | ✅ |
@@ -280,7 +280,7 @@ Chrome for Testing and chrome-headless-shell.
 | `setContent` | M1 | ✅ |
 | `setDefaultNavigationTimeout` | M3 | ⬜ |
 | `setDefaultTimeout` | M3 | ✅ |
-| `setExtraHTTPHeaders` | M4 | ⬜ |
+| `setExtraHTTPHeaders` | M4 | ✅ |
 | `setInputFiles` | M3 | ✅ |
 | `setViewportSize` | M1 | ✅ |
 | `tap` | M3 | ✅ |
@@ -288,19 +288,19 @@ Chrome for Testing and chrome-headless-shell.
 | `title` | M1 | ✅ |
 | `type` | M3 | ✅ |
 | `uncheck` | M3 | ✅ |
-| `unroute` | M4 | ⬜ |
-| `unrouteAll` | M4 | ⬜ |
+| `unroute` | M4 | ✅ |
+| `unrouteAll` | M4 | ✅ |
 | `url` | M1 | ✅ |
 | `video` | M5 | ⬜ |
 | `viewportSize` | M1 | ✅ |
-| `waitForEvent` | M3 | ⬜ |
+| `waitForEvent` | M3 | ✅ `events()` stream, `wait_for_event(matcher)` and typed waiters (console, pageerror, popup, download, websocket, worker, request, response) |
 | `waitForLoadState` | M1 | ✅ |
 | `waitForNavigation` | M3 | ⬜ |
-| `waitForRequest` | M4 | ⬜ |
-| `waitForResponse` | M4 | ⬜ |
+| `waitForRequest` | M4 | ✅ |
+| `waitForResponse` | M4 | ✅ |
 | `waitForTimeout` | M3 | ✅ |
 | `waitForURL` | M3 | ✅ |
-| `workers` | M3 | ⬜ |
+| `workers` | M3 | ✅ |
 | `clock` | M6 | ⬜ |
 | `coverage` | M6 | ⬜ |
 | `keyboard` | M3 | ✅ |
@@ -529,69 +529,69 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `allHeaders` | M4 | ⬜ |
+| `allHeaders` | M4 | ✅ |
 | `existingResponse` | M4 | ⬜ |
-| `failure` | M4 | ⬜ |
-| `frame` | M4 | ⬜ |
-| `headers` | M4 | ⬜ |
-| `headersArray` | M4 | ⬜ |
-| `headerValue` | M4 | ⬜ |
-| `isNavigationRequest` | M4 | ⬜ |
-| `method` | M4 | ⬜ |
-| `postData` | M4 | ⬜ |
-| `postDataBuffer` | M4 | ⬜ |
-| `postDataJSON` | M4 | ⬜ |
-| `redirectedFrom` | M4 | ⬜ |
-| `redirectedTo` | M4 | ⬜ |
-| `resourceType` | M4 | ⬜ |
-| `response` | M4 | ⬜ |
+| `failure` | M4 | ✅ |
+| `frame` | M4 | ✅ |
+| `headers` | M4 | ✅ |
+| `headersArray` | M4 | 🟡 implemented, not yet covered by a test |
+| `headerValue` | M4 | 🟡 implemented, not yet covered by a test |
+| `isNavigationRequest` | M4 | ✅ |
+| `method` | M4 | ✅ |
+| `postData` | M4 | ✅ |
+| `postDataBuffer` | M4 | ✅ |
+| `postDataJSON` | M4 | 🟡 implemented, not yet covered by a test |
+| `redirectedFrom` | M4 | ✅ |
+| `redirectedTo` | M4 | ✅ |
+| `resourceType` | M4 | ✅ |
+| `response` | M4 | ✅ |
 | `serviceWorker` | M4 | ⬜ |
 | `sizes` | M4 | ⬜ |
-| `timing` | M4 | ⬜ |
-| `url` | M4 | ⬜ |
+| `timing` | M4 | ✅ |
+| `url` | M4 | ✅ |
 
 ### Response
 
 | Member | Milestone | Status |
 |---|---|---|
-| `allHeaders` | M4 | ⬜ |
-| `body` | M4 | ⬜ |
-| `finished` | M4 | ⬜ |
-| `frame` | M4 | ⬜ |
-| `fromServiceWorker` | M4 | ⬜ |
-| `headers` | M4 | ⬜ |
-| `headersArray` | M4 | ⬜ |
-| `headerValue` | M4 | ⬜ |
-| `headerValues` | M4 | ⬜ |
+| `allHeaders` | M4 | ✅ |
+| `body` | M4 | ✅ |
+| `finished` | M4 | ✅ |
+| `frame` | M4 | ✅ |
+| `fromServiceWorker` | M4 | ✅ |
+| `headers` | M4 | ✅ |
+| `headersArray` | M4 | 🟡 implemented, not yet covered by a test |
+| `headerValue` | M4 | ✅ |
+| `headerValues` | M4 | ✅ |
 | `httpVersion` | M4 | ⬜ |
-| `json` | M4 | ⬜ |
-| `ok` | M4 | ⬜ |
-| `request` | M4 | ⬜ |
-| `securityDetails` | M4 | ⬜ |
-| `serverAddr` | M4 | ⬜ |
-| `status` | M4 | ⬜ |
-| `statusText` | M4 | ⬜ |
-| `text` | M4 | ⬜ |
-| `url` | M4 | ⬜ |
+| `json` | M4 | ✅ |
+| `ok` | M4 | ✅ |
+| `request` | M4 | ✅ |
+| `securityDetails` | M4 | 🟡 implemented, not yet covered by a test |
+| `serverAddr` | M4 | ✅ |
+| `status` | M4 | ✅ |
+| `statusText` | M4 | ✅ |
+| `text` | M4 | ✅ |
+| `url` | M4 | ✅ |
 
 ### Route
 
 | Member | Milestone | Status |
 |---|---|---|
-| `abort` | M4 | ⬜ |
-| `continue` | M4 | ⬜ |
-| `fallback` | M4 | ⬜ |
+| `abort` | M4 | ✅ |
+| `continue` | M4 | ✅ |
+| `fallback` | M4 | ✅ |
 | `fetch` | M4 | ⬜ |
-| `fulfill` | M4 | ⬜ |
-| `request` | M4 | ⬜ |
+| `fulfill` | M4 | ✅ status, headers, contentType, body, json (`path`/`response` not yet) |
+| `request` | M4 | ✅ |
 
 ### WebSocket
 
 | Member | Milestone | Status |
 |---|---|---|
-| `isClosed` | M4 | ⬜ |
-| `url` | M4 | ⬜ |
-| `waitForEvent` | M4 | ⬜ |
+| `isClosed` | M4 | ✅ |
+| `url` | M4 | ✅ |
+| `waitForEvent` | M4 | ✅ `events()` (replays from the start) and `wait_for_close()` |
 
 ### WebSocketRoute
 
@@ -609,26 +609,26 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `cancel` | M4 | ⬜ |
+| `cancel` | M4 | ✅ |
 | `createReadStream` | M4 | ⬜ |
-| `delete` | M4 | ⬜ |
-| `failure` | M4 | ⬜ |
-| `page` | M4 | ⬜ |
-| `path` | M4 | ⬜ |
-| `saveAs` | M4 | ⬜ |
-| `suggestedFilename` | M4 | ⬜ |
-| `url` | M4 | ⬜ |
+| `delete` | M4 | ✅ |
+| `failure` | M4 | ✅ |
+| `page` | M4 | ✅ |
+| `path` | M4 | ✅ |
+| `saveAs` | M4 | ✅ |
+| `suggestedFilename` | M4 | ✅ |
+| `url` | M4 | ✅ |
 
 ### Dialog
 
 | Member | Milestone | Status |
 |---|---|---|
-| `accept` | M4 | ⬜ |
-| `defaultValue` | M4 | ⬜ |
-| `dismiss` | M4 | ⬜ |
-| `message` | M4 | ⬜ |
-| `page` | M4 | ⬜ |
-| `type` | M4 | ⬜ |
+| `accept` | M4 | ✅ |
+| `defaultValue` | M4 | ✅ |
+| `dismiss` | M4 | ✅ |
+| `message` | M4 | ✅ |
+| `page` | M4 | 🟡 implemented, not yet covered by a test |
+| `type` | M4 | ✅ |
 
 ### FileChooser
 
@@ -643,22 +643,22 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `args` | M4 | ⬜ |
-| `location` | M4 | ⬜ |
+| `args` | M4 | ✅ |
+| `location` | M4 | ✅ |
 | `page` | M4 | ⬜ |
-| `text` | M4 | ⬜ |
+| `text` | M4 | ✅ |
 | `timestamp` | M4 | ⬜ |
-| `type` | M4 | ⬜ |
+| `type` | M4 | ✅ |
 | `worker` | M4 | ⬜ |
 
 ### Worker
 
 | Member | Milestone | Status |
 |---|---|---|
-| `evaluate` | M4 | ⬜ |
+| `evaluate` | M4 | ✅ |
 | `evaluateHandle` | M4 | ⬜ |
-| `url` | M4 | ⬜ |
-| `waitForEvent` | M4 | ⬜ |
+| `url` | M4 | ✅ |
+| `waitForEvent` | M4 | ✅ `wait_for_close()`; worker console goes to page console events |
 
 ### Tracing
 

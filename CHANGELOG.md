@@ -56,8 +56,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     dispatch_event/scroll_into_view_if_needed/screenshot, and text/state queries.
     Selector engines run Playwright's injected script (see THIRD_PARTY_NOTICES.md).
 
+- Milestone 4 (in progress):
+  - Page events: `page.events()` stream (`PageEvent`), console messages and
+    page errors (with history), dialogs (`on_dialog`, accept/dismiss; dismissed
+    automatically when unhandled), `wait_for_event` and typed waiters with
+    `.run(action)`.
+  - Network: `Request` / `Response` objects (redirect chains, raw headers,
+    post data, timing, server address, body/text/json), request/response/
+    finished/failed events, `wait_for_request` / `wait_for_response`.
+  - Routing: `page.route` / `context.route` with `fulfill`, `abort`,
+    `continue_`, `fallback`, `times`, `unroute`, `unroute_all`.
+  - Cookies and storage: `cookies`, `add_cookies`, `clear_cookies(_matching)`,
+    `storage_state` and `ContextOptions::storage_state` (Playwright's JSON
+    format); runtime `set_extra_http_headers` (context and page),
+    `set_offline`, `set_geolocation`, `grant_permissions`, `clear_permissions`.
+  - Popups (`wait_for_popup`, `opener`), context events (`context.events()`,
+    `wait_for_page`), downloads (`Download`, `ContextOptions::accept_downloads`),
+    WebSockets (`WebSocket`, frames and close) and dedicated workers (`Worker`).
+
 ### Fixed
 
+- `ContextOptions::permissions` now takes Playwright's permission names
+  (`camera`, `clipboard-read`, ...) and maps them to Chromium's, like Playwright;
+  unknown names are rejected.
 - PDL generator: deprecated event variants produced invalid code; array
   builder setters could collide with real fields (`currentTime`/`currentTimes`).
 
@@ -65,6 +86,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Version 0.10.0 for all workspace crates; minimum Rust 1.88.
 - `Network.InterceptionId` conversions removed (the type left the protocol).
+- `ContextOptions` gained `storage_state` and `accept_downloads` (use
+  `..Default::default()` when building it); `Response` gained methods and
+  private state (its public fields are unchanged).
+- Typed protocol events moved from `page.events::<E>()` to
+  `page.cdp_events::<E>()`; `page.events()` now streams Playwright page events.
 - Derive `Clone` for `Element`, `ScreenshotParams` and `ScreenshotParamsBuilder`
 
 ## [0.9.1] 2026-02-25
