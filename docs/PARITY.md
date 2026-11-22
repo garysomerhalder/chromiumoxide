@@ -168,7 +168,7 @@ Chrome for Testing and chrome-headless-shell.
 | `exposeBinding` | M3 | ✅ |
 | `addInitScript` | M3 | ✅ |
 | `addCookies` | M4 | ✅ |
-| `backgroundPages` | M4 | ⬜ |
+| `backgroundPages` | M4 | ➖ deprecated in Playwright (always empty with Manifest V3 extensions); not provided |
 | `browser` | M1 | ⬜ |
 | `clearCookies` | M4 | ✅ |
 | `clearPermissions` | M4 | ✅ |
@@ -183,7 +183,7 @@ Chrome for Testing and chrome-headless-shell.
 | `route` | M4 | ✅ |
 | `routeFromHAR` | M5 | ⬜ |
 | `routeWebSocket` | M4 | ✅ |
-| `serviceWorkers` | M4 | ⬜ |
+| `serviceWorkers` | M4 | ✅ |
 | `setDefaultNavigationTimeout` | M3 | ⬜ |
 | `setDefaultTimeout` | M3 | ⬜ |
 | `setExtraHTTPHeaders` | M4 | ✅ |
@@ -196,7 +196,7 @@ Chrome for Testing and chrome-headless-shell.
 | `unrouteAll` | M4 | ✅ |
 | `waitForEvent` | M3 | 🟡 `events()` stream and `wait_for_page()` |
 | `clock` | M6 | ⬜ |
-| `credentials` | M4 | ⬜ |
+| `credentials` | M4 | ✅ via Chromium's virtual WebAuthn authenticator |
 | `debugger` | M6 | ⬜ |
 | `request` | M6 | ⬜ |
 | `tracing` | M5 | ⬜ |
@@ -304,11 +304,11 @@ Chrome for Testing and chrome-headless-shell.
 | `clock` | M6 | ⬜ |
 | `coverage` | M6 | ⬜ |
 | `keyboard` | M3 | ✅ |
-| `localStorage` | M4 | ⬜ |
+| `localStorage` | M4 | ✅ |
 | `mouse` | M3 | ✅ |
 | `request` | M6 | ⬜ |
 | `screencast` | M5 | ⬜ |
-| `sessionStorage` | M4 | ⬜ |
+| `sessionStorage` | M4 | ✅ |
 | `touchscreen` | M3 | ✅ |
 
 ### Frame
@@ -545,7 +545,7 @@ Chrome for Testing and chrome-headless-shell.
 | `redirectedTo` | M4 | ✅ |
 | `resourceType` | M4 | ✅ |
 | `response` | M4 | ✅ |
-| `serviceWorker` | M4 | ⬜ |
+| `serviceWorker` | M4 | 🟡 service-worker requests are not tracked yet |
 | `sizes` | M4 | ✅ |
 | `timing` | M4 | ✅ |
 | `url` | M4 | ✅ |
@@ -610,7 +610,7 @@ Chrome for Testing and chrome-headless-shell.
 | Member | Milestone | Status |
 |---|---|---|
 | `cancel` | M4 | ✅ |
-| `createReadStream` | M4 | ⬜ |
+| `createReadStream` | M4 | ✅ as `read()` (bytes) |
 | `delete` | M4 | ✅ |
 | `failure` | M4 | ✅ |
 | `page` | M4 | ✅ |
@@ -656,7 +656,7 @@ Chrome for Testing and chrome-headless-shell.
 | Member | Milestone | Status |
 |---|---|---|
 | `evaluate` | M4 | ✅ |
-| `evaluateHandle` | M4 | ⬜ |
+| `evaluateHandle` | M4 | ✅ dedicated workers |
 | `url` | M4 | ✅ |
 | `waitForEvent` | M4 | ✅ `wait_for_close()`; worker console goes to page console events |
 
