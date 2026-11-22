@@ -9,8 +9,8 @@ use crate::domain::discovery::Source;
 #[non_exhaustive]
 pub enum Error {
     /// A browser path that was asked for explicitly does not exist.
-    #[error("browser executable from {source:?} not found at {path}")]
-    ExecutableMissing { path: PathBuf, source: Source },
+    #[error("browser executable from {origin:?} not found at {path}")]
+    ExecutableMissing { path: PathBuf, origin: Source },
     /// No browser was found anywhere.
     #[error("no Chromium found; looked in: {}", tried.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", "))]
     BrowserNotFound { tried: Vec<PathBuf> },

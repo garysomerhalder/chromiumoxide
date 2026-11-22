@@ -31,10 +31,6 @@ impl MemoryFileSystem {
         }
         self.files.lock().unwrap().insert(path);
     }
-
-    pub fn dirs(&self) -> Vec<PathBuf> {
-        self.dirs.lock().unwrap().iter().cloned().collect()
-    }
 }
 
 impl FileSystem for MemoryFileSystem {

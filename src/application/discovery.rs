@@ -2,8 +2,10 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::domain::discovery::{DiscoveryEnv, Source};
-use crate::domain::error::Result;
+use crate::domain::discovery::{
+    DiscoveryEnv, Os, Probe, Source, executables_within, probes, rank_entries,
+};
+use crate::domain::error::{Error, Result};
 use crate::domain::launch::BrowserKind;
 use crate::ports::{Environment, FileSystem};
 
@@ -16,24 +18,89 @@ pub struct Discovered {
 }
 
 /// Builds the discovery snapshot from the environment port.
-pub fn discovery_env(_env: &dyn Environment, _explicit: Option<&Path>) -> DiscoveryEnv {
-    unimplemented!()
+pub fn discovery_env(env: &dyn Environment, explicit: Option<&Path>) -> DiscoveryEnv {
+    let os = env.os();
+    let var = |name: &str| env.var(name).filter(|v| !v.is_empty());
+    let separator = if os == Os::Windows { ';' } else { ':' };
+    DiscoveryEnv {
+        os,
+        explicit: explicit.map(Path::to_path_buf),
+        mockup_chromium: var("MOCKUP_CHROMIUM").map(PathBuf::from),
+        chrome: var("CHROME").map(PathBuf::from),
+        playwright_browsers_path: var("PLAYWRIGHT_BROWSERS_PATH").map(PathBuf::from),
+        home: env.home_dir(),
+        path: var("PATH")
+            .map(|p| {
+                p.split(separator)
+                    .filter(|s| !s.is_empty())
+                    .map(PathBuf::from)
+                    .collect()
+            })
+            .unwrap_or_default(),
+        program_files: ["ProgramFiles", "ProgramFiles(x86)"]
+            .into_iter()
+            .filter_map(|k| var(k).map(PathBuf::from))
+            .collect(),
+        local_app_data: var("LOCALAPPDATA").map(PathBuf::from),
+    }
 }
 
 /// Finds the browser: explicit path, env vars, Playwright installs, Chrome for
 /// Testing, then system Chrome.
 pub fn discover(
-    _fs: &dyn FileSystem,
-    _env: &dyn Environment,
-    _explicit: Option<&Path>,
+    fs: &dyn FileSystem,
+    env: &dyn Environment,
+    explicit: Option<&Path>,
 ) -> Result<Discovered> {
-    unimplemented!()
+    let snapshot = discovery_env(env, explicit);
+    let found = |executable: PathBuf, source| Discovered {
+        kind: BrowserKind::from_executable(&executable),
+        executable,
+        source,
+    };
+    let mut tried = Vec::new();
+    for probe in probes(&snapshot) {
+        match probe {
+            Probe::Required { path, source } => {
+                if fs.is_file(&path) {
+                    return Ok(found(path, source));
+                }
+                return Err(Error::ExecutableMissing {
+                    path,
+                    origin: source,
+                });
+            }
+            Probe::Candidate { path, source } => {
+                if fs.is_file(&path) {
+                    return Ok(found(path, source));
+                }
+                tried.push(path);
+            }
+            Probe::Root {
+                root,
+                layout,
+                source,
+            } => {
+                if fs.is_dir(&root) {
+                    for entry in rank_entries(layout, &fs.list_dir(&root)) {
+                        for rel in executables_within(snapshot.os) {
+                            let candidate = root.join(&entry).join(rel);
+                            if fs.is_file(&candidate) {
+                                return Ok(found(candidate, source));
+                            }
+                        }
+                    }
+                }
+                tried.push(root);
+            }
+        }
+    }
+    Err(Error::BrowserNotFound { tried })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::error::Error;
     use crate::testing::memory::{MapEnvironment, MemoryFileSystem};
 
     const PW_SHELL: &str = "/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
@@ -62,7 +129,7 @@ mod tests {
             matches!(
                 err,
                 Error::ExecutableMissing {
-                    source: Source::Explicit,
+                    origin: Source::Explicit,
                     ..
                 }
             ),
