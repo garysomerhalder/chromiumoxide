@@ -270,7 +270,12 @@ impl Page {
                     }
                 }
                 "Network.responseReceived" => {
-                    if s(p, "type") == "Document" {
+                    // Like Playwright, data: URLs produce no Request/Response.
+                    let is_data = p
+                        .pointer("/response/url")
+                        .and_then(Value::as_str)
+                        .is_some_and(|u| u.starts_with("data:"));
+                    if s(p, "type") == "Document" && !is_data {
                         let r = &p["response"];
                         let headers = r
                             .get("headers")
@@ -481,12 +486,33 @@ impl Page {
         source: &str,
         arg: Option<&Value>,
     ) -> Result<Value> {
+        let args: Vec<Value> = arg.cloned().into_iter().collect();
+        let declaration = js::function_declaration(source);
+        self.call_function(
+            world,
+            &declaration,
+            &args,
+            self.default_timeout(),
+            "evaluating",
+        )
+        .await
+    }
+
+    /// `Runtime.callFunctionOn` in the main frame's `world`, by value, retrying
+    /// when a navigation replaces the execution context.
+    pub(crate) async fn call_function(
+        &self,
+        world: World,
+        declaration: &str,
+        args: &[Value],
+        timeout: Duration,
+        action: &str,
+    ) -> Result<Value> {
         self.ensure_open()?;
-        let timeout = self.default_timeout();
         let attempt = async {
             loop {
                 let context_id = self.main_context(world, timeout).await?;
-                let params = js::call_params(source, context_id, arg);
+                let params = js::call_params(declaration, context_id, args);
                 match self
                     .cdp_session()
                     .call(self.sid(), "Runtime.callFunctionOn", params)
@@ -510,13 +536,7 @@ impl Page {
                 }
             }
         };
-        with_timeout(
-            &*self.inner.shared.services.clock,
-            timeout,
-            "evaluating",
-            attempt,
-        )
-        .await
+        with_timeout(&*self.inner.shared.services.clock, timeout, action, attempt).await
     }
 
     /// Playwright's `page.evaluate(expression | function)`. Functions are

@@ -62,6 +62,10 @@ impl FileSystem for OsFileSystem {
         last
     }
 
+    fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
+        std::fs::read(path)
+    }
+
     fn write(&self, path: &Path, data: &[u8]) -> io::Result<()> {
         if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
             std::fs::create_dir_all(parent)?;

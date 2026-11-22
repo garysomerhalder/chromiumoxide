@@ -24,6 +24,7 @@ use std::sync::Arc;
 /// The generated Chrome DevTools Protocol types.
 pub use chromiumoxide_cdp::cdp;
 
+pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::browser::{Browser, LaunchOptions};
 pub use application::context::BrowserContext;
 pub use application::discovery::Discovered;

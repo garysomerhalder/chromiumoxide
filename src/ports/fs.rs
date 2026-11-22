@@ -13,4 +13,5 @@ pub trait FileSystem: Send + Sync {
     fn create_temp_dir(&self, prefix: &str) -> io::Result<PathBuf>;
     fn remove_dir_all(&self, path: &Path) -> io::Result<()>;
     fn write(&self, path: &Path, data: &[u8]) -> io::Result<()>;
+    fn read(&self, path: &Path) -> io::Result<Vec<u8>>;
 }

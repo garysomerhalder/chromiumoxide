@@ -14,14 +14,11 @@ pub fn function_declaration(source: &str) -> String {
     )
 }
 
-/// `Runtime.callFunctionOn` parameters for an evaluation in a context.
-pub fn call_params(source: &str, context_id: i64, arg: Option<&Value>) -> Value {
-    let arguments: Vec<Value> = match arg {
-        Some(v) => vec![json!({"value": v})],
-        None => vec![],
-    };
+/// `Runtime.callFunctionOn` parameters for a function call in a context.
+pub fn call_params(declaration: &str, context_id: i64, args: &[Value]) -> Value {
+    let arguments: Vec<Value> = args.iter().map(|v| json!({"value": v})).collect();
     json!({
-        "functionDeclaration": function_declaration(source),
+        "functionDeclaration": declaration,
         "executionContextId": context_id,
         "arguments": arguments,
         "returnByValue": true,

@@ -63,6 +63,14 @@ impl FileSystem for MemoryFileSystem {
         self.files.lock().unwrap().retain(|f| !f.starts_with(path));
         Ok(())
     }
+    fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
+        if self.is_file(path) {
+            Ok(Vec::new())
+        } else {
+            Err(io::ErrorKind::NotFound.into())
+        }
+    }
+
     fn write(&self, path: &Path, _data: &[u8]) -> io::Result<()> {
         self.add_file(&path.to_string_lossy());
         Ok(())
