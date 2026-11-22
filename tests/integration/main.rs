@@ -19,6 +19,7 @@ mod launch;
 mod locator;
 mod navigation;
 mod network;
+mod oopif;
 mod page;
 mod pdf;
 mod pixel_parity;
