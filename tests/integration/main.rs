@@ -2,6 +2,7 @@
 //! No transport mocks: these talk to the browser over the real pipe/WebSocket.
 
 mod context;
+mod frames;
 mod input;
 mod launch;
 mod locator;
