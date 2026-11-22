@@ -48,6 +48,16 @@ impl Page {
     }
 
     async fn run_screenshot(&self, o: &ScreenshotOptions, timeout: Duration) -> Result<Vec<u8>> {
+        self.run_screenshot_of(o, timeout, None).await
+    }
+
+    /// Page screenshot, or of `element` when given (Playwright's `screenshotElement`).
+    pub(crate) async fn run_screenshot_of(
+        &self,
+        o: &ScreenshotOptions,
+        timeout: Duration,
+        element: Option<&crate::application::locator::ElementRef>,
+    ) -> Result<Vec<u8>> {
         let quality = validate(o)?;
         let viewport = match self.viewport_size() {
             Some(v) => Size {
@@ -87,7 +97,9 @@ impl Page {
             "preparing the screenshot",
         )
         .await?;
-        let result = self.capture_prepared(o, quality, viewport, timeout).await;
+        let result = self
+            .capture_prepared(o, quality, viewport, timeout, element)
+            .await;
         let _ = self
             .call_function(
                 World::Utility,
@@ -106,6 +118,7 @@ impl Page {
         quality: Option<u8>,
         viewport: Size,
         timeout: Duration,
+        element: Option<&crate::application::locator::ElementRef>,
     ) -> Result<Vec<u8>> {
         // Playwright waits for fonts but ignores failures.
         let _ = self
@@ -117,7 +130,7 @@ impl Page {
                 "waiting for fonts",
             )
             .await;
-        let full_page = if o.full_page {
+        let full_page = if o.full_page && element.is_none() {
             let v = self
                 .call_function(
                     World::Utility,
@@ -137,7 +150,13 @@ impl Page {
         } else {
             None
         };
-        let target = plan_page(o, viewport, full_page)?;
+        let target = match element {
+            Some(el) => {
+                self.element_screenshot_target(el, viewport, timeout)
+                    .await?
+            }
+            None => plan_page(o, viewport, full_page)?,
+        };
         let transparent = o.omit_background && o.format != ImageFormat::Jpeg;
         if transparent {
             self.send(

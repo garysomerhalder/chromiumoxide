@@ -6,6 +6,7 @@ pub mod context;
 pub mod discovery;
 pub mod input;
 pub mod js;
+pub mod locator;
 pub mod navigation;
 pub mod page;
 pub mod page_init;

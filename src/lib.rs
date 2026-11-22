@@ -33,6 +33,9 @@ pub use application::browser::{Browser, LaunchOptions};
 pub use application::context::BrowserContext;
 pub use application::discovery::Discovered;
 pub use application::input::{Keyboard, Mouse, Touchscreen};
+pub use application::locator::{
+    BoundingBox, Click, ClickOptions, Locator, SelectOption, WaitFor, WaitForState,
+};
 pub use application::navigation::{Navigation, WaitForUrl};
 pub use application::page::{Goto, Page, Response};
 pub use application::screenshot::Screenshot;
@@ -51,6 +54,7 @@ pub use domain::launch::BrowserKind;
 pub use domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale,
 };
+pub use domain::selectors::{Filter, RoleOptions, TextMatch};
 pub use domain::url_matcher::UrlMatcher;
 pub use ports::Channel;
 

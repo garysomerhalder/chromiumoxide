@@ -45,7 +45,7 @@ async fn selectors_and_get_by_engines_find_elements() {
             .count()
             .await
             .unwrap(),
-        2
+        3, // like Playwright, <input type=file> has the button role
     );
     assert_eq!(
         page.get_by_label("Email", false)
@@ -155,7 +155,7 @@ async fn actions_fill_press_check_select_upload_hover() {
     email.fill("a@b.c").await.unwrap();
     assert_eq!(email.input_value().await.unwrap(), "a@b.c");
     email.press("Backspace").await.unwrap();
-    email.press_sequentially("om").await.unwrap();
+    email.press_sequentially("com").await.unwrap();
     assert_eq!(email.input_value().await.unwrap(), "a@b.com");
     email.clear().await.unwrap();
     assert_eq!(email.input_value().await.unwrap(), "");
@@ -192,7 +192,7 @@ async fn actions_fill_press_check_select_upload_hover() {
     let file = std::env::temp_dir().join(format!("cox-upload-{}.txt", std::process::id()));
     std::fs::write(&file, "hello").unwrap();
     page.locator("#upload")
-        .set_input_files(&[file.clone()])
+        .set_input_files(std::slice::from_ref(&file))
         .await
         .unwrap();
     assert_eq!(
@@ -248,14 +248,14 @@ async fn states_queries_and_waiting() {
         .unwrap();
     assert_eq!((bbox.width, bbox.height), (50.0, 20.0));
 
-    page.evaluate::<()>("() => setTimeout(() => document.querySelector('h1').remove(), 200)")
+    page.evaluate::<()>("() => { setTimeout(() => document.querySelector('h1').remove(), 200) }")
         .await
         .unwrap();
     page.locator("h1")
         .wait_for(WaitForState::Detached)
         .await
         .unwrap();
-    page.evaluate::<()>("() => setTimeout(() => { const p = document.createElement('p'); p.id = 'late'; p.textContent = 'x'; document.body.append(p) }, 200)")
+    page.evaluate::<()>("() => { setTimeout(() => { const p = document.createElement('p'); p.id = 'late'; p.textContent = 'x'; document.body.append(p) }, 200) }")
         .await
         .unwrap();
     page.locator("#late")
