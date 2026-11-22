@@ -38,6 +38,8 @@ pub struct LaunchOptions {
     pub timeout: Duration,
     /// Pipe (default) or WebSocket.
     pub channel: Channel,
+    /// Route the browser's traffic through a proxy (Playwright's `proxy`).
+    pub proxy: Option<crate::domain::launch::Proxy>,
 }
 
 impl Default for LaunchOptions {
@@ -50,6 +52,7 @@ impl Default for LaunchOptions {
             env: Vec::new(),
             timeout: Duration::from_secs(180),
             channel: Channel::Pipe,
+            proxy: None,
         }
     }
 }
@@ -78,6 +81,8 @@ pub(crate) struct BrowserInner {
     bridge: Mutex<Option<Box<dyn crate::ports::BoundBridge>>>,
     /// `LaunchOptions::args` (None when connected).
     launch_args: Option<Vec<String>>,
+    /// `LaunchOptions::proxy`.
+    launch_proxy: Option<crate::domain::launch::Proxy>,
 }
 
 impl Drop for BrowserInner {
@@ -135,6 +140,7 @@ impl Browser {
             args: options.args.clone(),
             ignore_default_args: options.ignore_default_args,
             user_data_dir: user_data_dir.clone(),
+            proxy: options.proxy.clone(),
         };
         let mut args = if persistent.is_some() {
             crate::domain::launch::persistent_command_line(&spec)
@@ -180,6 +186,7 @@ impl Browser {
                 remove_profile: persistent.is_none(),
                 bridge: Mutex::new(None),
                 launch_args: Some(options.args.clone()),
+                launch_proxy: options.proxy.clone(),
             }),
         };
         let default_options = persistent.map(|(_, o)| o);
@@ -214,6 +221,7 @@ impl Browser {
                 remove_profile: false,
                 bridge: Mutex::new(None),
                 launch_args: None,
+                launch_proxy: None,
             }),
         };
         browser.handshake(None).await?;
@@ -277,6 +285,7 @@ impl Browser {
                 .unwrap_or_default()
                 .to_owned(),
             launch_args: self.inner.launch_args.clone(),
+            launch_proxy: self.inner.launch_proxy.clone(),
             contexts: Mutex::new(HashMap::new()),
             downloads_dir: Mutex::new(None),
             downloads: Mutex::new(HashMap::new()),

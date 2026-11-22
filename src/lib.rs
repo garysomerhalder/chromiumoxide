@@ -93,7 +93,7 @@ pub use domain::frame::LifecycleEvent as WaitUntil;
 pub use domain::har::{Har, HarNotFound, RecordHar};
 pub use domain::http::MultipartValue;
 pub use domain::input::MouseButton;
-pub use domain::launch::BrowserKind;
+pub use domain::launch::{BrowserKind, Proxy};
 pub use domain::network::{HeaderEntry, RequestSizes, Timing};
 pub use domain::pdf::{Margin as PdfMargin, PdfOptions};
 pub use domain::screenshot::{

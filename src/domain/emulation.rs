@@ -101,6 +101,8 @@ pub struct ContextOptions {
     pub offline: bool,
     pub extra_http_headers: BTreeMap<String, String>,
     pub http_credentials: Option<HttpCredentials>,
+    /// A proxy for this context (Playwright's context `proxy`).
+    pub proxy: Option<crate::domain::launch::Proxy>,
     pub java_script_enabled: bool,
     pub bypass_csp: bool,
     pub ignore_https_errors: bool,
@@ -155,6 +157,7 @@ impl Default for ContextOptions {
             service_workers: ServiceWorkers::Allow,
             record_har: None,
             record_video: None,
+            proxy: None,
         }
     }
 }

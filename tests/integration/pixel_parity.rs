@@ -261,6 +261,7 @@ fn render_with_playwright(
         args: vec![],
         ignore_default_args: false,
         user_data_dir: out.join("playwright-profile"),
+        proxy: None,
     });
     let job = json!({
         "executablePath": found.executable,

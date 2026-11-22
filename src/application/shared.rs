@@ -18,6 +18,8 @@ pub(crate) struct Shared {
     /// The `args` of a launched browser (None when connected), for checks
     /// like Playwright's on `originalLaunchOptions.args`.
     pub(crate) launch_args: Option<Vec<String>>,
+    /// `LaunchOptions::proxy` (its credentials answer proxy challenges).
+    pub(crate) launch_proxy: Option<crate::domain::launch::Proxy>,
     /// The browser that owns this connection (for `context.browser()`).
     pub(crate) browser: Mutex<std::sync::Weak<crate::application::browser::BrowserInner>>,
     /// `selectors.setTestIdAttribute` / `selectors.register`.

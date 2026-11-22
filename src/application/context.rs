@@ -154,7 +154,11 @@ impl BrowserContext {
             .call(
                 None,
                 "Target.createBrowserContext",
-                json!({"disposeOnDetach": true}),
+                match &options.proxy {
+                    Some(p) => json!({"disposeOnDetach": true, "proxyServer": p.server,
+                        "proxyBypassList": crate::domain::launch::context_proxy_bypass_list(p)}),
+                    None => json!({"disposeOnDetach": true}),
+                },
             )
             .await?;
         let id = r

@@ -359,7 +359,7 @@ async fn proxy_with_credentials_for_the_proxy_only() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(r.status(), 401);
+    assert_eq!(r.status, 401);
     assert!(
         proxy.site_authorizations.lock().unwrap().is_empty(),
         "proxy credentials were sent to the site"

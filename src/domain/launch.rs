@@ -56,17 +56,69 @@ pub struct Proxy {
 /// Playwright's `shouldProxyLoopback`: loopback hosts go through the proxy
 /// unless the bypass list names one.
 pub fn should_proxy_loopback(bypass: Option<&str>) -> bool {
-    unimplemented!()
+    const LOOPBACK: [&str; 7] = [
+        "localhost",
+        "127.0.0.1",
+        "::1",
+        "[::]",
+        "[::1]",
+        "<loopback>",
+        "<-loopback>",
+    ];
+    !bypass
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .any(|h| LOOPBACK.contains(&h))
 }
 
 /// The `--proxy-server` / `--proxy-bypass-list` switches of a launch.
 pub fn proxy_args(proxy: &Proxy) -> Vec<String> {
-    unimplemented!()
+    let mut out = Vec::new();
+    if let Ok(u) = url::Url::parse(&proxy.server)
+        && u.scheme() == "socks5"
+    {
+        out.push(format!(
+            "--host-resolver-rules=\"MAP * ~NOTFOUND , EXCLUDE {}\"",
+            u.host_str().unwrap_or_default()
+        ));
+    }
+    out.push(format!("--proxy-server={}", proxy.server));
+    let mut rules: Vec<String> = proxy
+        .bypass
+        .as_deref()
+        .map(|b| {
+            b.split(',')
+                .map(str::trim)
+                .map(|t| {
+                    if t.starts_with('.') {
+                        format!("*{t}")
+                    } else {
+                        t.to_owned()
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if should_proxy_loopback(proxy.bypass.as_deref()) {
+        rules.push("<-loopback>".into());
+    }
+    if !rules.is_empty() {
+        out.push(format!("--proxy-bypass-list={}", rules.join(";")));
+    }
+    out
 }
 
 /// The `proxyBypassList` of `Target.createBrowserContext`.
 pub fn context_proxy_bypass_list(proxy: &Proxy) -> Option<String> {
-    unimplemented!()
+    if should_proxy_loopback(proxy.bypass.as_deref()) {
+        Some(match &proxy.bypass {
+            Some(b) => format!("<-loopback>,{b}"),
+            None => "<-loopback>".to_owned(),
+        })
+    } else {
+        proxy.bypass.clone()
+    }
 }
 
 /// Playwright's default Chromium arguments, before the headless-related ones.
@@ -87,6 +139,9 @@ pub fn command_line(spec: &LaunchSpec) -> Vec<String> {
             args.extend(HEADLESS_ARGS.iter().map(|a| (*a).to_owned()));
         }
         args.push("--no-sandbox".to_owned());
+        if let Some(p) = &spec.proxy {
+            args.extend(proxy_args(p));
+        }
     }
     args.extend(spec.args.iter().cloned());
     args.push(format!("--user-data-dir={}", spec.user_data_dir.display()));
