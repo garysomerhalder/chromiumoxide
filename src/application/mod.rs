@@ -24,3 +24,5 @@ pub(crate) mod shared;
 pub mod shortcuts;
 pub mod storage;
 pub mod wait;
+pub mod websocket;
+pub mod worker;

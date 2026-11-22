@@ -155,6 +155,14 @@ impl Shared {
         Ok(d)
     }
 
+    pub(crate) fn page_by_session(&self, session_id: &str) -> Option<Page> {
+        let contexts: Vec<_> = self.contexts.lock().unwrap().values().cloned().collect();
+        contexts
+            .iter()
+            .flat_map(|c| c.pages.lock().unwrap().clone())
+            .find(|p| p.inner.session_id == session_id)
+    }
+
     fn page_with_frame(&self, frame_id: &str) -> Option<Page> {
         let contexts: Vec<_> = self.contexts.lock().unwrap().values().cloned().collect();
         contexts

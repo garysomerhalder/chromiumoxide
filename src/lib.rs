@@ -47,6 +47,8 @@ pub use application::route::{Abort, Continue, Fulfill, Route, RouteRegistration}
 pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
 pub use application::services::Services;
+pub use application::websocket::{WebSocket, WebSocketEvent, WsPayload};
+pub use application::worker::Worker;
 pub use domain::console::{Location, PageError};
 pub use domain::devices::{Device, device, device_names};
 pub use domain::discovery::Source as DiscoverySource;

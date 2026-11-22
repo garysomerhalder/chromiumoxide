@@ -360,6 +360,19 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
                     }
                 });
             }
+            _ if kind == "worker"
+                && let Some(page) = event
+                    .session_id
+                    .as_deref()
+                    .and_then(|s| shared.page_by_session(s)) =>
+            {
+                let url = info
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                page.attach_worker(session_id, url);
+            }
             _ => {
                 let fut = shared.cdp.call(
                     Some(&session_id),

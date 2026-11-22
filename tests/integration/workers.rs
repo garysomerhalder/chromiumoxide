@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use async_tungstenite::tungstenite::Message;
 use chromiumoxide::{Chromium, LaunchOptions, PageEvent, WebSocketEvent, WsPayload};
-use futures::{SinkExt, StreamExt};
+use futures::StreamExt;
 
 use crate::server::TestServer;
 
@@ -91,16 +91,8 @@ async fn workers_like_playwright() {
         .unwrap();
     assert!(worker.url().starts_with("blob:"), "{}", worker.url());
     assert_eq!(page.workers().len(), 1);
-    assert_eq!(worker.evaluate::<i32>("() => self.x").await.unwrap(), 7);
-    assert_eq!(worker.evaluate::<i32>("1 + 2").await.unwrap(), 3);
-    assert_eq!(
-        worker
-            .evaluate_with::<i32, _>("a => a * 3", 5)
-            .await
-            .unwrap(),
-        15
-    );
-    // Worker console messages are page console events.
+    // Worker console messages are page console events. The message is
+    // logged after `self.x = 7`, so evaluating after it sees the value.
     let text = tokio::time::timeout(Duration::from_secs(5), async {
         while let Some(e) = events.next().await {
             if let PageEvent::Console(m) = e {
@@ -112,6 +104,15 @@ async fn workers_like_playwright() {
     .await
     .unwrap();
     assert_eq!(text, "from worker");
+    assert_eq!(worker.evaluate::<i32>("() => self.x").await.unwrap(), 7);
+    assert_eq!(worker.evaluate::<i32>("1 + 2").await.unwrap(), 3);
+    assert_eq!(
+        worker
+            .evaluate_with::<i32, _>("a => a * 3", 5)
+            .await
+            .unwrap(),
+        15
+    );
     page.evaluate::<()>("() => window.w.terminate()")
         .await
         .unwrap();

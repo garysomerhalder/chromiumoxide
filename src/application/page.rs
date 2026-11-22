@@ -69,6 +69,8 @@ pub(crate) struct PageInner {
     pub(crate) extra_http_headers: Mutex<Option<std::collections::BTreeMap<String, String>>>,
     /// The target that opened this page (popups).
     pub(crate) opener_id: Option<String>,
+    pub(crate) websockets: Mutex<HashMap<String, crate::application::websocket::WebSocket>>,
+    pub(crate) workers: Mutex<Vec<crate::application::worker::Worker>>,
 }
 
 impl PartialEq for Page {
@@ -163,6 +165,8 @@ impl Page {
             routes: Mutex::new(Vec::new()),
             extra_http_headers: Mutex::new(None),
             opener_id,
+            websockets: Mutex::new(HashMap::new()),
+            workers: Mutex::new(Vec::new()),
             intercepting: AtomicBool::new(
                 options.http_credentials.is_some() || !context.routes.lock().unwrap().is_empty(),
             ),
@@ -232,8 +236,18 @@ impl Page {
         if self.handle_page_event(e) {
             return;
         }
+        if e.method.starts_with("Network.webSocket") {
+            self.handle_websocket_event(e);
+            return;
+        }
         if e.method.starts_with("Network.") {
             self.handle_network_event(e);
+        }
+        if e.method == "Target.detachedFromTarget" {
+            if let Some(sid) = e.params.get("sessionId").and_then(Value::as_str) {
+                self.detach_worker(sid);
+            }
+            return;
         }
         let p = &e.params;
         let s = |v: &Value, k: &str| {
@@ -413,6 +427,8 @@ impl Page {
         if !self.inner.closed.swap(true, Ordering::SeqCst) {
             self.bump();
             self.close_network();
+            self.close_websockets();
+            self.close_workers();
             self.emit(crate::application::events::PageEvent::Close);
             if let Some(ctx) = self.inner.context.upgrade() {
                 ctx.forget_page(&self.inner.target_id);

@@ -44,6 +44,10 @@ pub enum PageEvent {
     Popup(Page),
     /// A download started (`page.on('download')`).
     Download(crate::application::download::Download),
+    /// A WebSocket was opened (`page.on('websocket')`).
+    WebSocket(crate::application::websocket::WebSocket),
+    /// A dedicated worker started (`page.on('worker')`).
+    Worker(crate::application::worker::Worker),
 }
 
 /// A `console.*` call (Playwright's `ConsoleMessage`).
@@ -56,6 +60,16 @@ pub struct ConsoleMessage {
 }
 
 impl ConsoleMessage {
+    /// A message logged by a worker (its arguments are not page handles).
+    pub(crate) fn from_worker(kind: &str, text: String, location: Location) -> Self {
+        ConsoleMessage {
+            kind: kind.to_owned(),
+            text,
+            args: Vec::new(),
+            location,
+        }
+    }
+
     /// `log`, `warning`, `error`, `info`, `debug`, `table`, ...
     pub fn kind(&self) -> &str {
         &self.kind
