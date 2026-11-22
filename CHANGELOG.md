@@ -74,6 +74,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `wait_for_page`), downloads (`Download`, `ContextOptions::accept_downloads`),
     WebSockets (`WebSocket`, frames and close) and dedicated workers (`Worker`).
 
+- Milestone 4 (completed): request sizes, HTTP version, service workers and
+  `ServiceWorkers::Block`, runtime `set_http_credentials`, `route.fetch()`,
+  `fulfill().path()/.response()`, `routeWebSocket`, `page.local_storage()` /
+  `session_storage()`, `context.credentials()` (WebAuthn), file chooser,
+  `page.requests()`, `set_storage_state`.
+- Milestone 5 (in progress):
+  - `page.pdf()` with Playwright's options.
+  - Web-first assertions: `expect(&locator | &page | &response)` with
+    Playwright's matchers, retry schedule and failure messages.
+  - HAR: `ContextOptions::record_har`, `route_from_har`.
+  - Video: `ContextOptions::record_video`, `page.video()` (needs ffmpeg; uses
+    Playwright's build when installed).
+  - Tracing: `context.tracing().start/stop` writing a Playwright-style trace.zip.
+
 ### Fixed
 
 - `ContextOptions::permissions` now takes Playwright's permission names
@@ -89,6 +103,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ContextOptions` gained `storage_state` and `accept_downloads` (use
   `..Default::default()` when building it); `Response` gained methods and
   private state (its public fields are unchanged).
+- `ContextOptions` also gained `service_workers`, `record_har`, `record_video`;
+  `Services` gained `video` (an encoder port) and the `Clock` port `wall_ms()`;
+  `Error` gained `Assertion`.
 - Typed protocol events moved from `page.events::<E>()` to
   `page.cdp_events::<E>()`; `page.events()` now streams Playwright page events.
 - Derive `Clone` for `Element`, `ScreenshotParams` and `ScreenshotParamsBuilder`

@@ -81,8 +81,8 @@ Chrome for Testing and chrome-headless-shell.
 | `javaScriptEnabled`, `bypassCSP`, `ignoreHTTPSErrors` | M4 | 🟡 set at creation |
 | `storageState` | M4 | ✅ cookies + localStorage, JSON-compatible with Playwright files (IndexedDB not yet) |
 | `acceptDownloads` | M4 | ✅ |
-| `recordHar` | M5 | ⬜ |
-| `recordVideo` | M5 | ⬜ |
+| `recordHar` | M5 | ✅ `record_har` (embedded or omitted content, URL filter) |
+| `recordVideo` | M5 | ✅ VP8 `.webm` via Playwright's ffmpeg; default size like Playwright |
 | `serviceWorkers` | M4 | ✅ `allow` / `block` |
 | `baseURL` | M3 | ⬜ |
 | Device descriptors (`playwright.devices`) | M1 | ✅ |
@@ -109,38 +109,38 @@ Chrome for Testing and chrome-headless-shell.
 
 | Assertion | Milestone | Status |
 |---|---|---|
-| locator `toBeAttached` | M5 | ⬜ |
-| locator `toBeChecked` | M5 | ⬜ |
-| locator `toBeDisabled` | M5 | ⬜ |
-| locator `toBeEditable` | M5 | ⬜ |
-| locator `toBeEmpty` | M5 | ⬜ |
-| locator `toBeEnabled` | M5 | ⬜ |
-| locator `toBeFocused` | M5 | ⬜ |
-| locator `toBeHidden` | M5 | ⬜ |
-| locator `toBeInViewport` | M5 | ⬜ |
-| locator `toBeVisible` | M5 | ⬜ |
-| locator `toContainClass` | M5 | ⬜ |
-| locator `toContainText` | M5 | ⬜ |
-| locator `toHaveAccessibleDescription` | M5 | ⬜ |
-| locator `toHaveAccessibleErrorMessage` | M5 | ⬜ |
-| locator `toHaveAccessibleName` | M5 | ⬜ |
-| locator `toHaveAttribute` | M5 | ⬜ |
-| locator `toHaveCSS` | M5 | ⬜ |
-| locator `toHaveClass` | M5 | ⬜ |
-| locator `toHaveCount` | M5 | ⬜ |
-| locator `toHaveId` | M5 | ⬜ |
-| locator `toHaveJSProperty` | M5 | ⬜ |
-| locator `toHaveRole` | M5 | ⬜ |
+| locator `toBeAttached` | M5 | ✅ |
+| locator `toBeChecked` | M5 | ✅ |
+| locator `toBeDisabled` | M5 | ✅ |
+| locator `toBeEditable` | M5 | ✅ |
+| locator `toBeEmpty` | M5 | ✅ |
+| locator `toBeEnabled` | M5 | ✅ |
+| locator `toBeFocused` | M5 | ✅ |
+| locator `toBeHidden` | M5 | ✅ |
+| locator `toBeInViewport` | M5 | ✅ |
+| locator `toBeVisible` | M5 | ✅ |
+| locator `toContainClass` | M5 | ✅ |
+| locator `toContainText` | M5 | ✅ |
+| locator `toHaveAccessibleDescription` | M5 | ✅ |
+| locator `toHaveAccessibleErrorMessage` | M5 | ✅ |
+| locator `toHaveAccessibleName` | M5 | ✅ |
+| locator `toHaveAttribute` | M5 | ✅ |
+| locator `toHaveCSS` | M5 | ✅ |
+| locator `toHaveClass` | M5 | ✅ |
+| locator `toHaveCount` | M5 | ✅ |
+| locator `toHaveId` | M5 | ✅ |
+| locator `toHaveJSProperty` | M5 | ✅ |
+| locator `toHaveRole` | M5 | ✅ |
 | locator `toHaveScreenshot` | M5 | ⬜ |
-| locator `toHaveText` | M5 | ⬜ |
-| locator `toHaveValue` | M5 | ⬜ |
-| locator `toHaveValues` | M5 | ⬜ |
+| locator `toHaveText` | M5 | ✅ |
+| locator `toHaveValue` | M5 | ✅ |
+| locator `toHaveValues` | M5 | ✅ |
 | locator `toMatchAriaSnapshot` | M5 | ⬜ |
 | page `toHaveScreenshot` | M5 | ⬜ |
-| page `toHaveTitle` | M5 | ⬜ |
-| page `toHaveURL` | M5 | ⬜ |
+| page `toHaveTitle` | M5 | ✅ |
+| page `toHaveURL` | M5 | ✅ |
 | page `toMatchAriaSnapshot` | M5 | ⬜ |
-| response `toBeOK` | M5 | ⬜ |
+| response `toBeOK` | M5 | ✅ |
 
 ## 6. Playwright API, member by member
 
@@ -181,7 +181,7 @@ Chrome for Testing and chrome-headless-shell.
 | `newPage` | M1 | ✅ |
 | `pages` | M1 | ✅ |
 | `route` | M4 | ✅ |
-| `routeFromHAR` | M5 | ⬜ |
+| `routeFromHAR` | M5 | ✅ |
 | `routeWebSocket` | M4 | ✅ |
 | `serviceWorkers` | M4 | ✅ |
 | `setDefaultNavigationTimeout` | M3 | ⬜ |
@@ -199,7 +199,7 @@ Chrome for Testing and chrome-headless-shell.
 | `credentials` | M4 | ✅ via Chromium's virtual WebAuthn authenticator |
 | `debugger` | M6 | ⬜ |
 | `request` | M6 | ⬜ |
-| `tracing` | M5 | ⬜ |
+| `tracing` | M5 | ✅ actions, console, network, screencast (no DOM snapshots yet) |
 
 ### Page
 
@@ -264,7 +264,7 @@ Chrome for Testing and chrome-headless-shell.
 | `opener` | M3 | ✅ |
 | `pageErrors` | M4 | ✅ |
 | `pause` | M6 | ⬜ |
-| `pdf` | M5 | ⬜ |
+| `pdf` | M5 | ✅ |
 | `pickLocator` | M6 | ⬜ |
 | `press` | M3 | ✅ |
 | `reload` | M3 | ✅ |
@@ -272,7 +272,7 @@ Chrome for Testing and chrome-headless-shell.
 | `requestGC` | M6 | ⬜ |
 | `requests` | M4 | ✅ |
 | `route` | M4 | ✅ |
-| `routeFromHAR` | M5 | ⬜ |
+| `routeFromHAR` | M5 | ✅ |
 | `routeWebSocket` | M4 | ✅ |
 | `screenshot` | M1 | ✅ |
 | `selectOption` | M3 | ✅ |
@@ -291,7 +291,7 @@ Chrome for Testing and chrome-headless-shell.
 | `unroute` | M4 | ✅ |
 | `unrouteAll` | M4 | ✅ |
 | `url` | M1 | ✅ |
-| `video` | M5 | ⬜ |
+| `video` | M5 | ✅ |
 | `viewportSize` | M1 | ✅ |
 | `waitForEvent` | M3 | ✅ `events()` stream, `wait_for_event(matcher)` and typed waiters (console, pageerror, popup, download, websocket, worker, request, response) |
 | `waitForLoadState` | M1 | ✅ |
@@ -666,20 +666,20 @@ Chrome for Testing and chrome-headless-shell.
 |---|---|---|
 | `group` | M5 | ⬜ |
 | `groupEnd` | M5 | ⬜ |
-| `start` | M5 | ⬜ |
-| `startChunk` | M5 | ⬜ |
-| `startHar` | M5 | ⬜ |
-| `stop` | M5 | ⬜ |
-| `stopChunk` | M5 | ⬜ |
-| `stopHar` | M5 | ⬜ |
+| `start` | M5 | ✅ |
+| `startChunk` | M5 | ✅ |
+| `startHar` | M5 | ✅ |
+| `stop` | M5 | ✅ |
+| `stopChunk` | M5 | ✅ |
+| `stopHar` | M5 | ✅ |
 
 ### Video
 
 | Member | Milestone | Status |
 |---|---|---|
-| `delete` | M5 | ⬜ |
-| `path` | M5 | ⬜ |
-| `saveAs` | M5 | ⬜ |
+| `delete` | M5 | ✅ |
+| `path` | M5 | ✅ |
+| `saveAs` | M5 | ✅ |
 
 ### Clock
 
