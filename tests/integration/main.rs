@@ -4,6 +4,7 @@
 mod context;
 mod input;
 mod launch;
+mod locator;
 mod navigation;
 mod page;
 mod pixel_parity;
