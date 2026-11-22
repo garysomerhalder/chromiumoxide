@@ -15,8 +15,18 @@ use crate::domain::error::{Error, Result};
 use crate::domain::frame::World;
 
 /// A Rust function callable from the page.
-pub type BindingFn =
-    Arc<dyn Fn(Vec<Value>) -> BoxFuture<'static, std::result::Result<Value, String>> + Send + Sync>;
+pub type BindingFn = Arc<
+    dyn Fn(BindingSource, Vec<Value>) -> BoxFuture<'static, std::result::Result<Value, String>>
+        + Send
+        + Sync,
+>;
+
+/// Where a binding call came from (Playwright's `source` argument).
+#[derive(Debug, Clone)]
+pub struct BindingSource {
+    pub page: Page,
+    pub frame: crate::application::frame::Frame,
+}
 
 const BINDING_PREFIX: &str = "__chromiumoxide_binding_";
 
@@ -85,7 +95,15 @@ where
     F: Fn(Vec<Value>) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = std::result::Result<Value, String>> + Send + 'static,
 {
-    Arc::new(move |args| f(args).boxed())
+    Arc::new(move |_source, args| f(args).boxed())
+}
+
+fn boxed_binding<F, Fut>(f: F) -> BindingFn
+where
+    F: Fn(BindingSource, Vec<Value>) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = std::result::Result<Value, String>> + Send + 'static,
+{
+    Arc::new(move |source, args| f(source, args).boxed())
 }
 
 fn init_source(source: &str, arg: Option<Value>) -> String {
@@ -220,6 +238,20 @@ impl Page {
         F: Fn(Vec<Value>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = std::result::Result<Value, String>> + Send + 'static,
     {
+        self.register_binding(name, boxed(f)).await
+    }
+
+    /// Playwright's `page.exposeBinding(name, fn)`: like `expose_function`,
+    /// and `fn` also receives the calling page and frame.
+    pub async fn expose_binding<F, Fut>(&self, name: &str, f: F) -> Result<()>
+    where
+        F: Fn(BindingSource, Vec<Value>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = std::result::Result<Value, String>> + Send + 'static,
+    {
+        self.register_binding(name, boxed_binding(f)).await
+    }
+
+    async fn register_binding(&self, name: &str, callback: BindingFn) -> Result<()> {
         let taken_by_context = self
             .inner
             .context
@@ -232,7 +264,7 @@ impl Page {
                     "Function \"{name}\" has been already registered"
                 )));
             }
-            bindings.insert(name.to_owned(), boxed(f));
+            bindings.insert(name.to_owned(), callback);
         }
         for (method, params) in binding_commands(name) {
             self.send(method, params).await?;
@@ -274,9 +306,20 @@ impl Page {
             .cloned()
             .unwrap_or_default();
         let page = self.clone();
+        let frame_id = context_id
+            .as_i64()
+            .and_then(|id| {
+                let st = self.inner.state.lock().unwrap();
+                st.tree.frame_for_context(id).map(|f| f.id.clone())
+            })
+            .unwrap_or_else(|| self.main_frame().id().to_owned());
+        let source = BindingSource {
+            page: self.clone(),
+            frame: self.frame_by_id(&frame_id),
+        };
         let deliver = serde_json::to_string(&deliver_name(name)).expect("string");
         tokio::spawn(async move {
-            let (ok, value) = match callback(args).await {
+            let (ok, value) = match callback(source, args).await {
                 Ok(v) => (true, v),
                 Err(e) => (false, Value::String(e)),
             };

@@ -289,6 +289,13 @@ impl FrameTree {
         }
     }
 
+    /// The frame owning an execution context.
+    pub fn frame_for_context(&self, context_id: i64) -> Option<&Frame> {
+        self.frames
+            .values()
+            .find(|f| f.contexts.values().any(|id| *id == context_id))
+    }
+
     /// The execution context of `world` in a frame, if it exists right now.
     pub fn context(&self, frame_id: &str, world: World) -> Option<i64> {
         self.frames
@@ -505,6 +512,8 @@ mod tests {
         t.context_destroyed(1);
         assert_eq!(t.context("M", World::Main), None);
         assert_eq!(t.context("M", World::Utility), Some(2));
+        assert_eq!(t.frame_for_context(2).map(|f| f.id.as_str()), Some("M"));
+        assert!(t.frame_for_context(99).is_none());
         t.contexts_cleared();
         assert_eq!(t.context("M", World::Utility), None);
     }

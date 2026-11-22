@@ -154,7 +154,7 @@ async fn exposed_bindings_receive_their_source_frame() {
             let url = source.frame.url();
             Ok(json!(format!(
                 "{}|{}|{}",
-                source.page.target_id().len() > 0,
+                !source.page.target_id().is_empty(),
                 url,
                 args[0]
             )))

@@ -49,6 +49,13 @@ impl Page {
             .collect()
     }
 
+    pub(crate) fn frame_by_id(&self, id: &str) -> Frame {
+        Frame {
+            page: self.clone(),
+            id: id.to_owned(),
+        }
+    }
+
     /// `page.frame(name)`: a frame by its `name` attribute, else by URL.
     pub fn frame(&self, name_or_url: &str) -> Option<Frame> {
         let st = self.inner.state.lock().unwrap();

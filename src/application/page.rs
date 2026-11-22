@@ -368,6 +368,7 @@ impl Page {
                     tokio::spawn(fut);
                 }
                 "Runtime.bindingCalled" => {
+                    drop(st);
                     self.on_binding_called(p);
                     return;
                 }
