@@ -168,7 +168,7 @@ Chrome for Testing and chrome-headless-shell.
 | `exposeBinding` | M3 | ✅ |
 | `addInitScript` | M3 | ✅ |
 | `addCookies` | M4 | ✅ |
-| `backgroundPages` | M4 | ➖ deprecated in Playwright (always empty with Manifest V3 extensions); not provided |
+| `backgroundPages` | M4 | ✅ always empty, like Playwright (deprecated there) |
 | `browser` | M1 | ✅ |
 | `clearCookies` | M4 | ✅ |
 | `clearPermissions` | M4 | ✅ |
