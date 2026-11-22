@@ -129,8 +129,29 @@ const HEADLESS_ARGS: &[&str] = &[
 mod tests {
     use super::*;
 
-    /// Captured from a real Playwright 1.63 launch (device-mockup contract).
+    /// The Playwright 1.65.1 preset (device-mockup contract, agreed with the
+    /// device-mockup session): `PRESET_1_63` with Playwright's 1.63 -> 1.65
+    /// switch changes, as read from `/proc/<pid>/cmdline` of a real 1.65.1
+    /// launch of the same browser (Edge-only switches and repeats left out,
+    /// as in 1.63).
     const PRESET: &str = "--font-render-hinting=none --disable-lcd-text --force-color-profile=srgb \
+--disable-blink-features=XSLT,EnableXSLTForCAPAlerts \
+--enable-features=SendGPUChannelEarly,CDPScreenshotNewSurface,SkipListAccountsWithoutGaiaCookies \
+--js-flags=--no-enable-lazy-source-positions --disable-field-trial-config --disable-background-networking \
+--disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache \
+--disable-breakpad --disable-component-extensions-with-background-pages \
+--disable-component-update --no-default-browser-check --disable-default-apps --disable-extensions \
+--disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,HttpsUpgrades,HttpsFirstBalancedModeAutoEnable,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,AvoidCorsURLLoaderRestartOnRedirect,TcpPortRandomizationWin,OptimizationHints,NetworkTimeServiceQuerying,AimEnabled,PreconnectToSearch \
+--allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking \
+--disable-prompt-on-repost --disable-renderer-backgrounding --metrics-recording-only --no-first-run \
+--password-store=basic --use-mock-keychain --no-service-autorun \
+--disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings \
+--enable-unsafe-swiftshader --disable-stack-profiler --disable-sync --do-not-de-elevate";
+
+    /// The previous preset, captured from a real Playwright 1.63 launch; kept
+    /// so device-mockup can trace any pixel difference to a switch.
+    #[allow(dead_code)]
+    const PRESET_1_63: &str = "--font-render-hinting=none --disable-lcd-text --force-color-profile=srgb \
 --disable-blink-features=XSLT,EnableXSLTForCAPAlerts --enable-features=SendGPUChannelEarly,CDPScreenshotNewSurface \
 --js-flags=--no-enable-lazy-source-positions --disable-field-trial-config --disable-background-networking \
 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache \
