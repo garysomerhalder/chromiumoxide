@@ -63,6 +63,8 @@ struct RequestState {
     failure: Option<String>,
     done: bool,
     timing: Timing,
+    /// Bytes received (headers and body), from `loadingFinished`.
+    encoded_data_length: Option<f64>,
 }
 
 struct ResponseData {
@@ -76,6 +78,10 @@ struct ResponseData {
     security_details: Option<SecurityDetails>,
     from_service_worker: bool,
     raw_headers: Mutex<Option<RawHeaders>>,
+    /// `protocol` of the response (`http/1.1`, `h2`, ...).
+    protocol: Option<String>,
+    /// Length of the raw response head, when the browser reported it.
+    headers_text_len: Mutex<Option<usize>>,
 }
 
 impl std::fmt::Debug for Request {
@@ -228,6 +234,47 @@ impl Request {
         Some(Response::new(self.clone(), data))
     }
 
+    /// `request.sizes()`: header and body sizes, once the response finished.
+    pub async fn sizes(&self) -> Result<crate::domain::network::RequestSizes> {
+        let Some(response) = self.response().await? else {
+            return Err(Error::InvalidArgument(
+                "Unable to fetch sizes for failed request".into(),
+            ));
+        };
+        response.finished().await?;
+        let raw_request = self.raw_headers().await;
+        let request_headers_size = crate::domain::network::request_headers_size(
+            raw_request.entries(),
+            self.url(),
+            self.method(),
+        );
+        let raw_response = response.raw_headers().await;
+        let text_len = *response.data.headers_text_len.lock().unwrap();
+        let response_headers_size = match text_len {
+            Some(n) => n as u64,
+            None => crate::domain::network::response_headers_size(
+                raw_response.entries(),
+                &response.status_text,
+            ),
+        };
+        let encoded = self.inner.state.lock().unwrap().encoded_data_length;
+        let response_body_size = match encoded {
+            Some(total) if !response.data.is_redirect => {
+                (total as u64).saturating_sub(response_headers_size)
+            }
+            _ => raw_response
+                .get("content-length")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0),
+        };
+        Ok(crate::domain::network::RequestSizes {
+            request_body_size: self.inner.post_data.as_ref().map_or(0, |b| b.len() as u64),
+            request_headers_size,
+            response_body_size,
+            response_headers_size,
+        })
+    }
+
     /// `request.timing()`.
     pub fn timing(&self) -> Timing {
         self.inner.state.lock().unwrap().timing
@@ -336,6 +383,13 @@ impl Response {
     /// The frame that issued the request.
     pub fn frame(&self) -> Option<Frame> {
         self.request.frame()
+    }
+
+    /// `response.httpVersion()`: `HTTP/1.1`, `HTTP/2.0`, ...
+    pub async fn http_version(&self) -> Result<String> {
+        Ok(crate::domain::network::http_version(
+            self.data.protocol.as_deref(),
+        ))
     }
 
     pub fn from_service_worker(&self) -> bool {
@@ -455,7 +509,7 @@ impl Response {
 pub(crate) struct NetworkState {
     requests: HashMap<String, Request>,
     /// Raw response headers that arrived before their response.
-    early_response_extra: HashMap<String, VecDeque<RawHeaders>>,
+    early_response_extra: HashMap<String, VecDeque<(RawHeaders, Option<usize>)>>,
     /// Responses still waiting for their raw headers.
     awaiting_response_extra: HashMap<String, VecDeque<(Request, Arc<ResponseData>)>>,
     /// Raw request headers that arrived before their request.
@@ -517,6 +571,8 @@ fn response_data(r: &Value, is_redirect: bool, has_extra_info: bool) -> Response
         server_addr,
         security_details,
         from_service_worker: r.get("fromServiceWorker").and_then(Value::as_bool) == Some(true),
+        protocol: r.get("protocol").and_then(Value::as_str).map(str::to_owned),
+        headers_text_len: Mutex::new(None),
         raw_headers: Mutex::new(None),
     }
 }
@@ -598,6 +654,7 @@ impl Page {
                                 response: None,
                                 raw_headers,
                                 failure: None,
+                                encoded_data_length: None,
                                 done: false,
                                 timing: Timing::unknown(wall_time),
                             }),
@@ -634,12 +691,14 @@ impl Page {
                 "Network.responseReceivedExtraInfo" => {
                     let id = s(p, "requestId");
                     let raw = RawHeaders::from_protocol(&p["headers"], true);
+                    let text_len = p.get("headersText").and_then(Value::as_str).map(str::len);
                     let waiting = net
                         .awaiting_response_extra
                         .get_mut(&id)
                         .and_then(VecDeque::pop_front);
                     match waiting {
                         Some((request, data)) => {
+                            *data.headers_text_len.lock().unwrap() = text_len;
                             *data.raw_headers.lock().unwrap() = Some(raw);
                             request.update(|_| {});
                         }
@@ -647,7 +706,7 @@ impl Page {
                             .early_response_extra
                             .entry(id)
                             .or_default()
-                            .push_back(raw),
+                            .push_back((raw, text_len)),
                     }
                     if net
                         .awaiting_response_extra
@@ -683,10 +742,12 @@ impl Page {
                         return;
                     };
                     let at = p.get("timestamp").and_then(Value::as_f64).unwrap_or(0.0);
+                    let encoded = p.get("encodedDataLength").and_then(Value::as_f64);
                     request.update(|st| {
                         if st.response.is_some() {
                             st.timing.finish(request.inner.timestamp, at);
                         }
+                        st.encoded_data_length = encoded;
                         st.done = true;
                     });
                     emit.push(PageEvent::RequestFinished(request));
@@ -741,7 +802,10 @@ impl Page {
                 .get_mut(id)
                 .and_then(VecDeque::pop_front)
             {
-                Some(raw) => *data.raw_headers.lock().unwrap() = Some(raw),
+                Some((raw, text_len)) => {
+                    *data.headers_text_len.lock().unwrap() = text_len;
+                    *data.raw_headers.lock().unwrap() = Some(raw);
+                }
                 None => net
                     .awaiting_response_extra
                     .entry(id.clone())

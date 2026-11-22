@@ -700,7 +700,7 @@ where
 
 /// Commands that turn on interception for a new page of `context`.
 pub(crate) fn context_route_commands(context: &ContextInner) -> Vec<(&'static str, Value)> {
-    if context.routes.lock().unwrap().is_empty() || context.options.http_credentials.is_some() {
+    if context.routes.lock().unwrap().is_empty() || context.http_credentials().is_some() {
         return Vec::new();
     }
     vec![
@@ -753,7 +753,7 @@ impl Page {
 
     /// Turns `Fetch` interception on or off to match the registered routes.
     pub(crate) async fn update_interception(&self) -> Result<()> {
-        let want = self.routing_active() || self.inner.options.http_credentials.is_some();
+        let want = self.routing_active() || self.http_credentials().is_some();
         let was = self
             .inner
             .intercepting

@@ -57,13 +57,13 @@ pub use domain::devices::{Device, device, device_names};
 pub use domain::discovery::Source as DiscoverySource;
 pub use domain::emulation::{
     ColorScheme, ContextOptions, Contrast, ForcedColors, Geolocation, HttpCredentials, Media,
-    ReducedMotion, Viewport,
+    ReducedMotion, ServiceWorkers, Viewport,
 };
 pub use domain::error::{Error, Result};
 pub use domain::frame::LifecycleEvent as WaitUntil;
 pub use domain::input::MouseButton;
 pub use domain::launch::BrowserKind;
-pub use domain::network::{HeaderEntry, Timing};
+pub use domain::network::{HeaderEntry, RequestSizes, Timing};
 pub use domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale,
 };

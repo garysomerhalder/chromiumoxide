@@ -356,15 +356,11 @@ impl Page {
                         .pointer("/request/url")
                         .and_then(Value::as_str)
                         .unwrap_or_default();
-                    let creds =
-                        self.inner
-                            .options
-                            .http_credentials
-                            .as_ref()
-                            .filter(|c| match &c.origin {
-                                None => true,
-                                Some(o) => origin_of(url).eq_ignore_ascii_case(o),
-                            });
+                    let creds = self.http_credentials();
+                    let creds = creds.as_ref().filter(|c| match &c.origin {
+                        None => true,
+                        Some(o) => origin_of(url).eq_ignore_ascii_case(o),
+                    });
                     let response = if st.auth_attempts.contains(&request_id) {
                         json!({"response": "CancelAuth"})
                     } else if let Some(c) = creds {

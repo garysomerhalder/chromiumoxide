@@ -125,6 +125,12 @@ impl BrowserContext {
             subscribers: Mutex::new(Vec::new()),
         });
         shared.contexts.lock().unwrap().insert(id, inner.clone());
+        if inner.options.service_workers == crate::domain::emulation::ServiceWorkers::Block {
+            inner.init_scripts.lock().unwrap().push(
+                "if (navigator.serviceWorker) navigator.serviceWorker.register = async () => { console.warn('Service Worker registration blocked by chromiumoxide'); };"
+                    .to_owned(),
+            );
+        }
         let context = BrowserContext { inner };
         let accept = context.inner.options.accept_downloads;
         let mut params = json!({

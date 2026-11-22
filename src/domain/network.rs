@@ -333,6 +333,43 @@ pub fn mime_type_for_path(path: &str) -> Option<&'static str> {
     })
 }
 
+/// Bytes of header lines (`name: value\r\n`), like Playwright's `headersSize`.
+pub fn headers_size(headers: &[HeaderEntry]) -> u64 {
+    headers
+        .iter()
+        .map(|h| (h.name.len() + h.value.len() + 4) as u64)
+        .sum()
+}
+
+/// Size of the request head (`METHOD /path HTTP/1.1\r\n` + headers + `\r\n`).
+pub fn request_headers_size(headers: &[HeaderEntry], url: &str, method: &str) -> u64 {
+    let path = url::Url::parse(url).map(|u| u.path().len()).unwrap_or(1) as u64;
+    4 + method.len() as u64 + path + 8 + headers_size(headers)
+}
+
+/// Size of the response head (`HTTP/1.1 200 OK\r\n` + headers + `\r\n`).
+pub fn response_headers_size(headers: &[HeaderEntry], status_text: &str) -> u64 {
+    4 + 8 + 3 + status_text.len() as u64 + headers_size(headers) + 2
+}
+
+/// Playwright's `response.httpVersion()` from the protocol's `protocol` field.
+pub fn http_version(protocol: Option<&str>) -> String {
+    match protocol {
+        None | Some("") | Some("http/1.1") => "HTTP/1.1".into(),
+        Some("h2") => "HTTP/2.0".into(),
+        Some(other) => other.into(),
+    }
+}
+
+/// `request.sizes()`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequestSizes {
+    pub request_body_size: u64,
+    pub request_headers_size: u64,
+    pub response_body_size: u64,
+    pub response_headers_size: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

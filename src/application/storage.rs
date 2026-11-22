@@ -24,6 +24,7 @@ pub(crate) struct RuntimeSettings {
     pub(crate) extra_http_headers: Option<BTreeMap<String, String>>,
     pub(crate) offline: Option<bool>,
     pub(crate) geolocation: Option<Option<Geolocation>>,
+    pub(crate) http_credentials: Option<Option<crate::domain::emulation::HttpCredentials>>,
 }
 
 pub(crate) type Origins = Mutex<Vec<String>>;
@@ -77,6 +78,14 @@ impl ContextInner {
         }
     }
 
+    /// The credentials in effect (`setHTTPCredentials` overrides the option).
+    pub(crate) fn http_credentials(&self) -> Option<crate::domain::emulation::HttpCredentials> {
+        match &self.runtime.lock().unwrap().http_credentials {
+            Some(c) => c.clone(),
+            None => self.options.http_credentials.clone(),
+        }
+    }
+
     fn context_headers(&self) -> BTreeMap<String, String> {
         self.runtime
             .lock()
@@ -104,6 +113,13 @@ pub(crate) fn runtime_commands(context: &ContextInner) -> Vec<(&'static str, Val
 }
 
 impl Page {
+    pub(crate) fn http_credentials(&self) -> Option<crate::domain::emulation::HttpCredentials> {
+        match self.inner.context.upgrade() {
+            Some(c) => c.http_credentials(),
+            None => self.inner.options.http_credentials.clone(),
+        }
+    }
+
     /// `page.setExtraHTTPHeaders(headers)`: sent with every request of this
     /// page, on top of the context's.
     pub async fn set_extra_http_headers<K: Into<String>, V: Into<String>>(
@@ -258,6 +274,19 @@ impl BrowserContext {
         self.inner.runtime.lock().unwrap().extra_http_headers = Some(headers);
         for page in self.live_pages() {
             page.update_extra_http_headers().await?;
+        }
+        Ok(())
+    }
+
+    /// `context.setHTTPCredentials(credentials)` (deprecated in Playwright,
+    /// still supported): `None` stops answering auth challenges.
+    pub async fn set_http_credentials(
+        &self,
+        credentials: Option<crate::domain::emulation::HttpCredentials>,
+    ) -> Result<()> {
+        self.inner.runtime.lock().unwrap().http_credentials = Some(credentials);
+        for page in self.live_pages() {
+            page.update_interception().await?;
         }
         Ok(())
     }
