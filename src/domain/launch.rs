@@ -361,6 +361,19 @@ mod tests {
     }
 
     #[test]
+    fn chromium_sandbox_drops_no_sandbox() {
+        let mut s = spec(BrowserKind::Chrome, true);
+        s.chromium_sandbox = true;
+        let args = command_line(&s);
+        assert!(!args.contains(&"--no-sandbox".to_owned()), "{args:?}");
+        let rest: Vec<_> = command_line(&spec(BrowserKind::Chrome, true))
+            .into_iter()
+            .filter(|a| a != "--no-sandbox")
+            .collect();
+        assert_eq!(args, rest, "only --no-sandbox changes");
+    }
+
+    #[test]
     fn user_args_come_after_preset_and_before_profile() {
         let mut s = spec(BrowserKind::HeadlessShell, true);
         s.args = vec!["--lang=de".into()];

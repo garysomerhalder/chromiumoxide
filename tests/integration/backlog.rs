@@ -612,3 +612,107 @@ async fn download_read_stream() {
     assert_eq!(out, "streamed bytes");
     browser.close().await.unwrap();
 }
+
+/// Launch options `slowMo`, `downloadsPath`, `artifactsDir` and `tracesDir`.
+#[tokio::test]
+async fn launch_slow_mo_and_artifact_dirs() {
+    let server = crate::server::TestServer::start().await;
+    server.respond(
+        "/dl",
+        "200 OK",
+        &[("Content-Disposition", "attachment; filename=f.txt")],
+        "abc",
+    );
+    let root = std::env::temp_dir().join(format!("chromiumoxide-artifacts-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+
+    // downloadsPath + slowMo.
+    let downloads = root.join("downloads");
+    let browser = Chromium::launch(LaunchOptions {
+        downloads_path: Some(downloads.clone()),
+        slow_mo: Duration::from_millis(150),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let context = browser
+        .new_context(chromiumoxide::ContextOptions {
+            accept_downloads: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.set_content(&format!(
+        "<a href='{}'>dl</a><button>b</button>",
+        server.url("/dl")
+    ))
+    .await
+    .unwrap();
+    let start = std::time::Instant::now();
+    for _ in 0..3 {
+        page.locator("button").click().await.unwrap();
+    }
+    assert!(
+        start.elapsed() >= Duration::from_millis(450),
+        "{:?}",
+        start.elapsed()
+    );
+    let start = std::time::Instant::now();
+    for _ in 0..3 {
+        page.evaluate::<i64>("1").await.unwrap();
+    }
+    assert!(
+        start.elapsed() < Duration::from_millis(400),
+        "evaluate is not slowed"
+    );
+    let download = page.wait_for_download().run(page.click("a")).await.unwrap();
+    let path = download.path().await.unwrap();
+    assert!(path.starts_with(&downloads), "{path:?}");
+    // Downloads go with their context; the directory stays.
+    context.close().await.unwrap();
+    assert!(!path.exists(), "deleted with its context");
+    browser.close().await.unwrap();
+    assert!(downloads.is_dir(), "downloadsPath is not removed");
+
+    // artifactsDir (downloads by default) + tracesDir.
+    let artifacts = root.join("artifacts");
+    let traces = root.join("traces");
+    let browser = Chromium::launch(LaunchOptions {
+        artifacts_dir: Some(artifacts.clone()),
+        traces_dir: Some(traces.clone()),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let context = browser
+        .new_context(chromiumoxide::ContextOptions {
+            accept_downloads: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.set_content(&format!("<a href='{}'>dl</a>", server.url("/dl")))
+        .await
+        .unwrap();
+    let download = page.wait_for_download().run(page.click("a")).await.unwrap();
+    assert!(download.path().await.unwrap().starts_with(&artifacts));
+    context
+        .tracing()
+        .start(chromiumoxide::TracingStart {
+            name: Some("run".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    page.locator("a").hover().await.unwrap();
+    context.tracing().stop(None).await.unwrap();
+    let trace = std::fs::read_to_string(traces.join("run.trace")).unwrap();
+    assert!(trace.contains("\"context-options\""), "{trace}");
+    assert!(trace.contains("\"hover\""), "{trace}");
+    assert!(traces.join("run.network").is_file());
+    browser.close().await.unwrap();
+    assert!(artifacts.is_dir(), "artifactsDir is not removed");
+    let _ = std::fs::remove_dir_all(&root);
+}
