@@ -36,6 +36,7 @@ pub(crate) struct TraceRecording {
     network: Vec<tokio::task::JoinHandle<Option<String>>>,
     next_call: u64,
     pages: HashSet<String>,
+    groups: Vec<String>,
 }
 
 pub(crate) type TracingState = Mutex<Option<TraceRecording>>;
@@ -232,6 +233,7 @@ impl Tracing {
                 network: Vec::new(),
                 next_call: 1,
                 pages: HashSet::new(),
+                groups: Vec::new(),
             });
         }
         let pages: Vec<Page> = self.context.pages.lock().unwrap().clone();
@@ -241,31 +243,159 @@ impl Tracing {
         Ok(())
     }
 
-    /// `tracing.stop({path})`: writes the trace when `path` is given.
-    pub async fn stop(&self, path: Option<&Path>) -> Result<()> {
-        let Some(mut rec) = self.context.tracing.lock().unwrap().take() else {
-            return Err(Error::InvalidArgument("Tracing is not started".into()));
-        };
-        let Some(path) = path else {
-            return Ok(());
-        };
+    fn first_event(&self, title: &str) -> String {
+        let (w, h) = self
+            .context
+            .options
+            .viewport
+            .map_or((1280, 720), |v| (v.width, v.height));
+        context_options_event(
+            "chromium",
+            w,
+            h,
+            self.context.shared.services.clock.wall_ms(),
+            0.0,
+            title,
+            platform(self.context.shared.font_platform),
+        )
+    }
+
+    async fn write_chunk(
+        &self,
+        events: Vec<String>,
+        resources: Vec<(String, Vec<u8>)>,
+        pending: Vec<tokio::task::JoinHandle<Option<String>>>,
+        path: &Path,
+    ) -> Result<()> {
         let mut network = Vec::new();
-        for handle in rec.network.drain(..) {
+        for handle in pending {
             if let Ok(Some(line)) = handle.await {
                 network.push(line);
             }
         }
         let mut files: Vec<(&str, Vec<u8>)> = vec![
-            ("trace.trace", (rec.events.join("\n") + "\n").into_bytes()),
+            ("trace.trace", (events.join("\n") + "\n").into_bytes()),
             ("trace.network", (network.join("\n") + "\n").into_bytes()),
             ("trace.stacks", br#"{"files":[],"stacks":[]}"#.to_vec()),
         ];
-        for (name, data) in &rec.resources {
+        for (name, data) in &resources {
             files.push((name.as_str(), data.clone()));
         }
         let zip = zip_stored(&files);
         self.context.shared.services.fs.write(path, &zip)?;
         Ok(())
+    }
+
+    /// `tracing.stop({path})`: writes the trace when `path` is given.
+    pub async fn stop(&self, path: Option<&Path>) -> Result<()> {
+        let Some(rec) = self.context.tracing.lock().unwrap().take() else {
+            return Err(Error::InvalidArgument("Tracing is not started".into()));
+        };
+        match path {
+            Some(path) => {
+                self.write_chunk(rec.events, rec.resources, rec.network, path)
+                    .await
+            }
+            None => Ok(()),
+        }
+    }
+
+    /// `tracing.startChunk({title})`: starts a new chunk of a started trace.
+    pub async fn start_chunk(&self, title: Option<&str>) -> Result<()> {
+        let first = self.first_event(title.unwrap_or_default());
+        let now = self.context.shared.services.clock.now_ms();
+        let mut rec = self.context.tracing.lock().unwrap();
+        let rec = rec
+            .as_mut()
+            .ok_or_else(|| Error::InvalidArgument("Tracing is not started".into()))?;
+        rec.events = vec![first];
+        rec.resources.clear();
+        rec.start_ms = now;
+        Ok(())
+    }
+
+    /// `tracing.stopChunk({path})`: writes what was recorded since the last
+    /// chunk; tracing goes on.
+    pub async fn stop_chunk(&self, path: Option<&Path>) -> Result<()> {
+        let (events, resources, pending) = {
+            let mut rec = self.context.tracing.lock().unwrap();
+            let rec = rec
+                .as_mut()
+                .ok_or_else(|| Error::InvalidArgument("Tracing is not started".into()))?;
+            (
+                std::mem::take(&mut rec.events),
+                std::mem::take(&mut rec.resources),
+                std::mem::take(&mut rec.network),
+            )
+        };
+        match path {
+            Some(path) => self.write_chunk(events, resources, pending, path).await,
+            None => Ok(()),
+        }
+    }
+
+    /// `tracing.group(name)`: groups the following actions in the viewer.
+    pub async fn group(&self, name: &str) -> Result<()> {
+        let time = self.context.trace_time();
+        let mut rec = self.context.tracing.lock().unwrap();
+        let rec = rec
+            .as_mut()
+            .ok_or_else(|| Error::InvalidArgument("Tracing is not started".into()))?;
+        rec.next_call += 1;
+        let id = format!("call@{}", rec.next_call);
+        rec.events.push(
+            json!({"type": "before", "callId": id, "startTime": time.unwrap_or(0.0),
+                   "class": "Tracing", "method": "tracingGroup", "params": {"name": name}})
+            .to_string(),
+        );
+        rec.groups.push(id);
+        Ok(())
+    }
+
+    /// `tracing.groupEnd()`.
+    pub async fn group_end(&self) -> Result<()> {
+        let time = self.context.trace_time();
+        let mut rec = self.context.tracing.lock().unwrap();
+        let rec = rec
+            .as_mut()
+            .ok_or_else(|| Error::InvalidArgument("Tracing is not started".into()))?;
+        if let Some(id) = rec.groups.pop() {
+            rec.events.push(
+                json!({"type": "after", "callId": id, "endTime": time.unwrap_or(0.0)}).to_string(),
+            );
+        }
+        Ok(())
+    }
+
+    /// `tracing.startHar(path)`: records a HAR from now on.
+    pub async fn start_har(&self, path: impl AsRef<Path>) -> Result<()> {
+        {
+            let mut har = self.context.har.lock().unwrap();
+            if har.is_some() {
+                return Err(Error::InvalidArgument(
+                    "HAR recording is already started".into(),
+                ));
+            }
+            *har = crate::application::har::recording(&Some(crate::domain::har::RecordHar::new(
+                path.as_ref(),
+            )))
+            .into_inner()
+            .unwrap();
+        }
+        let pages: Vec<Page> = self.context.pages.lock().unwrap().clone();
+        for page in pages {
+            self.context.har_track_page(&page);
+        }
+        Ok(())
+    }
+
+    /// `tracing.stopHar()`: writes the HAR started with `start_har`.
+    pub async fn stop_har(&self) -> Result<()> {
+        BrowserContext {
+            inner: self.context.clone(),
+        }
+        .flush_har()
+        .await
     }
 }
 
