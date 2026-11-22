@@ -5,6 +5,7 @@ pub mod browser;
 pub mod context;
 pub mod discovery;
 pub mod frame;
+pub mod handle;
 pub mod input;
 pub mod js;
 pub mod locator;

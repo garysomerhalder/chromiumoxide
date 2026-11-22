@@ -34,7 +34,9 @@ async fn evaluate_handle_properties_and_disposal() {
         doc.evaluate::<String>("d => d.nodeName").await.unwrap(),
         "#document"
     );
-    assert!(doc.as_element().is_none());
+    // Like Playwright: any DOM node (including the document) is an element handle; window is not.
+    assert!(doc.as_element().is_some());
+    assert!(window.as_element().is_none());
     let body = page.evaluate_handle("document.body").await.unwrap();
     assert!(body.as_element().is_some());
     obj.dispose().await.unwrap();
