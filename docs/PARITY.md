@@ -78,7 +78,7 @@ Chrome for Testing and chrome-headless-shell.
 | `permissions` | M4 | ✅ Playwright permission names (and `grant_permissions` / `clear_permissions`) |
 | `offline` | M4 | ✅ (and `context.set_offline`) |
 | `extraHTTPHeaders` | M4 | ✅ (and context / page `set_extra_http_headers`) |
-| `javaScriptEnabled`, `bypassCSP`, `ignoreHTTPSErrors` | M4 | 🟡 `javaScriptEnabled`, `bypassCSP` tested; `ignoreHTTPSErrors` set at creation |
+| `javaScriptEnabled`, `bypassCSP`, `ignoreHTTPSErrors` | M4 | ✅ |
 | `storageState` | M4 | ✅ cookies + localStorage, JSON-compatible with Playwright files (IndexedDB not yet) |
 | `acceptDownloads` | M4 | ✅ |
 | `recordHar` | M5 | ✅ `record_har` (embedded or omitted content, URL filter) |

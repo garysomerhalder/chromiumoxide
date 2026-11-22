@@ -12,6 +12,7 @@ mod frames;
 mod handles;
 mod handles2;
 mod har;
+mod https;
 mod input;
 mod launch;
 mod locator;
