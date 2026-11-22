@@ -9,6 +9,7 @@ pub mod frame;
 pub mod input;
 pub mod launch;
 pub mod network;
+pub mod pdf;
 pub mod screenshot;
 pub mod selectors;
 pub mod storage;

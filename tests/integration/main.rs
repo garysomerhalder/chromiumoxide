@@ -12,6 +12,7 @@ mod locator;
 mod navigation;
 mod network;
 mod page;
+mod pdf;
 mod pixel_parity;
 mod popups;
 mod protocol;
