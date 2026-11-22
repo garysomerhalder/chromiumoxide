@@ -54,6 +54,15 @@ pub struct LaunchOptions {
     pub artifacts_dir: Option<PathBuf>,
     /// Playwright's `chromiumSandbox` (default `false`: `--no-sandbox`).
     pub chromium_sandbox: bool,
+    /// Playwright's `handleSIGINT`: on Ctrl-C, close the browser (a second
+    /// Ctrl-C kills it) and exit with 130. Off by default, unlike
+    /// Playwright: listening replaces the program's own Ctrl-C behaviour.
+    pub handle_sigint: bool,
+    /// Playwright's `handleSIGTERM`: on SIGTERM, close the browser; the
+    /// program goes on. Off by default (see `handle_sigint`).
+    pub handle_sigterm: bool,
+    /// Playwright's `handleSIGHUP`: like `handle_sigterm`, for SIGHUP.
+    pub handle_sighup: bool,
 }
 
 impl Default for LaunchOptions {
@@ -72,6 +81,9 @@ impl Default for LaunchOptions {
             traces_dir: None,
             artifacts_dir: None,
             chromium_sandbox: false,
+            handle_sigint: false,
+            handle_sigterm: false,
+            handle_sighup: false,
         }
     }
 }
@@ -149,7 +161,78 @@ impl Drop for BrowserInner {
     }
 }
 
+/// Launched browsers that handle SIGINT and are still open: the program
+/// exits once the last of them has closed (Playwright closes all, then exits).
+static SIGINT_BROWSERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 impl Browser {
+    /// `handleSIGINT` / `handleSIGTERM` / `handleSIGHUP`: one task per signal,
+    /// holding the browser weakly, until the signal or the disconnect.
+    fn handle_signals(&self, options: &LaunchOptions) {
+        use crate::ports::Signal;
+        let wanted = [
+            (options.handle_sigint, Signal::Interrupt),
+            (options.handle_sigterm, Signal::Terminate),
+            (options.handle_sighup, Signal::Hangup),
+        ];
+        for (_, signal) in wanted.into_iter().filter(|(on, _)| *on) {
+            let signals = self.inner.services.signals.clone();
+            let mut delivered = signals.listen(signal);
+            let mut events = self.events();
+            let weak = Arc::downgrade(&self.inner);
+            let interrupt = signal == Signal::Interrupt;
+            if interrupt {
+                SIGINT_BROWSERS.fetch_add(1, Ordering::SeqCst);
+            }
+            tokio::spawn(async move {
+                use futures::StreamExt;
+                let got = loop {
+                    tokio::select! {
+                        s = delivered.next() => break s.is_some(),
+                        e = events.next() => match e {
+                            Some(BrowserEvent::Disconnected) | None => break false,
+                            Some(_) => {}
+                        },
+                    }
+                };
+                let browser = weak.upgrade().map(|inner| Browser { inner });
+                let Some(browser) = browser.filter(|_| got) else {
+                    if interrupt {
+                        SIGINT_BROWSERS.fetch_sub(1, Ordering::SeqCst);
+                    }
+                    return;
+                };
+                if !interrupt {
+                    let _ = browser.close().await;
+                    return;
+                }
+                tokio::select! {
+                    _ = browser.close() => {}
+                    // A second Ctrl-C kills the browser right away.
+                    _ = delivered.next() => browser.kill_now(),
+                }
+                if SIGINT_BROWSERS.fetch_sub(1, Ordering::SeqCst) == 1 {
+                    signals.exit(130);
+                }
+            });
+        }
+    }
+
+    /// Kills the process without closing the connection, removes a
+    /// temporary profile.
+    fn kill_now(&self) {
+        drop(self.inner.process.lock().unwrap().take());
+        if let Some(dir) = self
+            .inner
+            .user_data_dir
+            .as_ref()
+            .filter(|_| self.inner.remove_profile)
+        {
+            let _ = self.inner.services.fs.remove_dir_all(dir);
+        }
+        self.inner.emit_disconnected();
+    }
+
     /// Discovers, launches and connects to a browser.
     pub async fn launch(services: Services, options: LaunchOptions) -> Result<Browser> {
         Ok(Self::launch_impl(services, options, None).await?.0)
@@ -257,7 +340,10 @@ impl Browser {
         };
         let default_options = persistent.map(|(_, o)| o);
         match browser.handshake(default_options).await {
-            Ok(ctx) => Ok((browser, ctx)),
+            Ok(ctx) => {
+                browser.handle_signals(&options);
+                Ok((browser, ctx))
+            }
             Err(e) => {
                 let _ = browser.close().await;
                 Err(e)
@@ -372,8 +458,9 @@ impl Browser {
         let loop_shared = Arc::downgrade(&shared);
         tokio::spawn(async move {
             target_loop(loop_shared, events).await;
-            // The connection is gone: Playwright's `disconnected`.
-            if let Some(inner) = weak.upgrade() {
+            // The connection is gone: Playwright's `disconnected`. During
+            // `close()`, that emits it itself, after removing the profile.
+            if let Some(inner) = weak.upgrade().filter(|i| !i.closed.load(Ordering::SeqCst)) {
                 inner.emit_disconnected();
             }
         });
@@ -713,6 +800,7 @@ mod tests {
             video: Arc::new(crate::testing::memory::NullVideo),
             http: Arc::new(crate::testing::memory::NoHttp),
             bridge: Arc::new(crate::testing::memory::NoBridge),
+            signals: Arc::new(crate::testing::memory::NoSignals),
         };
         (s, fs)
     }

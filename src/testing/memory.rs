@@ -170,3 +170,15 @@ impl crate::ports::CdpBridge for NoBridge {
         Box::pin(async { Err(io::Error::other("no network in unit tests")) })
     }
 }
+
+/// Signals that never arrive.
+pub struct NoSignals;
+
+impl crate::ports::Signals for NoSignals {
+    fn listen(&self, _signal: crate::ports::Signal) -> futures::stream::BoxStream<'static, ()> {
+        Box::pin(futures::stream::empty())
+    }
+    fn exit(&self, code: i32) -> ! {
+        panic!("exit({code})")
+    }
+}

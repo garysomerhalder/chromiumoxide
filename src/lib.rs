@@ -160,6 +160,7 @@ impl Chromium {
             video: Arc::new(adapters::video::FfmpegEncoder),
             http: Arc::new(adapters::http::TcpHttpClient),
             bridge: Arc::new(adapters::cdp::bridge::WsBridge),
+            signals: Arc::new(adapters::signals::OsSignals),
         }
     }
 
