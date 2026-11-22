@@ -7,8 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] (in progress)
+
+### Breaking Changes
+
+- Rewrite as DDD + hexagonal architecture with a Playwright-like API
+  (see `docs/ARCHITECTURE.md` for how the 0.9 API maps onto the new one).
+
+### Added
+
+- `docs/ARCHITECTURE.md`, `docs/PARITY.md` (Chrome and Playwright checklists), `CLAUDE.md`.
+
 ### Changed
 
+- Version 0.10.0 for all workspace crates.
 - Derive `Clone` for `Element`, `ScreenshotParams` and `ScreenshotParamsBuilder`
 
 ## [0.9.1] 2026-02-25
