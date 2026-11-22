@@ -222,6 +222,12 @@ impl Request {
         Ok(data.map(|d| Response::new(self.clone(), d)))
     }
 
+    /// `request.existingResponse()`: the response if it has arrived already.
+    pub fn existing_response(&self) -> Option<Response> {
+        let data = self.inner.state.lock().unwrap().response.clone()?;
+        Some(Response::new(self.clone(), data))
+    }
+
     /// `request.timing()`.
     pub fn timing(&self) -> Timing {
         self.inner.state.lock().unwrap().timing
@@ -456,7 +462,12 @@ pub(crate) struct NetworkState {
     early_request_extra: HashMap<String, VecDeque<RawHeaders>>,
     /// `Fetch.requestPaused` interception ids that arrived before their request.
     paused: HashMap<String, String>,
+    /// The most recent requests (`page.requests()`).
+    recent: VecDeque<Request>,
 }
+
+/// How many requests `page.requests()` remembers.
+const RECENT_REQUESTS: usize = 100;
 
 impl NetworkState {
     pub(crate) fn request(&self, id: &str) -> Option<Request> {
@@ -597,6 +608,10 @@ impl Page {
                         prev.update(|st| st.redirected_to = Some(Arc::downgrade(&request.inner)));
                     }
                     net.requests.insert(id.clone(), request.clone());
+                    if net.recent.len() == RECENT_REQUESTS {
+                        net.recent.pop_front();
+                    }
+                    net.recent.push_back(request.clone());
                     if let Some(interception) = net.paused.remove(&id) {
                         route = Some((request.clone(), interception));
                     }
@@ -755,6 +770,18 @@ impl Page {
         for r in requests {
             r.update(|st| st.done = true);
         }
+    }
+
+    /// `page.requests()`: the most recent requests (up to 100).
+    pub fn requests(&self) -> Vec<Request> {
+        self.inner
+            .network
+            .lock()
+            .unwrap()
+            .recent
+            .iter()
+            .cloned()
+            .collect()
     }
 
     /// `page.waitForRequest(url)`.

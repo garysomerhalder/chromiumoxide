@@ -48,6 +48,8 @@ pub enum PageEvent {
     WebSocket(crate::application::websocket::WebSocket),
     /// A dedicated worker started (`page.on('worker')`).
     Worker(crate::application::worker::Worker),
+    /// A file dialog was intercepted (`page.on('filechooser')`).
+    FileChooser(crate::application::filechooser::FileChooser),
 }
 
 /// A `console.*` call (Playwright's `ConsoleMessage`).
@@ -57,17 +59,51 @@ pub struct ConsoleMessage {
     text: String,
     args: Vec<JsHandle>,
     location: Location,
+    timestamp: f64,
+    page: std::sync::Weak<crate::application::page::PageInner>,
+    worker: Option<crate::application::worker::WeakWorker>,
 }
 
 impl ConsoleMessage {
     /// A message logged by a worker (its arguments are not page handles).
-    pub(crate) fn from_worker(kind: &str, text: String, location: Location) -> Self {
+    pub(crate) fn from_worker(
+        worker: &crate::application::worker::Worker,
+        page: &Page,
+        p: &Value,
+    ) -> Self {
+        let args: Vec<Value> = p
+            .get("args")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
         ConsoleMessage {
-            kind: kind.to_owned(),
-            text,
+            kind: p
+                .get("type")
+                .and_then(Value::as_str)
+                .unwrap_or("log")
+                .to_owned(),
+            text: console_text(&args),
             args: Vec::new(),
-            location,
+            location: location(p.get("stackTrace")),
+            timestamp: p.get("timestamp").and_then(Value::as_f64).unwrap_or(0.0),
+            page: Arc::downgrade(&page.inner),
+            worker: Some(worker.downgrade()),
         }
+    }
+
+    /// When the message was logged, in milliseconds since the Unix epoch.
+    pub fn timestamp(&self) -> f64 {
+        self.timestamp
+    }
+
+    /// The page that logged the message, if it is still around.
+    pub fn page(&self) -> Option<Page> {
+        self.page.upgrade().map(|inner| Page { inner })
+    }
+
+    /// The worker that logged the message, if any.
+    pub fn worker(&self) -> Option<crate::application::worker::Worker> {
+        self.worker.as_ref().and_then(|w| w.upgrade())
     }
 
     /// `log`, `warning`, `error`, `info`, `debug`, `table`, ...
@@ -198,6 +234,16 @@ impl Page {
             .collect()
     }
 
+    /// `page.clearConsoleMessages()`.
+    pub fn clear_console_messages(&self) {
+        self.inner.events.lock().unwrap().console.clear();
+    }
+
+    /// `page.clearPageErrors()`.
+    pub fn clear_page_errors(&self) {
+        self.inner.events.lock().unwrap().errors.clear();
+    }
+
     /// `page.pageErrors()`: recent uncaught exceptions.
     pub fn page_errors(&self) -> Vec<PageError> {
         self.inner
@@ -251,6 +297,9 @@ impl Page {
                         .map(|a| JsHandle::from_remote(self, a))
                         .collect(),
                     location: location(p.get("stackTrace")),
+                    timestamp: p.get("timestamp").and_then(Value::as_f64).unwrap_or(0.0),
+                    page: Arc::downgrade(&self.inner),
+                    worker: None,
                 };
                 self.emit(PageEvent::Console(message));
                 true
@@ -292,6 +341,10 @@ impl Page {
                         tokio::spawn(h(dialog.clone()));
                     }
                 }
+                true
+            }
+            "Page.fileChooserOpened" => {
+                self.on_file_chooser_opened(p);
                 true
             }
             "Page.domContentEventFired" => {

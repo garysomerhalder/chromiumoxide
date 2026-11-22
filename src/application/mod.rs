@@ -6,6 +6,7 @@ pub mod context;
 pub mod discovery;
 pub mod download;
 pub mod events;
+pub mod filechooser;
 pub mod frame;
 pub mod handle;
 pub mod input;

@@ -34,6 +34,7 @@ pub use application::context::{BrowserContext, ContextEvent, PageWaiter};
 pub use application::discovery::Discovered;
 pub use application::download::Download;
 pub use application::events::{ConsoleMessage, Dialog, EventWaiter, PageEvent};
+pub use application::filechooser::{FileChooser, FileChooserWaiter};
 pub use application::frame::Frame;
 pub use application::handle::JsHandle;
 pub use application::input::{Keyboard, Mouse, Touchscreen};

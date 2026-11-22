@@ -12,7 +12,6 @@ use tokio::sync::watch;
 use crate::application::events::{ConsoleMessage, EventWaiter, PageEvent};
 use crate::application::js;
 use crate::application::page::Page;
-use crate::domain::console::{console_text, location};
 use crate::domain::error::{Error, Result};
 use crate::ports::RawEvent;
 
@@ -45,7 +44,21 @@ impl PartialEq for Worker {
     }
 }
 
+/// A worker reference that does not keep it alive.
+#[derive(Clone, Debug)]
+pub(crate) struct WeakWorker(std::sync::Weak<WorkerInner>);
+
+impl WeakWorker {
+    pub(crate) fn upgrade(&self) -> Option<Worker> {
+        self.0.upgrade().map(|inner| Worker { inner })
+    }
+}
+
 impl Worker {
+    pub(crate) fn downgrade(&self) -> WeakWorker {
+        WeakWorker(Arc::downgrade(&self.inner))
+    }
+
     pub fn url(&self) -> &str {
         &self.inner.url
     }
@@ -215,16 +228,7 @@ impl Worker {
                 }
             }
             "Runtime.consoleAPICalled" => {
-                let args: Vec<Value> = p
-                    .get("args")
-                    .and_then(Value::as_array)
-                    .cloned()
-                    .unwrap_or_default();
-                let message = ConsoleMessage::from_worker(
-                    p.get("type").and_then(Value::as_str).unwrap_or("log"),
-                    console_text(&args),
-                    location(p.get("stackTrace")),
-                );
+                let message = ConsoleMessage::from_worker(self, &self.inner.page, p);
                 self.inner.page.emit(PageEvent::Console(message));
             }
             _ => {}

@@ -334,6 +334,26 @@ impl BrowserContext {
         Ok(StorageState { cookies, origins })
     }
 
+    /// `context.setStorageState(state)`: replaces cookies and the storage of
+    /// every visited origin with `state`.
+    pub async fn set_storage_state(&self, state: &StorageState) -> Result<()> {
+        self.clear_cookies().await?;
+        let visited = self.inner.origins.lock().unwrap().clone();
+        let mut full = state.clone();
+        for origin in visited {
+            if !full.origins.iter().any(|o| o.origin == origin) {
+                full.origins.push(OriginState {
+                    origin,
+                    local_storage: Vec::new(),
+                });
+            }
+        }
+        self.restore_storage_state(&full).await?;
+        *self.inner.origins.lock().unwrap() =
+            state.origins.iter().map(|o| o.origin.clone()).collect();
+        Ok(())
+    }
+
     /// Applies a storage state to this (new) context.
     pub(crate) async fn restore_storage_state(&self, state: &StorageState) -> Result<()> {
         if !state.cookies.is_empty() {
