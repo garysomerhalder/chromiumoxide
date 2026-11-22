@@ -89,3 +89,36 @@ async fn missing_explicit_executable_is_reported() {
     .unwrap();
     assert!(err.to_string().contains("/definitely/not/here"), "{err}");
 }
+
+#[tokio::test]
+async fn browser_server_outlives_its_clients() {
+    let server = Chromium::launch_server(LaunchOptions::default())
+        .await
+        .unwrap();
+    let ws = server.ws_endpoint();
+    assert!(ws.starts_with("ws://127.0.0.1:"), "{ws}");
+
+    let a = Chromium::connect(&ws).await.unwrap();
+    let ctx = a.new_context(Default::default()).await.unwrap();
+    let page = ctx.new_page().await.unwrap();
+    page.set_content("<p>a</p>").await.unwrap();
+    // Closing a connected browser disconnects and drops its contexts only.
+    a.close().await.unwrap();
+
+    let b = Chromium::connect(&ws).await.unwrap();
+    assert!(b.version().await.unwrap().contains("Chrome"));
+    assert!(
+        b.contexts().is_empty(),
+        "the other client's contexts are gone"
+    );
+    let page = b.new_page().await.unwrap();
+    page.set_content("<p>b</p>").await.unwrap();
+    assert_eq!(
+        page.locator("p").text_content().await.unwrap().as_deref(),
+        Some("b")
+    );
+    b.close().await.unwrap();
+
+    server.close().await.unwrap();
+    assert!(Chromium::connect(&ws).await.is_err(), "the server is gone");
+}
