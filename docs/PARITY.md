@@ -664,8 +664,8 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `group` | M5 | ⬜ |
-| `groupEnd` | M5 | ⬜ |
+| `group` | M5 | ✅ |
+| `groupEnd` | M5 | ✅ |
 | `start` | M5 | ✅ |
 | `startChunk` | M5 | ✅ |
 | `startHar` | M5 | ✅ |
