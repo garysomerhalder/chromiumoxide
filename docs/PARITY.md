@@ -228,7 +228,7 @@ Chrome for Testing and chrome-headless-shell.
 | `context` | M1 | ✅ |
 | `dblclick` | M3 | ✅ |
 | `dispatchEvent` | M3 | ✅ |
-| `dragAndDrop` | M3 | 🟡 mouse-driven drags; HTML5 drag-and-drop interception not yet |
+| `dragAndDrop` | M3 | ✅ mouse and HTML5 drags |
 | `emulateMedia` | M3 | ✅ |
 | `exposeFunction` | M3 | ✅ |
 | `fill` | M3 | ✅ |
@@ -400,8 +400,8 @@ Chrome for Testing and chrome-headless-shell.
 | `describe` | M3 | ✅ |
 | `description` | M3 | ✅ |
 | `dispatchEvent` | M3 | ✅ |
-| `dragTo` | M3 | 🟡 mouse-driven drags; HTML5 drag-and-drop interception not yet |
-| `drop` | M3 | ⬜ |
+| `dragTo` | M3 | ✅ mouse and HTML5 drags |
+| `drop` | M3 | ✅ |
 | `elementHandles` | M3 | ✅ |
 | `fill` | M3 | ✅ |
 | `filter` | M3 | ✅ |
