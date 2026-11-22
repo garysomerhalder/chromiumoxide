@@ -1,5 +1,7 @@
 //! Page keyboard, mouse and touchscreen (Playwright's `page.keyboard` etc.).
 
+use std::time::Duration;
+
 use futures::StreamExt;
 use serde_json::{Value, json};
 
@@ -104,12 +106,28 @@ impl Keyboard {
 
     /// `keyboard.press("Control+Shift+A")`.
     pub async fn press(&self, shortcut: &str) -> Result<()> {
+        self.press_impl(shortcut, None).await
+    }
+
+    /// `keyboard.press(key, { delay })`: waits `delay` between keydown and keyup.
+    pub async fn press_with_delay(&self, shortcut: &str, delay: Duration) -> Result<()> {
+        self.press_impl(shortcut, Some(delay)).await
+    }
+
+    fn sleep(&self, d: Duration) -> futures::future::BoxFuture<'static, ()> {
+        self.page.inner.shared.services.clock.sleep(d)
+    }
+
+    async fn press_impl(&self, shortcut: &str, delay: Option<Duration>) -> Result<()> {
         let keys = split_shortcut(shortcut);
         let (last, modifiers) = keys.split_last().expect("at least one key");
         for m in modifiers {
             self.down(m).await?;
         }
         self.down(last).await?;
+        if let Some(d) = delay.filter(|d| !d.is_zero()) {
+            self.sleep(d).await;
+        }
         self.up(last).await?;
         for m in modifiers.iter().rev() {
             self.up(m).await?;
@@ -124,6 +142,27 @@ impl Keyboard {
             match step {
                 TypeStep::Press(key) => self.press_single(&key).await?,
                 TypeStep::Insert(text) => self.insert_text(&text).await?,
+            }
+        }
+        Ok(())
+    }
+
+    /// `keyboard.type(text, { delay })`: each layout key is pressed with
+    /// `delay` between keydown and keyup; other characters are inserted one
+    /// by one, `delay` apart (Playwright's `Keyboard.type`).
+    pub async fn type_with_delay(&self, text: &str, delay: Duration) -> Result<()> {
+        if delay.is_zero() {
+            return self.type_text(text).await;
+        }
+        for step in type_steps(text) {
+            match step {
+                TypeStep::Press(key) => self.press_impl(&key, Some(delay)).await?,
+                TypeStep::Insert(text) => {
+                    for c in text.chars() {
+                        self.sleep(delay).await;
+                        self.insert_text(&c.to_string()).await?;
+                    }
+                }
             }
         }
         Ok(())
@@ -344,6 +383,33 @@ impl Mouse {
         for n in 1..=click_count.max(1) {
             self.down_n(button, n).await?;
             self.up_n(button, n).await?;
+        }
+        Ok(())
+    }
+
+    /// `mouse.click(x, y, { button, clickCount, delay })`: waits `delay`
+    /// between mousedown and mouseup, and between clicks.
+    pub async fn click_with_delay(
+        &self,
+        x: f64,
+        y: f64,
+        button: MouseButton,
+        click_count: u32,
+        delay: Duration,
+    ) -> Result<()> {
+        if delay.is_zero() {
+            return self.click_with(x, y, button, click_count).await;
+        }
+        let clock = self.page.inner.shared.services.clock.clone();
+        self.move_for_click(x, y).await?;
+        let count = click_count.max(1);
+        for n in 1..=count {
+            self.down_n(button, n).await?;
+            clock.sleep(delay).await;
+            self.up_n(button, n).await?;
+            if n < count {
+                clock.sleep(delay).await;
+            }
         }
         Ok(())
     }

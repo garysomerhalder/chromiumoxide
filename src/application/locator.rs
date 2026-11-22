@@ -802,7 +802,9 @@ impl Locator {
                 .await?;
             if hit != Value::String("done".into()) {
                 let description = hit
-                    .as_str()
+                    .get("hitTargetDescription")
+                    .and_then(Value::as_str)
+                    .or_else(|| hit.as_str())
                     .map(str::to_owned)
                     .unwrap_or_else(|| hit.to_string());
                 return Ok(Err(format!("{description} intercepts pointer events")));
@@ -839,11 +841,18 @@ impl Locator {
             match action {
                 Action::Hover => mouse.move_to(point.x, point.y, 1).await?,
                 Action::Tap => self.page.touchscreen().tap(point.x, point.y).await?,
-                _ => {
-                    mouse
-                        .click_with(point.x, point.y, o.button, o.click_count)
-                        .await?
-                }
+                _ => match o.delay {
+                    Some(d) => {
+                        mouse
+                            .click_with_delay(point.x, point.y, o.button, o.click_count, d)
+                            .await?
+                    }
+                    None => {
+                        mouse
+                            .click_with(point.x, point.y, o.button, o.click_count)
+                            .await?
+                    }
+                },
             }
             for m in o.modifiers.iter().rev() {
                 keyboard.up(m).await?;
@@ -1071,6 +1080,18 @@ impl Locator {
     pub async fn press_sequentially(&self, text: &str) -> Result<()> {
         self.focused("typing").await?;
         self.page.keyboard().type_text(text).await
+    }
+
+    /// `locator.press(key, { delay })`.
+    pub async fn press_with_delay(&self, key: &str, delay: Duration) -> Result<()> {
+        self.focused("pressing").await?;
+        self.page.keyboard().press_with_delay(key, delay).await
+    }
+
+    /// `locator.pressSequentially(text, { delay })`.
+    pub async fn press_sequentially_with_delay(&self, text: &str, delay: Duration) -> Result<()> {
+        self.focused("typing").await?;
+        self.page.keyboard().type_with_delay(text, delay).await
     }
 
     /// `locator.setChecked(checked)`.
@@ -1575,6 +1596,8 @@ pub struct ClickOptions {
     /// Only perform the checks.
     pub trial: bool,
     pub timeout: Option<Duration>,
+    /// Playwright's `delay` between mousedown and mouseup.
+    pub delay: Option<Duration>,
 }
 
 impl Default for ClickOptions {
@@ -1587,6 +1610,7 @@ impl Default for ClickOptions {
             force: false,
             trial: false,
             timeout: None,
+            delay: None,
         }
     }
 }
@@ -1622,6 +1646,11 @@ impl<'a> Click<'a> {
     }
     pub fn trial(mut self, trial: bool) -> Self {
         self.options.trial = trial;
+        self
+    }
+    /// Wait between mousedown and mouseup (and between clicks), Playwright's `delay`.
+    pub fn delay(mut self, delay: Duration) -> Self {
+        self.options.delay = Some(delay);
         self
     }
     pub fn timeout(mut self, timeout: Duration) -> Self {
