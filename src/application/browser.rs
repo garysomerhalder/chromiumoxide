@@ -1,12 +1,17 @@
 //! Use cases: launch a browser, query and close it.
 
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use serde_json::json;
+
+use crate::application::discovery::discover;
 use crate::application::services::Services;
 use crate::domain::error::Result;
-use crate::ports::{CdpSession, Channel};
+use crate::domain::launch::{LaunchSpec, command_line};
+use crate::ports::{BrowserProcess, CdpSession, Channel, LaunchCommand};
 
 /// Playwright's `browserType.launch(options)`.
 #[derive(Debug, Clone, PartialEq)]
@@ -44,42 +49,133 @@ impl Default for LaunchOptions {
 /// A connected browser.
 #[derive(Clone)]
 pub struct Browser {
-    _inner: Arc<()>,
+    inner: Arc<BrowserInner>,
+}
+
+struct BrowserInner {
+    cdp: Arc<dyn CdpSession>,
+    services: Services,
+    process: Mutex<Option<Box<dyn BrowserProcess>>>,
+    user_data_dir: Option<PathBuf>,
+    executable: Option<PathBuf>,
+    closed: AtomicBool,
 }
 
 impl Browser {
     /// Discovers, launches and connects to a browser.
-    pub async fn launch(_services: Services, _options: LaunchOptions) -> Result<Browser> {
-        unimplemented!()
+    pub async fn launch(services: Services, options: LaunchOptions) -> Result<Browser> {
+        let found = discover(
+            &*services.fs,
+            &*services.env,
+            options.executable_path.as_deref(),
+        )?;
+        let user_data_dir = services.fs.create_temp_dir("chromiumoxide-profile-")?;
+        let spec = LaunchSpec {
+            kind: found.kind,
+            headless: options.headless,
+            args: options.args.clone(),
+            ignore_default_args: options.ignore_default_args,
+            user_data_dir: user_data_dir.clone(),
+        };
+        let mut args = command_line(&spec);
+        if options.channel == Channel::WebSocket {
+            for a in &mut args {
+                if a == "--remote-debugging-pipe" {
+                    *a = "--remote-debugging-port=0".to_owned();
+                }
+            }
+        }
+        let command = LaunchCommand {
+            program: found.executable.clone(),
+            args,
+            env: options.env.clone(),
+            channel: options.channel,
+            user_data_dir: user_data_dir.clone(),
+            timeout_ms: options.timeout.as_millis() as u64,
+        };
+        let launched = match services.launcher.launch(command).await {
+            Ok(l) => l,
+            Err(e) => {
+                let _ = services.fs.remove_dir_all(&user_data_dir);
+                return Err(e);
+            }
+        };
+        let browser = Browser {
+            inner: Arc::new(BrowserInner {
+                cdp: launched.cdp,
+                services,
+                process: Mutex::new(Some(launched.process)),
+                user_data_dir: Some(user_data_dir),
+                executable: Some(found.executable),
+                closed: AtomicBool::new(false),
+            }),
+        };
+        if let Err(e) = browser.handshake().await {
+            let _ = browser.close().await;
+            return Err(e);
+        }
+        Ok(browser)
+    }
+
+    /// Playwright's connection handshake on the browser target.
+    async fn handshake(&self) -> Result<()> {
+        let cdp = &self.inner.cdp;
+        cdp.call(None, "Browser.getVersion", json!({})).await?;
+        cdp.call(
+            None,
+            "Target.setAutoAttach",
+            json!({"autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true}),
+        )
+        .await?;
+        Ok(())
     }
 
     /// The browser's product string, e.g. `HeadlessChrome/157.0.8103.78`.
     pub async fn version(&self) -> Result<String> {
-        unimplemented!()
+        let v = self
+            .inner
+            .cdp
+            .call(None, "Browser.getVersion", json!({}))
+            .await?;
+        Ok(v.get("product")
+            .and_then(|p| p.as_str())
+            .unwrap_or_default()
+            .to_owned())
     }
 
     /// The temporary profile directory of this launch.
     pub fn user_data_dir(&self) -> Option<PathBuf> {
-        unimplemented!()
+        self.inner.user_data_dir.clone()
     }
 
     /// The executable that was launched.
     pub fn executable_path(&self) -> Option<PathBuf> {
-        unimplemented!()
+        self.inner.executable.clone()
     }
 
     pub fn is_connected(&self) -> bool {
-        unimplemented!()
+        !self.inner.closed.load(Ordering::SeqCst)
     }
 
     /// Raw protocol access to the browser target.
     pub fn cdp(&self) -> Arc<dyn CdpSession> {
-        unimplemented!()
+        self.inner.cdp.clone()
     }
 
     /// Closes the browser, ends the process and deletes the temporary profile.
     pub async fn close(&self) -> Result<()> {
-        unimplemented!()
+        if self.inner.closed.swap(true, Ordering::SeqCst) {
+            return Ok(());
+        }
+        let _ = self.inner.cdp.call(None, "Browser.close", json!({})).await;
+        let process = self.inner.process.lock().unwrap().take();
+        if let Some(process) = process {
+            process.shutdown().await;
+        }
+        if let Some(dir) = &self.inner.user_data_dir {
+            let _ = self.inner.services.fs.remove_dir_all(dir);
+        }
+        Ok(())
     }
 }
 
@@ -90,8 +186,6 @@ mod tests {
     use crate::testing::clock::TestClock;
     use crate::testing::memory::{MapEnvironment, MemoryFileSystem};
     use crate::testing::process::FakeLauncher;
-    use serde_json::json;
-    use std::sync::atomic::Ordering;
 
     const SHELL: &str = "/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
 
@@ -101,7 +195,7 @@ mod tests {
             fs: fs.clone(),
             env: Arc::new(MapEnvironment::linux("/home/u")),
             launcher: Arc::new(launcher.clone()),
-            clock: Arc::new(TestClock::default()),
+            clock: Arc::new(TestClock),
         };
         (s, fs)
     }
