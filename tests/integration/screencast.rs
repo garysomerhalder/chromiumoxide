@@ -242,8 +242,9 @@ async fn screencast_show_actions_style() {
     tokio::time::sleep(Duration::from_millis(350)).await;
     let during = page.screenshot().await.unwrap();
     let [r, g, b] = pixel(&during, 200, 100);
+    // The marker fades out over the duration: red, partly blended with white.
     assert!(
-        r > 200 && g < 80 && b < 80,
+        r > 200 && g < 160 && b < 160,
         "point marker at the click: {r},{g},{b}"
     );
     click.await.unwrap().unwrap();

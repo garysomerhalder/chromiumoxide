@@ -64,7 +64,8 @@ pub use application::route::{
     Abort, Continue, FetchResponse, Fulfill, Route, RouteFetch, RouteRegistration,
 };
 pub use application::screencast::{
-    ActionTitlePosition, Overlay, Screencast, ScreencastFrame, ScreencastOptions, ShowActions,
+    ActionStyle, ActionTitlePosition, Overlay, Screencast, ScreencastFrame, ScreencastOptions,
+    ShowActions,
 };
 pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};

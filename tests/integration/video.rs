@@ -4,11 +4,17 @@ use std::time::Duration;
 
 use chromiumoxide::{Chromium, ContextOptions, LaunchOptions, RecordVideo};
 
+/// The newest Playwright ffmpeg build, as the encoder picks it.
 fn ffmpeg() -> Option<std::path::PathBuf> {
     let dir = std::fs::read_dir("/opt/pw-browsers").ok()?;
-    dir.filter_map(|e| e.ok())
+    let mut found: Vec<_> = dir
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().starts_with("ffmpeg"))
         .map(|e| e.path().join("ffmpeg-linux"))
-        .find(|p| p.exists())
+        .filter(|p| p.exists())
+        .collect();
+    found.sort();
+    found.pop()
 }
 
 fn supports_vp9(ffmpeg: &std::path::Path) -> bool {
