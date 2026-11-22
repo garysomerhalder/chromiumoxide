@@ -143,3 +143,41 @@ async fn context_exposed_functions_reach_every_page() {
     }
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn exposed_bindings_receive_their_source_frame() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.expose_binding(
+        "whoami",
+        |source: chromiumoxide::BindingSource, args: Vec<Value>| async move {
+            let url = source.frame.url();
+            Ok(json!(format!(
+                "{}|{}|{}",
+                source.page.target_id().len() > 0,
+                url,
+                args[0]
+            )))
+        },
+    )
+    .await
+    .unwrap();
+    page.set_content("<iframe name=f srcdoc='<p>x</p>'></iframe>")
+        .await
+        .unwrap();
+    page.wait_for_function(
+        "() => window.frames[0] && window.frames[0].document.readyState === 'complete'",
+    )
+    .await
+    .unwrap();
+    let main: String = page.evaluate("() => window.whoami(1)").await.unwrap();
+    assert_eq!(main, "true|about:blank|1");
+    let child: String = page
+        .frame("f")
+        .unwrap()
+        .evaluate("() => window.whoami(2)")
+        .await
+        .unwrap();
+    assert_eq!(child, "true|about:srcdoc|2");
+    browser.close().await.unwrap();
+}
