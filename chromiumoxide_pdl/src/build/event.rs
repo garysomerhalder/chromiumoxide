@@ -49,7 +49,7 @@ impl<'a> EventBuilder<'a> {
             let ty_ident = event.ty_ident();
 
             let deprecated = if event.inner.is_deprecated() {
-                quote! {[deprecated]}
+                quote! {#[deprecated]}
             } else {
                 TokenStream::default()
             };

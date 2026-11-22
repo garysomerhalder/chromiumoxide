@@ -1,39 +1,21 @@
-use chromiumoxide::browser::{Browser, BrowserConfig};
-use chromiumoxide::page::ScreenshotParams;
-use chromiumoxide_cdp::cdp::browser_protocol::page::CaptureScreenshotFormat;
-use futures::StreamExt;
+//! Renders HTML on an emulated iPhone and saves a full-page screenshot.
+//!
+//! `cargo run --example screenshot`
+
+use chromiumoxide::{Chromium, LaunchOptions, device};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
-
-    let (browser, mut handler) = Browser::launch(BrowserConfig::builder().build()?).await?;
-
-    let handle = tokio::spawn(async move {
-        loop {
-            let _ = handler.next().await.unwrap();
-        }
-    });
-
-    let page = browser.new_page("https://news.ycombinator.com/").await?;
-
-    // take a screenshot of the page
-    page.save_screenshot(
-        ScreenshotParams::builder()
-            .format(CaptureScreenshotFormat::Png)
-            .full_page(true)
-            .omit_background(true)
-            .build(),
-        "hn-page.png",
-    )
-    .await?;
-
-    // get the top post and save a screenshot of it
-    page.find_element("table.itemlist tr")
-        .await?
-        .save_screenshot(CaptureScreenshotFormat::Png, "top-post.png")
+async fn main() -> chromiumoxide::Result<()> {
+    let browser = Chromium::launch(LaunchOptions::default()).await?;
+    let iphone = device("iPhone 15").expect("known device");
+    let context = browser.new_context(iphone.context_options()).await?;
+    let page = context.new_page().await?;
+    page.set_content("<h1 style='font-family:sans-serif'>Hello from chromiumoxide</h1>")
         .await?;
-
-    handle.await?;
-    Ok(())
+    page.screenshot()
+        .full_page(true)
+        .path("screenshot.png")
+        .await?;
+    println!("saved screenshot.png ({})", browser.version().await?);
+    browser.close().await
 }

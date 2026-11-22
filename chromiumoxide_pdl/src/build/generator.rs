@@ -1211,14 +1211,22 @@ mod tests {
 
     #[test]
     fn test_serde_import() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let pdl = Path::new(env!("CARGO_MANIFEST_DIR")).join("../chromiumoxide_cdp/pdl");
+        let out = std::env::temp_dir().join(format!("pdl-serde-import-{}", std::process::id()));
+        std::fs::create_dir_all(&out).unwrap();
         Generator::default()
-            .out_dir(dir.join("src"))
+            .out_dir(&out)
             .serde(SerdeSupport::with_feature("serde0"))
             .compile_pdls(&[
-                dir.join("js_protocol.pdl"),
-                dir.join("browser_protocol.pdl"),
+                pdl.join("js_protocol.pdl"),
+                pdl.join("browser_protocol.pdl"),
             ])
             .unwrap();
+        let code = std::fs::read_to_string(out.join("cdp.rs")).unwrap();
+        let _ = std::fs::remove_dir_all(&out);
+        assert!(
+            code.contains("serde0"),
+            "feature-gated serde derives missing"
+        );
     }
 }
