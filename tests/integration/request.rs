@@ -296,3 +296,61 @@ async fn response_server_addr_security_details_and_timing() {
         "{t:?}"
     );
 }
+
+#[tokio::test]
+async fn request_context_tracing() {
+    let server = TestServer::start().await;
+    let rq = Chromium::request_context(ApiRequestOptions::default())
+        .await
+        .unwrap();
+    rq.tracing().start(Default::default()).await.unwrap();
+    let url = server.url("/dump");
+    rq.get(&url).header("x-a", "1").await.unwrap();
+    let dir = std::env::temp_dir().join(format!("cox-apitrace-{}", std::process::id()));
+    let path = dir.join("api.zip");
+    rq.tracing().stop(Some(&path)).await.unwrap();
+
+    let out = std::process::Command::new("python3")
+        .args([
+            "-c",
+            "import sys, zipfile; z = zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(sorted(z.namelist())); sys.stdout.write(z.read('trace.trace').decode())",
+        ])
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8(out.stdout).unwrap();
+    let mut lines = text.lines();
+    assert_eq!(
+        lines.next().unwrap(),
+        "['trace.network', 'trace.stacks', 'trace.trace']"
+    );
+    let events: Vec<Value> = lines.map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(events[0]["type"], "context-options");
+    assert_eq!(events[0]["browserName"], "");
+    // Recorded from Playwright 1.63 (request.newContext().tracing).
+    let before = events.iter().find(|e| e["type"] == "before").unwrap();
+    assert_eq!(before["class"], "APIRequestContext");
+    assert_eq!(before["method"], "fetch");
+    assert_eq!(
+        before["params"],
+        json!({"url": url, "method": "GET", "headers": [{"name": "x-a", "value": "1"}], "timeout": 30000})
+    );
+    let logs: Vec<&str> = events
+        .iter()
+        .filter(|e| e["type"] == "log" && e["callId"] == before["callId"])
+        .map(|e| e["message"].as_str().unwrap())
+        .collect();
+    assert_eq!(logs[0], format!("→ GET {url}"));
+    assert!(logs.contains(&"  x-a: 1"), "{logs:?}");
+    assert!(logs.contains(&"← 200 OK"), "{logs:?}");
+    let after = events.iter().find(|e| e["type"] == "after").unwrap();
+    assert_eq!(after["callId"], before["callId"]);
+    assert_eq!(after["result"]["response"]["status"], 200);
+    assert_eq!(after["result"]["response"]["url"], json!(url));
+    let _ = std::fs::remove_dir_all(dir);
+}
