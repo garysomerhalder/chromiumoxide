@@ -195,7 +195,7 @@ Chrome for Testing and chrome-headless-shell.
 | `unroute` | M4 | ✅ |
 | `unrouteAll` | M4 | ✅ |
 | `waitForEvent` | M3 | ✅ `events()` stream, `wait_for_page()` |
-| `clock` | M6 | ⬜ |
+| `clock` | M6 | ✅ |
 | `credentials` | M4 | ✅ via Chromium's virtual WebAuthn authenticator |
 | `debugger` | M6 | ⬜ |
 | `request` | M6 | ⬜ |
@@ -301,7 +301,7 @@ Chrome for Testing and chrome-headless-shell.
 | `waitForTimeout` | M3 | ✅ |
 | `waitForURL` | M3 | ✅ |
 | `workers` | M3 | ✅ |
-| `clock` | M6 | ⬜ |
+| `clock` | M6 | ✅ |
 | `coverage` | M6 | ⬜ |
 | `keyboard` | M3 | ✅ |
 | `localStorage` | M4 | ✅ |
@@ -685,13 +685,13 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `fastForward` | M6 | ⬜ |
-| `install` | M6 | ⬜ |
-| `pauseAt` | M6 | ⬜ |
-| `resume` | M6 | ⬜ |
-| `runFor` | M6 | ⬜ |
-| `setFixedTime` | M6 | ⬜ |
-| `setSystemTime` | M6 | ⬜ |
+| `fastForward` | M6 | ✅ |
+| `install` | M6 | ✅ |
+| `pauseAt` | M6 | ✅ |
+| `resume` | M6 | ✅ |
+| `runFor` | M6 | ✅ |
+| `setFixedTime` | M6 | ✅ |
+| `setSystemTime` | M6 | ✅ |
 
 ### Coverage
 
