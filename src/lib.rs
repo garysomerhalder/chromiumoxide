@@ -29,6 +29,7 @@ pub use chromiumoxide_cdp::cdp;
 pub use chromiumoxide_fetcher as fetcher;
 
 pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
+pub use application::aria::AriaAssertion;
 pub use application::browser::{Browser, LaunchOptions};
 pub use application::context::{BrowserContext, ContextEvent, PageWaiter};
 pub use application::credentials::{Credential, Credentials, NewCredential};

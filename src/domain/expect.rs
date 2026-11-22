@@ -64,13 +64,54 @@ pub fn quote(s: &str) -> String {
 /// pretty-format's string printing (Playwright's `printExpected` for strings):
 /// double quotes, with `"` and `\\` escaped and line breaks kept.
 pub fn quote_keep_lines(s: &str) -> String {
-    unimplemented!()
+    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 /// jest's unified line diff, as Playwright prints it without colours:
 /// `- Expected  - n`, `+ Received  + m`, a blank line, then every line.
 pub fn line_diff(expected: &str, received: &str) -> String {
-    unimplemented!()
+    let a: Vec<&str> = expected.split('\n').collect();
+    let b: Vec<&str> = received.split('\n').collect();
+    // Longest common subsequence table, from the ends.
+    let mut lcs = vec![vec![0usize; b.len() + 1]; a.len() + 1];
+    for i in (0..a.len()).rev() {
+        for j in (0..b.len()).rev() {
+            lcs[i][j] = if a[i] == b[j] {
+                lcs[i + 1][j + 1] + 1
+            } else {
+                lcs[i + 1][j].max(lcs[i][j + 1])
+            };
+        }
+    }
+    let (mut i, mut j) = (0, 0);
+    let mut lines = Vec::new();
+    let (mut removed, mut added) = (Vec::new(), Vec::new());
+    let flush = |lines: &mut Vec<String>, removed: &mut Vec<String>, added: &mut Vec<String>| {
+        lines.append(removed);
+        lines.append(added);
+    };
+    let (mut n_removed, mut n_added) = (0, 0);
+    while i < a.len() || j < b.len() {
+        if i < a.len() && j < b.len() && a[i] == b[j] {
+            flush(&mut lines, &mut removed, &mut added);
+            lines.push(format!("  {}", a[i]));
+            i += 1;
+            j += 1;
+        } else if j < b.len() && (i == a.len() || lcs[i][j + 1] >= lcs[i + 1][j]) {
+            added.push(format!("+ {}", b[j]));
+            n_added += 1;
+            j += 1;
+        } else {
+            removed.push(format!("- {}", a[i]));
+            n_removed += 1;
+            i += 1;
+        }
+    }
+    flush(&mut lines, &mut removed, &mut added);
+    format!(
+        "- Expected  - {n_removed}\n+ Received  + {n_added}\n\n{}",
+        lines.join("\n")
+    )
 }
 
 /// What an assertion is about.

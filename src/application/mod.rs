@@ -1,6 +1,7 @@
 //! Application layer: use cases and the public Playwright-like API.
 
 pub mod actions;
+pub mod aria;
 pub mod browser;
 pub mod context;
 pub mod credentials;
