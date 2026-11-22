@@ -73,3 +73,84 @@ async fn cross_site_iframes_work_like_frames() {
     assert!((b.x - (70.0 + 8.0 + 3.0 + 30.0 + 8.0)).abs() < 2.0, "{b:?}");
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn routes_init_scripts_and_bindings_reach_cross_site_iframes() {
+    let server = TestServer::start().await;
+    let child = server.url("/child.html").replace("127.0.0.1", "localhost");
+    server.route("/child.html", "text/html", "<p id=r>original</p>", 0);
+    server.route(
+        "/top.html",
+        "text/html",
+        format!("<iframe name=x src='{child}'></iframe>"),
+        0,
+    );
+    let browser = Chromium::launch(LaunchOptions {
+        args: vec!["--site-per-process".into()],
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let ctx = browser.new_context(Default::default()).await.unwrap();
+    ctx.route("**/child.html", |route: chromiumoxide::Route| async move {
+        route
+            .fulfill()
+            .body("<p id=r>routed</p><script src='/sub.js'></script>")
+            .content_type("text/html")
+            .await
+            .unwrap();
+    })
+    .await
+    .unwrap();
+    // A sub-resource requested from inside the iframe's own process.
+    ctx.route("**/sub.js", |route: chromiumoxide::Route| async move {
+        route
+            .fulfill()
+            .body("window.__sub = 'routed'")
+            .content_type("text/javascript")
+            .await
+            .unwrap();
+    })
+    .await
+    .unwrap();
+    ctx.expose_function("hello", |args: Vec<serde_json::Value>| async move {
+        Ok(serde_json::json!(format!(
+            "hi {}",
+            args[0].as_str().unwrap_or_default()
+        )))
+    })
+    .await
+    .unwrap();
+    let page = ctx.new_page().await.unwrap();
+    page.add_init_script("window.__init = 'yes'").await.unwrap();
+    page.goto(&server.url("/top.html")).await.unwrap();
+    let mut frame = None;
+    for _ in 0..100 {
+        frame = page
+            .frames()
+            .into_iter()
+            .find(|f| f.url().starts_with("http://localhost"));
+        if frame.is_some() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let frame = frame.expect("the cross-site frame");
+    frame
+        .wait_for_load_state(chromiumoxide::WaitUntil::Load)
+        .await
+        .unwrap();
+    assert_eq!(
+        frame.locator("#r").text_content().await.unwrap().as_deref(),
+        Some("routed")
+    );
+    assert_eq!(
+        frame.evaluate::<String>("window.__init").await.unwrap(),
+        "yes"
+    );
+    assert_eq!(
+        frame.evaluate::<String>("hello('frame')").await.unwrap(),
+        "hi frame"
+    );
+    browser.close().await.unwrap();
+}
