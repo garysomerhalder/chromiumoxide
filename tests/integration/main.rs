@@ -9,6 +9,7 @@ mod input;
 mod launch;
 mod locator;
 mod navigation;
+mod network;
 mod page;
 mod pixel_parity;
 mod protocol;

@@ -8,6 +8,7 @@ pub mod error;
 pub mod frame;
 pub mod input;
 pub mod launch;
+pub mod network;
 pub mod screenshot;
 pub mod selectors;
 pub mod url_matcher;
