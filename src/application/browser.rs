@@ -58,7 +58,20 @@ struct BrowserInner {
     process: Mutex<Option<Box<dyn BrowserProcess>>>,
     user_data_dir: Option<PathBuf>,
     executable: Option<PathBuf>,
+    ws_endpoint: Option<String>,
     closed: AtomicBool,
+}
+
+impl Drop for BrowserInner {
+    fn drop(&mut self) {
+        if !self.closed.load(Ordering::SeqCst) {
+            // Dropping the process kills it; then the profile can go.
+            drop(self.process.lock().unwrap().take());
+            if let Some(dir) = &self.user_data_dir {
+                let _ = self.services.fs.remove_dir_all(dir);
+            }
+        }
+    }
 }
 
 impl Browser {
@@ -107,6 +120,7 @@ impl Browser {
                 process: Mutex::new(Some(launched.process)),
                 user_data_dir: Some(user_data_dir),
                 executable: Some(found.executable),
+                ws_endpoint: launched.ws_endpoint,
                 closed: AtomicBool::new(false),
             }),
         };
@@ -115,6 +129,33 @@ impl Browser {
             return Err(e);
         }
         Ok(browser)
+    }
+
+    /// Attaches to an already running browser (`connectOverCDP`). Closing it
+    /// closes the browser.
+    pub async fn connect(
+        services: Services,
+        cdp: Arc<dyn CdpSession>,
+        ws_endpoint: Option<String>,
+    ) -> Result<Browser> {
+        let browser = Browser {
+            inner: Arc::new(BrowserInner {
+                cdp,
+                services,
+                process: Mutex::new(None),
+                user_data_dir: None,
+                executable: None,
+                ws_endpoint,
+                closed: AtomicBool::new(false),
+            }),
+        };
+        browser.handshake().await?;
+        Ok(browser)
+    }
+
+    /// The DevTools WebSocket URL, if the browser was launched or connected over one.
+    pub fn ws_endpoint(&self) -> Option<String> {
+        self.inner.ws_endpoint.clone()
     }
 
     /// Playwright's connection handshake on the browser target.

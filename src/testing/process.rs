@@ -35,6 +35,7 @@ impl BrowserLauncher for FakeLauncher {
         let launched = Launched {
             cdp: Arc::new(self.cdp.clone()),
             process: Box::new(FakeProcess(self.shut_down.clone())),
+            ws_endpoint: None,
         };
         futures::future::ready(Ok(launched)).boxed()
     }

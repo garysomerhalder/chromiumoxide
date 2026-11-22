@@ -41,6 +41,8 @@ pub trait BrowserProcess: Send + Sync {
 pub struct Launched {
     pub cdp: Arc<dyn CdpSession>,
     pub process: Box<dyn BrowserProcess>,
+    /// The DevTools WebSocket URL, when launched with [`Channel::WebSocket`].
+    pub ws_endpoint: Option<String>,
 }
 
 /// Starts browser processes.
