@@ -368,7 +368,7 @@ Chrome for Testing and chrome-headless-shell.
 | `uncheck` | M3 | ✅ |
 | `url` | M1 | ✅ |
 | `waitForLoadState` | M1 | ✅ |
-| `waitForNavigation` | M3 | 🟡 the main frame's navigation |
+| `waitForNavigation` | M3 | ✅ |
 | `waitForTimeout` | M3 | ✅ |
 | `waitForURL` | M3 | ✅ |
 
