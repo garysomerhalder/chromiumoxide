@@ -37,6 +37,36 @@ pub struct LaunchSpec {
     pub ignore_default_args: bool,
     /// The (unique, temporary) profile directory.
     pub user_data_dir: PathBuf,
+    /// `LaunchOptions::proxy`.
+    pub proxy: Option<Proxy>,
+}
+
+/// Playwright's `proxy` option (launch or context).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Proxy {
+    /// `http://myproxy.com:3128` or `socks5://myproxy.com:3128`.
+    pub server: String,
+    /// Comma-separated domains that skip the proxy (`.com, chromium.org`).
+    pub bypass: Option<String>,
+    /// Credentials for the proxy's own challenges (407) only (Playwright 1.65).
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+
+/// Playwright's `shouldProxyLoopback`: loopback hosts go through the proxy
+/// unless the bypass list names one.
+pub fn should_proxy_loopback(bypass: Option<&str>) -> bool {
+    unimplemented!()
+}
+
+/// The `--proxy-server` / `--proxy-bypass-list` switches of a launch.
+pub fn proxy_args(proxy: &Proxy) -> Vec<String> {
+    unimplemented!()
+}
+
+/// The `proxyBypassList` of `Target.createBrowserContext`.
+pub fn context_proxy_bypass_list(proxy: &Proxy) -> Option<String> {
+    unimplemented!()
 }
 
 /// Playwright's default Chromium arguments, before the headless-related ones.
@@ -178,7 +208,64 @@ mod tests {
             args: vec![],
             ignore_default_args: false,
             user_data_dir: PathBuf::from("/tmp/profile-1"),
+            proxy: None,
         }
+    }
+
+    #[test]
+    fn proxy_switches_like_playwright() {
+        let p = |server: &str, bypass: Option<&str>| Proxy {
+            server: server.into(),
+            bypass: bypass.map(str::to_owned),
+            ..Default::default()
+        };
+        assert_eq!(
+            proxy_args(&p("http://p.test:8080", None)),
+            [
+                "--proxy-server=http://p.test:8080",
+                "--proxy-bypass-list=<-loopback>"
+            ]
+        );
+        assert_eq!(
+            proxy_args(&p("http://p.test:8080", Some(".example.com, localhost"))),
+            [
+                "--proxy-server=http://p.test:8080",
+                "--proxy-bypass-list=*.example.com;localhost"
+            ]
+        );
+        assert_eq!(
+            proxy_args(&p("socks5://s.test:1080", Some("a.test"))),
+            [
+                "--host-resolver-rules=\"MAP * ~NOTFOUND , EXCLUDE s.test\"",
+                "--proxy-server=socks5://s.test:1080",
+                "--proxy-bypass-list=a.test;<-loopback>"
+            ]
+        );
+        assert!(!should_proxy_loopback(Some("x.test, 127.0.0.1")));
+        assert!(should_proxy_loopback(None));
+        assert_eq!(
+            context_proxy_bypass_list(&p("http://p.test", None)).as_deref(),
+            Some("<-loopback>")
+        );
+        assert_eq!(
+            context_proxy_bypass_list(&p("http://p.test", Some("a.test"))).as_deref(),
+            Some("<-loopback>,a.test")
+        );
+        assert_eq!(
+            context_proxy_bypass_list(&p("http://p.test", Some("localhost"))).as_deref(),
+            Some("localhost")
+        );
+        // Placed after --no-sandbox, before the user's arguments.
+        let mut s = spec(BrowserKind::Chrome, false);
+        s.proxy = Some(p("http://p.test:8080", None));
+        s.args = vec!["--lang=de".into()];
+        let args = command_line(&s);
+        let at = |a: &str| args.iter().position(|x| x == a).unwrap();
+        assert_eq!(
+            at("--proxy-server=http://p.test:8080"),
+            at("--no-sandbox") + 1
+        );
+        assert_eq!(at("--lang=de"), at("--proxy-bypass-list=<-loopback>") + 1);
     }
 
     #[test]
@@ -286,6 +373,7 @@ mod persistent_tests {
             args: Vec::new(),
             ignore_default_args: false,
             user_data_dir: "/tmp/profile-1".into(),
+            proxy: None,
         };
         let args = persistent_command_line(&spec);
         assert_eq!(args.last().map(String::as_str), Some("about:blank"));

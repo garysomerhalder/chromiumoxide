@@ -257,3 +257,143 @@ async fn http_credentials_can_change_at_runtime() {
     assert_eq!(r.status, 200);
     browser.close().await.unwrap();
 }
+
+/// A tiny forward proxy: answers 407 until `Proxy-Authorization` carries
+/// user:pass, then serves every URL itself; `/site-auth` asks the *site*
+/// credentials (401) and records any `Authorization` header it gets.
+struct TestProxy {
+    port: u16,
+    site_authorizations: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    requests: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+}
+
+async fn test_proxy() -> TestProxy {
+    use base64::Engine;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let site_authorizations = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let expected = format!(
+        "Basic {}",
+        base64::engine::general_purpose::STANDARD.encode("user:pass")
+    );
+    let (sa, rq) = (site_authorizations.clone(), requests.clone());
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut sock, _)) = listener.accept().await else {
+                break;
+            };
+            let (sa, rq, expected) = (sa.clone(), rq.clone(), expected.clone());
+            tokio::spawn(async move {
+                let mut buf = Vec::new();
+                let mut chunk = [0u8; 4096];
+                while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match sock.read(&mut chunk).await {
+                        Ok(0) | Err(_) => return,
+                        Ok(n) => buf.extend_from_slice(&chunk[..n]),
+                    }
+                }
+                let head = String::from_utf8_lossy(&buf).to_string();
+                let url = head
+                    .split_whitespace()
+                    .nth(1)
+                    .unwrap_or_default()
+                    .to_owned();
+                let header = |name: &str| {
+                    head.lines()
+                        .find(|l| l.to_ascii_lowercase().starts_with(&format!("{name}:")))
+                        .map(|l| l[name.len() + 1..].trim().to_owned())
+                };
+                rq.lock().unwrap().push(url.clone());
+                let reply = if header("proxy-authorization").as_deref() != Some(expected.as_str()) {
+                    "HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"proxy\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_owned()
+                } else if url.ends_with("/site-auth") {
+                    if let Some(a) = header("authorization") {
+                        sa.lock().unwrap().push(a);
+                    }
+                    "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"site\"\r\nContent-Type: text/html\r\nContent-Length: 9\r\nConnection: close\r\n\r\nsite auth".to_owned()
+                } else {
+                    let body = format!("<p>proxied {url}</p>");
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    )
+                };
+                let _ = sock.write_all(reply.as_bytes()).await;
+                let _ = sock.shutdown().await;
+            });
+        }
+    });
+    TestProxy {
+        port,
+        site_authorizations,
+        requests,
+    }
+}
+
+/// `proxy` on launch and on contexts; Playwright 1.65: the proxy's
+/// credentials answer only proxy challenges, never a site's.
+#[tokio::test]
+async fn proxy_with_credentials_for_the_proxy_only() {
+    let proxy = test_proxy().await;
+    let browser = Chromium::launch(LaunchOptions {
+        proxy: Some(chromiumoxide::Proxy {
+            server: format!("http://127.0.0.1:{}", proxy.port),
+            username: Some("user".into()),
+            password: Some("pass".into()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.goto("http://site.test/ok").await.unwrap();
+    assert_eq!(
+        page.locator("p").inner_text().await.unwrap(),
+        "proxied http://site.test/ok"
+    );
+    let r = page
+        .goto("http://site.test/site-auth")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(r.status(), 401);
+    assert!(
+        proxy.site_authorizations.lock().unwrap().is_empty(),
+        "proxy credentials were sent to the site"
+    );
+    browser.close().await.unwrap();
+
+    // A context's own proxy.
+    let other = test_proxy().await;
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions {
+            proxy: Some(chromiumoxide::Proxy {
+                server: format!("http://127.0.0.1:{}", other.port),
+                username: Some("user".into()),
+                password: Some("pass".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto("http://ctx.test/hello").await.unwrap();
+    assert_eq!(
+        page.locator("p").inner_text().await.unwrap(),
+        "proxied http://ctx.test/hello"
+    );
+    assert!(
+        other
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|u| u == "http://ctx.test/hello")
+    );
+    browser.close().await.unwrap();
+}
