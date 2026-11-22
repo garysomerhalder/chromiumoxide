@@ -1,99 +1,83 @@
-//! A high-level API for programmatically interacting with the [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/).
+//! chromiumoxide: a Chrome DevTools Protocol client with a Playwright-like API.
 //!
-//! This crate uses the [Chrome DevTools protocol] to drive/launch a Chromium or
-//! Chrome (potentially headless) browser.
-//!
-//! # Example
 //! ```no_run
-//! use futures::StreamExt;
-//! use chromiumoxide::{Browser, BrowserConfig};
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let (browser, mut handler) =
-//!         Browser::launch(BrowserConfig::builder().with_head().build()?).await?;
-//!
-//!     let handle = tokio::spawn(async move {
-//!         loop {
-//!             let _event = handler.next().await.unwrap();
-//!         }
-//!     });
-//!
-//!     let page = browser.new_page("https://en.wikipedia.org").await?;
-//!
-//!     // type into the search field and hit `Enter`,
-//!     // this triggers a navigation to the search result page
-//!     page.find_element("input#searchInput")
-//!             .await?
-//!             .click()
-//!             .await?
-//!             .type_str("Rust programming language")
-//!             .await?
-//!             .press_key("Enter")
-//!             .await?;
-//!
-//!     let html = page.wait_for_navigation().await?.content().await?;
-//!
-//!     handle.await?;
-//!     Ok(())
-//! }
+//! # async fn run() -> chromiumoxide::Result<()> {
+//! use chromiumoxide::{Chromium, LaunchOptions};
+//! let browser = Chromium::launch(LaunchOptions::default()).await?;
+//! println!("{}", browser.version().await?);
+//! browser.close().await?;
+//! # Ok(()) }
 //! ```
 //!
-//! The [`chromiumoxide_pdl`] crate contains a [PDL
-//! parser](chromiumoxide_pdl/src/pdl/parser.rs), which is a rust rewrite of a
-//! [python script in the chromium source tree]( https://chromium.googlesource.com/deps/inspector_protocol/+/refs/heads/master/pdl.py) and a
-//! [`Generator`](chromiumoxide_pdl/src/build/generator.rs) that turns the
-//! parsed PDL files into rust code. The
-//! [`chromiumoxide_cdp`](chromiumoxide_cdp) crate only purpose is to integrate
-//! the generator during is build process and include the generated output
-//! before compiling the crate itself. This separation is done merely because
-//! the generated output is ~60K lines of rust code (not including all the Proc
-//! macro extensions). So expect the compilation to take some time.
-//!
-//! The generator can be configured and used independently, see [`build.rs`] of
-//! [`chromiumoxide_cdp`].
-//!
-//! [chromedp](https://github.com/chromedp/chromedp)
-//! [rust-headless-chrome](https://github.com/Edu4rdSHL/rust-headless-chrome) which the launch
-//! config, `KeyDefinition` and typing support is taken from.
-//! [puppeteer](https://github.com/puppeteer/puppeteer)
+//! See `docs/ARCHITECTURE.md` for the layering.
 
-#![warn(missing_debug_implementations, rust_2018_idioms)]
+pub mod adapters;
+pub mod application;
+pub mod domain;
+pub mod ports;
 
-use crate::handler::http::HttpRequest;
+#[cfg(test)]
+mod testing;
+
 use std::sync::Arc;
 
-/// reexport the generated cdp types
+/// The generated Chrome DevTools Protocol types.
 pub use chromiumoxide_cdp::cdp;
-pub use chromiumoxide_types::{self as types, Binary, Command, Method, MethodType};
 
-pub use crate::browser::{Browser, BrowserConfig};
-pub use crate::conn::Connection;
-pub use crate::element::Element;
-pub use crate::error::Result;
+/// Downloads Chrome for Testing / chrome-headless-shell.
 #[cfg(feature = "fetcher")]
-pub use crate::fetcher::{BrowserFetcher, BrowserFetcherOptions};
-pub use crate::handler::Handler;
-pub use crate::page::Page;
+pub use chromiumoxide_fetcher as fetcher;
 
-pub mod auth;
-pub mod browser;
-pub mod cmd;
-pub mod conn;
-pub mod detection;
-pub mod element;
-pub mod error;
-#[cfg(feature = "fetcher")]
-pub mod fetcher {
-    pub use chromiumoxide_fetcher::*;
+pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
+pub use application::browser::{Browser, LaunchOptions};
+pub use application::context::BrowserContext;
+pub use application::discovery::Discovered;
+pub use application::page::{Goto, Page, Response};
+pub use application::screenshot::Screenshot;
+pub use application::services::Services;
+pub use domain::devices::{Device, device, device_names};
+pub use domain::discovery::Source as DiscoverySource;
+pub use domain::emulation::{
+    ColorScheme, ContextOptions, Contrast, ForcedColors, Geolocation, HttpCredentials, Media,
+    ReducedMotion, Viewport,
+};
+pub use domain::error::{Error, Result};
+pub use domain::frame::LifecycleEvent as WaitUntil;
+pub use domain::launch::BrowserKind;
+pub use domain::screenshot::{
+    Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale,
+};
+pub use ports::Channel;
+
+/// Entry point, like Playwright's `chromium` browser type.
+pub struct Chromium;
+
+impl Chromium {
+    /// The production port implementations.
+    pub fn services() -> Services {
+        Services {
+            fs: Arc::new(adapters::os::OsFileSystem),
+            env: Arc::new(adapters::os::OsEnvironment),
+            launcher: Arc::new(adapters::process::TokioLauncher),
+            clock: Arc::new(adapters::clock::TokioClock),
+        }
+    }
+
+    /// Discovers and launches Chromium (Playwright's `chromium.launch`).
+    pub async fn launch(options: LaunchOptions) -> Result<Browser> {
+        Browser::launch(Self::services(), options).await
+    }
+
+    /// The executable that [`Chromium::launch`] would run.
+    pub fn executable_path(options: &LaunchOptions) -> Result<Discovered> {
+        let s = Self::services();
+        application::discovery::discover(&*s.fs, &*s.env, options.executable_path.as_deref())
+    }
+
+    /// Connects to a running browser's DevTools WebSocket URL.
+    pub async fn connect_over_cdp(ws_endpoint: &str) -> Result<Browser> {
+        let transport = adapters::transport::websocket::connect(ws_endpoint).await?;
+        let cdp = Arc::new(adapters::cdp::Connection::spawn(transport));
+        Browser::connect(Self::services(), cdp, Some(ws_endpoint.to_owned())).await
+    }
 }
-pub mod async_process;
-pub mod handler;
-pub mod js;
-pub mod keys;
-pub mod layout;
-pub mod listeners;
-pub mod page;
-pub(crate) mod utils;
-
-pub type ArcHttpRequest = Option<Arc<HttpRequest>>;

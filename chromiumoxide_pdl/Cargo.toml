@@ -1,6 +1,6 @@
 [package]
 name = "chromiumoxide_pdl"
-version = "0.9.1"
+version = "0.10.0"
 authors = ["Matthias Seitz <matthias.seitz@outlook.de>"]
 edition = "2024"
 rust-version = "1.85"
@@ -19,7 +19,7 @@ proc-macro2 = "1"
 heck = "0.5"
 serde_json = "1"
 serde = { version = "1", features = ["derive"], optional = true }
-chromiumoxide_types = { path = "../chromiumoxide_types", version = "0.9" }
+chromiumoxide_types = { path = "../chromiumoxide_types", version = "0.10" }
 either = "1.6"
 
 [features]
