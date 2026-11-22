@@ -102,8 +102,35 @@ pub fn context_options_event(
     .to_string()
 }
 
+/// Playwright's `renderFullTitleForCall` for the input actions: the title
+/// from the protocol's metainfo, then the locator (`{selector}`) when known.
+pub fn action_title(method: &str, params: &serde_json::Value, locator: Option<&str>) -> String {
+    unimplemented!()
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn action_titles_like_playwright() {
+        let p = serde_json::json!({"value": "a\nb", "key": "Enter", "text": "hi"});
+        let l = Some("getByRole('button', { name: 'Go' })");
+        assert_eq!(
+            action_title("click", &p, l),
+            "Click getByRole('button', { name: 'Go' })"
+        );
+        assert_eq!(
+            action_title("dblclick", &p, l),
+            "Double click getByRole('button', { name: 'Go' })"
+        );
+        assert_eq!(action_title("fill", &p, Some("#i")), "Fill \"a\\nb\" #i");
+        assert_eq!(action_title("press", &p, None), "Press \"Enter\"");
+        assert_eq!(action_title("type", &p, None), "Type \"hi\"");
+        assert_eq!(action_title("selectOption", &p, None), "Select option");
+        assert_eq!(action_title("check", &p, None), "Check");
+        assert_eq!(action_title("setInputFiles", &p, None), "Set input files");
+        assert_eq!(action_title("mystery", &p, None), "mystery");
+    }
+
     use super::*;
 
     #[test]

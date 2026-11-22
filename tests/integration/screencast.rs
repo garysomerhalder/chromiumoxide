@@ -157,3 +157,49 @@ async fn screencast_overlays() {
     );
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn screencast_show_actions_annotates_input() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let ctx = browser
+        .new_context(ContextOptions {
+            viewport: Some(Viewport::new(400, 200)),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = ctx.new_page().await.unwrap();
+    page.set_content("<style>body{margin:0;background:#fff}</style><button onclick='window.n=(window.n||0)+1'>Go</button>")
+        .await
+        .unwrap();
+    let cast = page.screencast();
+    let baseline = page.screenshot().await.unwrap();
+    cast.show_actions(chromiumoxide::ShowActions::default().duration(Duration::from_millis(600)))
+        .await
+        .unwrap();
+    let start = std::time::Instant::now();
+    let button = page.locator("button");
+    let click = tokio::spawn({
+        let button = button.clone();
+        async move { button.click().await }
+    });
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    let during = page.screenshot().await.unwrap();
+    assert_ne!(during, baseline, "annotation drawn while clicking");
+    click.await.unwrap().unwrap();
+    assert!(
+        start.elapsed() >= Duration::from_millis(600),
+        "waits for the annotation"
+    );
+    assert_eq!(page.evaluate::<i64>("window.n").await.unwrap(), 1);
+
+    cast.hide_actions().await.unwrap();
+    let start = std::time::Instant::now();
+    button.click().await.unwrap();
+    assert!(
+        start.elapsed() < Duration::from_millis(500),
+        "no annotation"
+    );
+    assert_eq!(page.evaluate::<i64>("window.n").await.unwrap(), 2);
+    browser.close().await.unwrap();
+}
