@@ -2017,6 +2017,42 @@ impl Locator {
 }
 
 impl Page {
+    /// The selector of a child frame's `<iframe>` within its parent frame.
+    pub(crate) async fn frame_owner_selector(
+        &self,
+        frame_id: &str,
+        parent: Option<&str>,
+    ) -> Result<String> {
+        let timeout = self.default_timeout();
+        let context = self.injected_context(parent, timeout).await?;
+        let owner = self
+            .send("DOM.getFrameOwner", json!({"frameId": frame_id}))
+            .await?;
+        let r = self
+            .send(
+                "DOM.resolveNode",
+                json!({"backendNodeId": owner.get("backendNodeId"), "executionContextId": context}),
+            )
+            .await?;
+        let el = ElementRef {
+            object_id: r
+                .pointer("/object/objectId")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+            frame_owner: None,
+        };
+        let v = self
+            .element_call(
+                &el,
+                "(i, node) => i.generateSelectorSimple(node)",
+                &[],
+                true,
+            )
+            .await?;
+        Ok(v.as_str().unwrap_or_default().to_owned())
+    }
+
     /// The `<iframe>` element of a child frame, as a remote object id.
     pub(crate) async fn frame_owner_object(&self, frame_id: &str) -> Result<Option<String>> {
         let owner = self

@@ -89,6 +89,8 @@ pub(crate) struct PageInner {
     pub(crate) coverage: Mutex<crate::application::coverage::CoverageState>,
     /// Setup commands to replay on out-of-process iframes (see `oopif`).
     pub(crate) setup_log: Mutex<Vec<(String, Value)>>,
+    /// `page.pickLocator()` is waiting for a pick.
+    pub(crate) picking: AtomicBool,
     pub(crate) navigation_timeout: Mutex<Option<Duration>>,
     pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
     pub(crate) locator_handlers: Mutex<Vec<crate::application::extras::LocatorHandler>>,
@@ -212,6 +214,7 @@ impl Page {
             oopifs: Mutex::new(Vec::new()),
             coverage: Mutex::new(Default::default()),
             setup_log: Mutex::new(setup),
+            picking: AtomicBool::new(false),
             navigation_timeout: Mutex::new(*context.navigation_timeout.lock().unwrap()),
             media: Mutex::new(Default::default()),
             locator_handlers: Mutex::new(Vec::new()),

@@ -18,7 +18,7 @@ use crate::domain::selectors::{self, TextMatch};
 use crate::domain::url_matcher::UrlMatcher;
 
 impl Frame {
-    fn is_main(&self) -> bool {
+    pub(crate) fn is_main(&self) -> bool {
         self.page().main_frame().id() == self.id()
     }
 

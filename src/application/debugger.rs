@@ -160,80 +160,110 @@ impl Page {
     }
 }
 
-/// Starts picking mode in the main frame: hover highlights the element with
-/// its locator, a click picks it (and does not reach the page).
-const PICK_START: &str = "(i) => {
-  if (window.__coxPick) window.__coxPick.stop(true);
-  const h = i._ensureHighlight();
-  let last = null;
-  const target = (e) => { const el = e.composedPath ? e.composedPath()[0] : e.target; return el instanceof Element ? el : null; };
-  const move = (e) => {
-    const el = target(e);
-    if (!el || el === last) return;
-    last = el;
-    h.updateHighlight([{ element: el, color: 'rgba(111, 168, 220, .498)', tooltipText: i.utils.asLocator('javascript', i.generateSelectorSimple(el)) }]);
-  };
-  const swallow = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
-  const click = (e) => {
-    swallow(e);
-    const el = target(e);
-    if (el) state.picked = i.generateSelectorSimple(el);
-    stop(false);
-  };
-  const kinds = ['mousedown', 'mouseup', 'pointerdown', 'pointerup', 'auxclick', 'dblclick', 'contextmenu'];
-  const stop = (cancelled) => {
-    removeEventListener('mousemove', move, true);
-    removeEventListener('click', click, true);
-    for (const k of kinds) removeEventListener(k, swallow, true);
-    h.updateHighlight([]);
-    state.done = true;
-    state.cancelled = cancelled;
-  };
-  const state = { picked: null, done: false, cancelled: false, stop };
-  addEventListener('mousemove', move, true);
-  addEventListener('click', click, true);
-  for (const k of kinds) addEventListener(k, swallow, true);
-  window.__coxPick = state;
+/// Picking mode in one frame: hover highlights the element with its
+/// locator, a click picks it (and does not reach the page). Re-installed by
+/// every poll, so it survives new documents.
+const PICK_TICK: &str = "(i) => {
+  let state = window.__coxPick;
+  if (!state) {
+    const h = i._ensureHighlight();
+    let last = null;
+    const target = (e) => { const el = e.composedPath ? e.composedPath()[0] : e.target; return el instanceof Element ? el : null; };
+    const move = (e) => {
+      const el = target(e);
+      if (!el || el === last) return;
+      last = el;
+      h.updateHighlight([{ element: el, color: 'rgba(111, 168, 220, .498)', tooltipText: i.utils.asLocator('javascript', i.generateSelectorSimple(el)) }]);
+    };
+    const swallow = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
+    const click = (e) => { swallow(e); const el = target(e); if (el) state.picked = i.generateSelectorSimple(el); };
+    const kinds = ['mousedown', 'mouseup', 'pointerdown', 'pointerup', 'auxclick', 'dblclick', 'contextmenu'];
+    const stop = () => {
+      removeEventListener('mousemove', move, true);
+      removeEventListener('click', click, true);
+      for (const k of kinds) removeEventListener(k, swallow, true);
+      h.updateHighlight([]);
+      delete window.__coxPick;
+    };
+    state = { picked: null, stop };
+    addEventListener('mousemove', move, true);
+    addEventListener('click', click, true);
+    for (const k of kinds) addEventListener(k, swallow, true);
+    window.__coxPick = state;
+  }
+  const picked = state.picked;
+  state.picked = null;
+  return picked;
 }";
 
-const PICK_POLL: &str = "() => { const s = window.__coxPick; if (!s) return { done: true, cancelled: true }; if (s.done) delete window.__coxPick; return { done: s.done, cancelled: s.cancelled, picked: s.picked }; }";
+const PICK_STOP: &str = "() => { if (window.__coxPick) window.__coxPick.stop(); }";
 
 impl Page {
-    /// `page.pickLocator()`: waits for the user to click an element and
-    /// returns its locator.
-    pub async fn pick_locator(&self) -> Result<crate::application::locator::Locator> {
-        let timeout = self.default_timeout();
-        self.injected_call(None, PICK_START, &[], true, timeout)
-            .await?;
-        let clock = self.inner.shared.services.clock.clone();
-        loop {
-            let s = self
-                .call_function(
+    async fn stop_picking(&self) {
+        for frame in self.frames() {
+            let _ = self
+                .call_function_in(
+                    Some(frame.id()),
                     crate::domain::frame::World::Utility,
-                    &format!("function() {{ return ({PICK_POLL})(); }}"),
+                    &format!("function() {{ ({PICK_STOP})(); }}"),
                     &[],
-                    timeout,
-                    "picking a locator",
+                    self.default_timeout(),
+                    "stopping locator picking",
                 )
                 .await;
-            match s {
-                Ok(s) if s["done"] == Value::Bool(true) => {
-                    return match s["picked"].as_str() {
-                        Some(selector) if s["cancelled"] != Value::Bool(true) => {
-                            Ok(self.locator(selector))
-                        }
-                        _ => Err(Error::InvalidArgument(
-                            "Locator picking was cancelled".into(),
-                        )),
+        }
+    }
+
+    /// The page-level selector of `selector` inside frame `frame_id`.
+    async fn selector_from_page(&self, frame_id: &str, selector: String) -> Result<String> {
+        let mut selector = selector;
+        let mut id = frame_id.to_owned();
+        while let Some(parent) = self.frame_by_id(&id).parent_frame() {
+            let parent_id = (!parent.is_main()).then(|| parent.id().to_owned());
+            let owner = self.frame_owner_selector(&id, parent_id.as_deref()).await?;
+            selector = format!("{owner} >> internal:control=enter-frame >> {selector}");
+            id = parent.id().to_owned();
+        }
+        Ok(selector)
+    }
+
+    /// `page.pickLocator()`: waits for the user to click an element (in any
+    /// frame) and returns its locator.
+    pub async fn pick_locator(&self) -> Result<crate::application::locator::Locator> {
+        self.inner
+            .picking
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        let clock = self.inner.shared.services.clock.clone();
+        loop {
+            if !self.inner.picking.load(std::sync::atomic::Ordering::SeqCst) || self.is_closed() {
+                self.stop_picking().await;
+                return Err(Error::InvalidArgument(
+                    "Locator picking was cancelled".into(),
+                ));
+            }
+            let main_id = self.main_frame().id().to_owned();
+            for frame in self.frames() {
+                let frame_arg = (frame.id() != main_id).then(|| frame.id().to_owned());
+                let picked = self
+                    .injected_call(
+                        frame_arg.as_deref(),
+                        PICK_TICK,
+                        &[],
+                        true,
+                        std::time::Duration::from_millis(500),
+                    )
+                    .await;
+                if let Ok(Value::String(selector)) = picked {
+                    self.inner
+                        .picking
+                        .store(false, std::sync::atomic::Ordering::SeqCst);
+                    self.stop_picking().await;
+                    let selector = match frame_arg {
+                        Some(id) => self.selector_from_page(&id, selector).await?,
+                        None => selector,
                     };
+                    return Ok(self.locator(&selector));
                 }
-                // A navigation drops picking mode; so does closing the page.
-                Err(Error::TargetClosed(_)) => {
-                    return Err(Error::InvalidArgument(
-                        "Locator picking was cancelled".into(),
-                    ));
-                }
-                _ => {}
             }
             clock.sleep(std::time::Duration::from_millis(100)).await;
         }
@@ -241,14 +271,9 @@ impl Page {
 
     /// `page.cancelPickLocator()`: leaves picking mode (no-op otherwise).
     pub async fn cancel_pick_locator(&self) -> Result<()> {
-        self.call_function(
-            crate::domain::frame::World::Utility,
-            "function() { if (window.__coxPick && !window.__coxPick.done) window.__coxPick.stop(true); }",
-            &[],
-            self.default_timeout(),
-            "cancelling locator picking",
-        )
-        .await?;
+        self.inner
+            .picking
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         Ok(())
     }
 }
