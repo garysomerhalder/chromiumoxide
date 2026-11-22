@@ -24,6 +24,7 @@ mod scripts;
 mod server;
 mod shortcuts;
 mod storage;
+mod video;
 mod workers;
 
 pub fn full_chromium() -> Option<std::path::PathBuf> {
