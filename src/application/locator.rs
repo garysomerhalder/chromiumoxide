@@ -134,6 +134,9 @@ pub struct Locator {
     /// Frame the selector starts from (`None`: the main frame).
     frame: Option<String>,
     selector: String,
+    /// Locators are strict; selector shortcuts (`page.click(selector)`, `$`)
+    /// use the first match unless the context has `strictSelectors`.
+    strict: bool,
 }
 
 /// Playwright's `locator.toString()`: its description, or the locator code
@@ -160,6 +163,7 @@ impl Page {
             page: self.clone(),
             frame: None,
             selector: selector.to_owned(),
+            strict: true,
         }
     }
     pub fn get_by_role(&self, role: &str, options: RoleOptions) -> Locator {
@@ -386,6 +390,7 @@ impl Locator {
             page: self.page.clone(),
             frame: self.frame.clone(),
             selector,
+            strict: self.strict,
         }
     }
 
@@ -394,6 +399,25 @@ impl Locator {
             page: page.clone(),
             frame,
             selector,
+            strict: true,
+        }
+    }
+
+    /// `self >> selector` as a selector-shortcut locator (see [`Locator::for_selector`]).
+    pub(crate) fn locator_for_selector(&self, selector: &str) -> Locator {
+        let mut l = self.locator(selector);
+        l.strict = self.page.inner.options.strict_selectors;
+        l
+    }
+
+    /// The locator behind a selector shortcut: strict only with the
+    /// context's `strictSelectors` (Playwright's `strict ?? strictSelectors`).
+    pub(crate) fn for_selector(page: &Page, frame: Option<String>, selector: &str) -> Locator {
+        Locator {
+            page: page.clone(),
+            frame,
+            selector: selector.to_owned(),
+            strict: page.inner.options.strict_selectors,
         }
     }
 
@@ -648,7 +672,7 @@ impl Locator {
     }
 
     async fn resolved(&self, timeout: Duration) -> Result<Attempt<ElementRef>> {
-        Ok(match self.query(true, timeout).await? {
+        Ok(match self.query(self.strict, timeout).await? {
             Some(el) => Attempt::Done(el),
             None => Attempt::Retry(format!("waiting for {self:?}")),
         })
@@ -1388,7 +1412,7 @@ impl Locator {
 
     /// `locator.isVisible()` (does not wait).
     pub async fn is_visible(&self) -> Result<bool> {
-        match self.query(true, self.timeout()).await? {
+        match self.query(self.strict, self.timeout()).await? {
             None => Ok(false),
             Some(el) => {
                 let v = self
@@ -1550,7 +1574,7 @@ impl Locator {
 
     async fn run_wait_for(&self, state: WaitForState, timeout: Duration) -> Result<()> {
         self.retry("waiting for", timeout, |_| async move {
-            let el = self.query(true, timeout).await?;
+            let el = self.query(self.strict, timeout).await?;
             let visible = match &el {
                 Some(el) => {
                     let v = self
@@ -1917,6 +1941,40 @@ impl Locator {
             }
         }
         Ok(out)
+    }
+
+    /// Playwright's `$`: the first match now (no waiting), or a strict-mode
+    /// error when this locator is strict and several match.
+    pub(crate) async fn query_handle(
+        &self,
+    ) -> Result<Option<crate::application::handle::JsHandle>> {
+        let Some(el) = self.query(self.strict, self.timeout()).await? else {
+            return Ok(None);
+        };
+        let mut h = crate::application::handle::JsHandle::from_remote(
+            &self.page,
+            &self.main_world_object(&el).await?,
+        );
+        h.frame = self.frame_for_handles().await?;
+        Ok(Some(h))
+    }
+
+    /// Playwright's `$eval`: `function(element, arg)` on the first match.
+    pub(crate) async fn eval_on_first<T: DeserializeOwned, A: Serialize>(
+        &self,
+        function: &str,
+        arg: Option<A>,
+    ) -> Result<T> {
+        let Some(h) = self.query_handle().await? else {
+            return Err(Error::Evaluation(format!(
+                "Failed to find element matching selector \"{}\"",
+                self.selector
+            )));
+        };
+        match arg {
+            Some(a) => h.evaluate_with(function, a).await,
+            None => h.evaluate(function).await,
+        }
     }
 
     /// The frame the matched elements live in (after iframe hops).

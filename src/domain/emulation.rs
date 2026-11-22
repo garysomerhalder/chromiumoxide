@@ -103,6 +103,9 @@ pub struct ContextOptions {
     pub http_credentials: Option<HttpCredentials>,
     /// A proxy for this context (Playwright's context `proxy`).
     pub proxy: Option<crate::domain::launch::Proxy>,
+    /// Selector shortcuts (`page.click(selector)`, `page.$`) are strict too
+    /// (Playwright's `strictSelectors`); locators always are.
+    pub strict_selectors: bool,
     pub java_script_enabled: bool,
     pub bypass_csp: bool,
     pub ignore_https_errors: bool,
@@ -158,6 +161,7 @@ impl Default for ContextOptions {
             record_har: None,
             record_video: None,
             proxy: None,
+            strict_selectors: false,
         }
     }
 }

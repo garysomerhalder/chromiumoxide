@@ -23,84 +23,140 @@ impl Frame {
     }
 
     pub async fn click(&self, selector: &str) -> Result<()> {
-        self.locator(selector).click().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .click()
+            .await
     }
     pub async fn dblclick(&self, selector: &str) -> Result<()> {
-        self.locator(selector).dblclick().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .dblclick()
+            .await
     }
     pub async fn hover(&self, selector: &str) -> Result<()> {
-        self.locator(selector).hover().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .hover()
+            .await
     }
     pub async fn tap(&self, selector: &str) -> Result<()> {
-        self.locator(selector).tap().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .tap()
+            .await
     }
     pub async fn fill(&self, selector: &str, value: &str) -> Result<()> {
-        self.locator(selector).fill(value).await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .fill(value)
+            .await
     }
     pub async fn press(&self, selector: &str, key: &str) -> Result<()> {
-        self.locator(selector).press(key).await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .press(key)
+            .await
     }
     /// `frame.type(selector, text)` (deprecated in Playwright).
     #[deprecated(note = "use locator(...).press_sequentially, like Playwright")]
     pub async fn type_text(&self, selector: &str, text: &str) -> Result<()> {
-        self.locator(selector).press_sequentially(text).await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .press_sequentially(text)
+            .await
     }
     pub async fn check(&self, selector: &str) -> Result<()> {
-        self.locator(selector).check().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .check()
+            .await
     }
     pub async fn uncheck(&self, selector: &str) -> Result<()> {
-        self.locator(selector).uncheck().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .uncheck()
+            .await
     }
     pub async fn set_checked(&self, selector: &str, checked: bool) -> Result<()> {
-        self.locator(selector).set_checked(checked).await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .set_checked(checked)
+            .await
     }
     pub async fn select_option(&self, selector: &str, values: &[&str]) -> Result<Vec<String>> {
-        self.locator(selector).select_option(values).await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .select_option(values)
+            .await
     }
     pub async fn set_input_files(&self, selector: &str, files: &[PathBuf]) -> Result<()> {
-        self.locator(selector).set_input_files(files).await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .set_input_files(files)
+            .await
     }
     pub async fn focus(&self, selector: &str) -> Result<()> {
-        self.locator(selector).focus().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .focus()
+            .await
     }
     pub async fn dispatch_event(&self, selector: &str, kind: &str) -> Result<()> {
-        self.locator(selector).dispatch_event(kind).await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .dispatch_event(kind)
+            .await
     }
     pub async fn drag_and_drop(&self, source: &str, target: &str) -> Result<()> {
-        self.locator(source).drag_to(&self.locator(target)).await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), source)
+            .drag_to(&Locator::for_selector(
+                self.page(),
+                Some(self.id().to_owned()),
+                target,
+            ))
+            .await
     }
     pub async fn get_attribute(&self, selector: &str, name: &str) -> Result<Option<String>> {
-        self.locator(selector).get_attribute(name).await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .get_attribute(name)
+            .await
     }
     pub async fn inner_html(&self, selector: &str) -> Result<String> {
-        self.locator(selector).inner_html().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .inner_html()
+            .await
     }
     pub async fn inner_text(&self, selector: &str) -> Result<String> {
-        self.locator(selector).inner_text().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .inner_text()
+            .await
     }
     pub async fn text_content(&self, selector: &str) -> Result<Option<String>> {
-        self.locator(selector).text_content().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .text_content()
+            .await
     }
     pub async fn input_value(&self, selector: &str) -> Result<String> {
-        self.locator(selector).input_value().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .input_value()
+            .await
     }
     pub async fn is_checked(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_checked().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .is_checked()
+            .await
     }
     pub async fn is_disabled(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_disabled().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .is_disabled()
+            .await
     }
     pub async fn is_editable(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_editable().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .is_editable()
+            .await
     }
     pub async fn is_enabled(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_enabled().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .is_enabled()
+            .await
     }
     pub async fn is_hidden(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_hidden().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .is_hidden()
+            .await
     }
     pub async fn is_visible(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_visible().await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .is_visible()
+            .await
     }
     pub fn get_by_alt_text(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
         self.locator(&selectors::get_by_alt_text(&text.into(), exact))
@@ -114,7 +170,9 @@ impl Frame {
 
     /// `frame.waitForSelector(selector, {state})`.
     pub async fn wait_for_selector(&self, selector: &str, state: WaitForState) -> Result<()> {
-        self.locator(selector).wait_for(state).await
+        Locator::for_selector(self.page(), Some(self.id().to_owned()), selector)
+            .wait_for(state)
+            .await
     }
 
     /// `frame.waitForTimeout(ms)`.

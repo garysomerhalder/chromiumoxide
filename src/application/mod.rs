@@ -30,6 +30,7 @@ pub mod page;
 pub mod page_init;
 pub mod pdf;
 pub mod protocol;
+pub mod query;
 pub mod request;
 pub mod route;
 pub mod screencast;

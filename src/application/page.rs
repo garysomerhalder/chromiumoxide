@@ -939,6 +939,21 @@ impl Page {
             .or(self.inner.options.viewport)
     }
 
+    /// `page.close({ runBeforeUnload })`: with `run_before_unload`, the page
+    /// runs its `beforeunload` handlers (a `beforeunload` dialog may show) and
+    /// closes when they allow it; this returns without waiting, like
+    /// Playwright.
+    pub async fn close_with(&self, options: PageCloseOptions) -> Result<()> {
+        if !options.run_before_unload {
+            return self.close().await;
+        }
+        if self.is_closed() {
+            return Ok(());
+        }
+        self.send("Page.close", json!({})).await?;
+        Ok(())
+    }
+
     /// Closes the page (and its context, if it was created by `browser.new_page()`).
     pub async fn close(&self) -> Result<()> {
         if self.is_closed() {
@@ -965,6 +980,13 @@ impl Page {
         self.mark_closed();
         Ok(())
     }
+}
+
+/// Options of `page.close()`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PageCloseOptions {
+    /// Run `beforeunload` handlers first (Playwright's `runBeforeUnload`).
+    pub run_before_unload: bool,
 }
 
 /// A pending `page.goto()`.

@@ -8,97 +8,133 @@ use crate::domain::error::Result;
 
 impl Page {
     pub async fn click(&self, selector: &str) -> Result<()> {
-        self.locator(selector).click().await
+        Locator::for_selector(self, None, selector).click().await
     }
     pub async fn dblclick(&self, selector: &str) -> Result<()> {
-        self.locator(selector).dblclick().await
+        Locator::for_selector(self, None, selector).dblclick().await
     }
     pub async fn hover(&self, selector: &str) -> Result<()> {
-        self.locator(selector).hover().await
+        Locator::for_selector(self, None, selector).hover().await
     }
     pub async fn tap(&self, selector: &str) -> Result<()> {
-        self.locator(selector).tap().await
+        Locator::for_selector(self, None, selector).tap().await
     }
     pub async fn fill(&self, selector: &str, value: &str) -> Result<()> {
-        self.locator(selector).fill(value).await
+        Locator::for_selector(self, None, selector)
+            .fill(value)
+            .await
     }
     pub async fn press(&self, selector: &str, key: &str) -> Result<()> {
-        self.locator(selector).press(key).await
+        Locator::for_selector(self, None, selector).press(key).await
     }
     /// Playwright's deprecated `page.type(selector, text)`.
     pub async fn type_text(&self, selector: &str, text: &str) -> Result<()> {
-        self.locator(selector).press_sequentially(text).await
+        Locator::for_selector(self, None, selector)
+            .press_sequentially(text)
+            .await
     }
     pub async fn check(&self, selector: &str) -> Result<()> {
-        self.locator(selector).check().await
+        Locator::for_selector(self, None, selector).check().await
     }
     pub async fn uncheck(&self, selector: &str) -> Result<()> {
-        self.locator(selector).uncheck().await
+        Locator::for_selector(self, None, selector).uncheck().await
     }
     pub async fn set_checked(&self, selector: &str, checked: bool) -> Result<()> {
-        self.locator(selector).set_checked(checked).await
+        Locator::for_selector(self, None, selector)
+            .set_checked(checked)
+            .await
     }
     pub async fn select_option(&self, selector: &str, values: &[&str]) -> Result<Vec<String>> {
-        self.locator(selector).select_option(values).await
+        Locator::for_selector(self, None, selector)
+            .select_option(values)
+            .await
     }
     pub async fn set_input_files(
         &self,
         selector: &str,
         files: &[std::path::PathBuf],
     ) -> Result<()> {
-        self.locator(selector).set_input_files(files).await
+        Locator::for_selector(self, None, selector)
+            .set_input_files(files)
+            .await
     }
     pub async fn focus(&self, selector: &str) -> Result<()> {
-        self.locator(selector).focus().await
+        Locator::for_selector(self, None, selector).focus().await
     }
     pub async fn dispatch_event(&self, selector: &str, kind: &str) -> Result<()> {
-        self.locator(selector).dispatch_event(kind).await
+        Locator::for_selector(self, None, selector)
+            .dispatch_event(kind)
+            .await
     }
     pub async fn text_content(&self, selector: &str) -> Result<Option<String>> {
-        self.locator(selector).text_content().await
+        Locator::for_selector(self, None, selector)
+            .text_content()
+            .await
     }
     pub async fn inner_text(&self, selector: &str) -> Result<String> {
-        self.locator(selector).inner_text().await
+        Locator::for_selector(self, None, selector)
+            .inner_text()
+            .await
     }
     pub async fn inner_html(&self, selector: &str) -> Result<String> {
-        self.locator(selector).inner_html().await
+        Locator::for_selector(self, None, selector)
+            .inner_html()
+            .await
     }
     pub async fn get_attribute(&self, selector: &str, name: &str) -> Result<Option<String>> {
-        self.locator(selector).get_attribute(name).await
+        Locator::for_selector(self, None, selector)
+            .get_attribute(name)
+            .await
     }
     pub async fn input_value(&self, selector: &str) -> Result<String> {
-        self.locator(selector).input_value().await
+        Locator::for_selector(self, None, selector)
+            .input_value()
+            .await
     }
     pub async fn is_visible(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_visible().await
+        Locator::for_selector(self, None, selector)
+            .is_visible()
+            .await
     }
     pub async fn is_hidden(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_hidden().await
+        Locator::for_selector(self, None, selector)
+            .is_hidden()
+            .await
     }
     pub async fn is_enabled(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_enabled().await
+        Locator::for_selector(self, None, selector)
+            .is_enabled()
+            .await
     }
     pub async fn is_disabled(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_disabled().await
+        Locator::for_selector(self, None, selector)
+            .is_disabled()
+            .await
     }
     pub async fn is_editable(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_editable().await
+        Locator::for_selector(self, None, selector)
+            .is_editable()
+            .await
     }
     pub async fn is_checked(&self, selector: &str) -> Result<bool> {
-        self.locator(selector).is_checked().await
+        Locator::for_selector(self, None, selector)
+            .is_checked()
+            .await
     }
 
     /// `page.waitForSelector(selector, { state })`; resolves with a locator
     /// for the element.
     pub async fn wait_for_selector(&self, selector: &str, state: WaitForState) -> Result<Locator> {
-        let locator = self.locator(selector);
+        let locator = Locator::for_selector(self, None, selector);
         locator.wait_for(state).await?;
         Ok(locator)
     }
 
     /// `page.dragAndDrop(source, target)`.
     pub async fn drag_and_drop(&self, source: &str, target: &str) -> Result<()> {
-        self.locator(source).drag_to(&self.locator(target)).await
+        Locator::for_selector(self, None, source)
+            .drag_to(&Locator::for_selector(self, None, target))
+            .await
     }
 }
 
