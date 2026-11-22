@@ -3,15 +3,16 @@
 Legend: ✅ done (tested) · 🟡 partial · ⬜ not started. Milestones: M1 device-mockup
 needs, M2 protocol regenerated, M3 navigation/waiting/locators/input, M4 network,
 storage, downloads, dialogs, M5 tracing/video/HAR/PDF/assertions, M6 the rest,
-M7 Playwright 1.64/1.65 (section 7).
+M7 Playwright 1.64/1.65 (section 7), M8 the backlog of options, events and
+methods (section 8).
 
 Playwright reference: **1.65.1** (`playwright-core/types/types.d.ts`; M1-M6
 were built against 1.63.0, M7 brings everything to 1.65.1).
 Firefox and WebKit are out of scope (this is a CDP client).
 
-The member tables below track methods. Options, events and upcoming
-Playwright versions that are still missing are listed in
-[`BACKLOG.md`](BACKLOG.md) (audit of 2026-11-22).
+The member tables below track methods; section 8 covers the options, events
+and methods found by the audit of 2026-11-22 ([`BACKLOG.md`](BACKLOG.md)),
+all done in M8. Only the unreleased Playwright 1.66 remains there.
 
 ### Notes
 
@@ -206,7 +207,7 @@ Chrome for Testing and chrome-headless-shell.
 | events: `page`, `serviceworker`, `close`, `request`, `response`, `requestfinished`, `requestfailed`, `console`, `dialog`, `weberror` | M4 | ✅ `ContextEvent` |
 | `clock` | M6 | ✅ |
 | `credentials` | M4 | ✅ via Chromium's virtual WebAuthn authenticator |
-| `debugger` | M6 | ✅ requestPause, next, resume, pausedDetails (title), events; no source locations / `runTo` |
+| `debugger` | M6, M8 | ✅ requestPause, next, resume, runTo, pausedDetails (title, location from backtraces), events |
 | `request` | M6 | ✅ |
 | `tracing` | M5 | ✅ actions, console, network, screencast, DOM snapshots |
 
@@ -619,7 +620,7 @@ Chrome for Testing and chrome-headless-shell.
 | Member | Milestone | Status |
 |---|---|---|
 | `cancel` | M4 | ✅ |
-| `createReadStream` | M4 | ✅ as `read()` (bytes) |
+| `createReadStream` | M4, M8 | ✅ `create_read_stream()` (`AsyncRead`); also `read()` (bytes) |
 | `delete` | M4 | ✅ |
 | `failure` | M4 | ✅ |
 | `page` | M4 | ✅ |
@@ -802,3 +803,35 @@ From the 1.64.0, 1.64.1, 1.65.0 and 1.65.1 release notes and a diff of
 | `signal` (AbortSignal) options | M7 | n/a: drop the Rust future to cancel |
 | `Disposable` return values (`await using`) | M7 | n/a: no async drop in Rust; call the matching stop/remove |
 | Test runner: reporters, `--shuffle`, locks, `testProject.default`, `toHaveScreenshot.type`, Bun, JSX | M7 | out of scope (test runner) |
+
+## 8. Backlog: options, events and methods (M8)
+
+From the audit of every 1.65.1 method, option and event of the
+Chromium-relevant classes ([`BACKLOG.md`](BACKLOG.md)). Tests:
+`tests/integration/backlog.rs`, `tests/integration/client_certs.rs`.
+
+| Item | Milestone | Status |
+|---|---|---|
+| `delay` on click, dblclick, press, type, pressSequentially; `keyboard.press/type`, `mouse.click/dblclick` | M8 | ✅ |
+| `clientCertificates` (`cert`/`key` PEM or DER, encrypted keys + `passphrase`, `pfx`) on contexts, `newPage`, `launchPersistentContext`, `request.newContext` | M8 | ✅ requests to the origin go through the HTTP client (Playwright: a local proxy) |
+| `strictSelectors` context option | M8 | ✅ |
+| `page.$`, `$$`, `$eval`, `$$eval` (page, frame, element handle) | M8 | ✅ |
+| Selector shortcuts (`page.click(selector)`, ...) use the first match unless `strictSelectors` | M8 | ✅ (were always strict) |
+| `maxRetries` on `request.fetch/get/post/...` and `route.fetch` | M8 | ✅ |
+| `ignoreHTTPSErrors` per request | M8 | ✅ |
+| `storageState({ indexedDB, opfs })` (context and request) | M8 | ✅ |
+| `routeFromHAR({ update, updateContent, updateMode })` | M8 | ✅ |
+| `tracing.startHar(path, { content, mode, resourcesDir, urlFilter })`; `.zip` HARs | M8 | ✅ |
+| `page.close({ runBeforeUnload })` | M8 | ✅ |
+| Launch `slowMo`, `downloadsPath`, `tracesDir`, `artifactsDir`, `chromiumSandbox` | M8 | ✅ default command line unchanged |
+| Launch `handleSIGINT` / `handleSIGTERM` / `handleSIGHUP` | M8 | ✅ opt-in (Playwright: on by default) |
+| `launchServer({ host, port, wsPath })` | M8 | ✅ |
+| `browser.bind(title, { host, port, workspaceDir, metadata })`; bound-browser registry | M8 | ✅ `bind_with`, `Chromium::bound_browsers()` |
+| `selectors.register(name, script, { contentScript })`; engines run in the main world otherwise | M8 | ✅ (all engines ran isolated before) |
+| `debugger.runTo(location)`, `pausedDetails().location` | M8 | ✅ needs debug info |
+| `browserServer.process()` | M8 | ✅ pid |
+| `download.createReadStream()` | M8 | ✅ `AsyncRead` |
+| Page events `crash`, `dialogclosed`, `frameattached`, `framedetached`, `framenavigated` | M8 | ✅ |
+| Context events `dialogclosed`, `download`, `frameattached`, `framedetached`, `framenavigated`, `pageclose`, `pageload`, `backgroundpage` | M8 | ✅ (`backgroundpage` never fires in Chromium) |
+| Browser events `context`, `disconnected` | M8 | ✅ `browser.events()` |
+| Blocked-click log names the element (`<body>…</body> intercepts pointer events`) | M8 | ✅ |
