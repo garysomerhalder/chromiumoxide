@@ -7,8 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] (in progress)
+
+### Breaking Changes
+
+- Rewrite as DDD + hexagonal architecture with a Playwright-like API
+  (see `docs/ARCHITECTURE.md` for how the 0.9 API maps onto the new one).
+
+### Added
+
+- `docs/ARCHITECTURE.md`, `docs/PARITY.md` (Chrome and Playwright checklists), `CLAUDE.md`.
+- Milestone 1 (device-mockup needs):
+  - Playwright-style browser discovery: explicit path, `MOCKUP_CHROMIUM`/`CHROME`,
+    `PLAYWRIGHT_BROWSERS_PATH`, `/opt/pw-browsers`, Playwright caches (headless
+    shell first, newest first), Chrome for Testing caches, system Chrome.
+  - Launch with Playwright's Chromium switch preset, a unique temporary profile
+    per launch (removed on close), over `--remote-debugging-pipe` (default) or
+    WebSocket; `Chromium::connect_over_cdp`.
+  - `Browser::new_context(ContextOptions)` with viewport, screen, device scale
+    factor, mobile, touch, user agent (+ client hints), locale, timezone, colour
+    scheme, reduced motion, forced colours, contrast, geolocation, permissions,
+    offline, extra headers, HTTP credentials; `device("iPhone 15")` descriptors.
+  - `Page::goto` with `WaitUntil::{Commit, DomContentLoaded, Load, NetworkIdle}`,
+    `set_content` (waits for load, images, fonts), `wait_for_function`,
+    `wait_for_load_state`, `add_style_tag`, `evaluate`/`evaluate_with`,
+    `set_viewport_size`, `content`, `title`.
+  - `Page::screenshot` (viewport, clip, full page, omit background, css/device
+    scale, png/jpeg/webp), pixel-identical to Playwright 1.63 (tested).
+
+- Milestone 2 (protocol):
+  - CDP regenerated from ChromeDevTools/devtools-protocol `v0.0.1751165`
+    (new domains Ads, CrashReportContext, DigitalCredentials, FindInPage,
+    SmartCardEmulation, WebMCP); deprecated domains, commands and fields are
+    now generated too (`Console`, `Schema`, ...).
+  - `Page::execute(cmd)` / `Browser::execute(cmd)` for any generated command,
+    `Page::events::<E>()` / `Browser::events::<E>()` for any generated event.
+
+### Fixed
+
+- PDL generator: deprecated event variants produced invalid code; array
+  builder setters could collide with real fields (`currentTime`/`currentTimes`).
+
 ### Changed
 
+- Version 0.10.0 for all workspace crates; minimum Rust 1.88.
+- `Network.InterceptionId` conversions removed (the type left the protocol).
 - Derive `Clone` for `Element`, `ScreenshotParams` and `ScreenshotParamsBuilder`
 
 ## [0.9.1] 2026-02-25

@@ -20,7 +20,7 @@ fn generated_code_is_fresh() {
     Generator::default()
         .out_dir(tmp.path())
         .experimental(env::var("CDP_NO_EXPERIMENTAL").is_err())
-        .deprecated(env::var("CDP_DEPRECATED").is_ok())
+        .deprecated(env::var("CDP_NO_DEPRECATED").is_err())
         .allowed_deprecated_type("emulateNetworkConditions")
         .compile_pdls(&[js_proto, browser_proto])
         .unwrap();
