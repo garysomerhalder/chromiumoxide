@@ -547,13 +547,7 @@ impl ApiRequestContext {
                     log(format!("  {}: {v}", k.to_ascii_lowercase()));
                 }
             }
-            let resp = self
-                .inner
-                .services
-                .http
-                .send(send)
-                .await
-                .map_err(|e| Error::Request(e.to_string()))?;
+            let resp = self.send_with_retries(send, r.max_retries).await?;
             if let Some(call) = call {
                 let log = |m: String| {
                     self.trace(
@@ -616,6 +610,36 @@ impl ApiRequestContext {
     }
 }
 
+impl ApiRequestContext {
+    /// Playwright's `_sendRequestWithRetries`.
+    async fn send_with_retries(&self, req: HttpRequest, max_retries: u32) -> Result<HttpResponse> {
+        let mut backoff = Duration::from_millis(250);
+        let mut attempt = 0;
+        loop {
+            match self.inner.services.http.send(req.clone()).await {
+                Ok(r) => return Ok(r),
+                Err(e) => {
+                    if max_retries == 0 {
+                        return Err(Error::Request(e.to_string()));
+                    }
+                    if attempt == max_retries {
+                        return Err(Error::Request(format!(
+                            "Failed after {} attempt(s): {e}",
+                            attempt + 1
+                        )));
+                    }
+                    if e.kind() != std::io::ErrorKind::ConnectionReset {
+                        return Err(Error::Request(e.to_string()));
+                    }
+                    self.inner.services.clock.sleep(backoff).await;
+                    backoff *= 2;
+                    attempt += 1;
+                }
+            }
+        }
+    }
+}
+
 fn header(r: &HttpResponse, name: &str) -> Option<String> {
     r.headers
         .iter()
@@ -644,6 +668,7 @@ pub struct ApiRequest<'a> {
     timeout: Option<Duration>,
     fail_on_status_code: Option<bool>,
     max_redirects: Option<u32>,
+    max_retries: u32,
     ignore_https_errors: Option<bool>,
 }
 
@@ -660,6 +685,7 @@ impl<'a> ApiRequest<'a> {
             timeout: None,
             fail_on_status_code: None,
             max_redirects: None,
+            max_retries: 0,
             ignore_https_errors: None,
         }
     }
@@ -729,6 +755,12 @@ impl<'a> ApiRequest<'a> {
     /// How many redirects to follow (default 20; 0 returns the redirect).
     pub fn max_redirects(mut self, n: u32) -> Self {
         self.max_redirects = Some(n);
+        self
+    }
+    /// Retry connection resets (ECONNRESET) up to `n` times, with
+    /// Playwright's backoff (250 ms, doubling).
+    pub fn max_retries(mut self, n: u32) -> Self {
+        self.max_retries = n;
         self
     }
     pub fn ignore_https_errors(mut self, yes: bool) -> Self {

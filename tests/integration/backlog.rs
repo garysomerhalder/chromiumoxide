@@ -367,6 +367,8 @@ async fn flaky_server(resets: usize) -> String {
             let _ = sock.read(&mut buf).await;
             n += 1;
             if n <= resets {
+                // A zero linger resets the connection (RST) without blocking.
+                #[allow(deprecated)]
                 let _ = sock.set_linger(Some(Duration::ZERO));
                 drop(sock);
                 continue;
