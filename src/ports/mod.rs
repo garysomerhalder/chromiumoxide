@@ -11,7 +11,7 @@ pub mod signals;
 pub mod transport;
 pub mod video;
 
-pub use bridge::{BoundBridge, CdpBridge};
+pub use bridge::{BoundBridge, BridgeAddress, CdpBridge};
 pub use cdp::{CdpSession, EventStream, RawEvent};
 pub use clock::Clock;
 pub use env::Environment;

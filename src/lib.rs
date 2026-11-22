@@ -31,7 +31,7 @@ pub use chromiumoxide_fetcher as fetcher;
 pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::aria::AriaAssertion;
 pub use application::aria_snapshot::{AriaSnapshotMode, AriaSnapshotOptions};
-pub use application::browser::{Browser, BrowserEvent, LaunchOptions};
+pub use application::browser::{BindOptions, Browser, BrowserEvent, LaunchOptions};
 pub use application::clock::Clock;
 pub use application::context::{BrowserContext, ContextEvent, PageWaiter, WebError};
 pub use application::coverage::{Coverage, CoverageOptions, CssCoverageEntry, JsCoverageEntry};
@@ -96,6 +96,7 @@ pub use domain::input::MouseButton;
 pub use domain::launch::{BrowserKind, Proxy};
 pub use domain::network::{HeaderEntry, RequestSizes, Timing};
 pub use domain::pdf::{Margin as PdfMargin, PdfOptions};
+pub use domain::registry::BoundBrowser;
 pub use domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale,
 };
@@ -112,6 +113,22 @@ pub use ports::Channel;
 /// A launched browser serving clients (Playwright's `BrowserServer`).
 pub struct BrowserServer {
     browser: Browser,
+    /// The bridge endpoint, when served at a chosen address.
+    endpoint: Option<String>,
+}
+
+/// Playwright's `browserType.launchServer(options)`: launch options plus
+/// where to listen.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LaunchServerOptions {
+    pub launch: LaunchOptions,
+    /// Default `127.0.0.1`.
+    pub host: Option<String>,
+    /// Default `0`: any free port.
+    pub port: Option<u16>,
+    /// Playwright's `wsPath`: the only path clients may connect to. Anyone
+    /// who knows it can drive the browser; keep it unguessable.
+    pub ws_path: Option<String>,
 }
 
 /// `browserServer.process()`: the launched browser process.
@@ -134,7 +151,10 @@ impl BrowserServer {
     }
     /// The URL clients pass to [`Chromium::connect`].
     pub fn ws_endpoint(&self) -> String {
-        self.browser.ws_endpoint().unwrap_or_default()
+        self.endpoint
+            .clone()
+            .or_else(|| self.browser.ws_endpoint())
+            .unwrap_or_default()
     }
     /// Closes the browser (and every client's pages).
     pub async fn close(&self) -> Result<()> {
@@ -197,7 +217,43 @@ impl Chromium {
             ..options
         })
         .await?;
-        Ok(BrowserServer { browser })
+        Ok(BrowserServer {
+            browser,
+            endpoint: None,
+        })
+    }
+
+    /// `browserType.launchServer({ host, port, wsPath })`: serves the browser
+    /// at that address (and only that path); without any of them, like
+    /// [`launch_server`](Self::launch_server).
+    pub async fn launch_server_with(options: LaunchServerOptions) -> Result<BrowserServer> {
+        if options.host.is_none() && options.port.is_none() && options.ws_path.is_none() {
+            return Self::launch_server(options.launch).await;
+        }
+        let browser = Self::launch(options.launch).await?;
+        let served = browser
+            .serve(ports::BridgeAddress {
+                host: options.host,
+                port: options.port,
+                path: options.ws_path,
+            })
+            .await;
+        match served {
+            Ok(endpoint) => Ok(BrowserServer {
+                browser,
+                endpoint: Some(endpoint),
+            }),
+            Err(e) => {
+                let _ = browser.close().await;
+                Err(e)
+            }
+        }
+    }
+
+    /// The browsers bound on this machine with
+    /// [`Browser::bind_with`] (Playwright's server registry).
+    pub async fn bound_browsers() -> Result<Vec<BoundBrowser>> {
+        Browser::bound_browsers(&Self::services()).await
     }
 
     /// Playwright's `browserType.connect(wsEndpoint)`: a client of a

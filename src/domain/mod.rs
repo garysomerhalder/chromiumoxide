@@ -18,6 +18,7 @@ pub mod launch;
 pub mod locator_gen;
 pub mod network;
 pub mod pdf;
+pub mod registry;
 pub mod screenshot;
 pub mod selectors;
 pub mod source;

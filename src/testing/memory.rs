@@ -166,8 +166,12 @@ impl crate::ports::CdpBridge for NoBridge {
     fn serve(
         &self,
         _cdp: std::sync::Arc<dyn crate::ports::CdpSession>,
+        _address: crate::ports::BridgeAddress,
     ) -> futures::future::BoxFuture<'static, io::Result<Box<dyn crate::ports::BoundBridge>>> {
         Box::pin(async { Err(io::Error::other("no network in unit tests")) })
+    }
+    fn is_listening(&self, _endpoint: &str) -> futures::future::BoxFuture<'static, bool> {
+        Box::pin(async { false })
     }
 }
 

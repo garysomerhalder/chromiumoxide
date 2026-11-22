@@ -88,6 +88,21 @@ impl Default for LaunchOptions {
     }
 }
 
+/// Playwright's `browser.bind(title, options)` options.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct BindOptions {
+    /// Identifies the browser in [`Chromium::bound_browsers`](crate::Chromium::bound_browsers).
+    pub title: String,
+    /// Default `127.0.0.1`.
+    pub host: Option<String>,
+    /// Default `0`: any free port.
+    pub port: Option<u16>,
+    /// The working directory this browser belongs to.
+    pub workspace_dir: Option<PathBuf>,
+    /// Anything else to record (`null` if none).
+    pub metadata: serde_json::Value,
+}
+
 /// A connected browser.
 #[derive(Clone)]
 pub struct Browser {
@@ -110,6 +125,8 @@ pub(crate) struct BrowserInner {
     remove_profile: bool,
     /// `browser.bind()`: the connection served to other clients.
     bridge: Mutex<Option<Box<dyn crate::ports::BoundBridge>>>,
+    /// The registry descriptor written by `bind` (removed by `unbind`).
+    registry_file: Mutex<Option<PathBuf>>,
     /// `LaunchOptions::args` (None when connected).
     launch_args: Option<Vec<String>>,
     /// `LaunchOptions::proxy`.
@@ -321,6 +338,7 @@ impl Browser {
                 tracing: Mutex::new(None),
                 remove_profile: persistent.is_none(),
                 bridge: Mutex::new(None),
+                registry_file: Mutex::new(None),
                 launch_args: Some(options.args.clone()),
                 launch_proxy: options.proxy.clone(),
                 artifacts: crate::application::shared::LaunchArtifacts {
@@ -372,6 +390,7 @@ impl Browser {
                 tracing: Mutex::new(None),
                 remove_profile: false,
                 bridge: Mutex::new(None),
+                registry_file: Mutex::new(None),
                 launch_args: None,
                 launch_proxy: None,
                 artifacts: Default::default(),
@@ -388,6 +407,42 @@ impl Browser {
     /// over a local WebSocket, whatever channel it was launched with. Their
     /// endpoint speaks CDP. Binding again returns the same endpoint.
     pub async fn bind(&self) -> Result<String> {
+        self.bind_with(BindOptions::default()).await
+    }
+
+    /// Playwright's `browser.bind(title, { host, port, workspaceDir,
+    /// metadata })`: like [`bind`](Self::bind), listening on `host:port`,
+    /// and listed by [`Chromium::bound_browsers`](crate::Chromium::bound_browsers)
+    /// until unbound or closed.
+    pub async fn bind_with(&self, options: BindOptions) -> Result<String> {
+        let address = crate::ports::BridgeAddress {
+            host: options.host.clone(),
+            port: options.port,
+            path: None,
+        };
+        let endpoint = self.serve(address).await?;
+        let services = &self.inner.services;
+        let dir = crate::domain::registry::registry_dir(
+            services.env.os(),
+            |k| services.env.var(k),
+            services.env.home_dir().as_deref(),
+        );
+        if let Some(dir) = dir {
+            let descriptor = crate::domain::registry::BoundBrowser {
+                title: options.title,
+                endpoint: endpoint.clone(),
+                workspace_dir: options.workspace_dir,
+                metadata: options.metadata,
+            };
+            let file = dir.join(descriptor.file_name());
+            services.fs.write(&file, descriptor.to_json().as_bytes())?;
+            *self.inner.registry_file.lock().unwrap() = Some(file);
+        }
+        Ok(endpoint)
+    }
+
+    /// Serves the connection at `address` (the endpoint, if already served).
+    pub(crate) async fn serve(&self, address: crate::ports::BridgeAddress) -> Result<String> {
         if let Some(b) = self.inner.bridge.lock().unwrap().as_ref() {
             return Ok(b.endpoint());
         }
@@ -395,7 +450,7 @@ impl Browser {
             .inner
             .services
             .bridge
-            .serve(self.inner.cdp.clone())
+            .serve(self.inner.cdp.clone(), address)
             .await?;
         let endpoint = bound.endpoint();
         *self.inner.bridge.lock().unwrap() = Some(bound);
@@ -407,7 +462,40 @@ impl Browser {
         if let Some(b) = self.inner.bridge.lock().unwrap().take() {
             b.stop();
         }
+        if let Some(file) = self.inner.registry_file.lock().unwrap().take() {
+            let _ = self.inner.services.fs.remove_file(&file);
+        }
         Ok(())
+    }
+
+    /// The browsers bound with [`bind_with`](Self::bind_with) on this
+    /// machine that still accept clients (stale descriptors are removed).
+    pub async fn bound_browsers(
+        services: &Services,
+    ) -> Result<Vec<crate::domain::registry::BoundBrowser>> {
+        let dir = crate::domain::registry::registry_dir(
+            services.env.os(),
+            |k| services.env.var(k),
+            services.env.home_dir().as_deref(),
+        );
+        let Some(dir) = dir else {
+            return Ok(Vec::new());
+        };
+        let mut found = Vec::new();
+        for name in services.fs.list_dir(&dir) {
+            let path = dir.join(&name);
+            let Some(b) = services.fs.read(&path).ok().and_then(|t| {
+                crate::domain::registry::BoundBrowser::from_json(&String::from_utf8_lossy(&t))
+            }) else {
+                continue;
+            };
+            if services.bridge.is_listening(&b.endpoint).await {
+                found.push(b);
+            } else {
+                let _ = services.fs.remove_file(&path);
+            }
+        }
+        Ok(found)
     }
 
     /// The DevTools WebSocket URL, if the browser was launched or connected over one.
@@ -568,6 +656,7 @@ impl Browser {
         if self.inner.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
+        let _ = self.unbind().await;
         let live: Vec<_> = self
             .inner
             .shared
