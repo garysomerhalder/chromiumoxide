@@ -15,6 +15,7 @@ pub mod http;
 pub mod image;
 pub mod input;
 pub mod launch;
+pub mod locator_gen;
 pub mod network;
 pub mod pdf;
 pub mod screenshot;
