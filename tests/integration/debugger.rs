@@ -94,3 +94,44 @@ async fn request_gc_collects_unreachable_objects() {
     );
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn pick_locator_returns_the_clicked_element() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content("<style>body{margin:0}</style><button style='width:100px;height:40px' onclick='window.clicked=true'>Go</button>")
+        .await
+        .unwrap();
+    let pick = tokio::spawn({
+        let page = page.clone();
+        async move { page.pick_locator().await }
+    });
+    // Picking mode is on once the hover highlight appears.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    page.mouse().move_to(50.0, 20.0, 1).await.unwrap();
+    page.mouse().click(50.0, 20.0).await.unwrap();
+    let locator = pick.await.unwrap().unwrap();
+    assert_eq!(
+        locator.to_playwright_string().await.unwrap(),
+        "getByRole('button', { name: 'Go' })"
+    );
+    assert_eq!(locator.count().await.unwrap(), 1);
+    assert!(
+        !page.evaluate::<bool>("!!window.clicked").await.unwrap(),
+        "the picking click does not reach the page"
+    );
+
+    let pick = tokio::spawn({
+        let page = page.clone();
+        async move { page.pick_locator().await }
+    });
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    page.cancel_pick_locator().await.unwrap();
+    assert_eq!(
+        pick.await.unwrap().unwrap_err().to_string(),
+        "Locator picking was cancelled"
+    );
+    // A cancel without picking is a no-op.
+    page.cancel_pick_locator().await.unwrap();
+    browser.close().await.unwrap();
+}
