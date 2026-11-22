@@ -21,6 +21,7 @@ pub mod js;
 pub mod locator;
 pub mod navigation;
 pub mod network;
+pub mod oopif;
 pub mod page;
 pub mod page_init;
 pub mod pdf;

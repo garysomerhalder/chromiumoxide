@@ -82,6 +82,8 @@ pub(crate) struct PageInner {
     pub(crate) calls: Mutex<Vec<(String, Value)>>,
     /// The data of an HTML5 drag in progress (`Input.dragIntercepted`).
     pub(crate) drag: Mutex<Option<Value>>,
+    /// Sessions of out-of-process iframes.
+    pub(crate) oopifs: Mutex<Vec<crate::application::oopif::Oopif>>,
     pub(crate) navigation_timeout: Mutex<Option<Duration>>,
     pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
     pub(crate) locator_handlers: Mutex<Vec<crate::application::extras::LocatorHandler>>,
@@ -197,6 +199,7 @@ impl Page {
             screencast: Mutex::new(Default::default()),
             calls: Mutex::new(Vec::new()),
             drag: Mutex::new(None),
+            oopifs: Mutex::new(Vec::new()),
             navigation_timeout: Mutex::new(*context.navigation_timeout.lock().unwrap()),
             media: Mutex::new(Default::default()),
             locator_handlers: Mutex::new(Vec::new()),
@@ -249,6 +252,11 @@ impl Page {
                 let page = Page { inner };
                 if event.session_id.as_deref() == Some(session.as_str()) {
                     page.handle_event(&event);
+                } else if let Some(no) = event.session_id.as_deref().and_then(|s| page.oopif_no(s))
+                {
+                    if let Some(e) = page.oopif_event(no, &event) {
+                        page.handle_event(&e);
+                    }
                 } else if event.session_id.is_none()
                     && event.method == "Target.detachedFromTarget"
                     && event.params.get("sessionId").and_then(Value::as_str)
@@ -277,6 +285,21 @@ impl Page {
         }
         if e.method.starts_with("Network.") {
             self.handle_network_event(e);
+        }
+        if e.method == "Target.attachedToTarget"
+            && e.params.pointer("/targetInfo/type").and_then(Value::as_str) == Some("iframe")
+        {
+            let session = e.params.get("sessionId").and_then(Value::as_str);
+            let target = e
+                .params
+                .pointer("/targetInfo/targetId")
+                .and_then(Value::as_str);
+            if let (Some(session), Some(target)) = (session, target) {
+                let page = self.clone();
+                let (session, target) = (session.to_owned(), target.to_owned());
+                tokio::spawn(async move { page.attach_oopif(session, target).await });
+            }
+            return;
         }
         if e.method == "Target.detachedFromTarget" {
             if let Some(sid) = e.params.get("sessionId").and_then(Value::as_str) {
@@ -422,7 +445,7 @@ impl Page {
         self.bump();
     }
 
-    fn apply_effects(&self, effects: Vec<Effect>) {
+    pub(crate) fn apply_effects(&self, effects: Vec<Effect>) {
         for Effect::StartNetworkIdleTimer {
             frame_id,
             generation,
@@ -478,7 +501,14 @@ impl Page {
     /// Sends a raw protocol command to this page's session.
     pub async fn send(&self, method: &str, params: Value) -> Result<Value> {
         self.ensure_open()?;
-        self.cdp_session().call(self.sid(), method, params).await
+        if self.inner.oopifs.lock().unwrap().is_empty() {
+            return self.cdp_session().call(self.sid(), method, params).await;
+        }
+        let mut params = params;
+        match self.route_session(method, &mut params) {
+            0 => self.cdp_session().call(self.sid(), method, params).await,
+            no => self.send_in_session(no, method, params).await,
+        }
     }
 
     fn ensure_open(&self) -> Result<()> {
@@ -690,11 +720,7 @@ impl Page {
             loop {
                 let context_id = self.frame_context(frame, world, timeout).await?;
                 let params = js::call_params(declaration, context_id, args);
-                match self
-                    .cdp_session()
-                    .call(self.sid(), "Runtime.callFunctionOn", params)
-                    .await
-                {
+                match self.send("Runtime.callFunctionOn", params).await {
                     Ok(response) => match js::result_value(&response) {
                         Err(e) if js::is_context_lost(&e) => continue,
                         other => return other,
@@ -927,7 +953,7 @@ impl<'a> IntoFuture for Goto<'a> {
     }
 }
 
-fn load_frame_tree(
+pub(crate) fn load_frame_tree(
     tree: &mut FrameTree,
     node: &Value,
     parent: Option<&str>,

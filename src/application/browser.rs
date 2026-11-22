@@ -468,6 +468,8 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
                 );
                 context.add_service_worker(worker);
             }
+            // Out-of-process iframes are attached by their page's event loop.
+            _ if kind == "iframe" && event.session_id.is_some() => {}
             _ if kind == "worker" && event.session_id.is_some() => {
                 let page = event
                     .session_id
