@@ -3,6 +3,7 @@ pub mod actionability;
 pub mod aria_template;
 pub mod clock;
 pub mod console;
+pub mod coverage;
 pub mod devices;
 pub mod discovery;
 pub mod emulation;
