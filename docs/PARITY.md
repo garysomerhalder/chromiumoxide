@@ -734,12 +734,12 @@ Chrome for Testing and chrome-headless-shell.
 | `headers` | M6 | ✅ |
 | `headersArray` | M6 | ✅ |
 | `ok` | M6 | ✅ |
-| `securityDetails` | M6 | ⬜ |
-| `serverAddr` | M6 | ⬜ |
+| `securityDetails` | M6 | ✅ |
+| `serverAddr` | M6 | ✅ |
 | `status` | M6 | ✅ |
 | `statusText` | M6 | ✅ |
 | `text` | M6 | ✅ |
-| `timing` | M6 | ⬜ |
+| `timing` | M6 | ✅ |
 | `url` | M6 | ✅ |
 
 ### BrowserType

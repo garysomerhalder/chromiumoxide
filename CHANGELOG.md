@@ -99,6 +99,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `to_match_aria_snapshot_file(path)`.
   - `page.screencast()`: frames, `.webm` recording, overlays, chapters and
     `show_actions` annotations.
+- Milestone 3/4 follow-ups: HTML5 drag-and-drop and `locator.drop()`,
+  out-of-process (cross-site) iframes, an `ignoreHTTPSErrors` test.
+- Milestone 6 (in progress):
+  - `page.clock()` / `context.clock()` (Playwright's fake timers).
+  - `page.coverage()`: JS and CSS coverage.
+  - `context.request()`, `page.request()`, `Chromium::request_context()`:
+    `APIRequestContext` / `APIResponse` over a small HTTP/1.1 client (adds
+    `tokio-rustls` and `rustls-native-certs`); `Services` gains `http`.
+  - `context.debugger()`, `page.pause()`, `page.request_gc()`,
+    `page.pick_locator()` / `cancel_pick_locator()`.
 
 ### Fixed
 
