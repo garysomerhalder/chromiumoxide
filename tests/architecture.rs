@@ -19,7 +19,9 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 fn assert_layer(layer: &str, forbidden: &[&str]) {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join(layer);
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join(layer);
     let mut violations = Vec::new();
     for file in rust_files(&root) {
         let text = fs::read_to_string(&file).unwrap();
@@ -32,7 +34,11 @@ fn assert_layer(layer: &str, forbidden: &[&str]) {
             }
         }
     }
-    assert!(violations.is_empty(), "layer `{layer}` breaks the dependency rule:\n{}", violations.join("\n"));
+    assert!(
+        violations.is_empty(),
+        "layer `{layer}` breaks the dependency rule:\n{}",
+        violations.join("\n")
+    );
 }
 
 #[test]
@@ -40,22 +46,51 @@ fn domain_is_pure() {
     assert_layer(
         "domain",
         &[
-            "tokio", "chromiumoxide_cdp", "async_tungstenite", "crate::ports",
-            "crate::application", "crate::adapters", "std::fs", "std::process",
-            "std::net", "std::env", "std::time::Instant", "SystemTime",
+            "tokio",
+            "chromiumoxide_cdp",
+            "async_tungstenite",
+            "crate::ports",
+            "crate::application",
+            "crate::adapters",
+            "std::fs",
+            "std::process",
+            "std::net",
+            "std::env",
+            "std::time::Instant",
+            "SystemTime",
         ],
     );
 }
 
 #[test]
 fn ports_depend_only_on_domain() {
-    assert_layer("ports", &["tokio", "chromiumoxide_cdp", "crate::application", "crate::adapters", "std::fs", "std::process"]);
+    assert_layer(
+        "ports",
+        &[
+            "tokio",
+            "chromiumoxide_cdp",
+            "crate::application",
+            "crate::adapters",
+            "std::fs",
+            "std::process",
+        ],
+    );
 }
 
 #[test]
 fn application_does_not_know_adapters() {
     assert_layer(
         "application",
-        &["crate::adapters", "std::fs", "std::process", "std::env", "tokio::fs", "tokio::process", "tokio::net", "tokio::time", "async_tungstenite"],
+        &[
+            "crate::adapters",
+            "std::fs",
+            "std::process",
+            "std::env",
+            "tokio::fs",
+            "tokio::process",
+            "tokio::net",
+            "tokio::time",
+            "async_tungstenite",
+        ],
     );
 }

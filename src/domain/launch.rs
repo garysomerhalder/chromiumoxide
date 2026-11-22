@@ -13,8 +13,16 @@ pub enum BrowserKind {
 
 impl BrowserKind {
     /// Infers the kind from the executable path.
-    pub fn from_executable(_path: &Path) -> Self {
-        unimplemented!()
+    pub fn from_executable(path: &Path) -> Self {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_ascii_lowercase())
+            .unwrap_or_default();
+        if name.contains("headless-shell") || name.contains("headless_shell") {
+            BrowserKind::HeadlessShell
+        } else {
+            BrowserKind::Chrome
+        }
     }
 }
 
@@ -33,13 +41,79 @@ pub struct LaunchSpec {
 
 /// Playwright's default Chromium arguments, before the headless-related ones.
 pub fn default_args() -> Vec<String> {
-    unimplemented!()
+    DEFAULT_ARGS.iter().map(|a| (*a).to_owned()).collect()
 }
 
 /// The full command line (without the program) for a launch.
-pub fn command_line(_spec: &LaunchSpec) -> Vec<String> {
-    unimplemented!()
+pub fn command_line(spec: &LaunchSpec) -> Vec<String> {
+    let mut args = Vec::new();
+    if !spec.ignore_default_args {
+        args.extend(default_args());
+        if spec.headless {
+            args.push(match spec.kind {
+                BrowserKind::HeadlessShell => "--headless".to_owned(),
+                BrowserKind::Chrome => "--headless=new".to_owned(),
+            });
+            args.extend(HEADLESS_ARGS.iter().map(|a| (*a).to_owned()));
+        }
+        args.push("--no-sandbox".to_owned());
+    }
+    args.extend(spec.args.iter().cloned());
+    args.push(format!("--user-data-dir={}", spec.user_data_dir.display()));
+    args.push("--remote-debugging-pipe".to_owned());
+    args.push("--no-startup-window".to_owned());
+    args
 }
+
+/// Playwright's default Chromium switches (device-mockup contract; do not edit
+/// without telling device-mockup).
+const DEFAULT_ARGS: &[&str] = &[
+    "--font-render-hinting=none",
+    "--disable-lcd-text",
+    "--force-color-profile=srgb",
+    "--disable-blink-features=XSLT,EnableXSLTForCAPAlerts",
+    "--enable-features=SendGPUChannelEarly,CDPScreenshotNewSurface",
+    "--js-flags=--no-enable-lazy-source-positions",
+    "--disable-field-trial-config",
+    "--disable-background-networking",
+    "--disable-background-timer-throttling",
+    "--disable-backgrounding-occluded-windows",
+    "--disable-back-forward-cache",
+    "--disable-breakpad",
+    "--disable-client-side-phishing-detection",
+    "--disable-component-extensions-with-background-pages",
+    "--disable-component-update",
+    "--no-default-browser-check",
+    "--disable-default-apps",
+    "--disable-extensions",
+    "--disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,\
+DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,\
+ThirdPartyStoragePartitioning,BlockOriginHeaderModificationOnRedirect,Translate,AutoDeElevate,\
+OptimizationHints",
+    "--allow-pre-commit-input",
+    "--disable-hang-monitor",
+    "--disable-ipc-flooding-protection",
+    "--disable-popup-blocking",
+    "--disable-prompt-on-repost",
+    "--disable-renderer-backgrounding",
+    "--metrics-recording-only",
+    "--no-first-run",
+    "--password-store=basic",
+    "--use-mock-keychain",
+    "--no-service-autorun",
+    "--export-tagged-pdf",
+    "--disable-search-engine-choice-screen",
+    "--unsafely-disable-devtools-self-xss-warnings",
+    "--disable-sync",
+    "--enable-unsafe-swiftshader",
+];
+
+/// Added after `--headless` in headless mode.
+const HEADLESS_ARGS: &[&str] = &[
+    "--hide-scrollbars",
+    "--mute-audio",
+    "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4",
+];
 
 #[cfg(test)]
 mod tests {
@@ -102,7 +176,12 @@ mod tests {
     #[test]
     fn headful_has_no_headless_args() {
         let args = command_line(&spec(BrowserKind::Chrome, false));
-        for a in ["--headless", "--headless=new", "--hide-scrollbars", "--mute-audio"] {
+        for a in [
+            "--headless",
+            "--headless=new",
+            "--hide-scrollbars",
+            "--mute-audio",
+        ] {
             assert!(!args.contains(&a.to_owned()), "{a} present");
         }
         assert!(args.contains(&"--no-sandbox".to_owned()));
@@ -115,7 +194,10 @@ mod tests {
         let args = command_line(&s);
         let user = args.iter().position(|a| a == "--lang=de").unwrap();
         let sandbox = args.iter().position(|a| a == "--no-sandbox").unwrap();
-        let profile = args.iter().position(|a| a.starts_with("--user-data-dir=")).unwrap();
+        let profile = args
+            .iter()
+            .position(|a| a.starts_with("--user-data-dir="))
+            .unwrap();
         assert!(sandbox < user && user < profile);
     }
 
@@ -126,7 +208,9 @@ mod tests {
         s.args = vec!["--foo".into()];
         assert_eq!(
             command_line(&s),
-            split("--foo --user-data-dir=/tmp/profile-1 --remote-debugging-pipe --no-startup-window")
+            split(
+                "--foo --user-data-dir=/tmp/profile-1 --remote-debugging-pipe --no-startup-window"
+            )
         );
     }
 
@@ -134,13 +218,25 @@ mod tests {
     fn kind_is_inferred_from_the_executable_name() {
         use BrowserKind::*;
         for (p, k) in [
-            ("/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell", HeadlessShell),
-            ("/x/chrome-headless-shell-mac-arm64/chrome-headless-shell", HeadlessShell),
+            (
+                "/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell",
+                HeadlessShell,
+            ),
+            (
+                "/x/chrome-headless-shell-mac-arm64/chrome-headless-shell",
+                HeadlessShell,
+            ),
             ("C:\\x\\chrome-headless-shell.exe", HeadlessShell),
             ("/x/headless_shell", HeadlessShell),
-            ("/opt/pw-browsers/chromium-1243/chrome-linux64/chrome", Chrome),
+            (
+                "/opt/pw-browsers/chromium-1243/chrome-linux64/chrome",
+                Chrome,
+            ),
             ("/usr/bin/google-chrome-stable", Chrome),
-            ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", Chrome),
+            (
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                Chrome,
+            ),
         ] {
             assert_eq!(BrowserKind::from_executable(Path::new(p)), k, "{p}");
         }
