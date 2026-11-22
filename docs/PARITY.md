@@ -302,7 +302,7 @@ Chrome for Testing and chrome-headless-shell.
 | `waitForURL` | M3 | ✅ |
 | `workers` | M3 | ✅ |
 | `clock` | M6 | ✅ |
-| `coverage` | M6 | ⬜ |
+| `coverage` | M6 | ✅ |
 | `keyboard` | M3 | ✅ |
 | `localStorage` | M4 | ✅ |
 | `mouse` | M3 | ✅ |
@@ -697,10 +697,10 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `startCSSCoverage` | M6 | ⬜ |
-| `startJSCoverage` | M6 | ⬜ |
-| `stopCSSCoverage` | M6 | ⬜ |
-| `stopJSCoverage` | M6 | ⬜ |
+| `startCSSCoverage` | M6 | ✅ |
+| `startJSCoverage` | M6 | ✅ |
+| `stopCSSCoverage` | M6 | ✅ |
+| `stopJSCoverage` | M6 | ✅ |
 
 ### CDPSession
 
