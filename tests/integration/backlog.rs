@@ -818,3 +818,68 @@ async fn handle_sigterm_closes_the_browser() {
         "{profile} left behind"
     );
 }
+
+/// `launchServer({ host, port, wsPath })`: the server listens there and
+/// accepts only that path.
+#[tokio::test]
+async fn launch_server_ws_path() {
+    let server = Chromium::launch_server_with(chromiumoxide::LaunchServerOptions {
+        ws_path: Some("/secret-path".into()),
+        host: Some("127.0.0.1".into()),
+        port: Some(0),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let ws = server.ws_endpoint();
+    assert!(
+        ws.starts_with("ws://127.0.0.1:") && ws.ends_with("/secret-path"),
+        "{ws}"
+    );
+    assert!(server.process().is_some());
+    let client = Chromium::connect(&ws).await.unwrap();
+    assert!(client.version().await.unwrap().contains("Chrome"));
+    let page = client.new_page().await.unwrap();
+    page.set_content("<p>ok</p>").await.unwrap();
+    client.close().await.unwrap();
+    let wrong = ws.replace("/secret-path", "/devtools/browser/guess");
+    assert!(
+        Chromium::connect(&wrong).await.is_err(),
+        "other paths are refused"
+    );
+    server.close().await.unwrap();
+}
+
+/// `browser.bind(title, { host, port, workspaceDir, metadata })`: the bound
+/// browser is listed for its workspace until unbound.
+#[tokio::test]
+async fn bind_options_register_the_browser() {
+    let workspace = std::env::temp_dir().join(format!("chromiumoxide-ws-{}", std::process::id()));
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let endpoint = browser
+        .bind_with(chromiumoxide::BindOptions {
+            title: "my browser".into(),
+            host: Some("127.0.0.1".into()),
+            port: Some(0),
+            workspace_dir: Some(workspace.clone()),
+            metadata: serde_json::json!({"purpose": "test"}),
+        })
+        .await
+        .unwrap();
+    assert!(endpoint.starts_with("ws://127.0.0.1:"), "{endpoint}");
+    let listed = Chromium::bound_browsers().await.unwrap();
+    let mine = listed
+        .iter()
+        .find(|b| b.endpoint == endpoint)
+        .unwrap_or_else(|| panic!("not listed: {listed:?}"));
+    assert_eq!(mine.title, "my browser");
+    assert_eq!(mine.workspace_dir.as_deref(), Some(workspace.as_path()));
+    assert_eq!(mine.metadata, serde_json::json!({"purpose": "test"}));
+    let client = Chromium::connect(&endpoint).await.unwrap();
+    assert!(client.version().await.unwrap().contains("Chrome"));
+    client.close().await.unwrap();
+    browser.unbind().await.unwrap();
+    let listed = Chromium::bound_browsers().await.unwrap();
+    assert!(listed.iter().all(|b| b.endpoint != endpoint), "{listed:?}");
+    browser.close().await.unwrap();
+}
