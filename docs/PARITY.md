@@ -10,11 +10,11 @@ Firefox and WebKit are out of scope (this is a CDP client).
 ### Notes
 
 - **Launch preset.** The default switches are the device-mockup contract
-  (`domain::launch`). A plain Playwright 1.63 launch differs slightly: it does
-  not pass `--font-render-hinting=none --disable-lcd-text
-  --disable-blink-features=XSLT,EnableXSLTForCAPAlerts
-  --js-flags=--no-enable-lazy-source-positions` or `SendGPUChannelEarly`, and it
-  adds `--disable-dev-shm-usage` and Edge-only switches. The parity test gives
+  (`domain::launch`), read from `/proc/<pid>/cmdline` of a real Playwright
+  1.63 launch of `chromium_headless_shell-1243` in the container image (that
+  install's wrapper adds `--utility-cmd-prefix`, which is left out). A
+  `pw:browser` debug log of Playwright's own argument list differs because
+  the image's browser wrapper adjusts switches. The parity test gives
   Playwright exactly our command line.
 - **Known Chromium race (shared with Playwright).** Chromium sometimes styles a
   new page's initial `about:blank` document before the emulated device metrics

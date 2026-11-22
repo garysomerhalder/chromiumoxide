@@ -154,3 +154,40 @@ async fn http_credentials_answer_basic_auth() {
     assert_eq!(response.status, 401);
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn evaluate_runs_statement_strings_like_playwright() {
+    // Playwright evaluates a non-function string as a script: statements are
+    // allowed, the completion value is returned and a promise is awaited.
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    assert_eq!(page.evaluate::<i64>("const a = 1; a + 1").await.unwrap(), 2);
+    page.evaluate::<Value>("document.body.style.margin = 0; window.x = 1")
+        .await
+        .unwrap();
+    assert_eq!(page.evaluate::<i64>("window.x").await.unwrap(), 1);
+    assert_eq!(
+        page.evaluate::<String>("let s = 'a'; s += 'b'; Promise.resolve(s + 'c')")
+            .await
+            .unwrap(),
+        "abc"
+    );
+    assert_eq!(
+        page.evaluate::<i64>("var f = () => 5; f()").await.unwrap(),
+        5
+    );
+    // expressions and functions keep working
+    assert_eq!(page.evaluate::<i64>("1 + 2").await.unwrap(), 3);
+    assert_eq!(page.evaluate::<i64>("() => 7").await.unwrap(), 7);
+    let err = page
+        .evaluate::<Value>("const b = 1; throw new Error('stmt boom')")
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("stmt boom"), "{err}");
+    let v = page
+        .wait_for_function("const t = window.x; t === 1")
+        .await
+        .unwrap();
+    assert_eq!(v, true);
+    browser.close().await.unwrap();
+}
