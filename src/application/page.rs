@@ -29,21 +29,7 @@ pub const UTILITY_WORLD: &str = "__chromiumoxide_utility_world__";
 /// Playwright's default timeout for actions and navigations.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// The main resource response of a navigation.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Response {
-    pub url: String,
-    pub status: u16,
-    pub status_text: String,
-    pub headers: HashMap<String, String>,
-}
-
-impl Response {
-    /// Status in 200..=299.
-    pub fn ok(&self) -> bool {
-        (200..300).contains(&self.status)
-    }
-}
+pub use crate::application::network::Response;
 
 #[derive(Default)]
 pub(crate) struct PageState {
@@ -75,6 +61,7 @@ pub(crate) struct PageInner {
     pub(crate) keyboard: tokio::sync::Mutex<crate::domain::input::Keyboard>,
     pub(crate) mouse: tokio::sync::Mutex<crate::domain::input::Mouse>,
     pub(crate) events: Mutex<crate::application::events::EventState>,
+    pub(crate) network: Mutex<crate::application::network::NetworkState>,
 }
 
 /// A browser tab. Cheap to clone.
@@ -150,6 +137,7 @@ impl Page {
             )),
             mouse: tokio::sync::Mutex::new(crate::domain::input::Mouse::default()),
             events: Mutex::new(Default::default()),
+            network: Mutex::new(Default::default()),
         });
         let page = Page { inner };
         let mut effects = Vec::new();
@@ -215,6 +203,9 @@ impl Page {
     fn handle_event(&self, e: &RawEvent) {
         if self.handle_page_event(e) {
             return;
+        }
+        if e.method.starts_with("Network.") {
+            self.handle_network_event(e);
         }
         let p = &e.params;
         let s = |v: &Value, k: &str| {
@@ -296,38 +287,6 @@ impl Page {
                         let rid = s(p, "requestId");
                         let is_document = s(p, "type") == "Document" && rid == s(p, "loaderId");
                         effects = st.tree.request_started(&s(p, "frameId"), &rid, is_document);
-                    }
-                }
-                "Network.responseReceived" => {
-                    // Like Playwright, data: URLs produce no Request/Response.
-                    let is_data = p
-                        .pointer("/response/url")
-                        .and_then(Value::as_str)
-                        .is_some_and(|u| u.starts_with("data:"));
-                    if s(p, "type") == "Document" && !is_data {
-                        let r = &p["response"];
-                        let headers = r
-                            .get("headers")
-                            .and_then(Value::as_object)
-                            .map(|h| {
-                                h.iter()
-                                    .map(|(k, v)| {
-                                        (
-                                            k.to_lowercase(),
-                                            v.as_str().unwrap_or_default().to_owned(),
-                                        )
-                                    })
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        let response = Response {
-                            url: s(r, "url"),
-                            status: r.get("status").and_then(Value::as_u64).unwrap_or_default()
-                                as u16,
-                            status_text: s(r, "statusText"),
-                            headers,
-                        };
-                        st.responses.insert(s(p, "requestId"), response);
                     }
                 }
                 "Network.loadingFinished" | "Network.loadingFailed" => {
@@ -424,6 +383,7 @@ impl Page {
     pub(crate) fn mark_closed(&self) {
         if !self.inner.closed.swap(true, Ordering::SeqCst) {
             self.bump();
+            self.close_network();
             self.emit(crate::application::events::PageEvent::Close);
             if let Some(ctx) = self.inner.context.upgrade() {
                 ctx.forget_page(&self.inner.target_id);

@@ -11,6 +11,7 @@ pub mod input;
 pub mod js;
 pub mod locator;
 pub mod navigation;
+pub mod network;
 pub mod page;
 pub mod page_init;
 pub mod protocol;

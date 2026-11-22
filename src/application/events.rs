@@ -13,6 +13,7 @@ use futures::{FutureExt, Stream, StreamExt};
 use serde_json::{Value, json};
 
 use crate::application::handle::JsHandle;
+use crate::application::network::{Request, Response};
 use crate::application::page::Page;
 use crate::domain::console::{Location, PageError, console_text, exception_to_error, location};
 use crate::domain::error::{Error, Result};
@@ -31,6 +32,14 @@ pub enum PageEvent {
     DomContentLoaded,
     Load,
     Close,
+    /// A request was issued (`page.on('request')`).
+    Request(Request),
+    /// Response headers arrived (`page.on('response')`).
+    Response(Response),
+    /// The response body finished loading (`page.on('requestfinished')`).
+    RequestFinished(Request),
+    /// The request failed (`page.on('requestfailed')`).
+    RequestFailed(Request),
 }
 
 /// A `console.*` call (Playwright's `ConsoleMessage`).

@@ -72,9 +72,8 @@ impl TestServer {
                     let (req, req_body) = read_request(&mut sock).await;
                     let method = req.split_whitespace().next().unwrap_or("GET").to_owned();
                     let path = req.split_whitespace().nth(1).unwrap_or("/").to_owned();
-                    if let Some((status, headers, body)) =
-                        custom.lock().unwrap().get(&path).cloned()
-                    {
+                    let found = custom.lock().unwrap().get(&path).cloned();
+                    if let Some((status, headers, body)) = found {
                         let mut head = format!("HTTP/1.1 {status}\r\n");
                         for (k, v) in &headers {
                             head.push_str(&format!("{k}: {v}\r\n"));

@@ -49,7 +49,7 @@ async fn requests_and_responses_like_playwright() {
     });
 
     // Redirect chain.
-    let resp = page.goto(server.url("/redir")).await.unwrap().unwrap();
+    let resp = page.goto(&server.url("/redir")).await.unwrap().unwrap();
     assert_eq!(
         (resp.url.as_str(), resp.status),
         (server.url("/final").as_str(), 200)
@@ -121,7 +121,7 @@ async fn requests_and_responses_like_playwright() {
     // wait_for_request with a predicate.
     let r = page
         .wait_for_request_matching(|r| r.url().ends_with("/i.png"))
-        .run(page.goto(server.url("/page")))
+        .run(page.goto(&server.url("/page")))
         .await
         .unwrap();
     assert_eq!(r.resource_type(), "image");

@@ -40,7 +40,8 @@ pub use application::locator::{
     BoundingBox, Click, ClickOptions, Locator, SelectOption, WaitFor, WaitForState,
 };
 pub use application::navigation::{Navigation, WaitForUrl};
-pub use application::page::{Goto, Page, Response};
+pub use application::network::{Request, Response, SecurityDetails, ServerAddr};
+pub use application::page::{Goto, Page};
 pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
 pub use application::services::Services;
@@ -55,6 +56,7 @@ pub use domain::error::{Error, Result};
 pub use domain::frame::LifecycleEvent as WaitUntil;
 pub use domain::input::MouseButton;
 pub use domain::launch::BrowserKind;
+pub use domain::network::{HeaderEntry, Timing};
 pub use domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale,
 };
