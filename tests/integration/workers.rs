@@ -113,6 +113,11 @@ async fn workers_like_playwright() {
             .unwrap(),
         15
     );
+    let handle = worker.evaluate_handle("() => ({a: 1})").await.unwrap();
+    assert_eq!(
+        handle.json_value::<serde_json::Value>().await.unwrap(),
+        serde_json::json!({"a": 1})
+    );
     page.evaluate::<()>("() => window.w.terminate()")
         .await
         .unwrap();

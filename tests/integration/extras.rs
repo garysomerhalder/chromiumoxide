@@ -146,3 +146,138 @@ async fn set_storage_state_replaces_cookies_and_storage() {
     );
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn page_web_storage_helpers() {
+    let server = TestServer::start().await;
+    server.route("/", "text/html", "<p>x</p>", 0);
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+    page.local_storage().set_item("a", "1").await.unwrap();
+    page.session_storage().set_item("s", "2").await.unwrap();
+    let items = page.local_storage().items().await.unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(
+        (items[0].name.as_str(), items[0].value.as_str()),
+        ("a", "1")
+    );
+    assert_eq!(
+        page.local_storage().get_item("a").await.unwrap().as_deref(),
+        Some("1")
+    );
+    assert_eq!(page.local_storage().get_item("zz").await.unwrap(), None);
+    assert_eq!(
+        page.evaluate::<Value>("() => [localStorage.a, sessionStorage.s]")
+            .await
+            .unwrap(),
+        json!(["1", "2"])
+    );
+    page.local_storage().remove_item("a").await.unwrap();
+    page.session_storage().clear().await.unwrap();
+    assert!(page.local_storage().items().await.unwrap().is_empty());
+    assert!(page.session_storage().items().await.unwrap().is_empty());
+    browser.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn service_workers_are_reported() {
+    use chromiumoxide::ContextEvent;
+    use futures::StreamExt;
+    let server = TestServer::start().await;
+    server.route("/", "text/html", "<p>sw</p>", 0);
+    server.route("/sw.js", "text/javascript", "self.x = 5;", 0);
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    let mut events = context.events();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+    page.evaluate::<()>("async () => { await navigator.serviceWorker.register('/sw.js'); }")
+        .await
+        .unwrap();
+    let sw = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        while let Some(e) = events.next().await {
+            if let ContextEvent::ServiceWorker(w) = e {
+                return w;
+            }
+        }
+        panic!("no service worker")
+    })
+    .await
+    .unwrap();
+    assert_eq!(sw.url(), server.url("/sw.js"));
+    assert_eq!(context.service_workers().len(), 1);
+    assert_eq!(sw.evaluate::<i32>("() => self.x").await.unwrap(), 5);
+    browser.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn download_bytes_can_be_read() {
+    let server = TestServer::start().await;
+    server.respond(
+        "/dl",
+        "200 OK",
+        &[("Content-Disposition", "attachment; filename=f.txt")],
+        "abc",
+    );
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(&format!("<a href='{}'>dl</a>", server.url("/dl")))
+        .await
+        .unwrap();
+    let download = page.wait_for_download().run(page.click("a")).await.unwrap();
+    assert_eq!(download.read().await.unwrap(), b"abc");
+    browser.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn webauthn_credentials() {
+    let server = TestServer::start().await;
+    server.route("/", "text/html", "<p>webauthn</p>", 0);
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    let credentials = context.credentials();
+    credentials.install().await.unwrap();
+    let made = credentials
+        .create(chromiumoxide::NewCredential::new("localhost"))
+        .await
+        .unwrap();
+    assert_eq!(made.rp_id, "localhost");
+    assert!(!made.id.is_empty());
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/").replace("127.0.0.1", "localhost"))
+        .await
+        .unwrap();
+    // The page registers a passkey through the virtual authenticator.
+    let id: String = page
+        .evaluate(
+            "async () => { const c = await navigator.credentials.create({publicKey: { \
+             challenge: new Uint8Array([1,2,3]), rp: {name: 'x', id: 'localhost'}, \
+             user: {id: new Uint8Array([7]), name: 'u', displayName: 'U'}, \
+             pubKeyCredParams: [{type: 'public-key', alg: -7}], \
+             authenticatorSelection: {residentKey: 'required', userVerification: 'preferred'} }}); return c.id; }",
+        )
+        .await
+        .unwrap();
+    assert!(!id.is_empty());
+    let all = credentials.get(None, None).await.unwrap();
+    assert_eq!(all.len(), 2, "{all:?}");
+    assert!(all.iter().any(|c| c.id == id));
+    assert_eq!(
+        credentials
+            .get(Some("other.test"), None)
+            .await
+            .unwrap()
+            .len(),
+        0
+    );
+    credentials.delete(&made.id).await.unwrap();
+    assert_eq!(credentials.get(None, None).await.unwrap().len(), 1);
+    browser.close().await.unwrap();
+}
