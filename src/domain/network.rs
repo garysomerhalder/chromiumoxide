@@ -160,7 +160,7 @@ impl Timing {
     }
 }
 
-/// The standard reason phrase for a status code (empty when unknown).
+/// The standard reason phrase for a status code (`Unknown` otherwise, like Playwright).
 pub fn status_text(status: u16) -> &'static str {
     match status {
         100 => "Continue",
@@ -225,7 +225,7 @@ pub fn status_text(status: u16) -> &'static str {
         508 => "Loop Detected",
         510 => "Not Extended",
         511 => "Network Authentication Required",
-        _ => "",
+        _ => "Unknown",
     }
 }
 
