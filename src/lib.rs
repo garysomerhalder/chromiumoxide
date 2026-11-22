@@ -24,6 +24,10 @@ use std::sync::Arc;
 /// The generated Chrome DevTools Protocol types.
 pub use chromiumoxide_cdp::cdp;
 
+/// Downloads Chrome for Testing / chrome-headless-shell.
+#[cfg(feature = "fetcher")]
+pub use chromiumoxide_fetcher as fetcher;
+
 pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::browser::{Browser, LaunchOptions};
 pub use application::context::BrowserContext;

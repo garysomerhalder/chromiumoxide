@@ -7,6 +7,24 @@ storage, downloads, dialogs, M5 tracing/video/HAR/PDF/assertions, M6 the rest.
 Playwright reference: **1.63.0** (`playwright-core/types/types.d.ts`).
 Firefox and WebKit are out of scope (this is a CDP client).
 
+### Notes
+
+- **Launch preset.** The default switches are the device-mockup contract
+  (`domain::launch`). A plain Playwright 1.63 launch differs slightly: it does
+  not pass `--font-render-hinting=none --disable-lcd-text
+  --disable-blink-features=XSLT,EnableXSLTForCAPAlerts
+  --js-flags=--no-enable-lazy-source-positions` or `SendGPUChannelEarly`, and it
+  adds `--disable-dev-shm-usage` and Edge-only switches. The parity test gives
+  Playwright exactly our command line.
+- **Known Chromium race (shared with Playwright).** Chromium sometimes styles a
+  new page's initial `about:blank` document before the emulated device metrics
+  reach the renderer; `setContent` (`document.open`) reuses that document, so
+  a text control can be laid out 1 CSS px off (about 1 in 30 pages, seen with
+  both Playwright and chromiumoxide). Replacing the initial document would
+  avoid it but breaks parity (Playwright keeps it; e.g. mobile focus rings
+  differ), so chromiumoxide behaves like Playwright. The parity test
+  re-renders a mismatching shot up to 3 times on both sides.
+
 ## 1. Chrome DevTools Protocol
 
 Target: latest `browser_protocol.pdl` + `js_protocol.pdl` from
@@ -18,74 +36,74 @@ Chrome for Testing and chrome-headless-shell.
 | Protocol regenerated from latest PDL (all domains, experimental included) | M2 | ⬜ |
 | Generator handles every PDL construct in the latest files | M2 | ⬜ |
 | Revision recorded in `chromiumoxide_cdp::revision` | M2 | ⬜ |
-| Pipe transport (`--remote-debugging-pipe`) | M1 | ⬜ |
-| WebSocket transport (`connect_over_cdp`) | M1 | ⬜ |
-| Flat sessions (`Target.setAutoAttach { flatten: true }`) | M1 | ⬜ |
+| Pipe transport (`--remote-debugging-pipe`) | M1 | ✅ |
+| WebSocket transport (`connect_over_cdp`) | M1 | ✅ |
+| Flat sessions (`Target.setAutoAttach { flatten: true }`) | M1 | ✅ |
 | Raw/typed CDP escape hatch (`CDPSession.send`) | M3 | ⬜ |
-| Tested against chrome-headless-shell | M1 | ⬜ |
-| Tested against Chromium / Chrome for Testing (new headless) | M1 | ⬜ |
+| Tested against chrome-headless-shell | M1 | ✅ |
+| Tested against Chromium / Chrome for Testing (new headless) | M1 | ✅ |
 
 ## 2. Launch and discovery (device-mockup contract)
 
 | Item | Milestone | Status |
 |---|---|---|
-| Explicit executable path | M1 | ⬜ |
-| `MOCKUP_CHROMIUM`, then `CHROME` env | M1 | ⬜ |
-| `PLAYWRIGHT_BROWSERS_PATH` | M1 | ⬜ |
-| `/opt/pw-browsers` | M1 | ⬜ |
-| `~/.cache/ms-playwright`, `~/Library/Caches/ms-playwright` | M1 | ⬜ |
-| `chromium_headless_shell-*` before `chromium-*`, newest revision first | M1 | ⬜ |
-| Chrome for Testing (fetcher cache) | M1 | ⬜ |
-| System Chrome / Chromium | M1 | ⬜ |
-| Playwright default Chromium argument preset (exact list) | M1 | ⬜ |
-| `--headless` (old) for headless shell, `--headless=new` for full Chrome | M1 | ⬜ |
-| Unique temporary user-data-dir per launch, removed on close | M1 | ⬜ |
-| Parallel launches do not interfere | M1 | ⬜ |
+| Explicit executable path | M1 | ✅ |
+| `MOCKUP_CHROMIUM`, then `CHROME` env | M1 | ✅ |
+| `PLAYWRIGHT_BROWSERS_PATH` | M1 | ✅ |
+| `/opt/pw-browsers` | M1 | ✅ |
+| `~/.cache/ms-playwright`, `~/Library/Caches/ms-playwright` | M1 | ✅ |
+| `chromium_headless_shell-*` before `chromium-*`, newest revision first | M1 | ✅ |
+| Chrome for Testing (fetcher cache) | M1 | ✅ |
+| System Chrome / Chromium | M1 | ✅ |
+| Playwright default Chromium argument preset (exact list) | M1 | ✅ |
+| `--headless` (old) for headless shell, `--headless=new` for full Chrome | M1 | ✅ |
+| Unique temporary user-data-dir per launch, removed on close | M1 | ✅ |
+| Parallel launches do not interfere | M1 | ✅ |
 
 ## 3. Browser context options
 
 | Option | Milestone | Status |
 |---|---|---|
-| `viewport` / `noViewport` (default 1280×720) | M1 | ⬜ |
-| `screen` | M1 | ⬜ |
-| `deviceScaleFactor` | M1 | ⬜ |
-| `isMobile` | M1 | ⬜ |
-| `hasTouch` | M1 | ⬜ |
-| `userAgent` (+ UA client-hint metadata) | M1 | ⬜ |
-| `locale` | M1 | ⬜ |
-| `timezoneId` | M1 | ⬜ |
-| `colorScheme`, `reducedMotion`, `forcedColors`, `contrast` | M1 | ⬜ |
-| `httpCredentials` | M1 | ⬜ |
-| `geolocation` | M4 | ⬜ |
-| `permissions` | M4 | ⬜ |
-| `offline` | M4 | ⬜ |
-| `extraHTTPHeaders` | M4 | ⬜ |
-| `javaScriptEnabled`, `bypassCSP`, `ignoreHTTPSErrors` | M4 | ⬜ |
+| `viewport` / `noViewport` (default 1280×720) | M1 | ✅ |
+| `screen` | M1 | ✅ |
+| `deviceScaleFactor` | M1 | ✅ |
+| `isMobile` | M1 | ✅ |
+| `hasTouch` | M1 | ✅ |
+| `userAgent` (+ UA client-hint metadata) | M1 | ✅ |
+| `locale` | M1 | ✅ |
+| `timezoneId` | M1 | ✅ |
+| `colorScheme`, `reducedMotion`, `forcedColors`, `contrast` | M1 | ✅ |
+| `httpCredentials` | M1 | ✅ |
+| `geolocation` | M4 | 🟡 set at creation; `setGeolocation` later |
+| `permissions` | M4 | 🟡 granted at creation |
+| `offline` | M4 | 🟡 set at creation; `setOffline` later |
+| `extraHTTPHeaders` | M4 | 🟡 set at creation |
+| `javaScriptEnabled`, `bypassCSP`, `ignoreHTTPSErrors` | M4 | 🟡 set at creation |
 | `storageState` | M4 | ⬜ |
 | `acceptDownloads` | M4 | ⬜ |
 | `recordHar` | M5 | ⬜ |
 | `recordVideo` | M5 | ⬜ |
 | `serviceWorkers` | M4 | ⬜ |
 | `baseURL` | M3 | ⬜ |
-| Device descriptors (`playwright.devices`) | M1 | ⬜ |
+| Device descriptors (`playwright.devices`) | M1 | ✅ |
 
 ## 4. Screenshots
 
 | Option | Milestone | Status |
 |---|---|---|
-| Viewport screenshot | M1 | ⬜ |
-| `clip` | M1 | ⬜ |
-| `fullPage` | M1 | ⬜ |
-| Waits for `document.fonts.ready`, hides caret by default | M1 | ⬜ |
-| `type` png/jpeg, `quality` | M1 | ⬜ |
-| `omitBackground` | M1 | ⬜ |
-| `scale: css / device` | M1 | ⬜ |
-| `animations: disabled` | M3 | ⬜ |
-| `caret: initial` | M3 | ⬜ |
-| `style` | M3 | ⬜ |
+| Viewport screenshot | M1 | ✅ |
+| `clip` | M1 | ✅ |
+| `fullPage` | M1 | ✅ |
+| Waits for `document.fonts.ready`, hides caret by default | M1 | ✅ |
+| `type` png/jpeg, `quality` | M1 | ✅ |
+| `omitBackground` | M1 | ✅ |
+| `scale: css / device` | M1 | ✅ |
+| `animations: disabled` | M3 | 🟡 wired through Playwright's script, not yet tested |
+| `caret: initial` | M3 | 🟡 wired through Playwright's script, not yet tested |
+| `style` | M3 | 🟡 wired through Playwright's script, not yet tested |
 | `mask`, `maskColor` | M3 | ⬜ |
 | Element / locator screenshots | M3 | ⬜ |
-| Pixel parity with Playwright proven by test | M1 | ⬜ |
+| Pixel parity with Playwright proven by test | M1 | ✅ |
 
 ## 5. Web-first assertions (`expect`)
 
@@ -132,16 +150,16 @@ Chrome for Testing and chrome-headless-shell.
 |---|---|---|
 | `bind` | M3 | ⬜ |
 | `browserType` | M1 | ⬜ |
-| `close` | M1 | ⬜ |
-| `contexts` | M1 | ⬜ |
-| `isConnected` | M1 | ⬜ |
+| `close` | M1 | ✅ |
+| `contexts` | M1 | ✅ |
+| `isConnected` | M1 | ✅ |
 | `newBrowserCDPSession` | M3 | ⬜ |
-| `newContext` | M1 | ⬜ |
-| `newPage` | M1 | ⬜ |
+| `newContext` | M1 | ✅ |
+| `newPage` | M1 | ✅ |
 | `startTracing` | M3 | ⬜ |
 | `stopTracing` | M3 | ⬜ |
 | `unbind` | M3 | ⬜ |
-| `version` | M1 | ⬜ |
+| `version` | M1 | ✅ |
 
 ### BrowserContext
 
@@ -154,14 +172,14 @@ Chrome for Testing and chrome-headless-shell.
 | `browser` | M1 | ⬜ |
 | `clearCookies` | M4 | ⬜ |
 | `clearPermissions` | M4 | ⬜ |
-| `close` | M1 | ⬜ |
+| `close` | M1 | ✅ |
 | `cookies` | M4 | ⬜ |
 | `exposeFunction` | M3 | ⬜ |
 | `grantPermissions` | M4 | ⬜ |
-| `isClosed` | M1 | ⬜ |
+| `isClosed` | M1 | ✅ |
 | `newCDPSession` | M3 | ⬜ |
-| `newPage` | M1 | ⬜ |
-| `pages` | M1 | ⬜ |
+| `newPage` | M1 | ✅ |
+| `pages` | M1 | ✅ |
 | `route` | M4 | ⬜ |
 | `routeFromHAR` | M5 | ⬜ |
 | `routeWebSocket` | M4 | ⬜ |
@@ -187,15 +205,15 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `evaluate` | M1 | ⬜ |
+| `evaluate` | M1 | ✅ |
 | `evaluateHandle` | M3 | ⬜ |
 | `addInitScript` | M3 | ⬜ |
-| `waitForFunction` | M1 | ⬜ |
+| `waitForFunction` | M1 | ✅ |
 | `waitForSelector` | M3 | ⬜ |
 | `exposeBinding` | M3 | ⬜ |
 | `addLocatorHandler` | M3 | ⬜ |
 | `addScriptTag` | M3 | ⬜ |
-| `addStyleTag` | M1 | ⬜ |
+| `addStyleTag` | M1 | ✅ |
 | `ariaSnapshot` | M5 | ⬜ |
 | `ariaSnapshotJSON` | M5 | ⬜ |
 | `bringToFront` | M3 | ⬜ |
@@ -204,9 +222,9 @@ Chrome for Testing and chrome-headless-shell.
 | `clearConsoleMessages` | M4 | ⬜ |
 | `clearPageErrors` | M4 | ⬜ |
 | `click` | M3 | ⬜ |
-| `close` | M1 | ⬜ |
+| `close` | M1 | ✅ |
 | `consoleMessages` | M4 | ⬜ |
-| `content` | M1 | ⬜ |
+| `content` | M1 | ✅ |
 | `context` | M1 | ⬜ |
 | `dblclick` | M3 | ⬜ |
 | `dispatchEvent` | M3 | ⬜ |
@@ -228,14 +246,14 @@ Chrome for Testing and chrome-headless-shell.
 | `getByTitle` | M3 | ⬜ |
 | `goBack` | M3 | ⬜ |
 | `goForward` | M3 | ⬜ |
-| `goto` | M1 | ⬜ |
+| `goto` | M1 | ✅ |
 | `hideHighlight` | M3 | ⬜ |
 | `hover` | M3 | ⬜ |
 | `innerHTML` | M3 | ⬜ |
 | `innerText` | M3 | ⬜ |
 | `inputValue` | M3 | ⬜ |
 | `isChecked` | M3 | ⬜ |
-| `isClosed` | M1 | ⬜ |
+| `isClosed` | M1 | ✅ |
 | `isDisabled` | M3 | ⬜ |
 | `isEditable` | M3 | ⬜ |
 | `isEnabled` | M3 | ⬜ |
@@ -256,27 +274,27 @@ Chrome for Testing and chrome-headless-shell.
 | `route` | M4 | ⬜ |
 | `routeFromHAR` | M5 | ⬜ |
 | `routeWebSocket` | M4 | ⬜ |
-| `screenshot` | M1 | ⬜ |
+| `screenshot` | M1 | ✅ |
 | `selectOption` | M3 | ⬜ |
 | `setChecked` | M3 | ⬜ |
-| `setContent` | M1 | ⬜ |
+| `setContent` | M1 | ✅ |
 | `setDefaultNavigationTimeout` | M3 | ⬜ |
-| `setDefaultTimeout` | M3 | ⬜ |
+| `setDefaultTimeout` | M3 | ✅ |
 | `setExtraHTTPHeaders` | M4 | ⬜ |
 | `setInputFiles` | M3 | ⬜ |
-| `setViewportSize` | M1 | ⬜ |
+| `setViewportSize` | M1 | ✅ |
 | `tap` | M3 | ⬜ |
 | `textContent` | M3 | ⬜ |
-| `title` | M1 | ⬜ |
+| `title` | M1 | ✅ |
 | `type` | M3 | ⬜ |
 | `uncheck` | M3 | ⬜ |
 | `unroute` | M4 | ⬜ |
 | `unrouteAll` | M4 | ⬜ |
-| `url` | M1 | ⬜ |
+| `url` | M1 | ✅ |
 | `video` | M5 | ⬜ |
-| `viewportSize` | M1 | ⬜ |
+| `viewportSize` | M1 | ✅ |
 | `waitForEvent` | M3 | ⬜ |
-| `waitForLoadState` | M1 | ⬜ |
+| `waitForLoadState` | M1 | ✅ |
 | `waitForNavigation` | M3 | ⬜ |
 | `waitForRequest` | M4 | ⬜ |
 | `waitForResponse` | M4 | ⬜ |
@@ -728,10 +746,10 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `connectOverCDP` | M1 | ⬜ |
+| `connectOverCDP` | M1 | ✅ |
 | `connect` | M6 | ⬜ |
-| `executablePath` | M1 | ⬜ |
-| `launch` | M1 | ⬜ |
+| `executablePath` | M1 | ✅ |
+| `launch` | M1 | ✅ |
 | `launchPersistentContext` | M3 | ⬜ |
 | `launchServer` | M6 | ⬜ |
 | `name` | M1 | ⬜ |

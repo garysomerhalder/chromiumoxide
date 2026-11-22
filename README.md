@@ -1,73 +1,50 @@
 # chromiumoxide
 
-![Build](https://github.com/mattsse/chromiumoxide/workflows/Continuous%20integration/badge.svg)
-[![Crates.io](https://img.shields.io/crates/v/chromiumoxide.svg)](https://crates.io/crates/chromiumoxide)
-[![Documentation](https://docs.rs/chromiumoxide/badge.svg)](https://docs.rs/chromiumoxide)
+A Chrome DevTools Protocol client for Rust with a Playwright-like API.
 
-chromiumoxide provides a high-level and async API to control Chrome or Chromium over the [DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/). It comes with support for all types of the [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/) and can launch a [headless](https://developers.google.com/web/updates/2017/04/headless-chrome) or full (non-headless) Chrome or Chromium instance or connect to an already running instance.
+This is a fork of [mattsse/chromiumoxide](https://github.com/mattsse/chromiumoxide),
+rewritten for 0.10 as domain-driven, hexagonal code (see
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)). It targets parity with
+Playwright for Chromium; progress is tracked in [`docs/PARITY.md`](docs/PARITY.md).
+Screenshots are tested to be pixel-identical to Playwright 1.63's.
 
 ## Usage
 
 ```rust
-use futures::StreamExt;
-
-use chromiumoxide::browser::{Browser, BrowserConfig};
+use chromiumoxide::{Chromium, ContextOptions, LaunchOptions, Viewport, WaitUntil};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // create a `Browser` that spawns a `chromium` process running with UI (`with_head()`, headless is default)
-    // and the handler that drives the websocket etc.
-    let (mut browser, mut handler) =
-        Browser::launch(BrowserConfig::builder().with_head().build()?).await?;
-
-    // spawn a new task that continuously polls the handler
-    let handle = tokio::spawn(async move {
-        while let Some(h) = handler.next().await {
-            if h.is_err() {
-                break;
-            }
-        }
-    });
-
-    // create a new browser page and navigate to the url
-    let page = browser.new_page("https://en.wikipedia.org").await?;
-
-    // find and click the search toggle button to reveal the search bar
-    page.find_element(".search-toggle").await?.click().await?;
-
-    // find the search bar type into the search field and hit `Enter`,
-    // this triggers a new navigation to the search result page
-    page.find_element("input[name='search']")
-        .await?
-        .click()
-        .await?
-        .type_str("Rust programming language")
-        .await?
-        .press_key("Enter")
+async fn main() -> chromiumoxide::Result<()> {
+    // Finds Chromium like Playwright does (PLAYWRIGHT_BROWSERS_PATH, ~/.cache/ms-playwright, ...)
+    let browser = Chromium::launch(LaunchOptions::default()).await?;
+    let context = browser
+        .new_context(ContextOptions {
+            viewport: Some(Viewport::new(390, 844)),
+            device_scale_factor: Some(3.0),
+            is_mobile: true,
+            ..Default::default()
+        })
         .await?;
-
-    let html = page.wait_for_navigation().await?.content().await?;
-
-    browser.close().await?;
-    handle.await?;
-    Ok(())
+    let page = context.new_page().await?;
+    page.goto("https://example.com").wait_until(WaitUntil::NetworkIdle).await?;
+    let title: String = page.evaluate("() => document.title").await?;
+    page.screenshot().full_page(true).path("example.png").await?;
+    println!("{title}");
+    browser.close().await
 }
 ```
 
-The current API still lacks some functionality, but the [`Page::execute`](src/page.rs) function allows sending all `chromiumoxide_types::Command` types (see [Generated Code](README.md#generated-code)). Most `Element` and `Page` functions are basically just simplified command constructions and combinations, like `Page::pdf`:
+Device presets come from Playwright: `chromiumoxide::device("iPhone 15").unwrap().context_options()`.
 
-```rust
-pub async fn pdf(&self, params: PrintToPdfParams) -> Result<Vec<u8>> {
-    let res = self.execute(params).await?;
-    Ok(base64::decode(&res.data)?)
-}
-```
+### Finding the browser
 
-If you need something else, the `Page::execute` function allows for writing your own command wrappers. PRs are very welcome if you think a meaningful command is missing a designated function.
+In order: `LaunchOptions::executable_path`, `$MOCKUP_CHROMIUM`, `$CHROME`,
+`$PLAYWRIGHT_BROWSERS_PATH`, `/opt/pw-browsers`, `~/.cache/ms-playwright`,
+`~/Library/Caches/ms-playwright` (headless shell before full Chromium, newest
+first), Chrome for Testing caches (`chromiumoxide_fetcher`, puppeteer), then a
+system Chrome. Install a browser with `npx playwright install chromium-headless-shell`.
 
-### Add chromiumoxide to your project
-
-`chromiumoxide` only supports the [`tokio`](https://github.com/tokio-rs/tokio) runtime.
+Each launch gets its own temporary profile, so parallel launches are safe.
 
 ## Generated Code
 
@@ -89,36 +66,24 @@ You need to enable either the `rustls` or the `native-tls` feature and the `zip0
 ```rust
 use std::path::Path;
 
-use futures::StreamExt;
-use chromiumoxide::browser::{BrowserConfig};
 use chromiumoxide::fetcher::{BrowserFetcher, BrowserFetcherOptions};
+use chromiumoxide::{Chromium, LaunchOptions};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let download_path = Path::new("./download");
     tokio::fs::create_dir_all(&download_path).await?;
-    let fetcher = BrowserFetcher::new(
-        BrowserFetcherOptions::builder()
-            .with_path(&download_path)
-            .build()?,
-    );
+    let fetcher = BrowserFetcher::new(BrowserFetcherOptions::builder().with_path(&download_path).build()?);
     let info = fetcher.fetch().await?;
-
-    let config = BrowserConfig::builder()
-        .chrome_executable(info.executable_path)
-        .build()?,
+    let browser = Chromium::launch(LaunchOptions {
+        executable_path: Some(info.executable_path),
+        ..Default::default()
+    })
+    .await?;
+    browser.close().await?;
+    Ok(())
 }
 ```
-
-## Known Issues
-
-- The rust files generated for the PDL files in [chromiumoxide_cdp](./chromiumoxide_cdp) don't compile when support for experimental types is manually turned off (`export CDP_NO_EXPERIMENTAL=true`). This is because the use of some experimental pdl types in the `*.pdl` files themselves are not marked as experimental.
-
-## Troubleshooting
-
-Q: A new chromium instance is being launched but then times out.
-
-A: Check that your chromium language settings are set to English. `chromiumoxide` tries to parse the debugging port from the chromium process output and that is limited to english.
 
 ## License
 
@@ -132,5 +97,6 @@ Licensed under either of these:
 ## References
 
 - [chromedp](https://github.com/chromedp/chromedp)
-- [rust-headless-chrome](https://github.com/atroche/rust-headless-chrome) which the launch config, `KeyDefinition` and typing support among others is taken from.
+- [Playwright](https://github.com/microsoft/playwright) (Apache-2.0): behaviour, launch switches, device descriptors and screenshot scripts follow it.
+- [rust-headless-chrome](https://github.com/atroche/rust-headless-chrome)
 - [puppeteer](https://github.com/puppeteer/puppeteer)

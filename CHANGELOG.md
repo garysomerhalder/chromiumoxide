@@ -17,10 +17,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `docs/ARCHITECTURE.md`, `docs/PARITY.md` (Chrome and Playwright checklists), `CLAUDE.md`.
+- Milestone 1 (device-mockup needs):
+  - Playwright-style browser discovery: explicit path, `MOCKUP_CHROMIUM`/`CHROME`,
+    `PLAYWRIGHT_BROWSERS_PATH`, `/opt/pw-browsers`, Playwright caches (headless
+    shell first, newest first), Chrome for Testing caches, system Chrome.
+  - Launch with Playwright's Chromium switch preset, a unique temporary profile
+    per launch (removed on close), over `--remote-debugging-pipe` (default) or
+    WebSocket; `Chromium::connect_over_cdp`.
+  - `Browser::new_context(ContextOptions)` with viewport, screen, device scale
+    factor, mobile, touch, user agent (+ client hints), locale, timezone, colour
+    scheme, reduced motion, forced colours, contrast, geolocation, permissions,
+    offline, extra headers, HTTP credentials; `device("iPhone 15")` descriptors.
+  - `Page::goto` with `WaitUntil::{Commit, DomContentLoaded, Load, NetworkIdle}`,
+    `set_content` (waits for load, images, fonts), `wait_for_function`,
+    `wait_for_load_state`, `add_style_tag`, `evaluate`/`evaluate_with`,
+    `set_viewport_size`, `content`, `title`.
+  - `Page::screenshot` (viewport, clip, full page, omit background, css/device
+    scale, png/jpeg/webp), pixel-identical to Playwright 1.63 (tested).
 
 ### Changed
 
-- Version 0.10.0 for all workspace crates.
+- Version 0.10.0 for all workspace crates; minimum Rust 1.88.
 - Derive `Clone` for `Element`, `ScreenshotParams` and `ScreenshotParamsBuilder`
 
 ## [0.9.1] 2026-02-25
