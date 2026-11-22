@@ -16,4 +16,5 @@ pub mod screenshot;
 pub mod scripts;
 pub mod services;
 pub(crate) mod shared;
+pub mod shortcuts;
 pub mod wait;
