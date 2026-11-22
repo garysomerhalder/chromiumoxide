@@ -11,6 +11,7 @@ pub mod error;
 pub mod expect;
 pub mod frame;
 pub mod har;
+pub mod http;
 pub mod image;
 pub mod input;
 pub mod launch;
