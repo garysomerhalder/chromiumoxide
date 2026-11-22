@@ -217,7 +217,7 @@ Chrome for Testing and chrome-headless-shell.
 | `ariaSnapshot` | M5 | ✅ |
 | `ariaSnapshotJSON` | M5 | ✅ |
 | `bringToFront` | M3 | ✅ |
-| `cancelPickLocator` | M6 | ⬜ |
+| `cancelPickLocator` | M6 | ✅ |
 | `check` | M3 | ✅ |
 | `clearConsoleMessages` | M4 | ✅ |
 | `clearPageErrors` | M4 | ✅ |
@@ -265,7 +265,7 @@ Chrome for Testing and chrome-headless-shell.
 | `pageErrors` | M4 | ✅ |
 | `pause` | M6 | ✅ resumed through `context.debugger()` |
 | `pdf` | M5 | ✅ |
-| `pickLocator` | M6 | ⬜ |
+| `pickLocator` | M6 | 🟡 main frame; cancelled by navigation |
 | `press` | M3 | ✅ |
 | `reload` | M3 | ✅ |
 | `removeLocatorHandler` | M3 | ✅ |
