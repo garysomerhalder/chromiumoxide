@@ -24,6 +24,10 @@ pub struct JsHandle {
     disposed: Arc<AtomicBool>,
     /// A worker's session, when the object lives in a worker.
     session: Option<String>,
+    /// The frame of an element (None: the main frame).
+    pub(crate) frame: Option<String>,
+    /// Id under which the element is registered for locator actions.
+    pub(crate) registered: Arc<std::sync::Mutex<Option<String>>>,
 }
 
 impl std::fmt::Debug for JsHandle {
@@ -46,7 +50,16 @@ impl JsHandle {
     fn child(&self, remote: &Value) -> JsHandle {
         let mut h = JsHandle::from_remote(&self.page, remote);
         h.session = self.session.clone();
+        h.frame = self.frame.clone();
         h
+    }
+
+    pub(crate) fn page(&self) -> &Page {
+        &self.page
+    }
+
+    pub(crate) fn object_id(&self) -> Option<&str> {
+        self.object_id.as_deref()
     }
 
     async fn send(&self, method: &str, params: Value) -> Result<Value> {
@@ -77,6 +90,8 @@ impl JsHandle {
                 .map(str::to_owned),
             disposed: Arc::new(AtomicBool::new(false)),
             session: None,
+            frame: None,
+            registered: Arc::default(),
         }
     }
 

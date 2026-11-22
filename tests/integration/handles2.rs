@@ -165,7 +165,7 @@ async fn element_handle_actions() {
         )
         .await
         .unwrap(),
-        json!([3, 1, 1, "b"])
+        json!([4, 1, 1, "b"])
     );
     assert_eq!(
         b.get_attribute("title").await.unwrap().as_deref(),

@@ -119,7 +119,7 @@ impl Page {
             let options = json!({
                 "isUnderTest": false, "sdkLanguage": "javascript", "frameSeq": 0,
                 "testIdAttributeName": "data-testid", "stableRafCount": 1, "browserName": "chromium",
-                "isUtilityWorld": true, "customEngines": [],
+                "isUtilityWorld": true, "customEngines": [{"name": "chromiumoxide-handle", "source": HANDLE_ENGINE}],
             });
             let install = format!(
                 "(() => {{ if ({INJECTED}) return; const module = {{}};\n{INJECTED_SOURCE}\n{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); }})()"
@@ -395,9 +395,17 @@ impl Locator {
     }
 
     async fn query(&self, strict: bool, timeout: Duration) -> Result<Option<ElementRef>> {
-        let Some((frame, selector, frame_owner)) = self.scope(timeout).await? else {
+        let Some((frame, selector, mut frame_owner)) = self.scope(timeout).await? else {
             return Ok(None);
         };
+        // A locator made from a child frame has no iframe hop: find the
+        // frame's <iframe> element so pointer coordinates can be converted.
+        if frame_owner.is_none()
+            && let Some(id) = frame.as_deref()
+            && self.page.main_frame_id().ok().as_deref() != Some(id)
+        {
+            frame_owner = self.page.frame_owner_object(id).await?;
+        }
         Ok(self
             .page
             .query_in(frame.as_deref(), &selector, strict, timeout)
@@ -1527,6 +1535,9 @@ impl Page {
 
 // ---- extras: handles, evaluate_all, aria, descriptions --------------------
 
+/// Selector engine resolving element handles registered by id (utility world).
+pub(crate) const HANDLE_ENGINE: &str = "({ queryAll(root, id) { const m = globalThis.__chromiumoxide_handles; const e = m && m.get(id); return e && e.isConnected && (root === e || root.contains(e)) ? [e] : []; } })";
+
 impl Locator {
     /// Adopts an element into the main world of its frame; the object id.
     async fn main_world_object(&self, el: &ElementRef) -> Result<Value> {
@@ -1603,6 +1614,11 @@ impl Locator {
         Ok(out)
     }
 
+    /// The frame the matched elements live in (after iframe hops).
+    async fn frame_for_handles(&self) -> Result<Option<String>> {
+        Ok(self.scope(self.timeout()).await?.and_then(|(f, _, _)| f))
+    }
+
     /// `locator.evaluateHandle(fn)`: `fn(element)`, returned as a handle.
     pub async fn evaluate_handle(
         &self,
@@ -1619,19 +1635,26 @@ impl Locator {
     /// `locator.elementHandle()`: the (single) element.
     pub async fn element_handle(&self) -> Result<crate::application::handle::JsHandle> {
         let el = self.element("getting the element", self.timeout()).await?;
-        Ok(crate::application::handle::JsHandle::from_remote(
+        let mut h = crate::application::handle::JsHandle::from_remote(
             &self.page,
             &self.main_world_object(&el).await?,
-        ))
+        );
+        h.frame = self.frame_for_handles().await?;
+        Ok(h)
     }
 
     /// `locator.elementHandles()`: every matching element.
     pub async fn element_handles(&self) -> Result<Vec<crate::application::handle::JsHandle>> {
+        let frame = self.frame_for_handles().await?;
         Ok(self
             .all_main_world_objects()
             .await?
             .iter()
-            .map(|o| crate::application::handle::JsHandle::from_remote(&self.page, o))
+            .map(|o| {
+                let mut h = crate::application::handle::JsHandle::from_remote(&self.page, o);
+                h.frame = frame.clone();
+                h
+            })
             .collect())
     }
 
@@ -1825,6 +1848,22 @@ impl Locator {
 }
 
 impl Page {
+    /// The `<iframe>` element of a child frame, as a remote object id.
+    pub(crate) async fn frame_owner_object(&self, frame_id: &str) -> Result<Option<String>> {
+        let owner = self
+            .send("DOM.getFrameOwner", json!({"frameId": frame_id}))
+            .await?;
+        let Some(backend) = owner.get("backendNodeId").cloned() else {
+            return Ok(None);
+        };
+        let r = self
+            .send("DOM.resolveNode", json!({"backendNodeId": backend}))
+            .await?;
+        Ok(r.pointer("/object/objectId")
+            .and_then(Value::as_str)
+            .map(str::to_owned))
+    }
+
     /// `page.ariaSnapshot()`: the accessibility tree of the page as YAML.
     pub async fn aria_snapshot(&self) -> Result<String> {
         self.locator("body").aria_snapshot().await
@@ -1841,5 +1880,36 @@ impl Page {
         )
         .await?;
         Ok(())
+    }
+}
+
+impl Locator {
+    /// Waits until the element has all `states` (`visible`, `stable`, ...).
+    pub(crate) async fn wait_for_states(&self, states: &[&str]) -> Result<()> {
+        let timeout = self.timeout();
+        let states: Vec<String> = states.iter().map(|s| (*s).to_owned()).collect();
+        self.retry("waiting for element state", timeout, |_| {
+            let states = states.clone();
+            async move {
+                let el = match self.resolved(timeout).await? {
+                    Attempt::Done(el) => el,
+                    Attempt::Retry(r) => return Ok(Attempt::Retry(r)),
+                };
+                let r = self
+                    .page
+                    .element_call(
+                        &el,
+                        "async (i, node, states) => await i.checkElementStates(node, states)",
+                        &[json!(states)],
+                        true,
+                    )
+                    .await?;
+                Ok(match r {
+                    Value::Null => Attempt::Done(()),
+                    other => Attempt::Retry(format!("element state not reached: {other}")),
+                })
+            }
+        })
+        .await
     }
 }
