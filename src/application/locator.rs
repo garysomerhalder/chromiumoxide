@@ -692,6 +692,17 @@ impl Locator {
 
     /// `locator.fill(value)`.
     pub async fn fill(&self, value: &str) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "fill",
+                json!({"selector": self.selector, "value": value}),
+                self.fill_impl(value),
+            )
+            .await
+    }
+
+    async fn fill_impl(&self, value: &str) -> Result<()> {
         let timeout = self.timeout();
         self.retry("filling", timeout, |_| async move {
             let el = match self.resolved(timeout).await? {
@@ -768,8 +779,17 @@ impl Locator {
 
     /// `locator.press("Control+A")`.
     pub async fn press(&self, key: &str) -> Result<()> {
-        self.focused("pressing").await?;
-        self.page.keyboard().press(key).await
+        self.page
+            .traced(
+                "Frame",
+                "press",
+                json!({"selector": self.selector, "key": key}),
+                async {
+                    self.focused("pressing").await?;
+                    self.page.keyboard().press(key).await
+                },
+            )
+            .await
     }
 
     /// `locator.pressSequentially(text)` (Playwright's former `type`).
@@ -780,6 +800,17 @@ impl Locator {
 
     /// `locator.setChecked(checked)`.
     pub async fn set_checked(&self, checked: bool) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                if checked { "check" } else { "uncheck" },
+                json!({"selector": self.selector}),
+                self.set_checked_impl(checked),
+            )
+            .await
+    }
+
+    async fn set_checked_impl(&self, checked: bool) -> Result<()> {
         let state = if checked { "checked" } else { "unchecked" };
         let timeout = self.timeout();
         let el = self.element("checking", timeout).await?;
@@ -836,6 +867,21 @@ impl Locator {
     }
 
     async fn run_select_option(&self, values: &[String], timeout: Duration) -> Result<Vec<String>> {
+        self.page
+            .traced(
+                "Frame",
+                "selectOption",
+                json!({"selector": self.selector, "options": values}),
+                self.run_select_option_impl(values, timeout),
+            )
+            .await
+    }
+
+    async fn run_select_option_impl(
+        &self,
+        values: &[String],
+        timeout: Duration,
+    ) -> Result<Vec<String>> {
         let options: Vec<Value> = values.iter().map(|v| json!({"valueOrLabel": v})).collect();
         self.retry("selecting options", timeout, |_| {
             let options = options.clone();
@@ -1320,8 +1366,21 @@ impl<'a> IntoFuture for Click<'a> {
                 Action::DblClick => "double-clicking",
                 _ => "clicking",
             };
+            let method = match self.action {
+                Action::Hover => "hover",
+                Action::Tap => "tap",
+                Action::DblClick => "dblclick",
+                _ => "click",
+            };
             self.locator
-                .pointer_action(self.action, &self.options, what)
+                .page
+                .traced(
+                    "Frame",
+                    method,
+                    json!({"selector": self.locator.selector}),
+                    self.locator
+                        .pointer_action(self.action, &self.options, what),
+                )
                 .await
         }
         .boxed()

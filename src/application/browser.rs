@@ -383,6 +383,7 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
                     {
                         Ok(page) => {
                             context.har_track_page(&page);
+                            context.trace_page(&page);
                             context.add_page(page)
                         }
                         Err(e) => context.page_failed(&target_id, &e),

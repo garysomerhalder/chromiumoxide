@@ -882,7 +882,17 @@ impl<'a> IntoFuture for Goto<'a> {
         async move {
             let timeout = self.timeout.unwrap_or_else(|| self.page.default_timeout());
             self.page
-                .navigate(&self.url, self.wait_until, timeout, self.referer.as_deref())
+                .traced(
+                    "Frame",
+                    "goto",
+                    json!({"url": self.url, "timeout": timeout.as_millis() as u64}),
+                    self.page.navigate(
+                        &self.url,
+                        self.wait_until,
+                        timeout,
+                        self.referer.as_deref(),
+                    ),
+                )
                 .await
         }
         .boxed()

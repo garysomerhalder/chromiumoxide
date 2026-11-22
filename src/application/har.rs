@@ -46,7 +46,7 @@ fn pairs(entries: Vec<crate::domain::network::HeaderEntry>) -> Vec<NameValuePair
         .collect()
 }
 
-async fn entry_for(request: Request, page_id: String, omit_content: bool) -> Entry {
+pub(crate) async fn entry_for(request: Request, page_id: String, omit_content: bool) -> Entry {
     let timing = request.timing();
     let request_headers = pairs(request.headers_array().await.unwrap_or_default());
     let cookies = request_headers

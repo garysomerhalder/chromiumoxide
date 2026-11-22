@@ -57,6 +57,7 @@ pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
 pub use application::services::Services;
 pub use application::storage::WebStorage;
+pub use application::tracing::{Tracing, TracingStart};
 pub use application::video::Video;
 pub use application::websocket::{WebSocket, WebSocketEvent, WsPayload};
 pub use application::websocket_route::{WebSocketRoute, WebSocketServer};

@@ -33,6 +33,7 @@ pub(crate) struct ContextInner {
     pub(crate) service_workers: Mutex<Vec<crate::application::worker::Worker>>,
     pub(crate) credentials: crate::application::credentials::CredentialsState,
     pub(crate) har: crate::application::har::HarState,
+    pub(crate) tracing: crate::application::tracing::TracingState,
 }
 
 /// Something that happened in a context (Playwright's `context.on(...)`).
@@ -153,6 +154,7 @@ impl BrowserContext {
             service_workers: Mutex::new(Vec::new()),
             credentials: Mutex::new(Default::default()),
             har: har_state,
+            tracing: Mutex::new(None),
         });
         shared.contexts.lock().unwrap().insert(id, inner.clone());
         if inner.options.service_workers == crate::domain::emulation::ServiceWorkers::Block {
