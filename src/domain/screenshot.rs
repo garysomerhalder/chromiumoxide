@@ -106,38 +106,116 @@ pub struct Capture {
 pub struct ScreenshotError(pub String);
 
 /// Validates options; returns the quality to send (jpeg 80 / webp 100 defaults).
-pub fn validate(_o: &ScreenshotOptions) -> Result<Option<u8>, ScreenshotError> {
-    unimplemented!()
+pub fn validate(o: &ScreenshotOptions) -> Result<Option<u8>, ScreenshotError> {
+    let fail = |m: String| Err(ScreenshotError(m));
+    if let Some(q) = o.quality {
+        if o.format == ImageFormat::Png {
+            return fail("options.quality is unsupported for the png screenshots".into());
+        }
+        if q > 100 {
+            return fail(format!(
+                "Expected options.quality to be between 0 and 100 (inclusive), got {q}"
+            ));
+        }
+    }
+    if let Some(clip) = o.clip {
+        if clip.width <= 0.0 {
+            return fail("Expected options.clip.width to be greater than 0.".into());
+        }
+        if clip.height <= 0.0 {
+            return fail("Expected options.clip.height to be greater than 0.".into());
+        }
+    }
+    Ok(match o.format {
+        ImageFormat::Png => None,
+        ImageFormat::Jpeg => Some(o.quality.unwrap_or(80)),
+        ImageFormat::Webp => Some(o.quality.unwrap_or(100)),
+    })
 }
 
 /// Playwright's `trimClipToSize`.
-pub fn trim_clip_to_size(_clip: Rect, _size: Size) -> Result<Rect, ScreenshotError> {
-    unimplemented!()
+pub fn trim_clip_to_size(clip: Rect, size: Size) -> Result<Rect, ScreenshotError> {
+    let x1 = clip.x.min(size.width).max(0.0);
+    let y1 = clip.y.min(size.height).max(0.0);
+    let x2 = (clip.x + clip.width).min(size.width).max(0.0);
+    let y2 = (clip.y + clip.height).min(size.height).max(0.0);
+    let r = Rect::new(x1, y1, x2 - x1, y2 - y1);
+    if r.width > 0.0 && r.height > 0.0 {
+        Ok(r)
+    } else {
+        Err(ScreenshotError(
+            "Clipped area is either empty or outside the resulting image".into(),
+        ))
+    }
 }
 
-/// Decides the capture target for a page screenshot.
+/// Decides the capture target for a page screenshot. `full_page` is the
+/// document size and is only needed when `o.full_page` is set.
 pub fn plan_page(
-    _o: &ScreenshotOptions,
-    _viewport: Size,
-    _full_page: Option<Size>,
+    o: &ScreenshotOptions,
+    viewport: Size,
+    full_page: Option<Size>,
 ) -> Result<Target, ScreenshotError> {
-    unimplemented!()
+    if o.full_page {
+        let size = full_page.ok_or_else(|| ScreenshotError("full page size is unknown".into()))?;
+        let fits_viewport = size.width <= viewport.width && size.height <= viewport.height;
+        let mut rect = Rect::new(0.0, 0.0, size.width, size.height);
+        if let Some(clip) = o.clip {
+            rect = trim_clip_to_size(clip, size)?;
+        }
+        return Ok(Target::Document {
+            rect,
+            fits_viewport,
+        });
+    }
+    let rect = match o.clip {
+        Some(clip) => trim_clip_to_size(clip, viewport)?,
+        None => Rect::new(0.0, 0.0, viewport.width, viewport.height),
+    };
+    Ok(Target::Viewport(rect))
 }
 
 /// Turns a target into the capture parameters using the live layout metrics.
 /// `css_ratio` is the device scale factor used for `scale: css`.
 pub fn capture(
-    _target: Target,
-    _vv: VisualViewport,
-    _scale: ScreenshotScale,
-    _css_ratio: f64,
+    target: Target,
+    vv: VisualViewport,
+    scale: ScreenshotScale,
+    css_ratio: f64,
 ) -> Capture {
-    unimplemented!()
+    let (clip, mut factor, capture_beyond_viewport) = match target {
+        Target::Viewport(r) => (
+            Rect::new(
+                vv.page_x + r.x,
+                vv.page_y + r.y,
+                (r.width / vv.scale + 1e-3).floor(),
+                (r.height / vv.scale + 1e-3).floor(),
+            ),
+            vv.scale,
+            false,
+        ),
+        Target::Document {
+            rect,
+            fits_viewport,
+        } => (rect, 1.0, !fits_viewport),
+    };
+    if scale == ScreenshotScale::Css {
+        factor /= if css_ratio > 0.0 { css_ratio } else { 1.0 };
+    }
+    Capture {
+        clip,
+        scale: factor,
+        capture_beyond_viewport,
+    }
 }
 
 /// Playwright's `enclosingIntRect`.
-pub fn enclosing_int_rect(_r: Rect) -> Rect {
-    unimplemented!()
+pub fn enclosing_int_rect(r: Rect) -> Rect {
+    let x = (r.x + 1e-3).floor();
+    let y = (r.y + 1e-3).floor();
+    let x2 = (r.x + r.width - 1e-3).ceil();
+    let y2 = (r.y + r.height - 1e-3).ceil();
+    Rect::new(x, y, x2 - x, y2 - y)
 }
 
 #[cfg(test)]
