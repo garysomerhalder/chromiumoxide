@@ -2,4 +2,5 @@
 
 pub mod browser;
 pub mod discovery;
+pub mod page_init;
 pub mod services;
