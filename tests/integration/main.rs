@@ -23,6 +23,7 @@ mod pixel_parity;
 mod popups;
 mod protocol;
 mod routing;
+mod screencast;
 mod screenshot;
 mod scripts;
 mod server;
