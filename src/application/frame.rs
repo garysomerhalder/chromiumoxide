@@ -130,14 +130,24 @@ impl Frame {
 
     /// `frame.evaluate(expression | function)`.
     pub async fn evaluate<T: DeserializeOwned>(&self, source: &str) -> Result<T> {
-        let v = self
-            .call(
+        let timeout = self.page.default_timeout();
+        let v = if self
+            .page
+            .is_expression_in(Some(&self.id), World::Main, source, timeout)
+            .await?
+        {
+            self.call(
                 World::Main,
                 &js::function_declaration(source),
                 &[],
                 "evaluating",
             )
-            .await?;
+            .await?
+        } else {
+            self.page
+                .evaluate_script_in(Some(&self.id), World::Main, source, timeout)
+                .await?
+        };
         serde_json::from_value(v)
             .map_err(|e| Error::Evaluation(format!("cannot deserialize result: {e}")))
     }

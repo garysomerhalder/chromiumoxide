@@ -553,7 +553,18 @@ impl Page {
         source: &str,
         timeout: Duration,
     ) -> Result<bool> {
-        let context_id = self.main_context(world, timeout).await?;
+        self.is_expression_in(None, world, source, timeout).await
+    }
+
+    /// [`Page::is_expression`] in a given frame.
+    pub(crate) async fn is_expression_in(
+        &self,
+        frame: Option<&str>,
+        world: World,
+        source: &str,
+        timeout: Duration,
+    ) -> Result<bool> {
+        let context_id = self.frame_context(frame, world, timeout).await?;
         let r = self
             .send(
                 "Runtime.compileScript",
@@ -572,9 +583,20 @@ impl Page {
         source: &str,
         timeout: Duration,
     ) -> Result<Value> {
+        self.evaluate_script_in(None, world, source, timeout).await
+    }
+
+    /// [`Page::evaluate_script`] in a given frame.
+    pub(crate) async fn evaluate_script_in(
+        &self,
+        frame: Option<&str>,
+        world: World,
+        source: &str,
+        timeout: Duration,
+    ) -> Result<Value> {
         let attempt = async {
             loop {
-                let context_id = self.main_context(world, timeout).await?;
+                let context_id = self.frame_context(frame, world, timeout).await?;
                 let params = json!({"expression": source, "contextId": context_id, "returnByValue": true,
                                     "awaitPromise": true, "userGesture": true});
                 match self.send("Runtime.evaluate", params).await {
