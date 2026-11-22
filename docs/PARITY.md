@@ -197,7 +197,7 @@ Chrome for Testing and chrome-headless-shell.
 | `waitForEvent` | M3 | ✅ `events()` stream, `wait_for_page()` |
 | `clock` | M6 | ✅ |
 | `credentials` | M4 | ✅ via Chromium's virtual WebAuthn authenticator |
-| `debugger` | M6 | ⬜ |
+| `debugger` | M6 | ✅ requestPause, next, resume, pausedDetails (title), events; no source locations / `runTo` |
 | `request` | M6 | ✅ |
 | `tracing` | M5 | ✅ actions, console, network, screencast (no DOM snapshots yet) |
 
@@ -263,13 +263,13 @@ Chrome for Testing and chrome-headless-shell.
 | `mainFrame` | M1 | ✅ |
 | `opener` | M3 | ✅ |
 | `pageErrors` | M4 | ✅ |
-| `pause` | M6 | ⬜ |
+| `pause` | M6 | ✅ resumed through `context.debugger()` |
 | `pdf` | M5 | ✅ |
 | `pickLocator` | M6 | ⬜ |
 | `press` | M3 | ✅ |
 | `reload` | M3 | ✅ |
 | `removeLocatorHandler` | M3 | ✅ |
-| `requestGC` | M6 | ⬜ |
+| `requestGC` | M6 | ✅ |
 | `requests` | M4 | ✅ |
 | `route` | M4 | ✅ |
 | `routeFromHAR` | M5 | ✅ |
