@@ -3,7 +3,9 @@
 
 use serde_json::{Value, json};
 
-use crate::domain::emulation::{ContextOptions, FontPlatform, Viewport};
+use crate::domain::emulation::{
+    ContextOptions, FontPlatform, Media, OrientationType, Viewport, default_font_families,
+};
 
 /// Inputs that are only known at runtime.
 #[derive(Debug, Clone)]
@@ -18,17 +20,152 @@ pub struct InitContext<'a> {
 
 /// The ordered `(method, params)` list, excluding `Page.getFrameTree` and the
 /// final `Runtime.runIfWaitingForDebugger`.
-pub fn page_init_commands(_c: &InitContext<'_>) -> Vec<(&'static str, Value)> {
-    unimplemented!()
+pub fn page_init_commands(c: &InitContext<'_>) -> Vec<(&'static str, Value)> {
+    let o = c.options;
+    let mut out: Vec<(&'static str, Value)> = vec![
+        ("Page.enable", json!({})),
+        ("Log.enable", json!({})),
+        ("Page.setLifecycleEventsEnabled", json!({"enabled": true})),
+        ("Runtime.enable", json!({})),
+        (
+            "Page.addScriptToEvaluateOnNewDocument",
+            json!({"source": "", "worldName": c.utility_world}),
+        ),
+        ("Network.enable", json!({})),
+    ];
+    if !o.extra_http_headers.is_empty() {
+        out.push((
+            "Network.setExtraHTTPHeaders",
+            json!({"headers": o.extra_http_headers}),
+        ));
+    }
+    if o.offline {
+        out.push((
+            "Network.emulateNetworkConditions",
+            json!({"offline": true, "latency": 0, "downloadThroughput": -1, "uploadThroughput": -1}),
+        ));
+    }
+    if o.http_credentials.is_some() {
+        out.push(("Network.setCacheDisabled", json!({"cacheDisabled": true})));
+        out.push((
+            "Fetch.enable",
+            json!({"handleAuthRequests": true, "patterns": [{"urlPattern": "*", "requestStage": "Request"}]}),
+        ));
+    }
+    out.push((
+        "Target.setAutoAttach",
+        json!({"autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true}),
+    ));
+    out.push((
+        "Emulation.setFocusEmulationEnabled",
+        json!({"enabled": true}),
+    ));
+    if o.bypass_csp {
+        out.push(("Page.setBypassCSP", json!({"enabled": true})));
+    }
+    if o.ignore_https_errors {
+        out.push((
+            "Security.setIgnoreCertificateErrors",
+            json!({"ignore": true}),
+        ));
+    }
+    out.extend(viewport_commands(o, c.window_id, None));
+    if o.has_touch {
+        out.push((
+            "Emulation.setTouchEmulationEnabled",
+            json!({"enabled": true}),
+        ));
+    }
+    if !o.java_script_enabled {
+        out.push((
+            "Emulation.setScriptExecutionDisabled",
+            json!({"value": true}),
+        ));
+    }
+    if o.user_agent.is_some() || o.locale.is_some() {
+        let mut params = json!({"userAgent": o.user_agent.clone().unwrap_or_default()});
+        if let Some(locale) = &o.locale {
+            params["acceptLanguage"] = json!(locale);
+        }
+        if let Some(m) = o.user_agent_metadata() {
+            params["userAgentMetadata"] = json!({
+                "mobile": m.mobile,
+                "model": m.model,
+                "architecture": m.architecture,
+                "platform": m.platform,
+                "platformVersion": m.platform_version,
+            });
+        }
+        out.push(("Emulation.setUserAgentOverride", params));
+    }
+    if let Some(locale) = &o.locale {
+        out.push(("Emulation.setLocaleOverride", json!({"locale": locale})));
+    }
+    if let Some(tz) = &o.timezone_id {
+        out.push(("Emulation.setTimezoneOverride", json!({"timezoneId": tz})));
+    }
+    if c.headless {
+        out.push((
+            "Page.setFontFamilies",
+            default_font_families(c.font_platform),
+        ));
+    }
+    if let Some(g) = &o.geolocation {
+        out.push((
+            "Emulation.setGeolocationOverride",
+            json!({"latitude": g.latitude, "longitude": g.longitude, "accuracy": g.accuracy}),
+        ));
+    }
+    out.push((
+        "Emulation.setEmulatedMedia",
+        emulated_media_params(o, Media::NoOverride),
+    ));
+    out
+}
+
+/// `Emulation.setEmulatedMedia` parameters.
+pub fn emulated_media_params(o: &ContextOptions, media: Media) -> Value {
+    let (media, features) = o.emulated_media(media);
+    let features: Vec<Value> = features
+        .into_iter()
+        .map(|(name, value)| json!({"name": name, "value": value}))
+        .collect();
+    json!({"media": media, "features": features})
 }
 
 /// Commands that apply a viewport (used at init and by `setViewportSize`).
 pub fn viewport_commands(
-    _options: &ContextOptions,
-    _window_id: Option<i64>,
-    _resized: Option<Viewport>,
+    options: &ContextOptions,
+    window_id: Option<i64>,
+    resized: Option<Viewport>,
 ) -> Vec<(&'static str, Value)> {
-    unimplemented!()
+    let Some(m) = options.device_metrics(resized) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    if let Some(window_id) = window_id {
+        out.push((
+            "Browser.setWindowBounds",
+            json!({"windowId": window_id, "bounds": {"width": m.width, "height": m.height}}),
+        ));
+    }
+    let kind = match m.orientation.kind {
+        OrientationType::PortraitPrimary => "portraitPrimary",
+        OrientationType::LandscapePrimary => "landscapePrimary",
+    };
+    out.push((
+        "Emulation.setDeviceMetricsOverride",
+        json!({
+            "mobile": m.mobile,
+            "width": m.width,
+            "height": m.height,
+            "screenWidth": m.screen_width,
+            "screenHeight": m.screen_height,
+            "deviceScaleFactor": m.device_scale_factor,
+            "screenOrientation": {"angle": m.orientation.angle, "type": kind},
+        }),
+    ));
+    out
 }
 
 #[cfg(test)]
