@@ -50,36 +50,103 @@ pub struct RoleOptions {
     pub pressed: Option<bool>,
 }
 
+fn json(s: &str) -> String {
+    serde_json::to_string(s).expect("string serialises")
+}
+
+/// Playwright's `escapeRegexForSelector`.
+fn escape_regex(pattern: &str, flags: &str) -> String {
+    let source = format!("/{pattern}/{flags}");
+    if flags.contains('u') || flags.contains('v') {
+        return source;
+    }
+    static QUOTES: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let quotes =
+        QUOTES.get_or_init(|| regex::Regex::new(r#"(^|[^\\])(\\\\)*(["'`])"#).expect("valid"));
+    quotes
+        .replace_all(&source, r"$1$2\$3")
+        .replace(">>", r"\>\>")
+}
+
 /// Playwright's `escapeForTextSelector`.
-pub fn escape_for_text_selector(_t: &TextMatch, _exact: bool) -> String {
-    unimplemented!()
+pub fn escape_for_text_selector(t: &TextMatch, exact: bool) -> String {
+    match t {
+        TextMatch::Text(s) => format!("{}{}", json(s), if exact { "s" } else { "i" }),
+        TextMatch::Regex { pattern, flags } => escape_regex(pattern, flags),
+    }
 }
 
 /// Playwright's `escapeForAttributeSelector`.
-pub fn escape_for_attribute_selector(_t: &TextMatch, _exact: bool) -> String {
-    unimplemented!()
+pub fn escape_for_attribute_selector(t: &TextMatch, exact: bool) -> String {
+    match t {
+        TextMatch::Text(s) => format!(
+            "\"{}\"{}",
+            s.replace('\\', "\\\\").replace('"', "\\\""),
+            if exact { "s" } else { "i" }
+        ),
+        TextMatch::Regex { pattern, flags } => escape_regex(pattern, flags),
+    }
 }
 
-pub fn get_by_text(_t: &TextMatch, _exact: bool) -> String {
-    unimplemented!()
+fn by_attribute(name: &str, t: &TextMatch, exact: bool) -> String {
+    format!(
+        "internal:attr=[{name}={}]",
+        escape_for_attribute_selector(t, exact)
+    )
 }
-pub fn get_by_label(_t: &TextMatch, _exact: bool) -> String {
-    unimplemented!()
+
+pub fn get_by_text(t: &TextMatch, exact: bool) -> String {
+    format!("internal:text={}", escape_for_text_selector(t, exact))
 }
-pub fn get_by_alt_text(_t: &TextMatch, _exact: bool) -> String {
-    unimplemented!()
+pub fn get_by_label(t: &TextMatch, exact: bool) -> String {
+    format!("internal:label={}", escape_for_text_selector(t, exact))
 }
-pub fn get_by_title(_t: &TextMatch, _exact: bool) -> String {
-    unimplemented!()
+pub fn get_by_alt_text(t: &TextMatch, exact: bool) -> String {
+    by_attribute("alt", t, exact)
 }
-pub fn get_by_placeholder(_t: &TextMatch, _exact: bool) -> String {
-    unimplemented!()
+pub fn get_by_title(t: &TextMatch, exact: bool) -> String {
+    by_attribute("title", t, exact)
 }
-pub fn get_by_test_id(_attribute: &str, _id: &TextMatch) -> String {
-    unimplemented!()
+pub fn get_by_placeholder(t: &TextMatch, exact: bool) -> String {
+    by_attribute("placeholder", t, exact)
 }
-pub fn get_by_role(_role: &str, _o: &RoleOptions) -> String {
-    unimplemented!()
+pub fn get_by_test_id(attribute: &str, id: &TextMatch) -> String {
+    let attr = if attribute.contains(',') {
+        json(attribute)
+    } else {
+        attribute.to_owned()
+    };
+    format!(
+        "internal:testid=[{attr}={}]",
+        escape_for_attribute_selector(id, true)
+    )
+}
+pub fn get_by_role(role: &str, o: &RoleOptions) -> String {
+    let mut props: Vec<(&str, String)> = Vec::new();
+    let mut flag = |name: &'static str, v: Option<bool>| {
+        if let Some(v) = v {
+            props.push((name, v.to_string()));
+        }
+    };
+    flag("checked", o.checked);
+    flag("disabled", o.disabled);
+    flag("selected", o.selected);
+    flag("expanded", o.expanded);
+    flag("include-hidden", o.include_hidden);
+    if let Some(level) = o.level {
+        props.push(("level", level.to_string()));
+    }
+    if let Some(name) = &o.name {
+        props.push(("name", escape_for_attribute_selector(name, o.exact)));
+    }
+    if let Some(d) = &o.description {
+        props.push(("description", escape_for_attribute_selector(d, o.exact)));
+    }
+    if let Some(p) = o.pressed {
+        props.push(("pressed", p.to_string()));
+    }
+    let props: String = props.iter().map(|(n, v)| format!("[{n}={v}]")).collect();
+    format!("internal:role={role}{props}")
 }
 
 /// `locator.filter(...)` / constructor options.
@@ -98,28 +165,50 @@ pub mod compose {
     use super::*;
 
     /// `locator.locator("css")`.
-    pub fn chain(_parent: &str, _child: &str) -> String {
-        unimplemented!()
+    pub fn chain(parent: &str, child: &str) -> String {
+        format!("{parent} >> {child}")
     }
     /// `locator.locator(otherLocator)`.
-    pub fn chain_locator(_parent: &str, _child_selector: &str) -> String {
-        unimplemented!()
+    pub fn chain_locator(parent: &str, child_selector: &str) -> String {
+        format!("{parent} >> internal:chain={}", json(child_selector))
     }
-    pub fn nth(_selector: &str, _index: i64) -> String {
-        unimplemented!()
+    pub fn nth(selector: &str, index: i64) -> String {
+        format!("{selector} >> nth={index}")
     }
-    pub fn filter(_selector: &str, _f: &Filter) -> String {
-        unimplemented!()
+    pub fn filter(selector: &str, f: &Filter) -> String {
+        let mut s = selector.to_owned();
+        if let Some(t) = &f.has_text {
+            s += &format!(
+                " >> internal:has-text={}",
+                escape_for_text_selector(t, false)
+            );
+        }
+        if let Some(t) = &f.has_not_text {
+            s += &format!(
+                " >> internal:has-not-text={}",
+                escape_for_text_selector(t, false)
+            );
+        }
+        if let Some(h) = &f.has {
+            s += &format!(" >> internal:has={}", json(h));
+        }
+        if let Some(h) = &f.has_not {
+            s += &format!(" >> internal:has-not={}", json(h));
+        }
+        if let Some(v) = f.visible {
+            s += &format!(" >> visible={v}");
+        }
+        s
     }
-    pub fn and(_a: &str, _b: &str) -> String {
-        unimplemented!()
+    pub fn and(a: &str, b: &str) -> String {
+        format!("{a} >> internal:and={}", json(b))
     }
-    pub fn or(_a: &str, _b: &str) -> String {
-        unimplemented!()
+    pub fn or(a: &str, b: &str) -> String {
+        format!("{a} >> internal:or={}", json(b))
     }
     /// `frameLocator` / `locator.contentFrame()`: following selectors apply inside the iframe.
-    pub fn enter_frame(_selector: &str) -> String {
-        unimplemented!()
+    pub fn enter_frame(selector: &str) -> String {
+        format!("{selector} >> internal:control=enter-frame")
     }
 }
 
@@ -206,7 +295,7 @@ mod tests {
             r"internal:text=/a\>\>b/"
         );
         assert_eq!(
-            get_by_text(&TextMatch::regex(r#"""#, ""), false),
+            get_by_text(&TextMatch::regex(r#""""#, ""), false),
             r#"internal:text=/\""/"#
         );
     }
