@@ -45,6 +45,7 @@ pub use application::locator::{
 pub use application::navigation::{Navigation, WaitForUrl};
 pub use application::network::{Request, Response, SecurityDetails, ServerAddr};
 pub use application::page::{Goto, Page};
+pub use application::pdf::Pdf;
 pub use application::route::{
     Abort, Continue, FetchResponse, Fulfill, Route, RouteFetch, RouteRegistration,
 };
@@ -67,6 +68,7 @@ pub use domain::frame::LifecycleEvent as WaitUntil;
 pub use domain::input::MouseButton;
 pub use domain::launch::BrowserKind;
 pub use domain::network::{HeaderEntry, RequestSizes, Timing};
+pub use domain::pdf::{Margin as PdfMargin, PdfOptions};
 pub use domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale,
 };
