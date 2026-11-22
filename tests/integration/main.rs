@@ -3,6 +3,7 @@
 
 mod aria;
 mod assertions;
+mod backlog;
 mod clock;
 mod context;
 mod context_events;
