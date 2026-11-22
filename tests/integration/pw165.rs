@@ -5,8 +5,10 @@ use std::time::Duration;
 
 use chromiumoxide::{
     AriaSnapshotMode, AriaSnapshotOptions, Browser, Chromium, ContentOptions, Error, LaunchOptions,
-    Page, RoleOptions,
+    Page, RoleOptions, WebMcpAnnotations, WebMcpTool,
 };
+
+use crate::server::TestServer;
 
 async fn page_with(html: &str) -> (Browser, Page) {
     let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
@@ -236,6 +238,71 @@ async fn content_can_include_shadow_roots() {
     assert_eq!(
         page.main_frame().content_with(options).await.unwrap(),
         with_shadow
+    );
+    browser.close().await.unwrap();
+}
+
+const WEBMCP_PAGE: &str = "<p>tools</p><script>document.modelContext.registerTool({ name: 'add', description: 'Adds', inputSchema: { type: 'object', properties: { a: { type: 'number' }, b: { type: 'number' } } }, annotations: { readOnlyHint: true }, execute: ({ a, b }) => ({ content: [{ type: 'text', text: String(a + b) }] }) });</script>";
+
+/// 1.64: `page.webmcp` lists and calls the page's WebMCP tools (Chromium
+/// needs `--enable-features=WebMCP` and a secure origin).
+#[tokio::test]
+async fn webmcp_lists_and_calls_page_tools() {
+    let server = TestServer::start().await;
+    server.route("/tools", "text/html", WEBMCP_PAGE, 0);
+    let browser = Chromium::launch(LaunchOptions {
+        args: vec!["--enable-features=WebMCP".into()],
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.goto(&server.url("/tools")).await.unwrap();
+    let tools = page.webmcp().tools().await.unwrap();
+    assert_eq!(
+        tools,
+        vec![WebMcpTool {
+            name: "add".into(),
+            description: "Adds".into(),
+            input_schema: Some(
+                serde_json::json!({"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}})
+            ),
+            annotations: Some(WebMcpAnnotations {
+                read_only: true,
+                ..Default::default()
+            }),
+        }]
+    );
+    assert_eq!(
+        page.webmcp()
+            .call_tool("add", serde_json::json!({"a": 2, "b": 40}))
+            .await
+            .unwrap(),
+        serde_json::json!({"content": [{"type": "text", "text": "42"}]})
+    );
+    let err = page
+        .webmcp()
+        .call_tool("nope", serde_json::json!({}))
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("No WebMCP tool named \"nope\". Available tools: add."),
+        "{err}"
+    );
+    assert_eq!(page.main_frame().webmcp().tools().await.unwrap().len(), 1);
+    browser.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn webmcp_needs_the_chromium_feature() {
+    let (browser, page) = page_with("<p>x</p>").await;
+    let err = page.webmcp().tools().await.unwrap_err();
+    assert!(
+        err.to_string().contains(
+            "WebMCP is not enabled. Launch the browser with the \"--enable-features=WebMCP\" argument."
+        ),
+        "{err}"
     );
     browser.close().await.unwrap();
 }
