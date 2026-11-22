@@ -1,4 +1,4 @@
-//! Playwright's device descriptors (`playwright.devices`), version 1.63.
+//! Playwright's device descriptors (`playwright.devices`), version 1.65.1.
 //!
 //! Data from Playwright's `deviceDescriptorsSource.json`
 //! (Copyright (c) Microsoft Corporation, Apache License 2.0).
@@ -84,6 +84,8 @@ mod tests {
         assert!(d.is_mobile && d.has_touch);
         assert!(d.user_agent.contains("iPhone OS 17_5"));
         assert_eq!(d.default_browser_type, "webkit");
+        // Playwright 1.65.1's descriptors (Safari 27.2 user agents).
+        assert!(d.user_agent.contains("Version/27.2"), "{}", d.user_agent);
     }
 
     #[test]
