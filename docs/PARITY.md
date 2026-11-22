@@ -266,7 +266,7 @@ Chrome for Testing and chrome-headless-shell.
 | `pageErrors` | M4 | ✅ |
 | `pause` | M6 | ✅ resumed through `context.debugger()` |
 | `pdf` | M5 | ✅ |
-| `pickLocator` | M6 | 🟡 main frame; cancelled by navigation |
+| `pickLocator` | M6 | ✅ |
 | `press` | M3 | ✅ |
 | `reload` | M3 | ✅ |
 | `removeLocatorHandler` | M3 | ✅ |
