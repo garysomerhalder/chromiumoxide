@@ -723,7 +723,7 @@ Chrome for Testing and chrome-headless-shell.
 | `post` | M6 | ✅ |
 | `put` | M6 | ✅ |
 | `storageState` | M6 | ✅ |
-| `tracing` | M6 | 🟡 requests are not traced yet |
+| `tracing` | M6 | ✅ |
 
 ### APIResponse
 
