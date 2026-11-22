@@ -35,6 +35,7 @@ pub use application::clock::Clock;
 pub use application::context::{BrowserContext, ContextEvent, PageWaiter};
 pub use application::coverage::{Coverage, CoverageOptions, CssCoverageEntry, JsCoverageEntry};
 pub use application::credentials::{Credential, Credentials, NewCredential};
+pub use application::debugger::{Debugger, PausedDetails};
 pub use application::discovery::Discovered;
 pub use application::download::Download;
 pub use application::events::{ConsoleMessage, Dialog, EventWaiter, PageEvent};

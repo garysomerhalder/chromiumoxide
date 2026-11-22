@@ -7,6 +7,7 @@ pub mod clock;
 pub mod context;
 pub mod coverage;
 pub mod credentials;
+pub mod debugger;
 pub mod discovery;
 pub mod download;
 pub mod element_handle;

@@ -411,6 +411,7 @@ impl Page {
     where
         F: Future<Output = Result<T>>,
     {
+        self.debugger_checkpoint(method, &params).await;
         self.inner
             .calls
             .lock()
