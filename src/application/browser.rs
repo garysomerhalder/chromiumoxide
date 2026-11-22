@@ -589,7 +589,13 @@ impl Browser {
 
     /// A page in a fresh context of its own; closing the page closes the context.
     pub async fn new_page(&self) -> Result<Page> {
-        let ctx = self.new_context(ContextOptions::default()).await?;
+        self.new_page_with(ContextOptions::default()).await
+    }
+
+    /// `browser.newPage(options)`: a page in a fresh context with `options`;
+    /// closing the page closes the context.
+    pub async fn new_page_with(&self, options: ContextOptions) -> Result<Page> {
+        let ctx = self.new_context(options).await?;
         let page = ctx.new_page().await?;
         page.inner.owns_context.store(true, Ordering::SeqCst);
         Ok(page)
