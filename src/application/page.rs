@@ -71,6 +71,7 @@ pub(crate) struct PageInner {
     /// Created by `browser.new_page()`: closing the page closes its context.
     pub(crate) owns_context: AtomicBool,
     pub(crate) default_timeout: Mutex<Duration>,
+    pub(crate) bindings: Mutex<HashMap<String, crate::application::scripts::BindingFn>>,
 }
 
 /// A browser tab. Cheap to clone.
@@ -121,6 +122,9 @@ impl Page {
             .into_iter()
             .map(|(method, params)| cdp.call(sid, method, params))
             .collect();
+        for (method, params) in crate::application::scripts::context_script_commands(context) {
+            calls.push(cdp.call(sid, method, params));
+        }
         calls.push(cdp.call(sid, "Runtime.runIfWaitingForDebugger", json!({})));
         let tree = frame_tree.await?;
 
@@ -137,6 +141,7 @@ impl Page {
             closed: AtomicBool::new(false),
             owns_context: AtomicBool::new(false),
             default_timeout: Mutex::new(DEFAULT_TIMEOUT),
+            bindings: Mutex::new(HashMap::new()),
         });
         let page = Page { inner };
         let mut effects = Vec::new();
@@ -355,6 +360,10 @@ impl Page {
                         json!({"requestId": request_id, "authChallengeResponse": response}),
                     );
                     tokio::spawn(fut);
+                }
+                "Runtime.bindingCalled" => {
+                    self.on_binding_called(p);
+                    return;
                 }
                 "Inspector.targetCrashed" => {
                     drop(st);

@@ -19,6 +19,8 @@ pub(crate) struct ContextInner {
     pub(crate) shared: Arc<Shared>,
     pub(crate) pages: Mutex<Vec<Page>>,
     pub(crate) init_errors: Mutex<HashMap<String, String>>,
+    pub(crate) init_scripts: Mutex<Vec<String>>,
+    pub(crate) bindings: Mutex<HashMap<String, crate::application::scripts::BindingFn>>,
     pub(crate) changed: watch::Sender<u64>,
     pub(crate) closed: AtomicBool,
 }
@@ -87,6 +89,8 @@ impl BrowserContext {
             shared: shared.clone(),
             pages: Mutex::new(Vec::new()),
             init_errors: Mutex::new(HashMap::new()),
+            init_scripts: Mutex::new(Vec::new()),
+            bindings: Mutex::new(HashMap::new()),
             changed,
             closed: AtomicBool::new(false),
         });

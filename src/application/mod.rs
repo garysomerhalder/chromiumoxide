@@ -10,6 +10,7 @@ pub mod page;
 pub mod page_init;
 pub mod protocol;
 pub mod screenshot;
+pub mod scripts;
 pub mod services;
 pub(crate) mod shared;
 pub mod wait;

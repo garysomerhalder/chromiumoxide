@@ -35,6 +35,7 @@ pub use application::discovery::Discovered;
 pub use application::navigation::{Navigation, WaitForUrl};
 pub use application::page::{Goto, Page, Response};
 pub use application::screenshot::Screenshot;
+pub use application::scripts::ScriptTag;
 pub use application::services::Services;
 pub use domain::devices::{Device, device, device_names};
 pub use domain::discovery::Source as DiscoverySource;
