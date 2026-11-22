@@ -111,6 +111,8 @@ pub struct ContextOptions {
     pub accept_downloads: bool,
     /// Whether pages may register service workers.
     pub service_workers: ServiceWorkers,
+    /// Record all traffic into a HAR file, written when the context closes.
+    pub record_har: Option<crate::domain::har::RecordHar>,
 }
 
 /// Playwright's `serviceWorkers` option.
@@ -149,6 +151,7 @@ impl Default for ContextOptions {
             storage_state: None,
             accept_downloads: true,
             service_workers: ServiceWorkers::Allow,
+            record_har: None,
         }
     }
 }

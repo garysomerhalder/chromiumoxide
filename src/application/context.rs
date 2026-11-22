@@ -32,6 +32,7 @@ pub(crate) struct ContextInner {
     pub(crate) ws_routing: Mutex<crate::application::websocket_route::WsRouting>,
     pub(crate) service_workers: Mutex<Vec<crate::application::worker::Worker>>,
     pub(crate) credentials: crate::application::credentials::CredentialsState,
+    pub(crate) har: crate::application::har::HarState,
 }
 
 /// Something that happened in a context (Playwright's `context.on(...)`).
@@ -132,6 +133,7 @@ impl BrowserContext {
             .ok_or_else(|| Error::Serde("createBrowserContext returned no id".into()))?
             .to_owned();
         let (changed, _) = watch::channel(0);
+        let har_state = crate::application::har::recording(&options.record_har);
         let inner = Arc::new(ContextInner {
             id: id.clone(),
             options: Arc::new(options),
@@ -150,6 +152,7 @@ impl BrowserContext {
             ws_routing: Mutex::new(Default::default()),
             service_workers: Mutex::new(Vec::new()),
             credentials: Mutex::new(Default::default()),
+            har: har_state,
         });
         shared.contexts.lock().unwrap().insert(id, inner.clone());
         if inner.options.service_workers == crate::domain::emulation::ServiceWorkers::Block {
@@ -276,6 +279,7 @@ impl BrowserContext {
         if self.inner.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
+        let _ = self.flush_har().await;
         let shared = &self.inner.shared;
         let _ = shared
             .cdp

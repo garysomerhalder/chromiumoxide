@@ -41,6 +41,7 @@ pub use application::expect::{
 pub use application::filechooser::{FileChooser, FileChooserWaiter};
 pub use application::frame::Frame;
 pub use application::handle::JsHandle;
+pub use application::har::RouteFromHar;
 pub use application::input::{Keyboard, Mouse, Touchscreen};
 pub use application::locator::{
     BoundingBox, Click, ClickOptions, Locator, SelectOption, WaitFor, WaitForState,
@@ -68,6 +69,7 @@ pub use domain::emulation::{
 };
 pub use domain::error::{Error, Result};
 pub use domain::frame::LifecycleEvent as WaitUntil;
+pub use domain::har::{Har, HarNotFound, RecordHar};
 pub use domain::input::MouseButton;
 pub use domain::launch::BrowserKind;
 pub use domain::network::{HeaderEntry, RequestSizes, Timing};

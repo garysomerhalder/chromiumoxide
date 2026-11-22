@@ -187,6 +187,12 @@ impl Browser {
             services: self.inner.services.clone(),
             headless: self.inner.headless,
             font_platform: FontPlatform::from_user_agent(ua),
+            browser_version: version
+                .get("product")
+                .and_then(Value::as_str)
+                .and_then(|p| p.split('/').nth(1))
+                .unwrap_or_default()
+                .to_owned(),
             contexts: Mutex::new(HashMap::new()),
             downloads_dir: Mutex::new(None),
             downloads: Mutex::new(HashMap::new()),
@@ -278,6 +284,17 @@ impl Browser {
         if self.inner.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
+        let live: Vec<_> = self
+            .inner
+            .shared
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|s| s.contexts.lock().unwrap().values().cloned().collect())
+            .unwrap_or_default();
+        for inner in live {
+            let _ = BrowserContext { inner }.flush_har().await;
+        }
         let shared = self.inner.shared.lock().unwrap().take();
         if let Some(shared) = shared {
             let contexts: Vec<_> = shared
@@ -364,7 +381,10 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
                     match Page::initialize(shared, &context, session_id, target_id.clone(), opener)
                         .await
                     {
-                        Ok(page) => context.add_page(page),
+                        Ok(page) => {
+                            context.har_track_page(&page);
+                            context.add_page(page)
+                        }
                         Err(e) => context.page_failed(&target_id, &e),
                     }
                 });

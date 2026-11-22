@@ -11,6 +11,7 @@ pub mod expect;
 pub mod filechooser;
 pub mod frame;
 pub mod handle;
+pub mod har;
 pub mod input;
 pub mod js;
 pub mod locator;

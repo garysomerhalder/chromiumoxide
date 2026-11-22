@@ -13,6 +13,8 @@ pub(crate) struct Shared {
     pub(crate) services: Services,
     pub(crate) headless: bool,
     pub(crate) font_platform: FontPlatform,
+    /// e.g. `157.0.8103.78`.
+    pub(crate) browser_version: String,
     /// Contexts created through this connection, by `browserContextId`.
     pub(crate) contexts: Mutex<HashMap<String, Arc<ContextInner>>>,
     /// Where downloads are saved (created on first use).
