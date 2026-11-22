@@ -360,18 +360,29 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
                     }
                 });
             }
-            _ if kind == "worker"
-                && let Some(page) = event
+            _ if kind == "worker" && event.session_id.is_some() => {
+                let page = event
                     .session_id
                     .as_deref()
-                    .and_then(|s| shared.page_by_session(s)) =>
-            {
-                let url = info
-                    .get("url")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_owned();
-                page.attach_worker(session_id, url);
+                    .and_then(|s| shared.page_by_session(s));
+                match page {
+                    Some(page) => {
+                        let url = info
+                            .get("url")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned();
+                        page.attach_worker(session_id, url);
+                    }
+                    None => {
+                        let fut = shared.cdp.call(
+                            Some(&session_id),
+                            "Runtime.runIfWaitingForDebugger",
+                            json!({}),
+                        );
+                        tokio::spawn(fut);
+                    }
+                }
             }
             _ => {
                 let fut = shared.cdp.call(
