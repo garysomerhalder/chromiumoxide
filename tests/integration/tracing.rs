@@ -191,3 +191,88 @@ async fn trace_chunks_groups_and_har() {
     let _ = std::fs::remove_dir_all(&dir);
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn trace_dom_snapshots_and_resources() {
+    let server = TestServer::start().await;
+    server.route(
+        "/p.html",
+        "text/html",
+        "<link rel=stylesheet href=\"/s.css\"><button>B</button>",
+        0,
+    );
+    server.route("/s.css", "text/css", "button { color: red; }", 0);
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    context
+        .tracing()
+        .start(TracingStart {
+            snapshots: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+    page.click("button").await.unwrap();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let dir = std::env::temp_dir().join(format!("cox-snap-trace-{}", std::process::id()));
+    let path = dir.join("trace.zip");
+    context.tracing().stop(Some(&path)).await.unwrap();
+
+    let files = unzip(&path);
+    // Layout recorded from Playwright 1.63 with snapshots on.
+    let css = "resources/3fe33742618fac5890c933e5782ff6af7a2f181a.css";
+    assert_eq!(file(&files, css), b"button { color: red; }");
+    let network: Vec<Value> = String::from_utf8(file(&files, "trace.network"))
+        .unwrap()
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    let entry = network
+        .iter()
+        .find(|e| e["snapshot"]["request"]["url"] == server.url("/s.css"))
+        .expect("stylesheet entry");
+    assert_eq!(entry["snapshot"]["response"]["content"]["_file"], css);
+    assert_eq!(
+        entry["snapshot"]["response"]["content"]["mimeType"],
+        "text/css"
+    );
+
+    let events: Vec<Value> = String::from_utf8(file(&files, "trace.trace"))
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    let click = events
+        .iter()
+        .find(|e| e["type"] == "before" && e["method"] == "click")
+        .unwrap();
+    let snaps: Vec<&Value> = events
+        .iter()
+        .filter(|e| e["type"] == "frame-snapshot" && e["snapshot"]["callId"] == click["callId"])
+        .collect();
+    let phases: Vec<&str> = snaps
+        .iter()
+        .map(|e| e["snapshot"]["phase"].as_str().unwrap())
+        .collect();
+    assert_eq!(phases, ["before", "after"]);
+    let after = &snaps[1]["snapshot"];
+    assert_eq!(after["frameUrl"], server.url("/p.html"));
+    assert_eq!(after["isMainFrame"], true);
+    assert_eq!(
+        after["viewport"],
+        serde_json::json!({"width": 1280, "height": 720})
+    );
+    assert_eq!(
+        after["html"][3],
+        serde_json::json!(["BODY", {}, ["BUTTON", {}, "B"]])
+    );
+    assert!(after["frameId"].as_str().unwrap().starts_with("frame@"));
+    let _ = std::fs::remove_dir_all(dir);
+    browser.close().await.unwrap();
+}

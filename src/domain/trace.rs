@@ -75,6 +75,11 @@ pub fn zip_stored(files: &[(&str, Vec<u8>)]) -> Vec<u8> {
     out
 }
 
+/// SHA-1 as lower-case hex (trace resource names).
+pub fn sha1_hex(data: &[u8]) -> String {
+    unimplemented!()
+}
+
 /// The first event of a trace chunk.
 pub fn context_options_event(
     browser: &str,
@@ -134,6 +139,22 @@ pub fn action_title(method: &str, params: &serde_json::Value, locator: Option<&s
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn sha1_matches_known_vectors() {
+        assert_eq!(sha1_hex(b""), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
+        assert_eq!(sha1_hex(b"abc"), "a9993e364706816aba3e25717850c26c9cd0d89d");
+        assert_eq!(
+            sha1_hex(b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+            "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
+        );
+        // Playwright 1.63 named this stylesheet resources/3fe3...181a.css.
+        assert_eq!(
+            sha1_hex(b"button { color: red; }"),
+            "3fe33742618fac5890c933e5782ff6af7a2f181a"
+        );
+        assert_eq!(sha1_hex(&vec![b'a'; 1000]).len(), 40);
+    }
+
     #[test]
     fn action_titles_like_playwright() {
         let p = serde_json::json!({"value": "a\nb", "key": "Enter", "text": "hi"});
