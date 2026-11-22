@@ -883,3 +883,47 @@ async fn bind_options_register_the_browser() {
     assert!(listed.iter().all(|b| b.endpoint != endpoint), "{listed:?}");
     browser.close().await.unwrap();
 }
+
+/// `selectors.register(name, script, { contentScript })`: engines run in the
+/// page's main world (they see page globals) unless `contentScript: true`.
+#[tokio::test]
+async fn selector_engines_main_world_unless_content_script() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    // Picks the elements named by the page's own `window.pick`.
+    let engine = "({ query(root) { return window.pick ? root.querySelector(window.pick) : null; },\
+        queryAll(root) { return window.pick ? [...root.querySelectorAll(window.pick)] : []; } })";
+    let selectors = browser.selectors();
+    selectors.register("pagepick", engine).unwrap();
+    selectors
+        .register_with(
+            "isolatedpick",
+            engine,
+            chromiumoxide::SelectorRegisterOptions {
+                content_script: true,
+            },
+        )
+        .unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<b>x</b><button onclick='window.clicked=1'>y</button><script>window.pick='button'</script>",
+    )
+    .await
+    .unwrap();
+    let main = page.locator("pagepick=any");
+    assert_eq!(main.count().await.unwrap(), 1);
+    assert_eq!(main.text_content().await.unwrap().as_deref(), Some("y"));
+    main.click().await.unwrap();
+    assert_eq!(page.evaluate::<i64>("window.clicked").await.unwrap(), 1);
+    chromiumoxide::expect(&main)
+        .to_have_text("y")
+        .await
+        .unwrap();
+    // Chained under a built-in engine, too.
+    assert_eq!(
+        page.locator("body >> pagepick=any").count().await.unwrap(),
+        1
+    );
+    // A content script runs isolated: no page globals.
+    assert_eq!(page.locator("isolatedpick=any").count().await.unwrap(), 0);
+    browser.close().await.unwrap();
+}
