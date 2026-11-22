@@ -5,6 +5,7 @@ mod context;
 mod launch;
 mod page;
 mod pixel_parity;
+mod protocol;
 mod screenshot;
 mod server;
 
