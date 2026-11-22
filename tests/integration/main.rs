@@ -3,6 +3,7 @@
 
 mod context;
 mod launch;
+mod navigation;
 mod page;
 mod pixel_parity;
 mod protocol;
