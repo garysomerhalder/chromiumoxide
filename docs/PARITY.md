@@ -28,18 +28,18 @@ Firefox and WebKit are out of scope (this is a CDP client).
 ## 1. Chrome DevTools Protocol
 
 Target: latest `browser_protocol.pdl` + `js_protocol.pdl` from
-ChromeDevTools/devtools-protocol, tested against current stable Chrome,
+ChromeDevTools/devtools-protocol (vendored: tag **v0.0.1751165**, deprecated items included), tested against current stable Chrome,
 Chrome for Testing and chrome-headless-shell.
 
 | Item | Milestone | Status |
 |---|---|---|
-| Protocol regenerated from latest PDL (all domains, experimental included) | M2 | ⬜ |
-| Generator handles every PDL construct in the latest files | M2 | ⬜ |
-| Revision recorded in `chromiumoxide_cdp::revision` | M2 | ⬜ |
+| Protocol regenerated from latest PDL (all domains, experimental included) | M2 | ✅ |
+| Generator handles every PDL construct in the latest files | M2 | ✅ |
+| Revision recorded in `chromiumoxide_cdp::revision` | M2 | ✅ |
 | Pipe transport (`--remote-debugging-pipe`) | M1 | ✅ |
 | WebSocket transport (`connect_over_cdp`) | M1 | ✅ |
 | Flat sessions (`Target.setAutoAttach { flatten: true }`) | M1 | ✅ |
-| Raw/typed CDP escape hatch (`CDPSession.send`) | M3 | ⬜ |
+| Raw/typed CDP escape hatch (`page.execute(cmd)`, `page.events::<E>()`, `browser.execute`, `page.send(method, json)`) | M2 | ✅ |
 | Tested against chrome-headless-shell | M1 | ✅ |
 | Tested against Chromium / Chrome for Testing (new headless) | M1 | ✅ |
 
@@ -706,7 +706,7 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `send` | M3 | ⬜ |
+| `send` | M2 | ✅ |
 | `detach` | M3 | ⬜ |
 
 ### APIRequestContext
