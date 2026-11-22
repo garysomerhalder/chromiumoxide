@@ -101,7 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `show_actions` annotations.
 - Milestone 3/4 follow-ups: HTML5 drag-and-drop and `locator.drop()`,
   out-of-process (cross-site) iframes, an `ignoreHTTPSErrors` test.
-- Milestone 6 (in progress):
+- Milestone 6 (completed):
   - `page.clock()` / `context.clock()` (Playwright's fake timers).
   - `page.coverage()`: JS and CSS coverage.
   - `context.request()`, `page.request()`, `Chromium::request_context()`:
