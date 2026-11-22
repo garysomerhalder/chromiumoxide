@@ -350,3 +350,69 @@ async fn close_can_run_before_unload() {
     assert!(page.is_closed());
     browser.close().await.unwrap();
 }
+
+/// A server that resets its first `resets` connections (after reading the
+/// request), then answers `ok`.
+async fn flaky_server(resets: usize) -> String {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!(
+        "http://127.0.0.1:{}/",
+        listener.local_addr().unwrap().port()
+    );
+    tokio::spawn(async move {
+        let mut n = 0;
+        while let Ok((mut sock, _)) = listener.accept().await {
+            let mut buf = [0u8; 4096];
+            let _ = sock.read(&mut buf).await;
+            n += 1;
+            if n <= resets {
+                let _ = sock.set_linger(Some(Duration::ZERO));
+                drop(sock);
+                continue;
+            }
+            let _ = sock
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                .await;
+        }
+    });
+    url
+}
+
+/// Playwright's `maxRetries`: ECONNRESET is retried with backoff; then
+/// "Failed after N attempt(s)".
+#[tokio::test]
+async fn request_max_retries() {
+    let rq = Chromium::request_context(chromiumoxide::ApiRequestOptions::default())
+        .await
+        .unwrap();
+    let url = flaky_server(2).await;
+    let r = rq.get(&url).max_retries(2).await.unwrap();
+    assert_eq!(r.text().await.unwrap(), "ok");
+    let url = flaky_server(2).await;
+    let err = rq.get(&url).max_retries(1).await.unwrap_err().to_string();
+    assert!(err.contains("Failed after 2 attempt(s)"), "{err}");
+    let url = flaky_server(1).await;
+    let err = rq.get(&url).await.unwrap_err().to_string();
+    assert!(!err.contains("attempt"), "{err}");
+
+    // route.fetch({ maxRetries }) fetches like Playwright, through the
+    // context's request.
+    let (browser, page) = page_with("<p>x</p>").await;
+    let target = flaky_server(1).await;
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let s = seen.clone();
+    page.route("**/flaky", move |route: chromiumoxide::Route| {
+        let (s, target) = (s.clone(), target.clone());
+        async move {
+            let r = route.fetch().url(&target).max_retries(1).await;
+            *s.lock().unwrap() = Some(r.as_ref().map(|r| r.status()).map_err(|e| e.to_string()));
+            let _ = route.fulfill().body("done").await;
+        }
+    })
+    .await
+    .unwrap();
+    page.goto("http://flaky.test/flaky").await.unwrap();
+    assert_eq!(*seen.lock().unwrap(), Some(Ok(200)));
+    browser.close().await.unwrap();
+}
