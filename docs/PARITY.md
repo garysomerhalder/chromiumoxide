@@ -98,10 +98,10 @@ Chrome for Testing and chrome-headless-shell.
 | `type` png/jpeg, `quality` | M1 | ✅ |
 | `omitBackground` | M1 | ✅ |
 | `scale: css / device` | M1 | ✅ |
-| `animations: disabled` | M3 | 🟡 wired through Playwright's script, not yet tested |
-| `caret: initial` | M3 | 🟡 wired through Playwright's script, not yet tested |
-| `style` | M3 | 🟡 wired through Playwright's script, not yet tested |
-| `mask`, `maskColor` | M3 | ⬜ |
+| `animations: disabled` | M3 | ✅ |
+| `caret: initial` | M3 | ✅ |
+| `style` | M3 | ✅ |
+| `mask`, `maskColor` | M3 | ✅ |
 | Element / locator screenshots | M3 | ✅ |
 | Pixel parity with Playwright proven by test | M1 | ✅ |
 
@@ -131,15 +131,15 @@ Chrome for Testing and chrome-headless-shell.
 | locator `toHaveId` | M5 | ✅ |
 | locator `toHaveJSProperty` | M5 | ✅ |
 | locator `toHaveRole` | M5 | ✅ |
-| locator `toHaveScreenshot` | M5 | ⬜ |
+| locator `toHaveScreenshot` | M5 | ✅ PNG snapshots (no webp) |
 | locator `toHaveText` | M5 | ✅ |
 | locator `toHaveValue` | M5 | ✅ |
 | locator `toHaveValues` | M5 | ✅ |
-| locator `toMatchAriaSnapshot` | M5 | ⬜ |
-| page `toHaveScreenshot` | M5 | ⬜ |
+| locator `toMatchAriaSnapshot` | M5 | ✅ (+ template files) |
+| page `toHaveScreenshot` | M5 | ✅ PNG snapshots (no webp) |
 | page `toHaveTitle` | M5 | ✅ |
 | page `toHaveURL` | M5 | ✅ |
-| page `toMatchAriaSnapshot` | M5 | ⬜ |
+| page `toMatchAriaSnapshot` | M5 | ✅ (+ template files) |
 | response `toBeOK` | M5 | ✅ |
 
 ## 6. Playwright API, member by member
@@ -307,7 +307,7 @@ Chrome for Testing and chrome-headless-shell.
 | `localStorage` | M4 | ✅ |
 | `mouse` | M3 | ✅ |
 | `request` | M6 | ⬜ |
-| `screencast` | M5 | ⬜ |
+| `screencast` | M5 | 🟡 start/stop (frames, `.webm`), overlays, chapters; `showActions` not yet |
 | `sessionStorage` | M4 | ✅ |
 | `touchscreen` | M3 | ✅ |
 

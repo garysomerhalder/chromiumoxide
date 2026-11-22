@@ -92,6 +92,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `locator.aria_snapshot_json()`; `Chromium::launch_persistent_context`;
     request/response `headers_array`/`header_value`, `post_data_json`.
   - `add_script_tag` fails fast when the page's CSP blocks it.
+  - Screenshot `mask` / `mask_color`; `locator.screenshot_builder()`.
+  - `expect(page | locator).to_have_screenshot(path)` with Playwright's
+    pixelmatch comparison, update modes and messages (PNG snapshots).
+  - `expect(page | locator).to_match_aria_snapshot(template)` and
+    `to_match_aria_snapshot_file(path)`.
+  - `page.screencast()`: frames, `.webm` recording, overlays and chapters.
 
 ### Fixed
 
