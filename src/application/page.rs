@@ -77,6 +77,11 @@ pub(crate) struct PageInner {
     pub(crate) response_waiters: Mutex<HashMap<String, futures::channel::oneshot::Sender<Value>>>,
     pub(crate) ws_routes: crate::application::websocket_route::WsRoutes,
     pub(crate) video: Mutex<Option<crate::application::video::Video>>,
+    pub(crate) navigation_timeout: Mutex<Option<Duration>>,
+    pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
+    pub(crate) locator_handlers: Mutex<Vec<crate::application::extras::LocatorHandler>>,
+    /// A locator handler is running (actions inside it skip the handlers).
+    pub(crate) handling_locator: AtomicBool,
 }
 
 impl PartialEq for Page {
@@ -161,7 +166,13 @@ impl Page {
             changed,
             closed: AtomicBool::new(false),
             owns_context: AtomicBool::new(false),
-            default_timeout: Mutex::new(DEFAULT_TIMEOUT),
+            default_timeout: Mutex::new(
+                context
+                    .default_timeout
+                    .lock()
+                    .unwrap()
+                    .unwrap_or(DEFAULT_TIMEOUT),
+            ),
             bindings: Mutex::new(HashMap::new()),
             keyboard: tokio::sync::Mutex::new(crate::domain::input::Keyboard::new(
                 shared.font_platform == crate::domain::emulation::FontPlatform::Mac,
@@ -178,6 +189,10 @@ impl Page {
             response_waiters: Mutex::new(HashMap::new()),
             ws_routes: Mutex::new(Vec::new()),
             video: Mutex::new(None),
+            navigation_timeout: Mutex::new(*context.navigation_timeout.lock().unwrap()),
+            media: Mutex::new(Default::default()),
+            locator_handlers: Mutex::new(Vec::new()),
+            handling_locator: AtomicBool::new(false),
             intercepting: AtomicBool::new(
                 options.http_credentials.is_some() || !context.routes.lock().unwrap().is_empty(),
             ),
@@ -880,7 +895,9 @@ impl<'a> IntoFuture for Goto<'a> {
 
     fn into_future(self) -> Self::IntoFuture {
         async move {
-            let timeout = self.timeout.unwrap_or_else(|| self.page.default_timeout());
+            let timeout = self
+                .timeout
+                .unwrap_or_else(|| self.page.navigation_timeout());
             self.page
                 .traced(
                     "Frame",

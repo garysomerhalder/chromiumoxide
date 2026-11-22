@@ -8,6 +8,7 @@ pub mod discovery;
 pub mod download;
 pub mod events;
 pub mod expect;
+pub mod extras;
 pub mod filechooser;
 pub mod frame;
 pub mod handle;

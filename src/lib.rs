@@ -38,6 +38,7 @@ pub use application::events::{ConsoleMessage, Dialog, EventWaiter, PageEvent};
 pub use application::expect::{
     Assertion, Expect, LocatorAssertions, PageAssertions, ResponseAssertions, expect,
 };
+pub use application::extras::{BrowserType, CdpSessionHandle, EmulateMedia, WaitForNavigation};
 pub use application::filechooser::{FileChooser, FileChooserWaiter};
 pub use application::frame::Frame;
 pub use application::handle::JsHandle;

@@ -60,7 +60,7 @@ pub struct Browser {
     inner: Arc<BrowserInner>,
 }
 
-struct BrowserInner {
+pub(crate) struct BrowserInner {
     cdp: Arc<dyn CdpSession>,
     services: Services,
     shared: Mutex<Option<Arc<Shared>>>,
@@ -70,6 +70,8 @@ struct BrowserInner {
     executable: Option<PathBuf>,
     ws_endpoint: Option<String>,
     closed: AtomicBool,
+    /// Session of `browser.startTracing` (`None` inside: the browser session).
+    tracing: Mutex<Option<Option<String>>>,
 }
 
 impl Drop for BrowserInner {
@@ -134,6 +136,7 @@ impl Browser {
                 executable: Some(found.executable),
                 ws_endpoint: launched.ws_endpoint,
                 closed: AtomicBool::new(false),
+                tracing: Mutex::new(None),
             }),
         };
         if let Err(e) = browser.handshake().await {
@@ -161,6 +164,7 @@ impl Browser {
                 executable: None,
                 ws_endpoint,
                 closed: AtomicBool::new(false),
+                tracing: Mutex::new(None),
             }),
         };
         browser.handshake().await?;
@@ -196,6 +200,7 @@ impl Browser {
             contexts: Mutex::new(HashMap::new()),
             downloads_dir: Mutex::new(None),
             downloads: Mutex::new(HashMap::new()),
+            browser: Mutex::new(Arc::downgrade(&self.inner)),
         });
         *self.inner.shared.lock().unwrap() = Some(shared.clone());
         tokio::spawn(target_loop(Arc::downgrade(&shared), events));
@@ -437,6 +442,22 @@ async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
                 tokio::spawn(fut);
             }
         }
+    }
+}
+
+impl Shared {
+    pub(crate) fn browser(&self) -> Option<Browser> {
+        self.browser
+            .lock()
+            .unwrap()
+            .upgrade()
+            .map(|inner| Browser { inner })
+    }
+}
+
+impl Browser {
+    pub(crate) fn tracing_session(&self) -> &Mutex<Option<Option<String>>> {
+        &self.inner.tracing
     }
 }
 

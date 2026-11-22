@@ -421,6 +421,7 @@ impl Locator {
         let mut last = format!("waiting for {self:?}");
         let mut retry = 0usize;
         loop {
+            self.page.run_locator_handlers().await?;
             if retry > 0 {
                 let wait = retry_wait_ms(retry);
                 if clock.now_ms() + wait > deadline {
@@ -1521,5 +1522,324 @@ impl Page {
             frame: None,
             selector: selector.to_owned(),
         }
+    }
+}
+
+// ---- extras: handles, evaluate_all, aria, descriptions --------------------
+
+impl Locator {
+    /// Adopts an element into the main world of its frame; the object id.
+    async fn main_world_object(&self, el: &ElementRef) -> Result<Value> {
+        let node = self
+            .page
+            .send("DOM.describeNode", json!({"objectId": el.object_id}))
+            .await?;
+        let backend = node
+            .pointer("/node/backendNodeId")
+            .cloned()
+            .unwrap_or(Value::Null);
+        let frame = self.scope(self.timeout()).await?.and_then(|(f, _, _)| f);
+        let main = self
+            .page
+            .frame_context(frame.as_deref(), World::Main, self.timeout())
+            .await?;
+        let adopted = self
+            .page
+            .send(
+                "DOM.resolveNode",
+                json!({"backendNodeId": backend, "executionContextId": main}),
+            )
+            .await?;
+        Ok(adopted["object"].clone())
+    }
+
+    /// Every matching element, as main-world remote objects.
+    async fn all_main_world_objects(&self) -> Result<Vec<Value>> {
+        let Some((frame, selector, frame_owner)) = self.scope(self.timeout()).await? else {
+            return Ok(Vec::new());
+        };
+        let list = self
+            .page
+            .injected_call(
+                frame.as_deref(),
+                "(i, selector) => i.querySelectorAll(i.parseSelector(selector), document)",
+                &[json!(selector)],
+                false,
+                self.timeout(),
+            )
+            .await?;
+        let Some(list_id) = list.get("objectId").and_then(Value::as_str) else {
+            return Ok(Vec::new());
+        };
+        let props = self
+            .page
+            .send(
+                "Runtime.getProperties",
+                json!({"objectId": list_id, "ownProperties": true}),
+            )
+            .await?;
+        let mut out = Vec::new();
+        for p in props
+            .get("result")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let is_index = p
+                .get("name")
+                .and_then(Value::as_str)
+                .is_some_and(|n| n.parse::<usize>().is_ok());
+            if let (true, Some(id)) = (
+                is_index,
+                p.pointer("/value/objectId").and_then(Value::as_str),
+            ) {
+                let el = ElementRef {
+                    object_id: id.to_owned(),
+                    frame_owner: frame_owner.clone(),
+                };
+                out.push(self.main_world_object(&el).await?);
+            }
+        }
+        Ok(out)
+    }
+
+    /// `locator.evaluateHandle(fn)`: `fn(element)`, returned as a handle.
+    pub async fn evaluate_handle(
+        &self,
+        function: &str,
+    ) -> Result<crate::application::handle::JsHandle> {
+        let el = self.element("evaluating", self.timeout()).await?;
+        let handle = crate::application::handle::JsHandle::from_remote(
+            &self.page,
+            &self.main_world_object(&el).await?,
+        );
+        handle.evaluate_handle(function).await
+    }
+
+    /// `locator.elementHandle()`: the (single) element.
+    pub async fn element_handle(&self) -> Result<crate::application::handle::JsHandle> {
+        let el = self.element("getting the element", self.timeout()).await?;
+        Ok(crate::application::handle::JsHandle::from_remote(
+            &self.page,
+            &self.main_world_object(&el).await?,
+        ))
+    }
+
+    /// `locator.elementHandles()`: every matching element.
+    pub async fn element_handles(&self) -> Result<Vec<crate::application::handle::JsHandle>> {
+        Ok(self
+            .all_main_world_objects()
+            .await?
+            .iter()
+            .map(|o| crate::application::handle::JsHandle::from_remote(&self.page, o))
+            .collect())
+    }
+
+    /// `locator.evaluateAll(fn)`: `fn(elements)` in the page.
+    pub async fn evaluate_all<T: DeserializeOwned>(&self, function: &str) -> Result<T> {
+        self.evaluate_all_with(function, Value::Null).await
+    }
+
+    /// `locator.evaluateAll(fn, arg)`.
+    pub async fn evaluate_all_with<T: DeserializeOwned, A: Serialize>(
+        &self,
+        function: &str,
+        arg: A,
+    ) -> Result<T> {
+        let objects = self.all_main_world_objects().await?;
+        let source = function.trim().trim_end_matches(';');
+        let declaration = format!(
+            "async function(arg, ...els) {{ const __v = (\n{source}\n); return typeof __v === 'function' ? await __v(els, arg) : __v; }}"
+        );
+        let mut arguments = vec![json!({"value": serde_json::to_value(arg)?})];
+        arguments.extend(objects.iter().map(|o| json!({"objectId": o["objectId"]})));
+        let mut params = json!({"functionDeclaration": declaration, "arguments": arguments,
+                                "returnByValue": true, "awaitPromise": true});
+        match objects.first() {
+            Some(o) => params["objectId"] = o["objectId"].clone(),
+            None => {
+                let frame = self.scope(self.timeout()).await?.and_then(|(f, _, _)| f);
+                params["executionContextId"] = json!(
+                    self.page
+                        .frame_context(frame.as_deref(), World::Main, self.timeout())
+                        .await?
+                );
+            }
+        }
+        let r = self.page.send("Runtime.callFunctionOn", params).await?;
+        let v = crate::application::js::result_value(&r)?;
+        serde_json::from_value(v)
+            .map_err(|e| Error::Evaluation(format!("cannot deserialize result: {e}")))
+    }
+
+    /// `locator.ariaSnapshot()`: the accessibility tree as YAML.
+    pub async fn aria_snapshot(&self) -> Result<String> {
+        let el = self
+            .element("taking an aria snapshot", self.timeout())
+            .await?;
+        let v = self
+            .page
+            .element_call(
+                &el,
+                "(i, node) => i.ariaSnapshot(node, {mode: 'default'})",
+                &[],
+                true,
+            )
+            .await?;
+        Ok(v.as_str().unwrap_or_default().to_owned())
+    }
+
+    /// Playwright's `locator.toString()` (`getByRole('button', { name: 'Go' })`),
+    /// computed by Playwright's own generator in the page.
+    pub async fn to_playwright_string(&self) -> Result<String> {
+        if let Some(d) = self.description() {
+            return Ok(d);
+        }
+        let frame = self.frame.clone();
+        let v = self
+            .page
+            .injected_call(
+                frame.as_deref(),
+                "(i, selector) => i.utils.asLocator('javascript', selector)",
+                &[json!(self.selector)],
+                true,
+                self.timeout(),
+            )
+            .await?;
+        Ok(v.as_str().unwrap_or_default().to_owned())
+    }
+
+    /// `locator.describe(description)`: a description for reports and traces.
+    pub fn describe(&self, description: &str) -> Locator {
+        self.with(format!(
+            "{} >> internal:describe={}",
+            self.selector,
+            serde_json::to_string(description).unwrap_or_default()
+        ))
+    }
+
+    /// `locator.description()`: the description given with `describe`.
+    pub fn description(&self) -> Option<String> {
+        let (_, last) = self.selector.rsplit_once(" >> ")?;
+        let value = last.strip_prefix("internal:describe=")?;
+        serde_json::from_str(value).ok()
+    }
+
+    /// `locator.normalize()`: the same element through Playwright's preferred locator.
+    pub async fn normalize(&self) -> Result<Locator> {
+        let el = self.element("normalizing", self.timeout()).await?;
+        let v = self
+            .page
+            .element_call(
+                &el,
+                "(i, node) => i.generateSelectorSimple(node)",
+                &[],
+                true,
+            )
+            .await?;
+        let selector = v
+            .as_str()
+            .ok_or_else(|| Error::Evaluation("no selector generated".into()))?;
+        Ok(Locator::in_frame(
+            &self.page,
+            self.frame.clone(),
+            selector.to_owned(),
+        ))
+    }
+
+    /// `locator.filter({visible})`.
+    pub fn visible(&self, visible: bool) -> Locator {
+        self.with(format!("{} >> visible={visible}", self.selector))
+    }
+
+    /// `locator.getByAltText(text)` inside this locator.
+    pub fn get_by_alt_text(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_alt_text(&text.into(), exact))
+    }
+
+    /// `locator.getByTitle(text)` inside this locator.
+    pub fn get_by_title(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_title(&text.into(), exact))
+    }
+
+    /// `locator.selectText()`.
+    pub async fn select_text(&self) -> Result<()> {
+        let el = self.element("selecting text", self.timeout()).await?;
+        self.page
+            .element_call(&el, "(i, node) => i.selectText(node)", &[], true)
+            .await?;
+        Ok(())
+    }
+
+    /// `locator.type(text)` (deprecated in Playwright: use `press_sequentially`).
+    #[deprecated(note = "use press_sequentially, like Playwright")]
+    pub async fn type_text(&self, text: &str) -> Result<()> {
+        self.press_sequentially(text).await
+    }
+
+    /// `locator.waitForFunction(fn)`: waits until `fn(element)` is truthy.
+    pub async fn wait_for_function(&self, function: &str) -> Result<()> {
+        let timeout = self.timeout();
+        let source = function.to_owned();
+        self.retry("waiting for function", timeout, |_| {
+            let source = source.clone();
+            async move {
+                if self.count().await? == 0 {
+                    return Ok(Attempt::Retry(format!("waiting for {self:?}")));
+                }
+                let v: Value = self.evaluate(&source).await?;
+                let truthy = !matches!(v, Value::Null | Value::Bool(false))
+                    && v != json!(0)
+                    && v != json!("");
+                Ok(if truthy {
+                    Attempt::Done(())
+                } else {
+                    Attempt::Retry("function returned a falsy value".into())
+                })
+            }
+        })
+        .await
+    }
+
+    /// `locator.highlight()`: outlines the matching elements.
+    pub async fn highlight(&self) -> Result<()> {
+        let Some((frame, selector, _)) = self.scope(self.timeout()).await? else {
+            return Ok(());
+        };
+        self.page
+            .injected_call(
+                frame.as_deref(),
+                "(i, selector) => i.setHighlights([{ selector: i.parseSelector(selector) }])",
+                &[json!(selector)],
+                true,
+                self.timeout(),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// `locator.hideHighlight()`.
+    pub async fn hide_highlight(&self) -> Result<()> {
+        self.page.hide_highlight().await
+    }
+}
+
+impl Page {
+    /// `page.ariaSnapshot()`: the accessibility tree of the page as YAML.
+    pub async fn aria_snapshot(&self) -> Result<String> {
+        self.locator("body").aria_snapshot().await
+    }
+
+    /// `page.hideHighlight()`.
+    pub async fn hide_highlight(&self) -> Result<()> {
+        self.injected_call(
+            None,
+            "(i) => i.setHighlights([])",
+            &[],
+            true,
+            self.default_timeout(),
+        )
+        .await?;
+        Ok(())
     }
 }

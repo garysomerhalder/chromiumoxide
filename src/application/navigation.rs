@@ -178,7 +178,9 @@ impl<'a> IntoFuture for Navigation<'a> {
     type IntoFuture = BoxFuture<'a, Self::Output>;
     fn into_future(self) -> Self::IntoFuture {
         async move {
-            let timeout = self.timeout.unwrap_or_else(|| self.page.default_timeout());
+            let timeout = self
+                .timeout
+                .unwrap_or_else(|| self.page.navigation_timeout());
             self.page
                 .run_navigation(self.kind, self.wait_until, timeout)
                 .await
@@ -212,7 +214,9 @@ impl<'a> IntoFuture for WaitForUrl<'a> {
     type IntoFuture = BoxFuture<'a, Result<()>>;
     fn into_future(self) -> Self::IntoFuture {
         async move {
-            let timeout = self.timeout.unwrap_or_else(|| self.page.default_timeout());
+            let timeout = self
+                .timeout
+                .unwrap_or_else(|| self.page.navigation_timeout());
             self.page
                 .run_wait_for_url(&self.matcher, self.wait_until, timeout)
                 .await

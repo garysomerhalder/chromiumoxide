@@ -107,7 +107,7 @@ async fn locator_extras() {
     page.locator("#t").type_text("abc").await.unwrap();
     assert_eq!(page.locator("#t").input_value().await.unwrap(), "abc");
     page.evaluate::<()>(
-        "() => setTimeout(() => document.querySelector('#t').value = 'later', 200)",
+        "() => { setTimeout(() => document.querySelector('#t').value = 'later', 200) }",
     )
     .await
     .unwrap();

@@ -34,6 +34,8 @@ pub(crate) struct ContextInner {
     pub(crate) credentials: crate::application::credentials::CredentialsState,
     pub(crate) har: crate::application::har::HarState,
     pub(crate) tracing: crate::application::tracing::TracingState,
+    pub(crate) default_timeout: Mutex<Option<std::time::Duration>>,
+    pub(crate) navigation_timeout: Mutex<Option<std::time::Duration>>,
 }
 
 /// Something that happened in a context (Playwright's `context.on(...)`).
@@ -155,6 +157,8 @@ impl BrowserContext {
             credentials: Mutex::new(Default::default()),
             har: har_state,
             tracing: Mutex::new(None),
+            default_timeout: Mutex::new(None),
+            navigation_timeout: Mutex::new(None),
         });
         shared.contexts.lock().unwrap().insert(id, inner.clone());
         if inner.options.service_workers == crate::domain::emulation::ServiceWorkers::Block {
