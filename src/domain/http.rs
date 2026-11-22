@@ -141,12 +141,34 @@ pub fn redirect_request(req: &HttpRequest, status: u16, location: &str) -> Optio
     Some(next)
 }
 
+/// The `Cookie` request header for `cookies` (Playwright's
+/// `serializeCookieNameValue`: a nameless cookie is just its value).
+pub fn cookie_header(cookies: &[crate::domain::storage::Cookie]) -> String {
+    cookies
+        .iter()
+        .map(|c| {
+            if c.name.is_empty() {
+                c.value.clone()
+            } else {
+                format!("{}={}", c.name, c.value)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
 /// A `Set-Cookie` header as a cookie for `request_url` (`now_s`: Unix seconds).
 pub fn parse_set_cookie(header: &str, request_url: &str, now_s: f64) -> Option<NewCookie> {
     let url = url::Url::parse(request_url).ok()?;
     let mut parts = header.split(';');
-    let (name, value) = parts.next()?.split_once('=')?;
-    let mut c = NewCookie::new(name.trim(), value.trim());
+    // Playwright 1.65 `parseCookieNameValue`: no `=` means a nameless cookie.
+    let pair = parts.next()?;
+    let (name, value) = pair.split_once('=').unwrap_or(("", pair));
+    let (name, value) = (name.trim(), value.trim());
+    if name.is_empty() && value.is_empty() {
+        return None;
+    }
+    let mut c = NewCookie::new(name, value);
     let mut expires = -1.0;
     let mut max_age = None;
     let mut domain = None;
@@ -163,10 +185,15 @@ pub fn parse_set_cookie(header: &str, request_url: &str, now_s: f64) -> Option<N
                     expires = t;
                 }
             }
-            "max-age" => max_age = v.parse::<f64>().ok(),
+            "max-age" => {
+                let digits = v.strip_prefix('-').unwrap_or(v);
+                if !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) {
+                    max_age = v.parse::<f64>().ok();
+                }
+            }
             "domain" if !v.is_empty() => {
                 let d = v.to_ascii_lowercase();
-                domain = Some(if d.starts_with('.') {
+                domain = Some(if d.starts_with('.') || !d.contains('.') {
                     d
                 } else {
                     format!(".{d}")
@@ -195,7 +222,12 @@ pub fn parse_set_cookie(header: &str, request_url: &str, now_s: f64) -> Option<N
             Some(i) => p[..i].to_owned(),
         }
     };
-    c.domain = Some(domain.unwrap_or_else(|| url.host_str().unwrap_or_default().to_owned()));
+    let host = url.host_str().unwrap_or_default().to_owned();
+    let domain = domain.unwrap_or_else(|| host.clone());
+    if !crate::domain::storage::domain_matches(&host, &domain) {
+        return None;
+    }
+    c.domain = Some(domain);
     c.path = Some(path.unwrap_or_else(default_path));
     c.expires = Some(expires);
     c.secure = Some(secure);
@@ -371,7 +403,40 @@ mod tests {
         )
         .unwrap();
         assert_eq!(c.expires, Some(1_445_412_480.0));
-        assert!(parse_set_cookie("novalue", "http://h/", 0.0).is_none());
+        // Playwright 1.65 (cookieStore.ts): a pair without `=` is a nameless cookie.
+        let c = parse_set_cookie("token", "http://h/", 0.0).unwrap();
+        assert_eq!((c.name.as_str(), c.value.as_str()), ("", "token"));
+        assert!(parse_set_cookie(" ; Path=/", "http://h/", 0.0).is_none());
+        // A dotless Domain stays host-only; Max-Age must be an integer.
+        let c = parse_set_cookie(
+            "a=1; Domain=localhost; Max-Age=1.5",
+            "http://localhost/",
+            0.0,
+        )
+        .unwrap();
+        assert_eq!(
+            (c.domain.as_deref(), c.expires),
+            (Some("localhost"), Some(-1.0))
+        );
+        // A Domain the response host does not belong to drops the cookie.
+        assert!(parse_set_cookie("a=1; Domain=other.test", "http://a.example.com/", 0.0).is_none());
+    }
+
+    #[test]
+    fn cookie_headers_serialize_nameless_cookies_as_their_value() {
+        use crate::domain::storage::{Cookie, SameSite};
+        let c = |name: &str, value: &str| Cookie {
+            name: name.into(),
+            value: value.into(),
+            domain: "h".into(),
+            path: "/".into(),
+            expires: -1.0,
+            http_only: false,
+            secure: false,
+            same_site: SameSite::Lax,
+            partition_key: None,
+        };
+        assert_eq!(cookie_header(&[c("a", "1"), c("", "x")]), "a=1; x");
     }
 
     #[test]

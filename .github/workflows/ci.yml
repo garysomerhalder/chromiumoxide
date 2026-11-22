@@ -68,10 +68,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install Playwright 1.63 and its Chromium builds
+      - name: Install Playwright 1.65.1 and its Chromium builds
         run: |
-          npm install -g playwright@1.63.0
-          npx -y playwright@1.63.0 install --with-deps chromium chromium-headless-shell
+          npm install -g playwright@1.65.1
+          npx -y playwright@1.65.1 install --with-deps chromium chromium-headless-shell ffmpeg
       - name: Integration and pixel-parity tests
         env:
           CHROMIUMOXIDE_REQUIRE_PARITY: "1"

@@ -1,4 +1,4 @@
-// Playwright 1.63 storage script (packages/injected/src/storageScript.ts), Apache-2.0.
+// Playwright 1.65.1 storage script (packages/injected/src/storageScript.ts), Apache-2.0.
 
 var __commonJS = obj => {
   let required = false;
@@ -26,6 +26,9 @@ __export(storageScript_exports, {
   StorageScript: () => StorageScript
 });
 module.exports = __toCommonJS(storageScript_exports);
+
+// packages/isomorphic/istanbulCoverage.ts
+var kCoverageStashPrefix = "__pwCoverage.";
 
 // packages/isomorphic/utilityScriptSerializers.ts
 var kFunctionBindingPrefix = "__pw_fn_";
@@ -69,6 +72,20 @@ function isTypedArray(obj, constructor) {
 function isArrayBuffer(obj) {
   try {
     return obj instanceof ArrayBuffer || Object.prototype.toString.call(obj) === "[object ArrayBuffer]";
+  } catch (error) {
+    return false;
+  }
+}
+function isMap(obj) {
+  try {
+    return obj instanceof Map || Object.prototype.toString.call(obj) === "[object Map]";
+  } catch (error) {
+    return false;
+  }
+}
+function isSet(obj) {
+  try {
+    return obj instanceof Set || Object.prototype.toString.call(obj) === "[object Set]";
   } catch (error) {
     return false;
   }
@@ -153,6 +170,20 @@ function parseEvaluationResultValue(value, handles = [], refs = /* @__PURE__ */ 
       }
       return result;
     }
+    if ("m" in value) {
+      const result = /* @__PURE__ */ new Map();
+      refs.set(value.id, result);
+      for (const { k, v } of value.m)
+        result.set(parseEvaluationResultValue(k, handles, refs), parseEvaluationResultValue(v, handles, refs));
+      return result;
+    }
+    if ("s" in value) {
+      const result = /* @__PURE__ */ new Set();
+      refs.set(value.id, result);
+      for (const item of value.s)
+        result.add(parseEvaluationResultValue(item, handles, refs));
+      return result;
+    }
     if ("h" in value)
       return handles[value.h];
     if ("fn" in value) {
@@ -166,8 +197,8 @@ function parseEvaluationResultValue(value, handles = [], refs = /* @__PURE__ */ 
   }
   return value;
 }
-function serializeAsCallArgument(value, handleSerializer) {
-  return serialize(value, handleSerializer, { visited: /* @__PURE__ */ new Map(), lastId: 0 });
+function serializeAsCallArgument(value, handleSerializer, options = {}) {
+  return serialize(value, handleSerializer, { visited: /* @__PURE__ */ new Map(), lastId: 0, extendedSerialization: options.extendedSerialization });
 }
 function serialize(value, handleSerializer, visitorInfo) {
   if (value && typeof value === "object") {
@@ -234,6 +265,36 @@ ${value.stack}`;
   const id = visitorInfo.visited.get(value);
   if (id)
     return { ref: id };
+  if (visitorInfo.extendedSerialization) {
+    if (isMap(value)) {
+      const m = [];
+      const id2 = ++visitorInfo.lastId;
+      visitorInfo.visited.set(value, id2);
+      const iterator = value.entries();
+      const next = (/* @__PURE__ */ new Map()).entries().next;
+      while (true) {
+        const entry = next.call(iterator);
+        if (entry.done)
+          break;
+        m.push({ k: serialize(entry.value[0], handleSerializer, visitorInfo), v: serialize(entry.value[1], handleSerializer, visitorInfo) });
+      }
+      return { m, id: id2 };
+    }
+    if (isSet(value)) {
+      const s = [];
+      const id2 = ++visitorInfo.lastId;
+      visitorInfo.visited.set(value, id2);
+      const iterator = value.values();
+      const next = (/* @__PURE__ */ new Set()).values().next;
+      while (true) {
+        const entry = next.call(iterator);
+        if (entry.done)
+          break;
+        s.push(serialize(entry.value, handleSerializer, visitorInfo));
+      }
+      return { s, id: id2 };
+    }
+  }
   if (Array.isArray(value)) {
     const a = [];
     const id2 = ++visitorInfo.lastId;
@@ -306,11 +367,11 @@ var StorageScript = class {
   _trySerialize(value) {
     let trivial = true;
     const encoded = serializeAsCallArgument(value, (v) => {
-      const isTrivial = this._isPlainObject(v) || Array.isArray(v) || typeof v === "string" || typeof v === "number" || typeof v === "boolean" || Object.is(v, null);
+      const isTrivial = this._isPlainObject(v) || Array.isArray(v) || typeof v === "string" || typeof v === "number" && Number.isFinite(v) || typeof v === "boolean" || Object.is(v, null);
       if (!isTrivial)
         trivial = false;
       return { fallThrough: v };
-    });
+    }, { extendedSerialization: true });
     if (trivial)
       return { trivial: value };
     return { encoded };
@@ -332,14 +393,14 @@ var StorageScript = class {
           const record = {};
           if (objectStore.keyPath === null) {
             const { encoded: encoded2, trivial: trivial2 } = this._trySerialize(key);
-            if (trivial2)
+            if (encoded2 === void 0)
               record.key = trivial2;
             else
               record.keyEncoded = encoded2;
           }
           const value = await this._idbRequestToPromise(objectStore.get(key));
           const { encoded, trivial } = this._trySerialize(value);
-          if (trivial)
+          if (encoded === void 0)
             record.value = trivial;
           else
             record.valueEncoded = encoded;
@@ -390,7 +451,7 @@ var StorageScript = class {
     return collect(root, "");
   }
   async collect(record) {
-    const localStorage = Object.keys(this._global.localStorage).map((name) => ({ name, value: this._global.localStorage.getItem(name) }));
+    const localStorage = Object.keys(this._global.localStorage).filter((name) => !name.startsWith(kCoverageStashPrefix)).map((name) => ({ name, value: this._global.localStorage.getItem(name) }));
     const result = { localStorage };
     if (record.indexedDB) {
       try {
@@ -428,11 +489,10 @@ var StorageScript = class {
       await Promise.all(dbInfo.stores.map(async (store) => {
         const objectStore = transaction.objectStore(store.name);
         await Promise.all(store.records.map(async (record) => {
-          var _a, _b;
           await this._idbRequestToPromise(
             objectStore.add(
-              (_a = record.value) != null ? _a : parseEvaluationResultValue(record.valueEncoded),
-              (_b = record.key) != null ? _b : parseEvaluationResultValue(record.keyEncoded)
+              "value" in record ? record.value : parseEvaluationResultValue(record.valueEncoded),
+              "key" in record ? record.key : parseEvaluationResultValue(record.keyEncoded)
             )
           );
         }));

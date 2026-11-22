@@ -58,6 +58,8 @@ pub struct Frame {
     pub url: String,
     pub name: String,
     pub loader_id: Option<String>,
+    /// Playwright's `frame.seq` (prefixes 'ai' aria refs in child frames).
+    pub seq: u64,
     fired: BTreeSet<LifecycleEvent>,
     inflight: BTreeSet<String>,
     document_request: Option<String>,
@@ -84,6 +86,7 @@ pub struct FrameTree {
     frames: BTreeMap<String, Frame>,
     main: Option<String>,
     generation: u64,
+    next_seq: u64,
 }
 
 impl FrameTree {
@@ -103,6 +106,17 @@ impl FrameTree {
         self.frames.values()
     }
 
+    /// The frame with Playwright sequence number `seq`.
+    pub fn frame_by_seq(&self, seq: u64) -> Option<&Frame> {
+        self.frames.values().find(|f| f.seq == seq)
+    }
+
+    fn allocate_seq(&mut self) -> u64 {
+        let seq = self.next_seq;
+        self.next_seq += 1;
+        seq
+    }
+
     pub fn children(&self, id: &str) -> Vec<&Frame> {
         self.frames
             .values()
@@ -118,6 +132,7 @@ impl FrameTree {
         let mut frame = Frame {
             id: id.to_owned(),
             parent_id: parent_id.map(str::to_owned),
+            seq: self.allocate_seq(),
             ..Frame::default()
         };
         frame.fired.insert(LifecycleEvent::Commit);
@@ -144,7 +159,20 @@ impl FrameTree {
         for child in children {
             self.detached(&child);
         }
+        let reseq = self.main.as_deref() == Some(id)
+            && self
+                .frames
+                .get(id)
+                .is_some_and(|f| !f.url.is_empty() && f.url != "about:blank");
+        let seq = if reseq {
+            Some(self.allocate_seq())
+        } else {
+            None
+        };
         if let Some(f) = self.frames.get_mut(id) {
+            if let Some(seq) = seq {
+                f.seq = seq;
+            }
             f.url = url.to_owned();
             f.name = name.to_owned();
             f.loader_id = Some(loader_id.to_owned());
@@ -387,6 +415,24 @@ mod tests {
         {
             t.network_idle_timer_fired(&frame_id, generation);
         }
+    }
+
+    /// Playwright's `frame.seq`: allocated per page in attach order (it
+    /// prefixes 'ai' aria refs, `f1e3`); the main frame gets a new one when it
+    /// commits a new document after a real (non-`about:blank`) URL.
+    #[test]
+    fn frames_get_playwright_sequence_numbers() {
+        let mut t = tree_with_main();
+        t.attached("C", Some("M"));
+        assert_eq!(t.frame("M").unwrap().seq, 0);
+        assert_eq!(t.frame("C").unwrap().seq, 1);
+        t.navigated("M", None, "https://a.test/", "", "L1");
+        assert_eq!(t.frame("M").unwrap().seq, 0);
+        t.navigated("M", None, "https://b.test/", "", "L2");
+        assert_eq!(t.frame("M").unwrap().seq, 2);
+        t.attached("D", Some("M"));
+        assert_eq!(t.frame("D").unwrap().seq, 3);
+        assert_eq!(t.frame_by_seq(3).unwrap().id, "D");
     }
 
     #[test]

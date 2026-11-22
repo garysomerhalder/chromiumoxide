@@ -363,6 +363,7 @@ impl BrowserContext {
         Ok(CdpSessionHandle {
             cdp: page.inner.shared.cdp.clone(),
             session_id: Some(page.inner.session_id.clone()),
+            clock: page.inner.shared.services.clock.clone(),
         })
     }
 }
@@ -372,6 +373,7 @@ impl BrowserContext {
 pub struct CdpSessionHandle {
     cdp: Arc<dyn CdpSession>,
     session_id: Option<String>,
+    clock: Arc<dyn crate::ports::Clock>,
 }
 
 impl std::fmt::Debug for CdpSessionHandle {
@@ -388,6 +390,23 @@ impl CdpSessionHandle {
         self.cdp
             .call(self.session_id.as_deref(), method, params)
             .await
+    }
+
+    /// `session.send(method, params, { timeout })` (Playwright 1.65): fails
+    /// with [`Error::Timeout`](crate::Error::Timeout) when no reply comes in time.
+    pub async fn send_with_timeout(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value> {
+        crate::application::wait::with_timeout(
+            &*self.clock,
+            timeout,
+            &format!("cdpSession.send({method})"),
+            self.send(method, params),
+        )
+        .await
     }
 
     /// Protocol events of this session from now on.
@@ -444,6 +463,7 @@ impl Browser {
         Ok(CdpSessionHandle {
             cdp: self.cdp(),
             session_id: None,
+            clock: self.clock(),
         })
     }
 

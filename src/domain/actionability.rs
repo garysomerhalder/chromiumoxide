@@ -12,6 +12,8 @@ pub enum ElementState {
     Checked,
     Unchecked,
     Stable,
+    /// Not `inert` (Playwright 1.65).
+    NonInert,
 }
 
 impl ElementState {
@@ -25,6 +27,7 @@ impl ElementState {
             ElementState::Checked => "checked",
             ElementState::Unchecked => "unchecked",
             ElementState::Stable => "stable",
+            ElementState::NonInert => "non-inert",
         }
     }
 }
@@ -47,11 +50,11 @@ pub fn required_states(action: Action) -> &'static [ElementState] {
     use ElementState::*;
     match action {
         Action::Click | Action::DblClick | Action::Tap | Action::Check => {
-            &[Visible, Enabled, Stable]
+            &[Visible, Enabled, Stable, NonInert]
         }
         Action::Hover | Action::ScrollIntoView => &[Visible, Stable],
-        Action::Fill => &[Visible, Enabled, Editable],
-        Action::SelectOption => &[Visible, Enabled],
+        Action::Fill => &[Visible, Enabled, Editable, NonInert],
+        Action::SelectOption => &[Visible, Enabled, NonInert],
     }
 }
 
@@ -135,16 +138,22 @@ mod tests {
 
     #[test]
     fn states_per_action_follow_playwright() {
-        assert_eq!(required_states(Action::Click), &[Visible, Enabled, Stable]);
-        assert_eq!(
-            required_states(Action::DblClick),
-            &[Visible, Enabled, Stable]
-        );
-        assert_eq!(required_states(Action::Tap), &[Visible, Enabled, Stable]);
-        assert_eq!(required_states(Action::Check), &[Visible, Enabled, Stable]);
+        // Playwright 1.65: actions that wait for "enabled" also wait for "non-inert".
+        let pointer = &[Visible, Enabled, Stable, NonInert];
+        assert_eq!(required_states(Action::Click), pointer);
+        assert_eq!(required_states(Action::DblClick), pointer);
+        assert_eq!(required_states(Action::Tap), pointer);
+        assert_eq!(required_states(Action::Check), pointer);
         assert_eq!(required_states(Action::Hover), &[Visible, Stable]);
-        assert_eq!(required_states(Action::Fill), &[Visible, Enabled, Editable]);
-        assert_eq!(required_states(Action::SelectOption), &[Visible, Enabled]);
+        assert_eq!(
+            required_states(Action::Fill),
+            &[Visible, Enabled, Editable, NonInert]
+        );
+        assert_eq!(
+            required_states(Action::SelectOption),
+            &[Visible, Enabled, NonInert]
+        );
+        assert_eq!(NonInert.name(), "non-inert");
         assert_eq!(required_states(Action::ScrollIntoView), &[Visible, Stable]);
     }
 

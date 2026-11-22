@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.0] (in progress)
 
+### Milestone 7: Playwright 1.65.1
+
+- Vendored Playwright scripts updated to playwright-core 1.65.1; elements in
+  hidden iframes are hidden, actions wait for non-inert elements, unrendered
+  text leaves accessible names.
+- `aria_snapshot_with(AriaSnapshotOptions { mode, depth, boxes })` (page and
+  locator; 'ai' mode merges iframes), `Page::get_by_ref`, `Locator::within`,
+  `content_with(ContentOptions { include_shadow })`.
+- `page.webmcp()` / `frame.webmcp()` (`tools`, `call_tool`).
+- `ApiRequestContext::{cookies, cookies_for, add_cookies, clear_cookies,
+  clear_cookies_matching}`; RFC 6265 cookie matching; nameless cookies.
+- `LaunchOptions::proxy`, `ContextOptions::proxy`; proxy credentials answer
+  only proxy challenges.
+- `RecordVideo::fps`, `ScreencastOptions::fps`, VP9 videos (VP8 fallback),
+  `ShowActions::style(ActionStyle)`, resting action cursor.
+- `NewCredential::sign_count`, `Credential::sign_count`.
+- `CdpSessionHandle::send_with_timeout`.
+- Default launch switches, device descriptors and trace format from 1.65.1
+  (the 1.63 switch list is kept in the tests as `PRESET_1_63`).
+- CI runs the pixel-parity test against Playwright 1.65.1.
+
 ### Breaking Changes
 
 - Rewrite as DDD + hexagonal architecture with a Playwright-like API

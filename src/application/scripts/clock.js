@@ -1,4 +1,4 @@
-// Playwright 1.63 clock (packages/injected/src/clock.ts), Apache-2.0.
+// Playwright 1.65.1 clock (packages/injected/src/clock.ts), Apache-2.0.
 
 var __commonJS = obj => {
   let required = false;
@@ -162,9 +162,14 @@ var ClockController = class {
       callAt,
       promise: void 0,
       cancel: this._embedder.setTimeout(() => {
+        this._replayLogOnce();
+        if (this._currentRealTimeTimer !== realTimeTimer)
+          return;
         this._syncRealTime();
         realTimeTimer.promise = this._runTo(this._now.ticks).catch((e) => console.error(e));
         void realTimeTimer.promise.then(() => {
+          if (this._currentRealTimeTimer !== realTimeTimer)
+            return;
           this._currentRealTimeTimer = void 0;
           if (this._realTime)
             this._updateRealTimeTimer();
@@ -192,7 +197,7 @@ var ClockController = class {
   async fastForward(ticks) {
     this._replayLogOnce();
     await this._runWithDisabledRealTimeSync(async () => {
-      await this._innerFastForwardTo(shiftTicks(this._now.ticks, ticks | 0));
+      await this._innerFastForwardTo(shiftTicks(this._now.ticks, Math.trunc(ticks)));
     });
   }
   async _innerFastForwardTo(to) {
@@ -270,7 +275,7 @@ var ClockController = class {
         } catch (e) {
           error2 = e;
         }
-        await new Promise((f) => this._embedder.setTimeout(f));
+        await new Promise((f) => this._embedder.postTask(f));
         return { timerFound: true, error: error2 };
       }
       let args = timer.args;
@@ -284,7 +289,7 @@ var ClockController = class {
       } catch (e) {
         error = e;
       }
-      await new Promise((f) => this._embedder.setTimeout(f));
+      await new Promise((f) => this._embedder.postTask(f));
       return { timerFound: true, error };
     } finally {
       this._duringTick = false;
@@ -318,10 +323,11 @@ var ClockController = class {
     }
   }
   _replayLogOnce() {
+    var _a, _b;
     if (!this._log.length)
       return;
     let lastLogTime = -1;
-    let isPaused = false;
+    let isPaused = !this._realTime;
     for (const { type, time, param } of this._log) {
       if (!isPaused && lastLogTime !== -1)
         this._advanceNow(shiftTicks(this._now.ticks, time - lastLogTime));
@@ -347,6 +353,10 @@ var ClockController = class {
       this._innerResume();
     } else {
       this._realTime = void 0;
+      if (!((_a = this._currentRealTimeTimer) == null ? void 0 : _a.promise)) {
+        (_b = this._currentRealTimeTimer) == null ? void 0 : _b.cancel();
+        this._currentRealTimeTimer = void 0;
+      }
     }
     this._log.length = 0;
   }
@@ -409,22 +419,51 @@ function createIntl(clock, NativeIntl) {
   const ClockIntl = {};
   for (const key of Object.getOwnPropertyNames(NativeIntl))
     ClockIntl[key] = NativeIntl[key];
+  const nativePrototype = NativeIntl.DateTimeFormat.prototype;
+  const nativeFormat = Object.getOwnPropertyDescriptor(nativePrototype, "format").get;
+  const nativeFormatToParts = nativePrototype.formatToParts;
   ClockIntl.DateTimeFormat = function(...args) {
-    const realFormatter = new NativeIntl.DateTimeFormat(...args);
-    const formatter = {
-      formatRange: realFormatter.formatRange.bind(realFormatter),
-      formatRangeToParts: realFormatter.formatRangeToParts.bind(realFormatter),
-      resolvedOptions: realFormatter.resolvedOptions.bind(realFormatter),
-      format: (date) => realFormatter.format(date || clock.now()),
-      formatToParts: (date) => realFormatter.formatToParts(date || clock.now())
-    };
-    return formatter;
+    var _a;
+    return Reflect.construct(NativeIntl.DateTimeFormat, args, (_a = new.target) != null ? _a : ClockIntl.DateTimeFormat);
   };
-  ClockIntl.DateTimeFormat.prototype = Object.create(
-    NativeIntl.DateTimeFormat.prototype
-  );
+  ClockIntl.DateTimeFormat.prototype = Object.create(nativePrototype, {
+    ...Object.getOwnPropertyDescriptors(nativePrototype),
+    constructor: { value: ClockIntl.DateTimeFormat, writable: true, configurable: true },
+    format: {
+      get() {
+        const format = nativeFormat.call(this);
+        return (date) => format(date === void 0 ? clock.now() : date);
+      },
+      configurable: true
+    },
+    formatToParts: {
+      value(date) {
+        return nativeFormatToParts.call(this, date === void 0 ? clock.now() : date);
+      },
+      writable: true,
+      configurable: true
+    }
+  });
   ClockIntl.DateTimeFormat.supportedLocalesOf = NativeIntl.DateTimeFormat.supportedLocalesOf;
   return ClockIntl;
+}
+function createTemporal(clock, NativeTemporal) {
+  const NativeNow = NativeTemporal.Now;
+  const instant = () => NativeTemporal.Instant.fromEpochMilliseconds(Math.trunc(clock.now()));
+  const zonedDateTimeISO = (timeZone) => instant().toZonedDateTimeISO(timeZone != null ? timeZone : NativeNow.timeZoneId());
+  const overrides = {
+    instant,
+    zonedDateTimeISO,
+    plainDateTimeISO: (timeZone) => zonedDateTimeISO(timeZone).toPlainDateTime(),
+    plainDateISO: (timeZone) => zonedDateTimeISO(timeZone).toPlainDate(),
+    plainTimeISO: (timeZone) => zonedDateTimeISO(timeZone).toPlainTime()
+  };
+  const ClockNow = Object.create(Object.getPrototypeOf(NativeNow), Object.getOwnPropertyDescriptors(NativeNow));
+  for (const [key, value] of Object.entries(overrides))
+    Object.defineProperty(ClockNow, key, { value, writable: true, enumerable: false, configurable: true });
+  const ClockTemporal = Object.create(Object.getPrototypeOf(NativeTemporal), Object.getOwnPropertyDescriptors(NativeTemporal));
+  Object.defineProperty(ClockTemporal, "Now", { value: ClockNow, writable: true, enumerable: false, configurable: true });
+  return ClockTemporal;
 }
 function compareTimers(a, b) {
   if (a.callAt < b.callAt)
@@ -459,7 +498,8 @@ function platformOriginals(globalObject) {
     Date: globalObject.Date,
     performance: globalObject.performance,
     Intl: globalObject.Intl,
-    AbortSignal: globalObject.AbortSignal
+    AbortSignal: globalObject.AbortSignal,
+    Temporal: globalObject.Temporal
   };
   const bound = { ...raw };
   for (const key of Object.keys(bound)) {
@@ -529,7 +569,8 @@ function createApi(clock, originals, browserName) {
     Intl: originals.Intl ? createIntl(clock, originals.Intl) : void 0,
     Date: createDate(clock, originals.Date),
     performance: originals.performance ? fakePerformance(clock, originals.performance) : void 0,
-    AbortSignal: originals.AbortSignal ? fakeAbortSignal(clock, originals.AbortSignal, browserName) : void 0
+    AbortSignal: originals.AbortSignal ? fakeAbortSignal(clock, originals.AbortSignal, browserName) : void 0,
+    Temporal: originals.Temporal ? createTemporal(clock, originals.Temporal) : void 0
   };
 }
 function getClearHandler(type) {
@@ -589,6 +630,8 @@ function fakeAbortSignal(clock, abortSignal, browserName) {
 }
 function createClock(globalObject, config = {}) {
   const originals = platformOriginals(globalObject);
+  const tasks = [];
+  let channel;
   const embedder = {
     dateNow: () => originals.raw.Date.now(),
     performanceNow: () => Math.ceil(originals.raw.performance.now()),
@@ -599,6 +642,14 @@ function createClock(globalObject, config = {}) {
     setInterval: (task, delay) => {
       const intervalId = originals.bound.setInterval(task, delay);
       return () => originals.bound.clearInterval(intervalId);
+    },
+    postTask: (task) => {
+      if (!channel) {
+        channel = new globalObject.MessageChannel();
+        channel.port1.onmessage = () => tasks.shift()();
+      }
+      tasks.push(task);
+      channel.port2.postMessage(void 0);
     }
   };
   const clock = new ClockController(embedder);
@@ -613,12 +664,16 @@ function install(globalObject, config = {}) {
   const { clock, api, originals } = createClock(globalObject, config);
   const toFake = ((_b = config.toFake) == null ? void 0 : _b.length) ? config.toFake : Object.keys(originals);
   for (const method of toFake) {
+    if (method === "Temporal" && !api.Temporal)
+      continue;
     if (method === "Date") {
       globalObject.Date = mirrorDateProperties(api.Date, globalObject.Date);
     } else if (method === "Intl") {
       globalObject.Intl = api[method];
     } else if (method === "AbortSignal") {
       globalObject.AbortSignal = api[method];
+    } else if (method === "Temporal") {
+      globalObject.Temporal = api[method];
     } else if (method === "performance") {
       globalObject.performance = api[method];
       const kEventTimeStamp = /* @__PURE__ */ Symbol("playwrightEventTimeStamp");

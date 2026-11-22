@@ -2,8 +2,9 @@
 
 use serde_json::json;
 
-/// The trace format version written (Playwright 1.63 writes 9).
-pub const TRACE_VERSION: u32 = 9;
+/// The trace format version written (Playwright 1.65 writes 10: no `stepId`,
+/// which chromiumoxide never wrote).
+pub const TRACE_VERSION: u32 = 10;
 
 /// CRC-32 (IEEE), as ZIP uses.
 pub fn crc32(data: &[u8]) -> u32 {
@@ -135,8 +136,8 @@ pub fn context_options_event(
         "type": "context-options",
         "origin": "library",
         "browserName": browser,
-        "playwrightVersion": "1.63.0",
-        "options": {"noDefaultViewport": false, "viewport": {"width": width, "height": height}},
+        "playwrightVersion": "1.65.1",
+        "options": {"viewport": {"width": width, "height": height}},
         "platform": platform,
         "wallTime": wall_time,
         "monotonicTime": monotonic_time,
@@ -249,9 +250,15 @@ mod tests {
         );
         let v: serde_json::Value = serde_json::from_str(&e).unwrap();
         assert_eq!(v["type"], "context-options");
-        assert_eq!(v["version"], TRACE_VERSION);
+        // Recorded from Playwright 1.65.1: trace format 10, options without
+        // `noDefaultViewport`.
+        assert_eq!(v["version"], 10);
+        assert_eq!(v["playwrightVersion"], "1.65.1");
+        assert_eq!(
+            v["options"],
+            serde_json::json!({"viewport": {"width": 1280, "height": 720}})
+        );
         assert_eq!(v["browserName"], "chromium");
-        assert_eq!(v["options"]["viewport"]["width"], 1280);
         assert_eq!(v["title"], "t");
     }
 }

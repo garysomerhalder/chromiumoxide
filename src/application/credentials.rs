@@ -24,6 +24,8 @@ pub struct Credential {
     pub private_key: String,
     /// SPKI public key, when known.
     pub public_key: Option<String>,
+    /// The signature counter (Playwright 1.64): advanced by each sign-in.
+    pub sign_count: u32,
 }
 
 /// Options for `credentials.create()`.
@@ -34,6 +36,8 @@ pub struct NewCredential {
     pub user_handle: Option<String>,
     pub private_key: Option<String>,
     pub public_key: Option<String>,
+    /// Initial signature counter (default 0).
+    pub sign_count: Option<u32>,
 }
 
 impl NewCredential {
@@ -89,7 +93,7 @@ fn add_params(authenticator: &str, c: &Credential) -> Value {
             "rpId": c.rp_id,
             "privateKey": url_to_std(&c.private_key),
             "userHandle": url_to_std(&c.user_handle),
-            "signCount": 0,
+            "signCount": c.sign_count,
         }
     })
 }
@@ -243,6 +247,7 @@ impl Credentials {
             user_handle: options.user_handle.unwrap_or_else(|| random_url(16)),
             private_key,
             public_key,
+            sign_count: options.sign_count.unwrap_or(0),
         };
         self.context
             .credentials
@@ -274,15 +279,19 @@ impl Credentials {
             {
                 let s = |k: &str| c.get(k).and_then(Value::as_str).unwrap_or_default();
                 let id = std_to_url(s("credentialId"));
+                let sign_count = c.get("signCount").and_then(Value::as_u64).unwrap_or(0) as u32;
                 let mut st = self.context.credentials.lock().unwrap();
-                if !st.registry.iter().any(|r| r.id == id) {
-                    st.registry.push(Credential {
+                match st.registry.iter_mut().find(|r| r.id == id) {
+                    // The authenticator counts sign-ins; keep the highest seen.
+                    Some(known) => known.sign_count = known.sign_count.max(sign_count),
+                    None => st.registry.push(Credential {
                         id,
                         rp_id: s("rpId").to_owned(),
                         user_handle: std_to_url(s("userHandle")),
                         private_key: std_to_url(s("privateKey")),
                         public_key: None,
-                    });
+                        sign_count,
+                    }),
                 }
             }
         }

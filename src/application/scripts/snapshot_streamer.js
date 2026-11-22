@@ -1,4 +1,4 @@
-// Playwright 1.63 frame snapshot streamer (packages/playwright-core/src/server/trace/recorder/snapshotterInjected.ts), Apache-2.0.
+// Playwright 1.65.1 frame snapshot streamer (packages/playwright-core/src/server/trace/recorder/snapshotterInjected.ts), Apache-2.0.
 function frameSnapshotStreamer(snapshotStreamer, removeNoScript) {
   if (window[snapshotStreamer])
     return;
@@ -43,6 +43,9 @@ function frameSnapshotStreamer(snapshotStreamer, removeNoScript) {
       this._modifiedStyleSheets = /* @__PURE__ */ new Set();
       this._readingStyleSheet = false;
       this._targetGeneration = 0;
+      this._nativeShadowRoot = window.ShadowRoot;
+      this._nativeFirstChild = Object.getOwnPropertyDescriptor(window.Node.prototype, "firstChild").get;
+      this._nativeNextSibling = Object.getOwnPropertyDescriptor(window.Node.prototype, "nextSibling").get;
       const invalidateCSSGroupingRule = (rule) => {
         if (rule.parentStyleSheet)
           this._invalidateStyleSheet(rule.parentStyleSheet);
@@ -96,21 +99,25 @@ function frameSnapshotStreamer(snapshotStreamer, removeNoScript) {
         ++this._targetGeneration;
       });
     }
-    _interceptNativeMethod(obj, method, cb) {
-      const native = obj[method];
+    _shadowRoot(element3) {
+      const shadowRoot = element3.shadowRoot;
+      return shadowRoot instanceof this._nativeShadowRoot ? shadowRoot : null;
+    }
+    _interceptNativeMethod(obj, method2, cb) {
+      const native = obj[method2];
       if (!native)
         return;
-      obj[method] = function(...args) {
+      obj[method2] = function(...args) {
         const result2 = native.call(this, ...args);
         cb(this, result2);
         return result2;
       };
     }
-    _interceptNativeAsyncMethod(obj, method, cb) {
-      const native = obj[method];
+    _interceptNativeAsyncMethod(obj, method2, cb) {
+      const native = obj[method2];
       if (!native)
         return;
-      obj[method] = async function(...args) {
+      obj[method2] = async function(...args) {
         const result2 = await native.call(this, ...args);
         cb(this, result2);
         return result2;
@@ -191,11 +198,11 @@ function frameSnapshotStreamer(snapshotStreamer, removeNoScript) {
       const visitNode = (node) => {
         resetCachedData(node);
         if (node.nodeType === Node.ELEMENT_NODE) {
-          const element3 = node;
-          if (element3.shadowRoot)
-            visitNode(element3.shadowRoot);
+          const shadowRoot = this._shadowRoot(node);
+          if (shadowRoot)
+            visitNode(shadowRoot);
         }
-        for (let child = node.firstChild; child; child = child.nextSibling)
+        for (let child = this._nativeFirstChild.call(node); child; child = this._nativeNextSibling.call(child))
           visitNode(child);
       };
       visitNode(document.documentElement);
@@ -400,9 +407,10 @@ function frameSnapshotStreamer(snapshotStreamer, removeNoScript) {
             expectValue(element3.scrollLeft);
             attrs[kScrollLeftAttribute] = "" + element3.scrollLeft;
           }
-          if (element3.shadowRoot) {
+          const shadowRoot = this._shadowRoot(element3);
+          if (shadowRoot) {
             ++shadowDomNesting;
-            visitChild(element3.shadowRoot);
+            visitChild(shadowRoot);
             --shadowDomNesting;
           }
           if (element3.__playwright_target__ === this._targetGeneration) {
@@ -415,7 +423,7 @@ function frameSnapshotStreamer(snapshotStreamer, removeNoScript) {
           this._fakeBase.setAttribute("href", document.baseURI);
           visitChild(this._fakeBase);
         }
-        for (let child = node.firstChild; child; child = child.nextSibling)
+        for (let child = this._nativeFirstChild.call(node); child; child = this._nativeNextSibling.call(child))
           visitChild(child);
         if (nodeName === "HEAD")
           --headNesting;

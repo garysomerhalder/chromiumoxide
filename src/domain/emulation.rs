@@ -101,6 +101,8 @@ pub struct ContextOptions {
     pub offline: bool,
     pub extra_http_headers: BTreeMap<String, String>,
     pub http_credentials: Option<HttpCredentials>,
+    /// A proxy for this context (Playwright's context `proxy`).
+    pub proxy: Option<crate::domain::launch::Proxy>,
     pub java_script_enabled: bool,
     pub bypass_csp: bool,
     pub ignore_https_errors: bool,
@@ -155,6 +157,7 @@ impl Default for ContextOptions {
             service_workers: ServiceWorkers::Allow,
             record_har: None,
             record_video: None,
+            proxy: None,
         }
     }
 }
@@ -209,6 +212,9 @@ impl ContextOptions {
         }
         if self.viewport.is_none() && self.is_mobile {
             return fail(r#""isMobile" option is not supported with null "viewport""#);
+        }
+        if let Some(v) = &self.record_video {
+            crate::domain::video::validate_fps("recordVideo.fps", v.fps).map_err(InvalidOptions)?;
         }
         if let Some(g) = &self.geolocation {
             if !(-180.0..=180.0).contains(&g.longitude) {

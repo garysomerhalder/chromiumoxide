@@ -125,6 +125,7 @@ impl crate::ports::VideoEncoder for NullVideo {
         _output: &Path,
         _width: u32,
         _height: u32,
+        _fps: u32,
     ) -> futures::future::BoxFuture<'static, io::Result<Box<dyn crate::ports::VideoSink>>> {
         Box::pin(async { Ok(Box::new(NullSink) as Box<dyn crate::ports::VideoSink>) })
     }

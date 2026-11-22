@@ -19,11 +19,11 @@ use crate::application::services::Services;
 use crate::domain::emulation::HttpCredentials;
 use crate::domain::error::{Error, Result};
 use crate::domain::http::{
-    HttpRequest, HttpResponse, MultipartValue, append_params, form_urlencode, multipart_body,
-    multipart_boundary, parse_set_cookie, redirect_request, status_error,
+    HttpRequest, HttpResponse, MultipartValue, append_params, cookie_header, form_urlencode,
+    multipart_body, multipart_boundary, parse_set_cookie, redirect_request, status_error,
 };
 use crate::domain::network::HeaderEntry;
-use crate::domain::storage::{Cookie, NewCookie, StorageState, filter_cookies};
+use crate::domain::storage::{ClearCookies, Cookie, NewCookie, StorageState, filter_cookies};
 use crate::domain::url_matcher::resolve_url;
 
 const CLOSED: &str = "Target page, context or browser has been closed";
@@ -294,7 +294,7 @@ impl ApiRequestContext {
         ua
     }
 
-    async fn cookies_for(&self, url: &str) -> Result<Vec<Cookie>> {
+    async fn cookies_for_url(&self, url: &str) -> Result<Vec<Cookie>> {
         let now = self.inner.services.clock.wall_ms() / 1000.0;
         let alive = |c: &Cookie| c.expires < 0.0 || c.expires > now;
         match &self.inner.jar {
@@ -307,6 +307,60 @@ impl ApiRequestContext {
             }
             Jar::Context(_) => match self.context() {
                 Some(ctx) => ctx.cookies_for(&[url]).await,
+                None => Err(Error::Request(CLOSED.into())),
+            },
+        }
+    }
+
+    /// `request.cookies()`: every cookie (Playwright 1.64).
+    pub async fn cookies(&self) -> Result<Vec<Cookie>> {
+        self.cookies_for(&[]).await
+    }
+
+    /// `request.cookies(urls)`: the cookies sent to any of `urls`.
+    pub async fn cookies_for(&self, urls: &[&str]) -> Result<Vec<Cookie>> {
+        match &self.inner.jar {
+            Jar::Own(c) => Ok(filter_cookies(c.lock().unwrap().clone(), urls)),
+            Jar::Context(_) => match self.context() {
+                Some(ctx) => ctx.cookies_for(urls).await,
+                None => Err(Error::Request(CLOSED.into())),
+            },
+        }
+    }
+
+    /// `request.addCookies(cookies)`; a context's request adds them to the
+    /// browser context.
+    pub async fn add_cookies(&self, cookies: &[NewCookie]) -> Result<()> {
+        match &self.inner.jar {
+            Jar::Own(_) => {
+                let resolved = cookies
+                    .iter()
+                    .map(NewCookie::resolve)
+                    .collect::<std::result::Result<Vec<_>, String>>()
+                    .map_err(Error::InvalidArgument)?;
+                self.store_cookies(resolved).await
+            }
+            Jar::Context(_) => match self.context() {
+                Some(ctx) => ctx.add_cookies(cookies).await,
+                None => Err(Error::Request(CLOSED.into())),
+            },
+        }
+    }
+
+    /// `request.clearCookies()`.
+    pub async fn clear_cookies(&self) -> Result<()> {
+        self.clear_cookies_matching(ClearCookies::default()).await
+    }
+
+    /// `request.clearCookies({name, domain, path})`: only matching cookies.
+    pub async fn clear_cookies_matching(&self, filter: ClearCookies) -> Result<()> {
+        match &self.inner.jar {
+            Jar::Own(c) => {
+                c.lock().unwrap().retain(|cookie| !filter.matches(cookie));
+                Ok(())
+            }
+            Jar::Context(_) => match self.context() {
+                Some(ctx) => ctx.clear_cookies_matching(filter).await,
                 None => Err(Error::Request(CLOSED.into())),
             },
         }
@@ -475,14 +529,10 @@ impl ApiRequestContext {
         let response = loop {
             let mut send = req.clone();
             if !has(&send.headers, "cookie") {
-                let cookies = self.cookies_for(&send.url).await?;
+                let cookies = self.cookies_for_url(&send.url).await?;
                 if !cookies.is_empty() {
-                    let header = cookies
-                        .iter()
-                        .map(|c| format!("{}={}", c.name, c.value))
-                        .collect::<Vec<_>>()
-                        .join("; ");
-                    send.headers.push(("cookie".into(), header));
+                    send.headers
+                        .push(("cookie".into(), cookie_header(&cookies)));
                 }
             }
             if let Some(call) = call {

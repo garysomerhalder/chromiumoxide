@@ -16,6 +16,8 @@ pub struct InitContext<'a> {
     /// From `Browser.getWindowForTarget`.
     pub window_id: Option<i64>,
     pub utility_world: &'a str,
+    /// A proxy with credentials applies (Fetch must answer its challenges).
+    pub proxy_auth: bool,
 }
 
 /// The ordered `(method, params)` list, excluding `Page.getFrameTree` and the
@@ -45,7 +47,7 @@ pub fn page_init_commands(c: &InitContext<'_>) -> Vec<(&'static str, Value)> {
             json!({"offline": true, "latency": 0, "downloadThroughput": -1, "uploadThroughput": -1}),
         ));
     }
-    if o.http_credentials.is_some() {
+    if o.http_credentials.is_some() || c.proxy_auth {
         out.push(("Network.setCacheDisabled", json!({"cacheDisabled": true})));
         out.push((
             "Fetch.enable",
@@ -205,6 +207,7 @@ mod tests {
             font_platform: FontPlatform::Linux,
             window_id: Some(1),
             utility_world: WORLD,
+            proxy_auth: false,
         });
         let want: Vec<(&str, Value)> = vec![
             ("Page.enable", json!({})),
@@ -274,6 +277,7 @@ mod tests {
             font_platform: FontPlatform::Linux,
             window_id: None,
             utility_world: WORLD,
+            proxy_auth: false,
         });
         let methods: Vec<_> = got.iter().map(|(m, _)| *m).collect();
         assert!(!methods.contains(&"Fetch.enable"));
@@ -308,6 +312,7 @@ mod tests {
             font_platform: FontPlatform::Linux,
             window_id: Some(1),
             utility_world: WORLD,
+            proxy_auth: false,
         });
         let methods: Vec<_> = got.iter().map(|(m, _)| *m).collect();
         assert!(!methods.contains(&"Page.setFontFamilies"));
@@ -336,6 +341,7 @@ mod tests {
             font_platform: FontPlatform::Linux,
             window_id: None,
             utility_world: WORLD,
+            proxy_auth: false,
         });
         let find = |m: &str| got.iter().find(|(x, _)| *x == m).map(|(_, p)| p.clone());
         assert_eq!(

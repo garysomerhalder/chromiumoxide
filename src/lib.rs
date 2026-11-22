@@ -30,6 +30,7 @@ pub use chromiumoxide_fetcher as fetcher;
 
 pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::aria::AriaAssertion;
+pub use application::aria_snapshot::{AriaSnapshotMode, AriaSnapshotOptions};
 pub use application::browser::{Browser, LaunchOptions};
 pub use application::clock::Clock;
 pub use application::context::{BrowserContext, ContextEvent, PageWaiter, WebError};
@@ -44,7 +45,7 @@ pub use application::expect::{
 };
 pub use application::extras::{BrowserType, CdpSessionHandle, EmulateMedia, WaitForNavigation};
 pub use application::filechooser::{FileChooser, FileChooserWaiter};
-pub use application::frame::Frame;
+pub use application::frame::{ContentOptions, Frame};
 pub use application::handle::JsHandle;
 pub use application::har::RouteFromHar;
 pub use application::input::{Keyboard, Mouse, Touchscreen};
@@ -63,7 +64,8 @@ pub use application::route::{
     Abort, Continue, FetchResponse, Fulfill, Route, RouteFetch, RouteRegistration,
 };
 pub use application::screencast::{
-    ActionTitlePosition, Overlay, Screencast, ScreencastFrame, ScreencastOptions, ShowActions,
+    ActionStyle, ActionTitlePosition, Overlay, Screencast, ScreencastFrame, ScreencastOptions,
+    ShowActions,
 };
 pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
@@ -73,6 +75,7 @@ pub use application::snapshot::{ScreenshotAssertion, UpdateSnapshots};
 pub use application::storage::{StorageStateOptions, WebStorage};
 pub use application::tracing::{Tracing, TracingStart};
 pub use application::video::Video;
+pub use application::webmcp::WebMcp;
 pub use application::websocket::{WebSocket, WebSocketEvent, WsPayload};
 pub use application::websocket_route::{WebSocketRoute, WebSocketServer};
 pub use application::worker::Worker;
@@ -90,7 +93,7 @@ pub use domain::frame::LifecycleEvent as WaitUntil;
 pub use domain::har::{Har, HarNotFound, RecordHar};
 pub use domain::http::MultipartValue;
 pub use domain::input::MouseButton;
-pub use domain::launch::BrowserKind;
+pub use domain::launch::{BrowserKind, Proxy};
 pub use domain::network::{HeaderEntry, RequestSizes, Timing};
 pub use domain::pdf::{Margin as PdfMargin, PdfOptions};
 pub use domain::screenshot::{
@@ -102,6 +105,7 @@ pub use domain::storage::{
 };
 pub use domain::url_matcher::UrlMatcher;
 pub use domain::video::RecordVideo;
+pub use domain::webmcp::{WebMcpAnnotations, WebMcpTool};
 pub use ports::Channel;
 
 /// A launched browser serving clients (Playwright's `BrowserServer`).

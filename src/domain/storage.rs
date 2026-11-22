@@ -218,7 +218,43 @@ impl NewCookie {
 }
 
 fn is_local_hostname(host: &str) -> bool {
-    host == "localhost" || host.ends_with(".localhost")
+    host == "localhost"
+        || host.ends_with(".localhost")
+        || host == "[::1]"
+        || host.strip_prefix("127.").is_some_and(|rest| {
+            let parts: Vec<&str> = rest.split('.').collect();
+            parts.len() == 3
+                && parts
+                    .iter()
+                    .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+        })
+}
+
+/// RFC 6265 domain matching (Playwright 1.65's `domainMatches`): a
+/// host-only cookie matches its host alone.
+pub fn domain_matches(hostname: &str, cookie_domain: &str) -> bool {
+    hostname == cookie_domain
+        || (cookie_domain.starts_with('.') && format!(".{hostname}").ends_with(cookie_domain))
+}
+
+/// RFC 6265 path matching (Playwright 1.65's `pathMatches`).
+pub fn path_matches(request_path: &str, cookie_path: &str) -> bool {
+    request_path == cookie_path
+        || (request_path.starts_with(cookie_path)
+            && (cookie_path.ends_with('/')
+                || request_path.as_bytes().get(cookie_path.len()) == Some(&b'/')))
+}
+
+/// Playwright's `cookieMatchesURL`.
+fn cookie_matches_url(c: &Cookie, u: &url::Url) -> bool {
+    let host = match u.host() {
+        Some(url::Host::Ipv6(a)) => format!("[{a}]"),
+        Some(h) => h.to_string(),
+        None => String::new(),
+    };
+    domain_matches(&host, &c.domain)
+        && path_matches(u.path(), &c.path)
+        && !(c.secure && u.scheme() != "https" && !is_local_hostname(&host))
 }
 
 /// Playwright's `filterCookies`: cookies sent to any of `urls` (all when empty).
@@ -232,19 +268,7 @@ pub fn filter_cookies(cookies: Vec<Cookie>, urls: &[&str]) -> Vec<Cookie> {
     }
     cookies
         .into_iter()
-        .filter(|c| {
-            parsed.iter().any(|u| {
-                let host = u.host_str().unwrap_or_default();
-                let domain = if c.domain.starts_with('.') {
-                    c.domain.clone()
-                } else {
-                    format!(".{}", c.domain)
-                };
-                format!(".{host}").ends_with(&domain)
-                    && u.path().starts_with(&c.path)
-                    && !(u.scheme() != "https" && !is_local_hostname(host) && c.secure)
-            })
-        })
+        .filter(|c| parsed.iter().any(|u| cookie_matches_url(c, u)))
         .collect()
 }
 
@@ -426,6 +450,35 @@ mod tests {
         assert_eq!(names(&["http://www.example.com/"]), ["dot"]);
         assert_eq!(names(&["https://example.com/"]), ["dot", "secure"]);
         assert_eq!(names(&["http://other.test/"]), Vec::<String>::new());
+    }
+
+    /// Playwright 1.65 matches cookies to URLs like RFC 6265.
+    #[test]
+    fn filter_cookies_follows_rfc_6265() {
+        let all = vec![
+            cookie("host_only", "example.com", "/", false),
+            cookie("api", "example.com", "/api", false),
+            cookie("foo_dir", "example.com", "/foo/", false),
+            cookie("secure_local", "127.0.0.1", "/", true),
+            cookie("secure_v6", "[::1]", "/", true),
+        ];
+        let names = |url: &str| -> Vec<String> {
+            filter_cookies(all.clone(), &[url])
+                .into_iter()
+                .map(|c| c.name)
+                .collect()
+        };
+        assert_eq!(names("http://www.example.com/api"), Vec::<String>::new());
+        assert_eq!(names("http://example.com/apiv2"), ["host_only"]);
+        assert_eq!(names("http://example.com/api"), ["host_only", "api"]);
+        assert_eq!(names("http://example.com/api/x"), ["host_only", "api"]);
+        assert_eq!(names("http://example.com/foo"), ["host_only"]);
+        assert_eq!(
+            names("http://example.com/foo/bar"),
+            ["host_only", "foo_dir"]
+        );
+        assert_eq!(names("http://127.0.0.1:9/"), ["secure_local"]);
+        assert_eq!(names("http://[::1]:9/"), ["secure_v6"]);
     }
 
     #[test]

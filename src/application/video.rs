@@ -12,7 +12,7 @@ use tokio::sync::watch;
 use crate::application::events::PageEvent;
 use crate::application::page::Page;
 use crate::domain::error::{Error, Result};
-use crate::domain::video::{FrameTimeline, video_size};
+use crate::domain::video::{FPS, FrameTimeline, video_size};
 
 /// A 16x16 white JPEG (made by Chromium), used when a page produced no frame.
 const WHITE_JPEG: &str = "/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAQABADASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAj/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKpAB//Z";
@@ -92,6 +92,7 @@ impl Page {
             return;
         };
         let (w, h) = video_size(self.inner.options.viewport, options.size);
+        let fps = options.fps.unwrap_or(FPS);
         let path = options
             .dir
             .join(format!("{}.webm", self.target_id().to_lowercase()));
@@ -112,16 +113,17 @@ impl Page {
             let encoder = page.inner.shared.services.video.clone();
             let outcome = async {
                 let mut sink = encoder
-                    .start(&path, w, h)
+                    .start(&path, w, h, fps)
                     .await
                     .map_err(|e| format!("cannot start video encoder: {e}"))?;
                 let _ = page
                     .send(
                         "Page.startScreencast",
-                        json!({"format": "jpeg", "quality": 90, "maxWidth": w, "maxHeight": h, "everyNthFrame": 1}),
+                        json!({"format": "jpeg", "quality": 90, "maxWidth": w, "maxHeight": h,
+                               "maxFramesInFlight": if fps > 30 { 10 } else { 5 }}),
                     )
                     .await;
-                let mut timeline = FrameTimeline::new(clock.now_ms());
+                let mut timeline = FrameTimeline::new(clock.now_ms(), fps);
                 let mut last: Option<Vec<u8>> = None;
                 loop {
                     tokio::select! {

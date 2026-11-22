@@ -8,7 +8,7 @@ use futures::FutureExt;
 use futures::future::BoxFuture;
 use tokio::io::AsyncWriteExt;
 
-use crate::domain::video::ffmpeg_args;
+use crate::domain::video::{VideoCodec, ffmpeg_args};
 use crate::ports::video::{VideoEncoder, VideoSink};
 
 /// Finds ffmpeg: `FFMPEG_PATH`, Playwright's browser folders, then `PATH`.
@@ -60,6 +60,26 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
         .find(|p| p.exists())
 }
 
+/// VP9 when this ffmpeg has `libvpx-vp9` (Playwright 1.64's builds), else
+/// VP8 (Playwright 1.63's). Probed once per executable.
+fn codec_of(ffmpeg: &std::path::Path) -> VideoCodec {
+    static PROBED: std::sync::Mutex<Vec<(PathBuf, VideoCodec)>> = std::sync::Mutex::new(Vec::new());
+    if let Some((_, c)) = PROBED.lock().unwrap().iter().find(|(p, _)| p == ffmpeg) {
+        return *c;
+    }
+    let vp9 = std::process::Command::new(ffmpeg)
+        .args(["-hide_banner", "-encoders"])
+        .output()
+        .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("libvpx-vp9"));
+    let codec = if vp9 {
+        VideoCodec::Vp9
+    } else {
+        VideoCodec::Vp8
+    };
+    PROBED.lock().unwrap().push((ffmpeg.to_owned(), codec));
+    codec
+}
+
 /// Encodes with an ffmpeg process.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct FfmpegEncoder;
@@ -75,6 +95,7 @@ impl VideoEncoder for FfmpegEncoder {
         output: &Path,
         width: u32,
         height: u32,
+        fps: u32,
     ) -> BoxFuture<'static, io::Result<Box<dyn VideoSink>>> {
         let output = output.to_owned();
         async move {
@@ -87,8 +108,14 @@ impl VideoEncoder for FfmpegEncoder {
             if let Some(dir) = output.parent() {
                 std::fs::create_dir_all(dir)?;
             }
-            let mut child = tokio::process::Command::new(ffmpeg)
-                .args(ffmpeg_args(width, height, &output.to_string_lossy()))
+            let mut child = tokio::process::Command::new(&ffmpeg)
+                .args(ffmpeg_args(
+                    codec_of(&ffmpeg),
+                    width,
+                    height,
+                    fps,
+                    &output.to_string_lossy(),
+                ))
                 .stdin(Stdio::piped())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())

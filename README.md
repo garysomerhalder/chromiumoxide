@@ -6,7 +6,7 @@ This is a fork of [mattsse/chromiumoxide](https://github.com/mattsse/chromiumoxi
 rewritten for 0.10 as domain-driven, hexagonal code (see
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)). It targets parity with
 Playwright for Chromium; progress is tracked in [`docs/PARITY.md`](docs/PARITY.md).
-Screenshots are tested to be pixel-identical to Playwright 1.63's.
+Screenshots are tested to be pixel-identical to Playwright 1.65.1's.
 
 ## Usage
 

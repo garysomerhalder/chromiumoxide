@@ -23,6 +23,19 @@ use crate::domain::error::{Error, Result};
 use crate::domain::frame::{Effect, FrameTree, LifecycleEvent, NETWORK_IDLE_MS, World};
 use crate::ports::{CdpSession, EventStream, RawEvent};
 
+/// The credentials for proxy challenges: the context's proxy, else the
+/// browser's (`LaunchOptions::proxy`).
+fn proxy_credentials(
+    options: &crate::domain::emulation::ContextOptions,
+    shared: &crate::application::shared::Shared,
+) -> Option<(String, String)> {
+    let p = options.proxy.as_ref().or(shared.launch_proxy.as_ref())?;
+    match (&p.username, &p.password) {
+        (Some(u), p) => Some((u.clone(), p.clone().unwrap_or_default())),
+        _ => None,
+    }
+}
+
 /// Name of the isolated world chromiumoxide uses for its helpers.
 pub const UTILITY_WORLD: &str = "__chromiumoxide_utility_world__";
 
@@ -150,6 +163,7 @@ impl Page {
             font_platform: shared.font_platform,
             window_id,
             utility_world: UTILITY_WORLD,
+            proxy_auth: proxy_credentials(&options, &shared).is_some(),
         });
         let commands: Vec<(&str, Value)> = plan
             .into_iter()
@@ -427,16 +441,26 @@ impl Page {
                         .pointer("/request/url")
                         .and_then(Value::as_str)
                         .unwrap_or_default();
-                    let creds = self.http_credentials();
-                    let creds = creds.as_ref().filter(|c| match &c.origin {
-                        None => true,
-                        Some(o) => origin_of(url).eq_ignore_ascii_case(o),
-                    });
-                    let response = if st.auth_attempts.contains(&request_id) {
+                    // Playwright 1.65: proxy credentials answer only the
+                    // proxy's challenges, site credentials only the site's.
+                    let is_proxy =
+                        p.pointer("/authChallenge/source").and_then(Value::as_str) == Some("Proxy");
+                    let creds = if is_proxy {
+                        proxy_credentials(&self.inner.options, &self.inner.shared)
+                    } else {
+                        self.http_credentials()
+                            .filter(|c| match &c.origin {
+                                None => true,
+                                Some(o) => origin_of(url).eq_ignore_ascii_case(o),
+                            })
+                            .map(|c| (c.username, c.password))
+                    };
+                    let attempt = format!("{}{request_id}", if is_proxy { "proxy:" } else { "" });
+                    let response = if st.auth_attempts.contains(&attempt) {
                         json!({"response": "CancelAuth"})
-                    } else if let Some(c) = creds {
-                        st.auth_attempts.insert(request_id.clone());
-                        json!({"response": "ProvideCredentials", "username": c.username, "password": c.password})
+                    } else if let Some((username, password)) = creds {
+                        st.auth_attempts.insert(attempt);
+                        json!({"response": "ProvideCredentials", "username": username, "password": password})
                     } else {
                         json!({"response": "Default"})
                     };

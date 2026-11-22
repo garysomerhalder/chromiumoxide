@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use crate::application::events::PageEvent;
 use crate::application::page::Page;
 use crate::domain::error::{Error, Result};
-use crate::domain::video::FrameTimeline;
+use crate::domain::video::{FPS, FrameTimeline, action_title_style, validate_fps};
 
 /// One screencast frame.
 #[derive(Debug, Clone)]
@@ -35,6 +35,7 @@ pub struct ScreencastOptions {
     path: Option<PathBuf>,
     size: Option<(u32, u32)>,
     quality: Option<u8>,
+    fps: Option<u32>,
     on_frame: Option<FrameCallback>,
 }
 
@@ -44,6 +45,7 @@ impl std::fmt::Debug for ScreencastOptions {
             .field("path", &self.path)
             .field("size", &self.size)
             .field("quality", &self.quality)
+            .field("fps", &self.fps)
             .finish()
     }
 }
@@ -62,6 +64,11 @@ impl ScreencastOptions {
     /// JPEG quality, 0-100 (default 90).
     pub fn quality(mut self, quality: u8) -> Self {
         self.quality = Some(quality);
+        self
+    }
+    /// Frames per second of the recording (default 25; Playwright 1.64).
+    pub fn fps(mut self, fps: u32) -> Self {
+        self.fps = Some(fps);
         self
     }
     /// Called with every frame.
@@ -96,13 +103,23 @@ impl ActionTitlePosition {
     }
 }
 
+/// CSS for `showActions` decorations (Playwright 1.64's `style`): the
+/// marker at the action point, the element highlight and the action title.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ActionStyle {
+    pub point: Option<String>,
+    pub highlight: Option<String>,
+    pub title: Option<String>,
+}
+
 /// Options of `screencast.showActions()`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ShowActions {
     duration: Duration,
     position: ActionTitlePosition,
-    font_size: u32,
+    font_size: Option<u32>,
     cursor: bool,
+    style: ActionStyle,
 }
 
 impl Default for ShowActions {
@@ -110,8 +127,9 @@ impl Default for ShowActions {
         Self {
             duration: Duration::from_millis(500),
             position: ActionTitlePosition::TopRight,
-            font_size: 24,
+            font_size: None,
             cursor: true,
+            style: ActionStyle::default(),
         }
     }
 }
@@ -126,13 +144,20 @@ impl ShowActions {
         self.position = p;
         self
     }
+    /// Deprecated in Playwright 1.64 for [`ShowActions::style`]: becomes a
+    /// `font-size` declaration of the title style.
     pub fn font_size(mut self, px: u32) -> Self {
-        self.font_size = px;
+        self.font_size = Some(px);
         self
     }
     /// Whether to draw the animated pointer (`cursor: "pointer" | "none"`).
     pub fn cursor(mut self, yes: bool) -> Self {
         self.cursor = yes;
+        self
+    }
+    /// CSS for the point marker, the element highlight and the title.
+    pub fn style(mut self, style: ActionStyle) -> Self {
+        self.style = style;
         self
     }
 }
@@ -146,6 +171,9 @@ pub(crate) struct ScreencastState {
     overlays: Vec<(String, String)>,
     /// The task re-adding overlays after navigations is running.
     watching: bool,
+    /// Where the action cursor rests (Playwright 1.64 keeps it visible at the
+    /// last action point, across navigations).
+    cursor_point: Option<(f64, f64)>,
 }
 
 struct Running {
@@ -196,9 +224,22 @@ impl Page {
         bbox: Option<crate::application::locator::BoundingBox>,
         locator: Option<&str>,
     ) {
-        let Some(o) = self.inner.screencast.lock().unwrap().actions.clone() else {
-            return;
+        let (o, last_cursor) = {
+            let mut st = self.inner.screencast.lock().unwrap();
+            let Some(o) = st.actions.clone() else {
+                return;
+            };
+            let last = st.cursor_point;
+            if o.cursor
+                && let Some(p) = point
+            {
+                st.cursor_point = Some(p);
+            }
+            (o, last)
         };
+        if o.cursor && point.is_some() {
+            self.screencast().watch_navigations();
+        }
         let title = self
             .inner
             .calls
@@ -212,8 +253,13 @@ impl Page {
             "box": bbox.map(|b| json!({"x": b.x, "y": b.y, "width": b.width, "height": b.height})),
             "actionTitle": title,
             "position": o.position.as_str(),
-            "fontSize": o.font_size,
             "cursor": if o.cursor { "pointer" } else { "none" },
+            "style": {
+                "point": o.style.point,
+                "highlight": o.style.highlight,
+                "title": action_title_style(o.font_size, o.style.title.as_deref()),
+            },
+            "lastCursorPoint": last_cursor.map(|(x, y)| json!({"x": x, "y": y})),
         });
         let _ = self
             .injected_call(
@@ -267,6 +313,8 @@ impl Screencast {
 
     /// Starts the screencast (`screencast.start()`).
     pub async fn start(&self, options: ScreencastOptions) -> Result<()> {
+        validate_fps("fps", options.fps).map_err(Error::InvalidArgument)?;
+        let fps = options.fps.unwrap_or(FPS);
         let page = self.page.clone();
         let (stop, stop_rx) = oneshot::channel();
         let (done_tx, done) = oneshot::channel();
@@ -302,7 +350,8 @@ impl Screencast {
             page.send(
                 "Page.startScreencast",
                 json!({"format": "jpeg", "quality": options.quality.unwrap_or(90),
-                       "maxWidth": w, "maxHeight": h, "everyNthFrame": 1}),
+                       "maxWidth": w, "maxHeight": h,
+                       "maxFramesInFlight": if fps > 30 { 10 } else { 5 }}),
             )
             .await?;
         }
@@ -312,7 +361,7 @@ impl Screencast {
                     .shared
                     .services
                     .video
-                    .start(path, w, h)
+                    .start(path, w, h, fps)
                     .await
                     .map_err(|e| Error::Io(format!("cannot start video encoder: {e}")))?,
             ),
@@ -324,7 +373,7 @@ impl Screencast {
             let clock = page.inner.shared.services.clock.clone();
             let mut stop_rx = stop_rx;
             let outcome = async {
-                let mut timeline = FrameTimeline::new(clock.now_ms());
+                let mut timeline = FrameTimeline::new(clock.now_ms(), fps);
                 let mut last: Option<Vec<u8>> = None;
                 loop {
                     tokio::select! {
@@ -437,9 +486,23 @@ impl Screencast {
                 match e {
                     PageEvent::Close => break,
                     PageEvent::DomContentLoaded | PageEvent::Load => {
-                        let overlays = page.inner.screencast.lock().unwrap().overlays.clone();
+                        let (overlays, cursor) = {
+                            let st = page.inner.screencast.lock().unwrap();
+                            (st.overlays.clone(), st.cursor_point)
+                        };
                         for (id, html) in overlays {
                             let _ = Self::add_overlay_in_page(&page, &id, &html).await;
+                        }
+                        if let Some((x, y)) = cursor {
+                            let _ = page
+                                .injected_call(
+                                    None,
+                                    "(i, p) => i.restoreScreencastCursor(p)",
+                                    &[json!({"x": x, "y": y})],
+                                    true,
+                                    page.default_timeout(),
+                                )
+                                .await;
                         }
                     }
                     _ => {}
@@ -548,14 +611,43 @@ impl Screencast {
     /// `screencast.showActions(options)`: annotates input actions (title,
     /// pointer, element box); each action waits for its annotation.
     pub async fn show_actions(&self, options: ShowActions) -> Result<()> {
+        let cursor = options.cursor;
         self.page.inner.screencast.lock().unwrap().actions = Some(options);
+        if !cursor {
+            self.hide_cursor().await;
+        }
         Ok(())
     }
 
     /// `screencast.hideActions()`.
     pub async fn hide_actions(&self) -> Result<()> {
         self.page.inner.screencast.lock().unwrap().actions = None;
+        self.hide_cursor().await;
         Ok(())
+    }
+
+    /// Playwright's `_hideCursor`: forgets and hides the resting cursor.
+    async fn hide_cursor(&self) {
+        let had = self
+            .page
+            .inner
+            .screencast
+            .lock()
+            .unwrap()
+            .cursor_point
+            .take();
+        if had.is_some() {
+            let _ = self
+                .page
+                .injected_call(
+                    None,
+                    "(i) => i.hideScreencastCursor()",
+                    &[],
+                    true,
+                    self.page.default_timeout(),
+                )
+                .await;
+        }
     }
 
     /// `screencast.showOverlays()`.

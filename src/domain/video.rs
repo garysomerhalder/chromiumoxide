@@ -11,6 +11,8 @@ pub struct RecordVideo {
     pub dir: PathBuf,
     /// Frame size; by default the viewport scaled to fit 800x800.
     pub size: Option<(u32, u32)>,
+    /// Frames per second (default 25; Playwright 1.64's `fps`).
+    pub fps: Option<u32>,
 }
 
 impl RecordVideo {
@@ -18,6 +20,7 @@ impl RecordVideo {
         RecordVideo {
             dir: dir.into(),
             size: None,
+            fps: None,
         }
     }
 }
@@ -39,24 +42,25 @@ pub fn video_size(viewport: Option<Viewport>, explicit: Option<(u32, u32)>) -> (
     (w & !1, h & !1)
 }
 
-/// Frames per second of recorded videos.
-pub const FPS: u64 = 25;
-const SLOT_MS: u64 = 1000 / FPS;
+/// Default frames per second of recorded videos (Playwright's `kDefaultFps`).
+pub const FPS: u32 = 25;
 
 /// Maps screencast frames (which arrive only when the page changes) onto a
-/// constant 25 fps timeline: each frame is written when the next one arrives,
-/// repeated for the slots it covered.
+/// constant-rate timeline (`fps`): each frame is written when the next one
+/// arrives, repeated for the slots it covered.
 #[derive(Debug, Clone)]
 pub struct FrameTimeline {
     start_ms: u64,
+    fps: u64,
     written: u64,
     has_frame: bool,
 }
 
 impl FrameTimeline {
-    pub fn new(start_ms: u64) -> Self {
+    pub fn new(start_ms: u64, fps: u32) -> Self {
         FrameTimeline {
             start_ms,
+            fps: u64::from(fps.max(1)),
             written: 0,
             has_frame: false,
         }
@@ -67,7 +71,7 @@ impl FrameTimeline {
         if !self.has_frame {
             return 0;
         }
-        let slot = t_ms.saturating_sub(self.start_ms) / SLOT_MS;
+        let slot = t_ms.saturating_sub(self.start_ms) * self.fps / 1000;
         let n = slot.saturating_sub(self.written);
         self.written += n;
         n
@@ -87,23 +91,74 @@ impl FrameTimeline {
     /// at least one second (like Playwright).
     pub fn padding_at_close(&mut self, now_ms: u64) -> u64 {
         let due = self.frames_before(now_ms);
-        let n = due.max(FPS);
+        let n = due.max(self.fps);
         self.written += n - due;
         n
     }
 }
 
-/// ffmpeg arguments: MJPEG frames on stdin to a VP8 `.webm`.
-pub fn ffmpeg_args(width: u32, height: u32, output: &str) -> Vec<String> {
-    let mut args: Vec<String> = format!(
+/// The encoder ffmpeg is asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VideoCodec {
+    /// `libvpx-vp9` (Playwright 1.64+).
+    Vp9,
+    /// `vp8`, for ffmpeg builds without VP9 (Playwright 1.63's).
+    Vp8,
+}
+
+/// `"name" must be a positive number`, Playwright's check of `fps`.
+pub fn validate_fps(name: &str, fps: Option<u32>) -> Result<(), String> {
+    match fps {
+        Some(0) => Err(format!("\"{name}\" must be a positive number, got 0")),
+        _ => Ok(()),
+    }
+}
+
+/// The CSS of the action title (`style.title`, after the deprecated `fontSize`).
+pub fn action_title_style(font_size: Option<u32>, title: Option<&str>) -> Option<String> {
+    match font_size {
+        Some(px) => Some(format!("font-size: {px}px; {}", title.unwrap_or_default())),
+        None => title.map(str::to_owned),
+    }
+}
+
+/// ffmpeg arguments: MJPEG frames on stdin to a `.webm`. VP9 uses
+/// Playwright 1.64's `FfmpegVideoRecorder` settings (bitrate and threads grow
+/// with the pixel rate); VP8 keeps Playwright 1.63's.
+pub fn ffmpeg_args(
+    codec: VideoCodec,
+    width: u32,
+    height: u32,
+    fps: u32,
+    output: &str,
+) -> Vec<String> {
+    let input = format!(
         "-loglevel error -f image2pipe -avioflags direct -fpsprobesize 0 -probesize 32 \
-         -analyzeduration 0 -c:v mjpeg -framerate {FPS} -i pipe:0 -y -an -r {FPS} -c:v vp8 \
-         -qmin 0 -qmax 50 -crf 8 -deadline realtime -speed 8 -b:v 1M -threads 1 \
-         -vf pad={width}:{height}:0:0:gray,crop={width}:{height}:0:0"
-    )
-    .split_whitespace()
-    .map(str::to_owned)
-    .collect();
+         -analyzeduration 0 -c:v mjpeg -framerate {fps} -i pipe:0 -y -an -r {fps}"
+    );
+    let encoder = match codec {
+        VideoCodec::Vp8 => {
+            "-c:v vp8 -qmin 0 -qmax 50 -crf 8 -deadline realtime -speed 8 -b:v 1M -threads 1"
+                .to_owned()
+        }
+        VideoCodec::Vp9 => {
+            let scale = (f64::from(width) * f64::from(height) * f64::from(fps)
+                / (800.0 * 450.0 * f64::from(FPS)))
+            .max(1.0);
+            let bitrate = (scale * 1000.0).round() as u64;
+            let threads = ((scale / 4.0).ceil() as u64).min(8);
+            let tile_columns = (threads as f64).log2().ceil() as u64;
+            format!(
+                "-c:v libvpx-vp9 -qmin 0 -qmax 50 -crf 8 -deadline realtime -cpu-used 8 \
+                 -lag-in-frames 0 -b:v {bitrate}k -threads {threads} -tile-columns {tile_columns} -row-mt 1"
+            )
+        }
+    };
+    let mut args: Vec<String> =
+        format!("{input} {encoder} -vf pad={width}:{height}:0:0:gray,crop={width}:{height}:0:0")
+            .split_whitespace()
+            .map(str::to_owned)
+            .collect();
     args.push(output.to_owned());
     args
 }
@@ -125,7 +180,7 @@ mod tests {
 
     #[test]
     fn frames_fill_a_25_fps_timeline() {
-        let mut t = FrameTimeline::new(0);
+        let mut t = FrameTimeline::new(0, 25);
         assert_eq!(t.frames_before(0), 0);
         // A frame at 100 ms: the previous frame covers 0..100 (2.5 slots -> 2).
         t.push(0);
@@ -137,9 +192,41 @@ mod tests {
         assert_eq!(t.padding_at_close(140), 25);
     }
 
+    /// Playwright 1.64's `fps` option.
     #[test]
-    fn ffmpeg_arguments() {
-        let args = ffmpeg_args(800, 450, "/v/a.webm");
+    fn timeline_follows_the_frame_rate() {
+        let mut t = FrameTimeline::new(0, 50);
+        t.push(0);
+        assert_eq!(t.frames_before(100), 5);
+        t.push(100);
+        assert_eq!(t.padding_at_close(100), 50);
+    }
+
+    /// Playwright 1.64 encodes VP9 (`FfmpegVideoRecorder`), scaling bitrate
+    /// and threads with the pixel rate.
+    #[test]
+    fn ffmpeg_arguments_vp9_like_playwright() {
+        let args = ffmpeg_args(VideoCodec::Vp9, 800, 450, 25, "/v/a.webm");
+        assert_eq!(
+            args.join(" "),
+            "-loglevel error -f image2pipe -avioflags direct -fpsprobesize 0 -probesize 32 \
+             -analyzeduration 0 -c:v mjpeg -framerate 25 -i pipe:0 -y -an -r 25 -c:v libvpx-vp9 \
+             -qmin 0 -qmax 50 -crf 8 -deadline realtime -cpu-used 8 -lag-in-frames 0 -b:v 1000k \
+             -threads 1 -tile-columns 0 -row-mt 1 -vf pad=800:450:0:0:gray,crop=800:450:0:0 /v/a.webm"
+        );
+        // 1280x720 at 60 fps: 6.144 times the 800x450@25 pixel rate.
+        let args = ffmpeg_args(VideoCodec::Vp9, 1280, 720, 60, "/v/b.webm").join(" ");
+        assert!(
+            args.contains("-r 60 -c:v libvpx-vp9")
+                && args.contains("-b:v 6144k -threads 2 -tile-columns 1"),
+            "{args}"
+        );
+    }
+
+    /// An ffmpeg without libvpx-vp9 (Playwright 1.63's build) records VP8 as before.
+    #[test]
+    fn ffmpeg_arguments_vp8_fallback() {
+        let args = ffmpeg_args(VideoCodec::Vp8, 800, 450, 25, "/v/a.webm");
         assert_eq!(
             args.join(" "),
             "-loglevel error -f image2pipe -avioflags direct -fpsprobesize 0 -probesize 32 \
@@ -147,5 +234,34 @@ mod tests {
              -qmin 0 -qmax 50 -crf 8 -deadline realtime -speed 8 -b:v 1M -threads 1 \
              -vf pad=800:450:0:0:gray,crop=800:450:0:0 /v/a.webm"
         );
+    }
+
+    #[test]
+    fn fps_must_be_positive() {
+        assert_eq!(validate_fps("recordVideo.fps", Some(30)), Ok(()));
+        assert_eq!(validate_fps("fps", None), Ok(()));
+        assert_eq!(
+            validate_fps("recordVideo.fps", Some(0)),
+            Err("\"recordVideo.fps\" must be a positive number, got 0".to_owned())
+        );
+    }
+
+    /// Playwright 1.64 `showActions`: the deprecated `fontSize` becomes a
+    /// `font-size` declaration in front of `style.title`.
+    #[test]
+    fn action_title_style_merges_font_size() {
+        assert_eq!(
+            action_title_style(Some(16), Some("color: red")),
+            Some("font-size: 16px; color: red".to_owned())
+        );
+        assert_eq!(
+            action_title_style(Some(16), None),
+            Some("font-size: 16px; ".to_owned())
+        );
+        assert_eq!(
+            action_title_style(None, Some("color: red")),
+            Some("color: red".to_owned())
+        );
+        assert_eq!(action_title_style(None, None), None);
     }
 }

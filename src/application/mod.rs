@@ -2,6 +2,7 @@
 
 pub mod actions;
 pub mod aria;
+pub mod aria_snapshot;
 pub mod browser;
 pub mod clock;
 pub mod context;
@@ -43,6 +44,7 @@ pub mod storage;
 pub mod tracing;
 pub mod video;
 pub mod wait;
+pub mod webmcp;
 pub mod websocket;
 pub mod websocket_route;
 pub mod worker;
