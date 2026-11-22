@@ -4,6 +4,7 @@ pub mod actions;
 pub mod browser;
 pub mod context;
 pub mod discovery;
+pub mod input;
 pub mod js;
 pub mod navigation;
 pub mod page;

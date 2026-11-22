@@ -72,6 +72,8 @@ pub(crate) struct PageInner {
     pub(crate) owns_context: AtomicBool,
     pub(crate) default_timeout: Mutex<Duration>,
     pub(crate) bindings: Mutex<HashMap<String, crate::application::scripts::BindingFn>>,
+    pub(crate) keyboard: tokio::sync::Mutex<crate::domain::input::Keyboard>,
+    pub(crate) mouse: tokio::sync::Mutex<crate::domain::input::Mouse>,
 }
 
 /// A browser tab. Cheap to clone.
@@ -142,6 +144,10 @@ impl Page {
             owns_context: AtomicBool::new(false),
             default_timeout: Mutex::new(DEFAULT_TIMEOUT),
             bindings: Mutex::new(HashMap::new()),
+            keyboard: tokio::sync::Mutex::new(crate::domain::input::Keyboard::new(
+                shared.font_platform == crate::domain::emulation::FontPlatform::Mac,
+            )),
+            mouse: tokio::sync::Mutex::new(crate::domain::input::Mouse::default()),
         });
         let page = Page { inner };
         let mut effects = Vec::new();

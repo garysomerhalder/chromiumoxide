@@ -32,6 +32,7 @@ pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::browser::{Browser, LaunchOptions};
 pub use application::context::BrowserContext;
 pub use application::discovery::Discovered;
+pub use application::input::{Keyboard, Mouse, Touchscreen};
 pub use application::navigation::{Navigation, WaitForUrl};
 pub use application::page::{Goto, Page, Response};
 pub use application::screenshot::Screenshot;
@@ -45,6 +46,7 @@ pub use domain::emulation::{
 };
 pub use domain::error::{Error, Result};
 pub use domain::frame::LifecycleEvent as WaitUntil;
+pub use domain::input::MouseButton;
 pub use domain::launch::BrowserKind;
 pub use domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale,
