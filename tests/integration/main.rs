@@ -12,6 +12,7 @@ mod navigation;
 mod network;
 mod page;
 mod pixel_parity;
+mod popups;
 mod protocol;
 mod routing;
 mod screenshot;

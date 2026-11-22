@@ -86,6 +86,13 @@ impl TestServer {
                         let _ = sock.write_all(&body).await;
                         return;
                     }
+                    if path == "/slow-download" {
+                        let head = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=slow.bin\r\nContent-Length: 100000\r\n\r\n";
+                        let _ = sock.write_all(head.as_bytes()).await;
+                        let _ = sock.write_all(b"xxxxxxxxxx").await;
+                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                        return;
+                    }
                     if path == "/headers" {
                         let header = |name: &str| {
                             req.lines()
