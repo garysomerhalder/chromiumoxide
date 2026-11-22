@@ -7,6 +7,7 @@ pub mod credentials;
 pub mod discovery;
 pub mod download;
 pub mod events;
+pub mod expect;
 pub mod filechooser;
 pub mod frame;
 pub mod handle;

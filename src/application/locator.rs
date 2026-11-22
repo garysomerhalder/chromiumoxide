@@ -136,7 +136,7 @@ impl Page {
     }
 
     /// Calls `body(injected, ...args)` in the utility world.
-    async fn injected_call(
+    pub(crate) async fn injected_call(
         &self,
         frame: Option<&str>,
         body: &str,
@@ -363,7 +363,7 @@ impl Locator {
 
     /// Resolves the iframe hops in the selector; returns the frame to query
     /// in, the remaining selector and the innermost iframe element.
-    async fn scope(
+    pub(crate) async fn scope(
         &self,
         timeout: Duration,
     ) -> Result<Option<(Option<String>, String, Option<String>)>> {

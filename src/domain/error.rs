@@ -42,6 +42,9 @@ pub enum Error {
     /// An option or argument is invalid.
     #[error("{0}")]
     InvalidArgument(String),
+    /// A web-first assertion (`expect`) failed; the message reads like Playwright's.
+    #[error("{0}")]
+    Assertion(String),
     /// Protocol payload could not be (de)serialised.
     #[error("serialization error: {0}")]
     Serde(String),

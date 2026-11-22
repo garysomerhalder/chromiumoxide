@@ -35,6 +35,9 @@ pub use application::credentials::{Credential, Credentials, NewCredential};
 pub use application::discovery::Discovered;
 pub use application::download::Download;
 pub use application::events::{ConsoleMessage, Dialog, EventWaiter, PageEvent};
+pub use application::expect::{
+    Assertion, Expect, LocatorAssertions, PageAssertions, ResponseAssertions, expect,
+};
 pub use application::filechooser::{FileChooser, FileChooserWaiter};
 pub use application::frame::Frame;
 pub use application::handle::JsHandle;
