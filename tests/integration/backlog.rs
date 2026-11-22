@@ -927,3 +927,127 @@ async fn selector_engines_main_world_unless_content_script() {
     assert_eq!(page.locator("isolatedpick=any").count().await.unwrap(), 0);
     browser.close().await.unwrap();
 }
+
+/// `routeFromHAR(har, { update: true })` records into the HAR (bodies
+/// attached next to it, minimal mode); a later `routeFromHAR` replays it.
+/// `tracing.startHar(path, { content, mode, resourcesDir, urlFilter })`.
+#[tokio::test]
+async fn har_update_and_start_har_options() {
+    use chromiumoxide::{HarContent, HarMode, HarOptions};
+    let server = crate::server::TestServer::start().await;
+    server.route("/data.json", "application/json", "{\"v\":1}", 0);
+    server.route("/", "text/html", "<p>page</p>", 0);
+    let dir = std::env::temp_dir().join(format!("chromiumoxide-har-upd-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let har = dir.join("rec.har");
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+
+    // Record.
+    let context = browser.new_context(Default::default()).await.unwrap();
+    context
+        .route_from_har(&har)
+        .update(true)
+        .url("**/data.json")
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+    let got: serde_json::Value = page
+        .evaluate(&format!(
+            "fetch('{}').then(r => r.json())",
+            server.url("/data.json")
+        ))
+        .await
+        .unwrap();
+    assert_eq!(got["v"], 1);
+    context.close().await.unwrap();
+    let log: serde_json::Value = serde_json::from_slice(&std::fs::read(&har).unwrap()).unwrap();
+    let entries = log["log"]["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1, "only the url filter: {entries:?}");
+    let content = &entries[0]["response"]["content"];
+    let file = content["_file"].as_str().expect("attached body");
+    assert!(file.ends_with(".json"), "{file}");
+    assert_eq!(std::fs::read(dir.join(file)).unwrap(), b"{\"v\":1}");
+    assert!(content.get("text").is_none());
+    // Minimal: no pages, page refs or cookies.
+    assert_eq!(log["log"]["pages"].as_array().map(Vec::len), Some(0));
+    assert!(entries[0].get("pageref").is_none());
+
+    // Replay: the server changed, the HAR answers.
+    server.route("/data.json", "application/json", "{\"v\":2}", 0);
+    let context = browser.new_context(Default::default()).await.unwrap();
+    context
+        .route_from_har(&har)
+        .url("**/data.json")
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+    let got: serde_json::Value = page
+        .evaluate(&format!(
+            "fetch('{}').then(r => r.json())",
+            server.url("/data.json")
+        ))
+        .await
+        .unwrap();
+    assert_eq!(got["v"], 1, "served from the HAR");
+    context.close().await.unwrap();
+
+    // tracing.startHar options.
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let full = dir.join("full.har");
+    let resources = dir.join("bodies");
+    context
+        .tracing()
+        .start_har_with(
+            &full,
+            HarOptions {
+                content: Some(HarContent::Attach),
+                mode: HarMode::Full,
+                resources_dir: Some(resources.clone()),
+                url_filter: Some("**/data.json".into()),
+            },
+        )
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+    let _: serde_json::Value = page
+        .evaluate(&format!(
+            "fetch('{}').then(r => r.json())",
+            server.url("/data.json")
+        ))
+        .await
+        .unwrap();
+    context.tracing().stop_har().await.unwrap();
+    let log: serde_json::Value = serde_json::from_slice(&std::fs::read(&full).unwrap()).unwrap();
+    let entries = log["log"]["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    let file = entries[0]["response"]["content"]["_file"].as_str().unwrap();
+    assert_eq!(std::fs::read(resources.join(file)).unwrap(), b"{\"v\":2}");
+    assert!(!dir.join(file).exists(), "bodies go to resourcesDir");
+    assert_eq!(
+        log["log"]["pages"].as_array().map(Vec::len),
+        Some(1),
+        "full mode"
+    );
+
+    // A .zip HAR attaches by default, inside the archive.
+    let zip = dir.join("rec.zip");
+    context.tracing().start_har(&zip).await.unwrap();
+    let _: serde_json::Value = page
+        .evaluate(&format!(
+            "fetch('{}').then(r => r.json())",
+            server.url("/data.json")
+        ))
+        .await
+        .unwrap();
+    context.tracing().stop_har().await.unwrap();
+    let bytes = std::fs::read(&zip).unwrap();
+    assert_eq!(&bytes[..2], b"PK");
+    let names = String::from_utf8_lossy(&bytes);
+    assert!(names.contains("har.har"), "har.har in the zip");
+    assert!(names.contains(".json"), "attached body in the zip");
+    browser.close().await.unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
