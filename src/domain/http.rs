@@ -37,38 +37,205 @@ pub enum MultipartValue {
 
 /// `application/x-www-form-urlencoded` (spaces as `+`).
 pub fn form_urlencode(pairs: &[(String, String)]) -> String {
-    unimplemented!()
+    url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs(pairs)
+        .finish()
 }
 
 /// Adds `params` to the URL's query.
 pub fn append_params(url: &str, params: &[(String, String)]) -> String {
-    unimplemented!()
+    if params.is_empty() {
+        return url.to_owned();
+    }
+    match url::Url::parse(url) {
+        Ok(mut u) => {
+            u.query_pairs_mut().extend_pairs(params);
+            u.to_string()
+        }
+        Err(_) => {
+            let sep = if url.contains('?') { '&' } else { '?' };
+            format!("{url}{sep}{}", form_urlencode(params))
+        }
+    }
 }
 
 /// A `multipart/form-data` body with Playwright's layout.
 pub fn multipart_body(boundary: &str, fields: &[(String, MultipartValue)]) -> Vec<u8> {
-    unimplemented!()
+    let mut out = Vec::new();
+    for (name, value) in fields {
+        out.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+        match value {
+            MultipartValue::Text(v) => {
+                out.extend_from_slice(
+                    format!("content-disposition: form-data; name=\"{name}\"\r\n\r\n{v}\r\n")
+                        .as_bytes(),
+                );
+            }
+            MultipartValue::File {
+                name: file,
+                mime_type,
+                buffer,
+            } => {
+                out.extend_from_slice(
+                    format!(
+                        "content-disposition: form-data; name=\"{name}\"; filename=\"{file}\"\r\ncontent-type: {mime_type}\r\n\r\n"
+                    )
+                    .as_bytes(),
+                );
+                out.extend_from_slice(buffer);
+                out.extend_from_slice(b"\r\n");
+            }
+        }
+    }
+    out.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    out
 }
 
 /// Playwright's boundary: `----WebKitFormBoundary` + 16 characters from `random`.
 pub fn multipart_boundary(random: &[u8; 16]) -> String {
-    unimplemented!()
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789AB";
+    let tail: String = random
+        .iter()
+        .map(|b| ALPHABET[(*b as usize) % 64] as char)
+        .collect();
+    format!("----WebKitFormBoundary{tail}")
 }
 
 /// The next request of a redirect (Playwright's rules), or `None` when the
 /// response is not a redirect.
 pub fn redirect_request(req: &HttpRequest, status: u16, location: &str) -> Option<HttpRequest> {
-    unimplemented!()
+    if !matches!(status, 301 | 302 | 303 | 307 | 308) || location.is_empty() {
+        return None;
+    }
+    let from = url::Url::parse(&req.url).ok()?;
+    let to = from.join(location).ok()?;
+    let mut next = req.clone();
+    next.url = to.to_string();
+    next.headers
+        .retain(|(k, _)| !k.eq_ignore_ascii_case("cookie"));
+    let to_get = (matches!(status, 301 | 302) && req.method == "POST")
+        || (status == 303 && !matches!(req.method.as_str(), "GET" | "HEAD"));
+    if to_get {
+        next.method = "GET".into();
+        next.body.clear();
+        next.headers.retain(|(k, _)| {
+            !matches!(
+                k.to_ascii_lowercase().as_str(),
+                "content-encoding"
+                    | "content-language"
+                    | "content-length"
+                    | "content-location"
+                    | "content-type"
+            )
+        });
+    }
+    if from.origin() != to.origin() {
+        next.headers
+            .retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
+    }
+    Some(next)
 }
 
 /// A `Set-Cookie` header as a cookie for `request_url` (`now_s`: Unix seconds).
 pub fn parse_set_cookie(header: &str, request_url: &str, now_s: f64) -> Option<NewCookie> {
-    unimplemented!()
+    let url = url::Url::parse(request_url).ok()?;
+    let mut parts = header.split(';');
+    let (name, value) = parts.next()?.split_once('=')?;
+    let mut c = NewCookie::new(name.trim(), value.trim());
+    let mut expires = -1.0;
+    let mut max_age = None;
+    let mut domain = None;
+    let mut path = None;
+    let mut same_site = SameSite::Lax;
+    let (mut secure, mut http_only) = (false, false);
+    for attr in parts {
+        let (k, v) = attr
+            .split_once('=')
+            .map_or((attr.trim(), ""), |(k, v)| (k.trim(), v.trim()));
+        match k.to_ascii_lowercase().as_str() {
+            "expires" => {
+                if let Some(t) = http_date(v) {
+                    expires = t;
+                }
+            }
+            "max-age" => max_age = v.parse::<f64>().ok(),
+            "domain" if !v.is_empty() => {
+                let d = v.to_ascii_lowercase();
+                domain = Some(if d.starts_with('.') {
+                    d
+                } else {
+                    format!(".{d}")
+                });
+            }
+            "path" if v.starts_with('/') => path = Some(v.to_owned()),
+            "secure" => secure = true,
+            "httponly" => http_only = true,
+            "samesite" => {
+                same_site = match v.to_ascii_lowercase().as_str() {
+                    "strict" => SameSite::Strict,
+                    "none" => SameSite::None,
+                    _ => SameSite::Lax,
+                }
+            }
+            _ => {}
+        }
+    }
+    if let Some(age) = max_age {
+        expires = if age <= 0.0 { 0.0 } else { now_s + age };
+    }
+    let default_path = || {
+        let p = url.path();
+        match p.rfind('/') {
+            Some(0) | None => "/".to_owned(),
+            Some(i) => p[..i].to_owned(),
+        }
+    };
+    c.domain = Some(domain.unwrap_or_else(|| url.host_str().unwrap_or_default().to_owned()));
+    c.path = Some(path.unwrap_or_else(default_path));
+    c.expires = Some(expires);
+    c.secure = Some(secure);
+    c.http_only = Some(http_only);
+    c.same_site = Some(same_site);
+    Some(c)
+}
+
+/// An IMF-fixdate (`Wed, 21 Oct 2015 07:28:00 GMT`) in Unix seconds.
+fn http_date(s: &str) -> Option<f64> {
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    let [_, day, month, year, time, ..] = parts.as_slice() else {
+        return None;
+    };
+    let months = [
+        "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+    ];
+    let m = months
+        .iter()
+        .position(|x| month.to_ascii_lowercase().starts_with(x))? as i64
+        + 1;
+    let d: i64 = day.trim_end_matches('-').parse().ok()?;
+    let y: i64 = year.parse().ok()?;
+    let t: Vec<i64> = time.split(':').filter_map(|p| p.parse().ok()).collect();
+    let [h, mi, sec] = t.as_slice() else {
+        return None;
+    };
+    let (yy, mm) = if m <= 2 { (y - 1, m + 9) } else { (y, m - 3) };
+    let era = yy.div_euclid(400);
+    let yoe = yy - era * 400;
+    let doy = (153 * mm + 2) / 5 + d - 1;
+    let days = era * 146_097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719_468;
+    Some((days * 86_400 + h * 3600 + mi * 60 + sec) as f64)
 }
 
 /// The `failOnStatusCode` error text.
 pub fn status_error(status: u16, status_text: &str, body: &[u8]) -> String {
-    unimplemented!()
+    if body.is_empty() {
+        return format!("{status} {status_text}");
+    }
+    let mut text = String::from_utf8_lossy(body).into_owned();
+    if text.chars().count() > 1000 {
+        text = text.chars().take(997).collect::<String>() + "...";
+    }
+    format!("{status} {status_text}\nResponse text:\n{text}")
 }
 
 #[cfg(test)]
