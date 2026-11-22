@@ -31,6 +31,7 @@ pub mod selectors;
 pub mod services;
 pub(crate) mod shared;
 pub mod shortcuts;
+pub mod snapshot;
 pub mod storage;
 pub mod tracing;
 pub mod video;

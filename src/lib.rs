@@ -58,6 +58,7 @@ pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
 pub use application::selectors::Selectors;
 pub use application::services::Services;
+pub use application::snapshot::{ScreenshotAssertion, UpdateSnapshots};
 pub use application::storage::WebStorage;
 pub use application::tracing::{Tracing, TracingStart};
 pub use application::video::Video;

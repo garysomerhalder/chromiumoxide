@@ -280,6 +280,13 @@ where
 }
 
 impl<'a> LocatorAssertions<'a> {
+    pub(crate) fn locator(&self) -> &'a Locator {
+        self.locator
+    }
+    pub(crate) fn is_negated(&self) -> bool {
+        self.is_not
+    }
+
     /// The negated assertion (`expect(locator).not`).
     #[allow(clippy::should_implement_trait)] // mirrors Playwright's `.not`
     pub fn not(mut self) -> Self {
@@ -604,6 +611,13 @@ pub struct PageAssertions<'a> {
 }
 
 impl<'a> PageAssertions<'a> {
+    pub(crate) fn page(&self) -> &'a Page {
+        self.page
+    }
+    pub(crate) fn is_negated(&self) -> bool {
+        self.is_not
+    }
+
     #[allow(clippy::should_implement_trait)] // mirrors Playwright's `.not`
     pub fn not(mut self) -> Self {
         self.is_not = !self.is_not;

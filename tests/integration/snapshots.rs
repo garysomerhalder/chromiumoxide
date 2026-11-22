@@ -50,7 +50,7 @@ async fn page_screenshot_snapshots() {
     expect(&page).to_have_screenshot(&snap).await.unwrap();
     expect(&page)
         .not()
-        .to_have_screenshot(&d.join("missing.png"))
+        .to_have_screenshot(d.join("missing.png"))
         .await
         .unwrap_err();
 
@@ -127,15 +127,12 @@ async fn page_screenshot_snapshots() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        format!(
-            "A snapshot doesn't exist at {}.",
-            none.display()
-        )
+        format!("A snapshot doesn't exist at {}.", none.display())
     );
     assert!(!none.exists());
 
     let err = expect(&page)
-        .to_have_screenshot(&d.join("a.jpg"))
+        .to_have_screenshot(d.join("a.jpg"))
         .await
         .unwrap_err();
     assert_eq!(
