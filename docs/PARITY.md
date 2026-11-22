@@ -383,7 +383,7 @@ Chrome for Testing and chrome-headless-shell.
 | `waitForFunction` | M3 | ✅ |
 | `elementHandle` | M3 | ✅ |
 | `highlight` | M3 | ✅ |
-| `toString` | M3 | 🟡 async `to_playwright_string()` (Playwright's generator); `Debug` prints the selector |
+| `toString` | M3 | ✅ `Display` (Playwright's generator, ported) and async `to_playwright_string()` |
 | `all` | M3 | ✅ |
 | `allInnerTexts` | M3 | ✅ |
 | `allTextContents` | M3 | ✅ |

@@ -119,6 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     bindings inside cross-site iframes.
   - Storage state with IndexedDB (`StorageStateOptions`).
   - Trace DOM snapshots (`TracingStart { snapshots: true }`).
+  - `Locator` implements `Display` like Playwright's `locator.toString()`.
 
 ### Fixed
 
