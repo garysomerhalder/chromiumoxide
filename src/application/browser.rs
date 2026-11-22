@@ -370,6 +370,10 @@ impl Browser {
         self.inner.cdp.clone()
     }
 
+    pub(crate) fn clock(&self) -> Arc<dyn crate::ports::Clock> {
+        self.inner.services.clock.clone()
+    }
+
     /// Closes the browser, ends the process and deletes the temporary profile.
     pub async fn close(&self) -> Result<()> {
         if self.inner.closed.swap(true, Ordering::SeqCst) {
