@@ -115,6 +115,30 @@ impl TestServer {
                         let _ = sock.write_all(body.as_bytes()).await;
                         return;
                     }
+                    if path.starts_with("/dump") {
+                        // The whole request as JSON: method, path, headers, body.
+                        let mut headers = serde_json::Map::new();
+                        for l in req.lines().skip(1) {
+                            if let Some((k, v)) = l.split_once(':') {
+                                headers.insert(
+                                    k.trim().to_ascii_lowercase(),
+                                    serde_json::json!(v.trim()),
+                                );
+                            }
+                        }
+                        let body = serde_json::json!({
+                            "method": method, "path": path, "headers": headers,
+                            "body": String::from_utf8_lossy(&req_body),
+                        })
+                        .to_string();
+                        let head = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nX-Multi: a\r\nX-Multi: b\r\nSet-Cookie: from_server=yes; Path=/\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        );
+                        let _ = sock.write_all(head.as_bytes()).await;
+                        let _ = sock.write_all(body.as_bytes()).await;
+                        return;
+                    }
                     if path == "/echo" {
                         let body = format!(
                             "{{\"method\":{:?},\"body\":{:?}}}",
