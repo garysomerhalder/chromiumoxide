@@ -50,6 +50,17 @@ pub enum PageEvent {
     Worker(crate::application::worker::Worker),
     /// A file dialog was intercepted (`page.on('filechooser')`).
     FileChooser(crate::application::filechooser::FileChooser),
+    /// A dialog was accepted or dismissed (`page.on('dialogclosed')`).
+    DialogClosed(Dialog),
+    /// A frame was attached (`page.on('frameattached')`).
+    FrameAttached(crate::application::frame::Frame),
+    /// A frame was detached (`page.on('framedetached')`).
+    FrameDetached(crate::application::frame::Frame),
+    /// A frame navigated, to a new document or within one
+    /// (`page.on('framenavigated')`).
+    FrameNavigated(crate::application::frame::Frame),
+    /// The page's renderer crashed (`page.on('crash')`).
+    Crash,
 }
 
 /// A `console.*` call (Playwright's `ConsoleMessage`).
@@ -191,6 +202,8 @@ pub(crate) struct EventState {
     console: VecDeque<ConsoleMessage>,
     errors: VecDeque<PageError>,
     dialog_handlers: Vec<DialogHandler>,
+    /// The dialog showing now (for `dialogclosed`).
+    open_dialog: Option<Dialog>,
 }
 
 impl Page {
@@ -230,6 +243,13 @@ impl Page {
             PageEvent::RequestFailed(r) => Some(ContextEvent::RequestFailed(r)),
             PageEvent::Console(m) => Some(ContextEvent::Console(m)),
             PageEvent::Dialog(d) => Some(ContextEvent::Dialog(d)),
+            PageEvent::DialogClosed(d) => Some(ContextEvent::DialogClosed(d)),
+            PageEvent::Download(d) => Some(ContextEvent::Download(d)),
+            PageEvent::FrameAttached(f) => Some(ContextEvent::FrameAttached(f)),
+            PageEvent::FrameDetached(f) => Some(ContextEvent::FrameDetached(f)),
+            PageEvent::FrameNavigated(f) => Some(ContextEvent::FrameNavigated(f)),
+            PageEvent::Load => Some(ContextEvent::PageLoad(self.clone())),
+            PageEvent::Close => Some(ContextEvent::PageClose(self.clone())),
             PageEvent::PageError(error) => Some(ContextEvent::WebError(WebError {
                 page: Some(self.clone()),
                 error,
@@ -387,7 +407,11 @@ impl Page {
                         .to_owned(),
                     handled: Arc::new(AtomicBool::new(false)),
                 };
-                let handlers = self.inner.events.lock().unwrap().dialog_handlers.clone();
+                let handlers = {
+                    let mut st = self.inner.events.lock().unwrap();
+                    st.open_dialog = Some(dialog.clone());
+                    st.dialog_handlers.clone()
+                };
                 self.emit(PageEvent::Dialog(dialog.clone()));
                 if handlers.is_empty() {
                     let accept = dialog.kind == "beforeunload";
@@ -398,6 +422,13 @@ impl Page {
                     for h in handlers {
                         tokio::spawn(h(dialog.clone()));
                     }
+                }
+                true
+            }
+            "Page.javascriptDialogClosed" => {
+                let dialog = self.inner.events.lock().unwrap().open_dialog.take();
+                if let Some(d) = dialog {
+                    self.emit(PageEvent::DialogClosed(d));
                 }
                 true
             }

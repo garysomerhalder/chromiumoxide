@@ -12,6 +12,8 @@ pub trait FileSystem: Send + Sync {
     /// Creates a new, unique, empty directory under the system temp dir.
     fn create_temp_dir(&self, prefix: &str) -> io::Result<PathBuf>;
     fn remove_dir_all(&self, path: &Path) -> io::Result<()>;
+    /// Creates a directory and its parents (existing ones are fine).
+    fn create_dir_all(&self, path: &Path) -> io::Result<()>;
     /// Removes a file; a missing file is not an error.
     fn remove_file(&self, path: &Path) -> io::Result<()>;
     fn write(&self, path: &Path, data: &[u8]) -> io::Result<()>;

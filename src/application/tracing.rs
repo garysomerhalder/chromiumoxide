@@ -40,28 +40,14 @@ pub(crate) struct TraceRecording {
     groups: Vec<String>,
     /// The page global of Playwright's snapshot streamer (`snapshots: true`).
     streamer: Option<String>,
+    /// The `tracesDir` file name: `name`, then `name-chunk<n>` per chunk.
+    trace_name: String,
+    chunk: u32,
 }
 
 const SNAPSHOT_STREAMER: &str = include_str!("scripts/snapshot_streamer.js");
 
-/// File extension of a stored resource, like Playwright's `mime.getExtension`.
-fn extension_for(mime: &str) -> &'static str {
-    match mime.split(';').next().unwrap_or_default().trim() {
-        "text/html" => "html",
-        "text/css" => "css",
-        "text/javascript" | "application/javascript" => "js",
-        "application/json" => "json",
-        "text/plain" => "txt",
-        "image/png" => "png",
-        "image/jpeg" => "jpeg",
-        "image/gif" => "gif",
-        "image/svg+xml" => "svg",
-        "image/webp" => "webp",
-        "font/woff" => "woff",
-        "font/woff2" => "woff2",
-        _ => "dat",
-    }
-}
+use crate::domain::har::extension_for;
 
 pub(crate) type TracingState = Mutex<Option<TraceRecording>>;
 
@@ -144,7 +130,9 @@ impl ContextInner {
                             let store = rec.streamer.is_some().then(|| Arc::downgrade(&ctx));
                             rec.network.push(tokio::spawn(async move {
                                 let mut entry =
-                                    crate::application::har::entry_for(r, id, false).await;
+                                    crate::application::har::entry_for(r, id, crate::domain::har::HarContent::Embed)
+                                        .await
+                                        .0;
                                 // With snapshots, bodies go to resources/ (`_file`).
                                 if let Some(ctx) = store.and_then(|w| w.upgrade()) {
                                     let content = &mut entry.response.content;
@@ -280,6 +268,8 @@ impl Tracing {
                 pages: HashSet::new(),
                 groups: Vec::new(),
                 streamer: None,
+                trace_name: String::new(),
+                chunk: 0,
             });
         }
         let snapshots = self
@@ -344,44 +334,77 @@ impl Tracing {
         )
     }
 
+    /// Writes a chunk: into `tracesDir` (as `<name>.trace`, `<name>.network`
+    /// and `resources/`) when the browser has one, and as a zip to `path`.
     async fn write_chunk(
         &self,
+        name: String,
         events: Vec<String>,
         resources: Vec<(String, Vec<u8>)>,
         pending: Vec<tokio::task::JoinHandle<Option<String>>>,
-        path: &Path,
+        path: Option<&Path>,
     ) -> Result<()> {
+        let traces_dir = self.context.shared.artifacts.traces_dir.clone();
+        if path.is_none() && traces_dir.is_none() {
+            return Ok(());
+        }
         let mut network = Vec::new();
         for handle in pending {
             if let Ok(Some(line)) = handle.await {
                 network.push(line);
             }
         }
+        let trace = (events.join("\n") + "\n").into_bytes();
+        let network = (network.join("\n") + "\n").into_bytes();
+        let fs = &self.context.shared.services.fs;
+        if let Some(dir) = traces_dir {
+            fs.write(&dir.join(format!("{name}.trace")), &trace)?;
+            fs.write(&dir.join(format!("{name}.network")), &network)?;
+            for (file, data) in &resources {
+                fs.write(&dir.join(file), data)?;
+            }
+        }
+        let Some(path) = path else {
+            return Ok(());
+        };
         let mut files: Vec<(&str, Vec<u8>)> = vec![
-            ("trace.trace", (events.join("\n") + "\n").into_bytes()),
-            ("trace.network", (network.join("\n") + "\n").into_bytes()),
+            ("trace.trace", trace),
+            ("trace.network", network),
             ("trace.stacks", br#"{"files":[],"stacks":[]}"#.to_vec()),
         ];
         for (name, data) in &resources {
             files.push((name.as_str(), data.clone()));
         }
         let zip = zip_stored(&files);
-        self.context.shared.services.fs.write(path, &zip)?;
+        fs.write(path, &zip)?;
         Ok(())
+    }
+
+    /// The `tracesDir` name of the chunk being stopped.
+    fn chunk_name(rec: &mut TraceRecording) -> String {
+        if rec.trace_name.is_empty() {
+            rec.trace_name = rec
+                .options
+                .name
+                .clone()
+                .unwrap_or_else(|| format!("trace-{:x}", rec.start_ms ^ 0x5bd1_e995));
+        }
+        let name = match rec.chunk {
+            0 => rec.trace_name.clone(),
+            n => format!("{}-chunk{n}", rec.trace_name),
+        };
+        rec.chunk += 1;
+        name
     }
 
     /// `tracing.stop({path})`: writes the trace when `path` is given.
     pub async fn stop(&self, path: Option<&Path>) -> Result<()> {
-        let Some(rec) = self.context.tracing.lock().unwrap().take() else {
+        let Some(mut rec) = self.context.tracing.lock().unwrap().take() else {
             return Err(Error::InvalidArgument("Tracing is not started".into()));
         };
-        match path {
-            Some(path) => {
-                self.write_chunk(rec.events, rec.resources, rec.network, path)
-                    .await
-            }
-            None => Ok(()),
-        }
+        let name = Self::chunk_name(&mut rec);
+        self.write_chunk(name, rec.events, rec.resources, rec.network, path)
+            .await
     }
 
     /// `tracing.startChunk({title})`: starts a new chunk of a started trace.
@@ -401,21 +424,20 @@ impl Tracing {
     /// `tracing.stopChunk({path})`: writes what was recorded since the last
     /// chunk; tracing goes on.
     pub async fn stop_chunk(&self, path: Option<&Path>) -> Result<()> {
-        let (events, resources, pending) = {
+        let (name, events, resources, pending) = {
             let mut rec = self.context.tracing.lock().unwrap();
             let rec = rec
                 .as_mut()
                 .ok_or_else(|| Error::InvalidArgument("Tracing is not started".into()))?;
             (
+                Self::chunk_name(rec),
                 std::mem::take(&mut rec.events),
                 std::mem::take(&mut rec.resources),
                 std::mem::take(&mut rec.network),
             )
         };
-        match path {
-            Some(path) => self.write_chunk(events, resources, pending, path).await,
-            None => Ok(()),
-        }
+        self.write_chunk(name, events, resources, pending, path)
+            .await
     }
 
     /// `tracing.group(name)`: groups the following actions in the viewer.
@@ -453,6 +475,16 @@ impl Tracing {
 
     /// `tracing.startHar(path)`: records a HAR from now on.
     pub async fn start_har(&self, path: impl AsRef<Path>) -> Result<()> {
+        self.start_har_with(path, crate::domain::har::HarOptions::default())
+            .await
+    }
+
+    /// `tracing.startHar(path, { content, mode, resourcesDir, urlFilter })`.
+    pub async fn start_har_with(
+        &self,
+        path: impl AsRef<Path>,
+        options: crate::domain::har::HarOptions,
+    ) -> Result<()> {
         {
             let mut har = self.context.har.lock().unwrap();
             if har.is_some() {
@@ -460,11 +492,11 @@ impl Tracing {
                     "HAR recording is already started".into(),
                 ));
             }
-            *har = crate::application::har::recording(&Some(crate::domain::har::RecordHar::new(
-                path.as_ref(),
-            )))
-            .into_inner()
-            .unwrap();
+            *har = Some(crate::application::har::HarRecording::new(
+                crate::domain::har::RecordHar::with_options(path.as_ref(), options),
+                None,
+                None,
+            ));
         }
         let pages: Vec<Page> = self.context.pages.lock().unwrap().clone();
         for page in pages {
@@ -503,6 +535,10 @@ impl Page {
             .push((method.to_owned(), params.clone()));
         let r = self.traced_call(class, method, params, f).await;
         self.inner.calls.lock().unwrap().pop();
+        let slow_mo = self.inner.shared.artifacts.slow_mo;
+        if !slow_mo.is_zero() && crate::domain::trace::slows_down(class, method) {
+            self.inner.shared.services.clock.sleep(slow_mo).await;
+        }
         r
     }
 

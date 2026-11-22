@@ -41,6 +41,8 @@ pub struct ApiRequestOptions {
     pub fail_on_status_code: bool,
     /// Cookies to start with.
     pub storage_state: Option<StorageState>,
+    /// TLS client certificates per origin (Playwright's `clientCertificates`).
+    pub client_certificates: Vec<crate::domain::client_cert::ClientCertificate>,
 }
 
 enum Jar {
@@ -158,6 +160,7 @@ impl BrowserContext {
                     timeout: None,
                     fail_on_status_code: false,
                     storage_state: None,
+                    client_certificates: o.client_certificates.clone(),
                 },
                 jar: Jar::Context(Arc::downgrade(&self.inner)),
                 browser_ua: Mutex::new(None),
@@ -229,13 +232,39 @@ impl ApiRequestContext {
     /// `request.storageState()`: its cookies (and, for a context's, the
     /// context's storage).
     pub async fn storage_state(&self) -> Result<StorageState> {
+        self.storage_state_with(Default::default()).await
+    }
+
+    /// `request.storageState({ indexedDB, opfs })`: a standalone context
+    /// returns the origins it was created with (Playwright's `_origins`).
+    pub async fn storage_state_with(
+        &self,
+        options: crate::application::storage::StorageStateOptions,
+    ) -> Result<StorageState> {
         match &self.inner.jar {
             Jar::Own(c) => Ok(StorageState {
                 cookies: c.lock().unwrap().clone(),
-                origins: Vec::new(),
+                origins: self
+                    .inner
+                    .options
+                    .storage_state
+                    .as_ref()
+                    .map(|s| s.origins.clone())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|mut o| {
+                        if !options.indexed_db {
+                            o.indexed_db = None;
+                        }
+                        if !options.opfs {
+                            o.opfs = None;
+                        }
+                        o
+                    })
+                    .collect(),
             }),
             Jar::Context(_) => match self.context() {
-                Some(ctx) => ctx.storage_state().await,
+                Some(ctx) => ctx.storage_state_with(options).await,
                 None => Err(Error::Request(CLOSED.into())),
             },
         }
@@ -519,6 +548,7 @@ impl ApiRequestContext {
             body,
             timeout_ms: (!timeout.is_zero()).then_some(timeout.as_millis() as u64),
             ignore_https_errors: r.ignore_https_errors.unwrap_or(o.ignore_https_errors),
+            client_identity: None,
         };
         // `maxRedirects: 0` means "do not follow" (Playwright maps it to -1).
         let mut redirects_left: i64 = match r.max_redirects {
@@ -547,13 +577,8 @@ impl ApiRequestContext {
                     log(format!("  {}: {v}", k.to_ascii_lowercase()));
                 }
             }
-            let resp = self
-                .inner
-                .services
-                .http
-                .send(send)
-                .await
-                .map_err(|e| Error::Request(e.to_string()))?;
+            send.client_identity = self.client_identity(&send.url)?;
+            let resp = self.send_with_retries(send, r.max_retries).await?;
             if let Some(call) = call {
                 let log = |m: String| {
                     self.trace(
@@ -616,6 +641,70 @@ impl ApiRequestContext {
     }
 }
 
+impl ApiRequestContext {
+    /// The client certificate for `url`'s origin, with its files read.
+    fn client_identity(
+        &self,
+        url: &str,
+    ) -> Result<Option<crate::domain::client_cert::ClientIdentity>> {
+        let Some(c) = self
+            .inner
+            .options
+            .client_certificates
+            .iter()
+            .find(|c| crate::domain::client_cert::url_has_origin(url, &c.origin))
+        else {
+            return Ok(None);
+        };
+        let fs = &self.inner.services.fs;
+        let read = |bytes: &Option<Vec<u8>>,
+                    path: &Option<std::path::PathBuf>|
+         -> Result<Option<Vec<u8>>> {
+            match (bytes, path) {
+                (Some(b), _) => Ok(Some(b.clone())),
+                (None, Some(p)) => Ok(Some(fs.read(p).map_err(|e| {
+                    Error::InvalidArgument(format!("clientCertificates: {}: {e}", p.display()))
+                })?)),
+                (None, None) => Ok(None),
+            }
+        };
+        Ok(Some(crate::domain::client_cert::ClientIdentity {
+            cert: read(&c.cert, &c.cert_path)?,
+            key: read(&c.key, &c.key_path)?,
+            pfx: read(&c.pfx, &c.pfx_path)?,
+            passphrase: c.passphrase.clone(),
+        }))
+    }
+
+    /// Playwright's `_sendRequestWithRetries`.
+    async fn send_with_retries(&self, req: HttpRequest, max_retries: u32) -> Result<HttpResponse> {
+        let mut backoff = Duration::from_millis(250);
+        let mut attempt = 0;
+        loop {
+            match self.inner.services.http.send(req.clone()).await {
+                Ok(r) => return Ok(r),
+                Err(e) => {
+                    if max_retries == 0 {
+                        return Err(Error::Request(e.to_string()));
+                    }
+                    if attempt == max_retries {
+                        return Err(Error::Request(format!(
+                            "Failed after {} attempt(s): {e}",
+                            attempt + 1
+                        )));
+                    }
+                    if e.kind() != std::io::ErrorKind::ConnectionReset {
+                        return Err(Error::Request(e.to_string()));
+                    }
+                    self.inner.services.clock.sleep(backoff).await;
+                    backoff *= 2;
+                    attempt += 1;
+                }
+            }
+        }
+    }
+}
+
 fn header(r: &HttpResponse, name: &str) -> Option<String> {
     r.headers
         .iter()
@@ -644,6 +733,7 @@ pub struct ApiRequest<'a> {
     timeout: Option<Duration>,
     fail_on_status_code: Option<bool>,
     max_redirects: Option<u32>,
+    max_retries: u32,
     ignore_https_errors: Option<bool>,
 }
 
@@ -660,6 +750,7 @@ impl<'a> ApiRequest<'a> {
             timeout: None,
             fail_on_status_code: None,
             max_redirects: None,
+            max_retries: 0,
             ignore_https_errors: None,
         }
     }
@@ -729,6 +820,12 @@ impl<'a> ApiRequest<'a> {
     /// How many redirects to follow (default 20; 0 returns the redirect).
     pub fn max_redirects(mut self, n: u32) -> Self {
         self.max_redirects = Some(n);
+        self
+    }
+    /// Retry connection resets (ECONNRESET) up to `n` times, with
+    /// Playwright's backoff (250 ms, doubling).
+    pub fn max_retries(mut self, n: u32) -> Self {
+        self.max_retries = n;
         self
     }
     pub fn ignore_https_errors(mut self, yes: bool) -> Self {

@@ -8,6 +8,14 @@ use crate::application::services::Services;
 use crate::domain::emulation::FontPlatform;
 use crate::ports::CdpSession;
 
+/// Launch options about timing and where artifacts go.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct LaunchArtifacts {
+    pub(crate) slow_mo: std::time::Duration,
+    pub(crate) downloads_path: Option<std::path::PathBuf>,
+    pub(crate) traces_dir: Option<std::path::PathBuf>,
+}
+
 pub(crate) struct Shared {
     pub(crate) cdp: Arc<dyn CdpSession>,
     pub(crate) services: Services,
@@ -20,6 +28,8 @@ pub(crate) struct Shared {
     pub(crate) launch_args: Option<Vec<String>>,
     /// `LaunchOptions::proxy` (its credentials answer proxy challenges).
     pub(crate) launch_proxy: Option<crate::domain::launch::Proxy>,
+    /// `slowMo`, `downloadsPath`, `tracesDir`.
+    pub(crate) artifacts: LaunchArtifacts,
     /// The browser that owns this connection (for `context.browser()`).
     pub(crate) browser: Mutex<std::sync::Weak<crate::application::browser::BrowserInner>>,
     /// `selectors.setTestIdAttribute` / `selectors.register`.

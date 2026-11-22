@@ -40,6 +40,29 @@ pub struct LaunchOptions {
     pub channel: Channel,
     /// Route the browser's traffic through a proxy (Playwright's `proxy`).
     pub proxy: Option<crate::domain::launch::Proxy>,
+    /// Playwright's `slowMo`: wait this long after each action, navigation
+    /// and keyboard, mouse or touch call.
+    pub slow_mo: Duration,
+    /// Playwright's `downloadsPath`: accepted downloads go here (not removed
+    /// on close; the files still go with their context).
+    pub downloads_path: Option<PathBuf>,
+    /// Playwright's `tracesDir`: tracing also leaves `<name>.trace` and
+    /// `<name>.network` here.
+    pub traces_dir: Option<PathBuf>,
+    /// Playwright's `artifactsDir`: the default for `downloads_path` and
+    /// `traces_dir`; not removed on close.
+    pub artifacts_dir: Option<PathBuf>,
+    /// Playwright's `chromiumSandbox` (default `false`: `--no-sandbox`).
+    pub chromium_sandbox: bool,
+    /// Playwright's `handleSIGINT`: on Ctrl-C, close the browser (a second
+    /// Ctrl-C kills it) and exit with 130. Off by default, unlike
+    /// Playwright: listening replaces the program's own Ctrl-C behaviour.
+    pub handle_sigint: bool,
+    /// Playwright's `handleSIGTERM`: on SIGTERM, close the browser; the
+    /// program goes on. Off by default (see `handle_sigint`).
+    pub handle_sigterm: bool,
+    /// Playwright's `handleSIGHUP`: like `handle_sigterm`, for SIGHUP.
+    pub handle_sighup: bool,
 }
 
 impl Default for LaunchOptions {
@@ -53,8 +76,31 @@ impl Default for LaunchOptions {
             timeout: Duration::from_secs(180),
             channel: Channel::Pipe,
             proxy: None,
+            slow_mo: Duration::ZERO,
+            downloads_path: None,
+            traces_dir: None,
+            artifacts_dir: None,
+            chromium_sandbox: false,
+            handle_sigint: false,
+            handle_sigterm: false,
+            handle_sighup: false,
         }
     }
+}
+
+/// Playwright's `browser.bind(title, options)` options.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct BindOptions {
+    /// Identifies the browser in [`Chromium::bound_browsers`](crate::Chromium::bound_browsers).
+    pub title: String,
+    /// Default `127.0.0.1`.
+    pub host: Option<String>,
+    /// Default `0`: any free port.
+    pub port: Option<u16>,
+    /// The working directory this browser belongs to.
+    pub workspace_dir: Option<PathBuf>,
+    /// Anything else to record (`null` if none).
+    pub metadata: serde_json::Value,
 }
 
 /// A connected browser.
@@ -79,10 +125,45 @@ pub(crate) struct BrowserInner {
     remove_profile: bool,
     /// `browser.bind()`: the connection served to other clients.
     bridge: Mutex<Option<Box<dyn crate::ports::BoundBridge>>>,
+    /// The registry descriptor written by `bind` (removed by `unbind`).
+    registry_file: Mutex<Option<PathBuf>>,
     /// `LaunchOptions::args` (None when connected).
     launch_args: Option<Vec<String>>,
     /// `LaunchOptions::proxy`.
     launch_proxy: Option<crate::domain::launch::Proxy>,
+    /// `slowMo`, `downloadsPath`, `tracesDir` (`artifactsDir` resolved).
+    artifacts: crate::application::shared::LaunchArtifacts,
+    /// `browser.events()` subscribers.
+    subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<BrowserEvent>>>,
+    /// `disconnected` was emitted.
+    disconnected: AtomicBool,
+}
+
+/// Something that happened to a browser (Playwright's `browser.on(...)`).
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum BrowserEvent {
+    /// A context was created (`browser.on('context')`).
+    Context(BrowserContext),
+    /// The browser closed or the connection was lost (`browser.on('disconnected')`).
+    Disconnected,
+}
+
+impl BrowserInner {
+    fn emit(&self, event: BrowserEvent) {
+        self.subscribers
+            .lock()
+            .unwrap()
+            .retain(|s| s.unbounded_send(event.clone()).is_ok());
+    }
+
+    /// Emits `disconnected` once.
+    pub(crate) fn emit_disconnected(&self) {
+        self.closed.store(true, Ordering::SeqCst);
+        if !self.disconnected.swap(true, Ordering::SeqCst) {
+            self.emit(BrowserEvent::Disconnected);
+        }
+    }
 }
 
 impl Drop for BrowserInner {
@@ -97,7 +178,78 @@ impl Drop for BrowserInner {
     }
 }
 
+/// Launched browsers that handle SIGINT and are still open: the program
+/// exits once the last of them has closed (Playwright closes all, then exits).
+static SIGINT_BROWSERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 impl Browser {
+    /// `handleSIGINT` / `handleSIGTERM` / `handleSIGHUP`: one task per signal,
+    /// holding the browser weakly, until the signal or the disconnect.
+    fn handle_signals(&self, options: &LaunchOptions) {
+        use crate::ports::Signal;
+        let wanted = [
+            (options.handle_sigint, Signal::Interrupt),
+            (options.handle_sigterm, Signal::Terminate),
+            (options.handle_sighup, Signal::Hangup),
+        ];
+        for (_, signal) in wanted.into_iter().filter(|(on, _)| *on) {
+            let signals = self.inner.services.signals.clone();
+            let mut delivered = signals.listen(signal);
+            let mut events = self.events();
+            let weak = Arc::downgrade(&self.inner);
+            let interrupt = signal == Signal::Interrupt;
+            if interrupt {
+                SIGINT_BROWSERS.fetch_add(1, Ordering::SeqCst);
+            }
+            tokio::spawn(async move {
+                use futures::StreamExt;
+                let got = loop {
+                    tokio::select! {
+                        s = delivered.next() => break s.is_some(),
+                        e = events.next() => match e {
+                            Some(BrowserEvent::Disconnected) | None => break false,
+                            Some(_) => {}
+                        },
+                    }
+                };
+                let browser = weak.upgrade().map(|inner| Browser { inner });
+                let Some(browser) = browser.filter(|_| got) else {
+                    if interrupt {
+                        SIGINT_BROWSERS.fetch_sub(1, Ordering::SeqCst);
+                    }
+                    return;
+                };
+                if !interrupt {
+                    let _ = browser.close().await;
+                    return;
+                }
+                tokio::select! {
+                    _ = browser.close() => {}
+                    // A second Ctrl-C kills the browser right away.
+                    _ = delivered.next() => browser.kill_now(),
+                }
+                if SIGINT_BROWSERS.fetch_sub(1, Ordering::SeqCst) == 1 {
+                    signals.exit(130);
+                }
+            });
+        }
+    }
+
+    /// Kills the process without closing the connection, removes a
+    /// temporary profile.
+    fn kill_now(&self) {
+        drop(self.inner.process.lock().unwrap().take());
+        if let Some(dir) = self
+            .inner
+            .user_data_dir
+            .as_ref()
+            .filter(|_| self.inner.remove_profile)
+        {
+            let _ = self.inner.services.fs.remove_dir_all(dir);
+        }
+        self.inner.emit_disconnected();
+    }
+
     /// Discovers, launches and connects to a browser.
     pub async fn launch(services: Services, options: LaunchOptions) -> Result<Browser> {
         Ok(Self::launch_impl(services, options, None).await?.0)
@@ -141,6 +293,7 @@ impl Browser {
             ignore_default_args: options.ignore_default_args,
             user_data_dir: user_data_dir.clone(),
             proxy: options.proxy.clone(),
+            chromium_sandbox: options.chromium_sandbox,
         };
         let mut args = if persistent.is_some() {
             crate::domain::launch::persistent_command_line(&spec)
@@ -185,13 +338,30 @@ impl Browser {
                 tracing: Mutex::new(None),
                 remove_profile: persistent.is_none(),
                 bridge: Mutex::new(None),
+                registry_file: Mutex::new(None),
                 launch_args: Some(options.args.clone()),
                 launch_proxy: options.proxy.clone(),
+                artifacts: crate::application::shared::LaunchArtifacts {
+                    slow_mo: options.slow_mo,
+                    downloads_path: options
+                        .downloads_path
+                        .clone()
+                        .or_else(|| options.artifacts_dir.clone()),
+                    traces_dir: options
+                        .traces_dir
+                        .clone()
+                        .or_else(|| options.artifacts_dir.clone()),
+                },
+                subscribers: Mutex::new(Vec::new()),
+                disconnected: AtomicBool::new(false),
             }),
         };
         let default_options = persistent.map(|(_, o)| o);
         match browser.handshake(default_options).await {
-            Ok(ctx) => Ok((browser, ctx)),
+            Ok(ctx) => {
+                browser.handle_signals(&options);
+                Ok((browser, ctx))
+            }
             Err(e) => {
                 let _ = browser.close().await;
                 Err(e)
@@ -220,8 +390,12 @@ impl Browser {
                 tracing: Mutex::new(None),
                 remove_profile: false,
                 bridge: Mutex::new(None),
+                registry_file: Mutex::new(None),
                 launch_args: None,
                 launch_proxy: None,
+                artifacts: Default::default(),
+                subscribers: Mutex::new(Vec::new()),
+                disconnected: AtomicBool::new(false),
             }),
         };
         browser.handshake(None).await?;
@@ -233,6 +407,42 @@ impl Browser {
     /// over a local WebSocket, whatever channel it was launched with. Their
     /// endpoint speaks CDP. Binding again returns the same endpoint.
     pub async fn bind(&self) -> Result<String> {
+        self.bind_with(BindOptions::default()).await
+    }
+
+    /// Playwright's `browser.bind(title, { host, port, workspaceDir,
+    /// metadata })`: like [`bind`](Self::bind), listening on `host:port`,
+    /// and listed by [`Chromium::bound_browsers`](crate::Chromium::bound_browsers)
+    /// until unbound or closed.
+    pub async fn bind_with(&self, options: BindOptions) -> Result<String> {
+        let address = crate::ports::BridgeAddress {
+            host: options.host.clone(),
+            port: options.port,
+            path: None,
+        };
+        let endpoint = self.serve(address).await?;
+        let services = &self.inner.services;
+        let dir = crate::domain::registry::registry_dir(
+            services.env.os(),
+            |k| services.env.var(k),
+            services.env.home_dir().as_deref(),
+        );
+        if let Some(dir) = dir {
+            let descriptor = crate::domain::registry::BoundBrowser {
+                title: options.title,
+                endpoint: endpoint.clone(),
+                workspace_dir: options.workspace_dir,
+                metadata: options.metadata,
+            };
+            let file = dir.join(descriptor.file_name());
+            services.fs.write(&file, descriptor.to_json().as_bytes())?;
+            *self.inner.registry_file.lock().unwrap() = Some(file);
+        }
+        Ok(endpoint)
+    }
+
+    /// Serves the connection at `address` (the endpoint, if already served).
+    pub(crate) async fn serve(&self, address: crate::ports::BridgeAddress) -> Result<String> {
         if let Some(b) = self.inner.bridge.lock().unwrap().as_ref() {
             return Ok(b.endpoint());
         }
@@ -240,7 +450,7 @@ impl Browser {
             .inner
             .services
             .bridge
-            .serve(self.inner.cdp.clone())
+            .serve(self.inner.cdp.clone(), address)
             .await?;
         let endpoint = bound.endpoint();
         *self.inner.bridge.lock().unwrap() = Some(bound);
@@ -252,7 +462,40 @@ impl Browser {
         if let Some(b) = self.inner.bridge.lock().unwrap().take() {
             b.stop();
         }
+        if let Some(file) = self.inner.registry_file.lock().unwrap().take() {
+            let _ = self.inner.services.fs.remove_file(&file);
+        }
         Ok(())
+    }
+
+    /// The browsers bound with [`bind_with`](Self::bind_with) on this
+    /// machine that still accept clients (stale descriptors are removed).
+    pub async fn bound_browsers(
+        services: &Services,
+    ) -> Result<Vec<crate::domain::registry::BoundBrowser>> {
+        let dir = crate::domain::registry::registry_dir(
+            services.env.os(),
+            |k| services.env.var(k),
+            services.env.home_dir().as_deref(),
+        );
+        let Some(dir) = dir else {
+            return Ok(Vec::new());
+        };
+        let mut found = Vec::new();
+        for name in services.fs.list_dir(&dir) {
+            let path = dir.join(&name);
+            let Some(b) = services.fs.read(&path).ok().and_then(|t| {
+                crate::domain::registry::BoundBrowser::from_json(&String::from_utf8_lossy(&t))
+            }) else {
+                continue;
+            };
+            if services.bridge.is_listening(&b.endpoint).await {
+                found.push(b);
+            } else {
+                let _ = services.fs.remove_file(&path);
+            }
+        }
+        Ok(found)
     }
 
     /// The DevTools WebSocket URL, if the browser was launched or connected over one.
@@ -286,6 +529,7 @@ impl Browser {
                 .to_owned(),
             launch_args: self.inner.launch_args.clone(),
             launch_proxy: self.inner.launch_proxy.clone(),
+            artifacts: self.inner.artifacts.clone(),
             contexts: Mutex::new(HashMap::new()),
             downloads_dir: Mutex::new(None),
             downloads: Mutex::new(HashMap::new()),
@@ -298,7 +542,16 @@ impl Browser {
             Some(o) => Some(BrowserContext::register(shared.clone(), o, String::new()).await?),
             None => None,
         };
-        tokio::spawn(target_loop(Arc::downgrade(&shared), events));
+        let weak = Arc::downgrade(&self.inner);
+        let loop_shared = Arc::downgrade(&shared);
+        tokio::spawn(async move {
+            target_loop(loop_shared, events).await;
+            // The connection is gone: Playwright's `disconnected`. During
+            // `close()`, that emits it itself, after removing the profile.
+            if let Some(inner) = weak.upgrade().filter(|i| !i.closed.load(Ordering::SeqCst)) {
+                inner.emit_disconnected();
+            }
+        });
         cdp.call(
             None,
             "Target.setAutoAttach",
@@ -322,12 +575,27 @@ impl Browser {
 
     /// Creates an isolated context (Playwright's `browser.newContext`).
     pub async fn new_context(&self, options: ContextOptions) -> Result<BrowserContext> {
-        BrowserContext::create(self.shared()?, options).await
+        let ctx = BrowserContext::create(self.shared()?, options).await?;
+        self.inner.emit(BrowserEvent::Context(ctx.clone()));
+        Ok(ctx)
+    }
+
+    /// `browser.on(...)`: this browser's events from now on.
+    pub fn events(&self) -> impl futures::Stream<Item = BrowserEvent> + Send + use<> {
+        let (tx, rx) = futures::channel::mpsc::unbounded();
+        self.inner.subscribers.lock().unwrap().push(tx);
+        rx
     }
 
     /// A page in a fresh context of its own; closing the page closes the context.
     pub async fn new_page(&self) -> Result<Page> {
-        let ctx = self.new_context(ContextOptions::default()).await?;
+        self.new_page_with(ContextOptions::default()).await
+    }
+
+    /// `browser.newPage(options)`: a page in a fresh context with `options`;
+    /// closing the page closes the context.
+    pub async fn new_page_with(&self, options: ContextOptions) -> Result<Page> {
+        let ctx = self.new_context(options).await?;
         let page = ctx.new_page().await?;
         page.inner.owns_context.store(true, Ordering::SeqCst);
         Ok(page)
@@ -383,11 +651,18 @@ impl Browser {
         self.inner.services.clock.clone()
     }
 
+    /// The pid of the browser process this library launched (`None` when
+    /// connected, or once closed).
+    pub fn process_id(&self) -> Option<u32> {
+        self.inner.process.lock().unwrap().as_ref()?.pid()
+    }
+
     /// Closes the browser, ends the process and deletes the temporary profile.
     pub async fn close(&self) -> Result<()> {
         if self.inner.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
+        let _ = self.unbind().await;
         let live: Vec<_> = self
             .inner
             .shared
@@ -441,6 +716,7 @@ impl Browser {
                     .await;
             }
             self.inner.cdp.disconnect();
+            self.inner.emit_disconnected();
             return Ok(());
         }
         let _ = self.inner.cdp.call(None, "Browser.close", json!({})).await;
@@ -455,6 +731,7 @@ impl Browser {
         {
             let _ = self.inner.services.fs.remove_dir_all(dir);
         }
+        self.inner.emit_disconnected();
         Ok(())
     }
 }
@@ -618,6 +895,7 @@ mod tests {
             video: Arc::new(crate::testing::memory::NullVideo),
             http: Arc::new(crate::testing::memory::NoHttp),
             bridge: Arc::new(crate::testing::memory::NoBridge),
+            signals: Arc::new(crate::testing::memory::NoSignals),
         };
         (s, fs)
     }

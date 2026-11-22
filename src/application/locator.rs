@@ -134,6 +134,9 @@ pub struct Locator {
     /// Frame the selector starts from (`None`: the main frame).
     frame: Option<String>,
     selector: String,
+    /// Locators are strict; selector shortcuts (`page.click(selector)`, `$`)
+    /// use the first match unless the context has `strictSelectors`.
+    strict: bool,
 }
 
 /// Playwright's `locator.toString()`: its description, or the locator code
@@ -160,6 +163,7 @@ impl Page {
             page: self.clone(),
             frame: None,
             selector: selector.to_owned(),
+            strict: true,
         }
     }
     pub fn get_by_role(&self, role: &str, options: RoleOptions) -> Locator {
@@ -189,7 +193,18 @@ impl Page {
 
     /// The utility-world context of the main frame with the injected script installed.
     async fn injected_context(&self, frame: Option<&str>, timeout: Duration) -> Result<i64> {
-        let context_id = self.frame_context(frame, World::Utility, timeout).await?;
+        self.injected_context_in(frame, World::Utility, timeout)
+            .await
+    }
+
+    /// A frame's context in `world` with the injected script installed.
+    async fn injected_context_in(
+        &self,
+        frame: Option<&str>,
+        world: World,
+        timeout: Duration,
+    ) -> Result<i64> {
+        let context_id = self.frame_context(frame, world, timeout).await?;
         let installed = self
             .send(
                 "Runtime.evaluate",
@@ -201,7 +216,7 @@ impl Page {
             let options = json!({
                 "isUnderTest": false, "sdkLanguage": "javascript", "frameSeq": frame_seq,
                 "testIdAttributeName": self.test_id_attribute(), "stableRafCount": 1, "browserName": "chromium",
-                "isUtilityWorld": true, "customEngines": self.custom_engines(),
+                "isUtilityWorld": world == World::Utility, "customEngines": self.custom_engines(),
             });
             let install = format!(
                 "(() => {{ if ({INJECTED}) return; const module = {{}};\n{INJECTED_SOURCE}\n{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); {INJECTED}.__chromiumoxide_render_aria_yaml = json => renderAriaSnapshotAsYaml(json); }})()"
@@ -233,7 +248,8 @@ impl Page {
         st.tree.frame_by_seq(seq).map(|f| f.id.clone())
     }
 
-    /// Calls `body(injected, ...args)` in the utility world.
+    /// Calls `body(injected, ...args)` in the utility world, or in the main
+    /// world when an argument (a selector) uses a main-world engine.
     pub(crate) async fn injected_call(
         &self,
         frame: Option<&str>,
@@ -242,7 +258,16 @@ impl Page {
         by_value: bool,
         timeout: Duration,
     ) -> Result<Value> {
-        let context_id = self.injected_context(frame, timeout).await?;
+        let world = if args
+            .iter()
+            .filter_map(Value::as_str)
+            .any(|a| self.uses_main_world_engine(a))
+        {
+            World::Main
+        } else {
+            World::Utility
+        };
+        let context_id = self.injected_context_in(frame, world, timeout).await?;
         let declaration = format!("function(...args) {{ return ({body})({INJECTED}, ...args); }}");
         let arguments: Vec<Value> = args.iter().map(|v| json!({"value": v})).collect();
         let r = self
@@ -386,6 +411,7 @@ impl Locator {
             page: self.page.clone(),
             frame: self.frame.clone(),
             selector,
+            strict: self.strict,
         }
     }
 
@@ -394,6 +420,25 @@ impl Locator {
             page: page.clone(),
             frame,
             selector,
+            strict: true,
+        }
+    }
+
+    /// `self >> selector` as a selector-shortcut locator (see [`Locator::for_selector`]).
+    pub(crate) fn locator_for_selector(&self, selector: &str) -> Locator {
+        let mut l = self.locator(selector);
+        l.strict = self.page.inner.options.strict_selectors;
+        l
+    }
+
+    /// The locator behind a selector shortcut: strict only with the
+    /// context's `strictSelectors` (Playwright's `strict ?? strictSelectors`).
+    pub(crate) fn for_selector(page: &Page, frame: Option<String>, selector: &str) -> Locator {
+        Locator {
+            page: page.clone(),
+            frame,
+            selector: selector.to_owned(),
+            strict: page.inner.options.strict_selectors,
         }
     }
 
@@ -648,7 +693,7 @@ impl Locator {
     }
 
     async fn resolved(&self, timeout: Duration) -> Result<Attempt<ElementRef>> {
-        Ok(match self.query(true, timeout).await? {
+        Ok(match self.query(self.strict, timeout).await? {
             Some(el) => Attempt::Done(el),
             None => Attempt::Retry(format!("waiting for {self:?}")),
         })
@@ -802,7 +847,9 @@ impl Locator {
                 .await?;
             if hit != Value::String("done".into()) {
                 let description = hit
-                    .as_str()
+                    .get("hitTargetDescription")
+                    .and_then(Value::as_str)
+                    .or_else(|| hit.as_str())
                     .map(str::to_owned)
                     .unwrap_or_else(|| hit.to_string());
                 return Ok(Err(format!("{description} intercepts pointer events")));
@@ -839,11 +886,18 @@ impl Locator {
             match action {
                 Action::Hover => mouse.move_to(point.x, point.y, 1).await?,
                 Action::Tap => self.page.touchscreen().tap(point.x, point.y).await?,
-                _ => {
-                    mouse
-                        .click_with(point.x, point.y, o.button, o.click_count)
-                        .await?
-                }
+                _ => match o.delay {
+                    Some(d) => {
+                        mouse
+                            .click_with_delay(point.x, point.y, o.button, o.click_count, d)
+                            .await?
+                    }
+                    None => {
+                        mouse
+                            .click_with(point.x, point.y, o.button, o.click_count)
+                            .await?
+                    }
+                },
             }
             for m in o.modifiers.iter().rev() {
                 keyboard.up(m).await?;
@@ -1071,6 +1125,18 @@ impl Locator {
     pub async fn press_sequentially(&self, text: &str) -> Result<()> {
         self.focused("typing").await?;
         self.page.keyboard().type_text(text).await
+    }
+
+    /// `locator.press(key, { delay })`.
+    pub async fn press_with_delay(&self, key: &str, delay: Duration) -> Result<()> {
+        self.focused("pressing").await?;
+        self.page.keyboard().press_with_delay(key, delay).await
+    }
+
+    /// `locator.pressSequentially(text, { delay })`.
+    pub async fn press_sequentially_with_delay(&self, text: &str, delay: Duration) -> Result<()> {
+        self.focused("typing").await?;
+        self.page.keyboard().type_with_delay(text, delay).await
     }
 
     /// `locator.setChecked(checked)`.
@@ -1367,7 +1433,7 @@ impl Locator {
 
     /// `locator.isVisible()` (does not wait).
     pub async fn is_visible(&self) -> Result<bool> {
-        match self.query(true, self.timeout()).await? {
+        match self.query(self.strict, self.timeout()).await? {
             None => Ok(false),
             Some(el) => {
                 let v = self
@@ -1529,7 +1595,7 @@ impl Locator {
 
     async fn run_wait_for(&self, state: WaitForState, timeout: Duration) -> Result<()> {
         self.retry("waiting for", timeout, |_| async move {
-            let el = self.query(true, timeout).await?;
+            let el = self.query(self.strict, timeout).await?;
             let visible = match &el {
                 Some(el) => {
                     let v = self
@@ -1575,6 +1641,8 @@ pub struct ClickOptions {
     /// Only perform the checks.
     pub trial: bool,
     pub timeout: Option<Duration>,
+    /// Playwright's `delay` between mousedown and mouseup.
+    pub delay: Option<Duration>,
 }
 
 impl Default for ClickOptions {
@@ -1587,6 +1655,7 @@ impl Default for ClickOptions {
             force: false,
             trial: false,
             timeout: None,
+            delay: None,
         }
     }
 }
@@ -1622,6 +1691,11 @@ impl<'a> Click<'a> {
     }
     pub fn trial(mut self, trial: bool) -> Self {
         self.options.trial = trial;
+        self
+    }
+    /// Wait between mousedown and mouseup (and between clicks), Playwright's `delay`.
+    pub fn delay(mut self, delay: Duration) -> Self {
+        self.options.delay = Some(delay);
         self
     }
     pub fn timeout(mut self, timeout: Duration) -> Self {
@@ -1888,6 +1962,40 @@ impl Locator {
             }
         }
         Ok(out)
+    }
+
+    /// Playwright's `$`: the first match now (no waiting), or a strict-mode
+    /// error when this locator is strict and several match.
+    pub(crate) async fn query_handle(
+        &self,
+    ) -> Result<Option<crate::application::handle::JsHandle>> {
+        let Some(el) = self.query(self.strict, self.timeout()).await? else {
+            return Ok(None);
+        };
+        let mut h = crate::application::handle::JsHandle::from_remote(
+            &self.page,
+            &self.main_world_object(&el).await?,
+        );
+        h.frame = self.frame_for_handles().await?;
+        Ok(Some(h))
+    }
+
+    /// Playwright's `$eval`: `function(element, arg)` on the first match.
+    pub(crate) async fn eval_on_first<T: DeserializeOwned, A: Serialize>(
+        &self,
+        function: &str,
+        arg: Option<A>,
+    ) -> Result<T> {
+        let Some(h) = self.query_handle().await? else {
+            return Err(Error::Evaluation(format!(
+                "Failed to find element matching selector \"{}\"",
+                self.selector
+            )));
+        };
+        match arg {
+            Some(a) => h.evaluate_with(function, a).await,
+            None => h.evaluate(function).await,
+        }
     }
 
     /// The frame the matched elements live in (after iframe hops).

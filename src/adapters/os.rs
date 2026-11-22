@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::domain::discovery::Os;
+use crate::domain::source::{SourceLocation, backtrace_locations};
 use crate::ports::{Environment, FileSystem};
 
 /// The real file system.
@@ -73,6 +74,10 @@ impl FileSystem for OsFileSystem {
         std::fs::read(path)
     }
 
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        std::fs::create_dir_all(path)
+    }
+
     fn write(&self, path: &Path, data: &[u8]) -> io::Result<()> {
         if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
             std::fs::create_dir_all(parent)?;
@@ -102,5 +107,20 @@ impl Environment for OsEnvironment {
         } else {
             Os::Linux
         }
+    }
+
+    fn call_stack(&self) -> Vec<SourceLocation> {
+        let text = std::backtrace::Backtrace::force_capture().to_string();
+        let cwd = std::env::current_dir().ok();
+        backtrace_locations(&text)
+            .into_iter()
+            .map(|mut loc| {
+                // std prints paths under the working directory as `./…`.
+                if let (Some(rest), Some(cwd)) = (loc.file.strip_prefix("./"), &cwd) {
+                    loc.file = cwd.join(rest).to_string_lossy().into_owned();
+                }
+                loc
+            })
+            .collect()
     }
 }

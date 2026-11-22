@@ -158,6 +158,7 @@ impl Route {
         RouteFetch {
             route: self,
             overrides: Overrides::default(),
+            max_retries: None,
         }
     }
 
@@ -261,6 +262,7 @@ impl FetchResponse {
 pub struct RouteFetch<'a> {
     route: &'a Route,
     overrides: Overrides,
+    max_retries: Option<u32>,
 }
 
 impl<'a> RouteFetch<'a> {
@@ -289,6 +291,65 @@ impl<'a> RouteFetch<'a> {
         self.overrides.post_data = Some(data.into());
         self
     }
+    /// Retry connection resets up to `n` times (Playwright's `maxRetries`).
+    /// The request is then sent like Playwright's `route.fetch`: by the
+    /// context's API request client, with its cookies.
+    pub fn max_retries(mut self, n: u32) -> Self {
+        self.max_retries = Some(n);
+        self
+    }
+}
+
+/// `route.fetch()` through the context's `APIRequestContext` (Playwright's
+/// own path), used for `maxRetries`.
+async fn fetch_with_request(
+    route: &Route,
+    overrides: Overrides,
+    max_retries: u32,
+) -> Result<FetchResponse> {
+    let mut o = route.inner.overrides.lock().unwrap().clone();
+    o.merge(overrides);
+    let request = &route.inner.request;
+    let url = o.url.clone().unwrap_or_else(|| request.url().to_owned());
+    let method = o
+        .method
+        .clone()
+        .unwrap_or_else(|| request.method().to_owned());
+    // The headers known when the request was issued: a paused request has
+    // no response, so its wire headers never arrive.
+    let headers = match &o.headers {
+        Some(h) => h.clone(),
+        None => request
+            .headers()
+            .into_iter()
+            .map(|(k, v)| HeaderEntry::new(&k, &v))
+            .collect(),
+    };
+    let context = route
+        .inner
+        .page
+        .context()
+        .ok_or_else(|| Error::TargetClosed("page has been closed".into()))?;
+    let api = context.request();
+    let mut call = api
+        .fetch(&url)
+        .method(&method)
+        .max_retries(max_retries)
+        .max_redirects(20);
+    for h in &headers {
+        call = call.header(&h.name, &h.value);
+    }
+    if let Some(body) = o.post_data.clone().or_else(|| request.post_data_buffer()) {
+        call = call.data_bytes(body);
+    }
+    let resp = call.await?;
+    Ok(FetchResponse {
+        url: resp.url().to_owned(),
+        status: resp.status(),
+        status_text: resp.status_text().to_owned(),
+        headers: resp.headers_array(),
+        body: resp.body().await?,
+    })
 }
 
 impl<'a> IntoFuture for RouteFetch<'a> {
@@ -299,6 +360,14 @@ impl<'a> IntoFuture for RouteFetch<'a> {
             let route = self.route;
             if *route.inner.handled.lock().unwrap() {
                 return Err(Error::InvalidArgument("Route is already handled!".into()));
+            }
+            if let Some(n) = self.max_retries {
+                return fetch_with_request(route, self.overrides, n).await;
+            }
+            // Chromium cannot present the context's client certificates:
+            // fetch their origins ourselves.
+            if route.has_client_certificate() {
+                return fetch_with_request(route, self.overrides, 0).await;
             }
             if route
                 .inner
@@ -901,7 +970,52 @@ impl Page {
     }
 }
 
+impl Route {
+    /// Whether the context has a client certificate for this request's origin.
+    fn has_client_certificate(&self) -> bool {
+        let url = self.inner.request.url();
+        self.inner.page.context().is_some_and(|c| {
+            c.inner
+                .options
+                .client_certificates
+                .iter()
+                .any(|cert| crate::domain::client_cert::url_has_origin(url, &cert.origin))
+        })
+    }
+}
+
 impl BrowserContext {
+    /// `clientCertificates`: requests to those origins are sent by the
+    /// context's `APIRequestContext` (which presents the certificate) and
+    /// fulfilled with its response. Registered first, so user routes run
+    /// before it and fall back to it.
+    pub(crate) async fn route_client_certificate_origins(&self) -> Result<()> {
+        let mut origins: Vec<String> = self
+            .inner
+            .options
+            .client_certificates
+            .iter()
+            .filter_map(|c| crate::domain::client_cert::normalize_origin(&c.origin))
+            .collect();
+        origins.dedup();
+        for origin in origins {
+            let pattern = format!("^{}([/?#]|$)", regex::escape(&origin));
+            let matcher =
+                regex::Regex::new(&pattern).map_err(|e| Error::InvalidArgument(e.to_string()))?;
+            self.route(matcher, |route: Route| async move {
+                let _ = match route.fetch().await {
+                    Ok(response) => route.fulfill().response(&response).await,
+                    Err(e) => {
+                        tracing::debug!(target: "chromiumoxide", "clientCertificates fetch failed: {e}");
+                        route.abort().await
+                    }
+                };
+            })
+            .await?;
+        }
+        Ok(())
+    }
+
     /// `context.route(url, handler)`: applies to every page of the context.
     pub fn route<F, Fut>(&self, url: impl Into<UrlMatcher>, handler: F) -> RouteRegistration<'_>
     where

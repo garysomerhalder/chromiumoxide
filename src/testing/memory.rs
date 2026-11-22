@@ -75,6 +75,10 @@ impl FileSystem for MemoryFileSystem {
         }
     }
 
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        self.dirs.lock().unwrap().insert(path.to_path_buf());
+        Ok(())
+    }
     fn write(&self, path: &Path, _data: &[u8]) -> io::Result<()> {
         self.add_file(&path.to_string_lossy());
         Ok(())
@@ -162,7 +166,23 @@ impl crate::ports::CdpBridge for NoBridge {
     fn serve(
         &self,
         _cdp: std::sync::Arc<dyn crate::ports::CdpSession>,
+        _address: crate::ports::BridgeAddress,
     ) -> futures::future::BoxFuture<'static, io::Result<Box<dyn crate::ports::BoundBridge>>> {
         Box::pin(async { Err(io::Error::other("no network in unit tests")) })
+    }
+    fn is_listening(&self, _endpoint: &str) -> futures::future::BoxFuture<'static, bool> {
+        Box::pin(async { false })
+    }
+}
+
+/// Signals that never arrive.
+pub struct NoSignals;
+
+impl crate::ports::Signals for NoSignals {
+    fn listen(&self, _signal: crate::ports::Signal) -> futures::stream::BoxStream<'static, ()> {
+        Box::pin(futures::stream::empty())
+    }
+    fn exit(&self, code: i32) -> ! {
+        panic!("exit({code})")
     }
 }

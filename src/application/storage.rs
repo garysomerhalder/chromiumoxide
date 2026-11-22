@@ -42,6 +42,15 @@ fn storage_script() -> String {
 pub struct StorageStateOptions {
     /// Also serialise IndexedDB databases.
     pub indexed_db: bool,
+    /// Also serialise the origin private file system (Playwright 1.64's `opfs`).
+    pub opfs: bool,
+}
+
+/// What the storage script collects for one origin.
+pub(crate) struct Collected {
+    local_storage: Vec<NameValue>,
+    indexed_db: Option<Vec<Value>>,
+    opfs: Option<Vec<Value>>,
 }
 
 /// The `http(s)` origin of `url`.
@@ -157,11 +166,8 @@ impl Page {
         Ok(())
     }
 
-    /// localStorage (and IndexedDB when asked) of the current origin.
-    async fn collect_storage(
-        &self,
-        indexed_db: bool,
-    ) -> Result<(Vec<NameValue>, Option<Vec<Value>>)> {
+    /// localStorage (and IndexedDB / OPFS when asked) of the current origin.
+    async fn collect_storage(&self, options: StorageStateOptions) -> Result<Collected> {
         let v = self
             .call_function(
                 World::Utility,
@@ -169,14 +175,16 @@ impl Page {
                     "async function(record) {{ return await {}.collect(record); }}",
                     storage_script()
                 ),
-                &[json!({"indexedDB": indexed_db})],
+                &[json!({"indexedDB": options.indexed_db, "opfs": options.opfs})],
                 DEFAULT_TIMEOUT,
                 "collecting storage",
             )
             .await?;
-        let local: Vec<NameValue> = serde_json::from_value(v["localStorage"].clone())?;
-        let dbs = v.get("indexedDB").and_then(Value::as_array).cloned();
-        Ok((local, dbs))
+        Ok(Collected {
+            local_storage: serde_json::from_value(v["localStorage"].clone())?,
+            indexed_db: v.get("indexedDB").and_then(Value::as_array).cloned(),
+            opfs: v.get("opfs").and_then(Value::as_array).cloned(),
+        })
     }
 }
 
@@ -353,15 +361,17 @@ impl BrowserContext {
         let cookies = self.cookies().await?;
         let mut pending: Vec<String> = self.inner.origins.lock().unwrap().clone();
         let mut origins = Vec::new();
-        let keep =
-            |origin: String, (local_storage, indexed_db): (Vec<NameValue>, Option<Vec<Value>>)| {
-                let has_db = indexed_db.as_ref().is_some_and(|d| !d.is_empty());
-                (!local_storage.is_empty() || has_db).then_some(OriginState {
+        let keep = |origin: String, c: Collected| {
+            let some = |v: &Option<Vec<Value>>| v.as_ref().is_some_and(|d| !d.is_empty());
+            (!c.local_storage.is_empty() || some(&c.indexed_db) || some(&c.opfs)).then_some(
+                OriginState {
                     origin,
-                    local_storage,
-                    indexed_db: indexed_db.filter(|d| !d.is_empty()),
-                })
-            };
+                    local_storage: c.local_storage,
+                    indexed_db: c.indexed_db.filter(|d| !d.is_empty()),
+                    opfs: c.opfs.filter(|d| !d.is_empty()),
+                },
+            )
+        };
         for page in self.live_pages() {
             let Some(origin) = origin_of(&page.url()) else {
                 continue;
@@ -369,7 +379,7 @@ impl BrowserContext {
             if !pending.contains(&origin) {
                 continue;
             }
-            if let Ok(collected) = page.collect_storage(options.indexed_db).await {
+            if let Ok(collected) = page.collect_storage(options).await {
                 pending.retain(|o| *o != origin);
                 origins.extend(keep(origin, collected));
             }
@@ -377,12 +387,7 @@ impl BrowserContext {
         if !pending.is_empty() {
             self.with_storage_page(&pending, |page, origin| {
                 let origin = origin.to_owned();
-                async move {
-                    Ok(keep(
-                        origin,
-                        page.collect_storage(options.indexed_db).await?,
-                    ))
-                }
+                async move { Ok(keep(origin, page.collect_storage(options).await?)) }
             })
             .await?
             .into_iter()
@@ -404,6 +409,7 @@ impl BrowserContext {
                     origin,
                     local_storage: Vec::new(),
                     indexed_db: None,
+                    opfs: None,
                 });
             }
         }

@@ -15,7 +15,16 @@ use crate::domain::error::{Error, Result};
 #[derive(Debug, Clone)]
 pub(crate) struct SelectorConfig {
     test_id_attribute: String,
-    engines: Vec<(String, String)>,
+    /// `(name, source, content_script)`.
+    engines: Vec<(String, String, bool)>,
+}
+
+/// Playwright's `selectors.register(name, script, options)` options.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SelectorRegisterOptions {
+    /// Run the engine isolated from the page's scripts (Playwright's
+    /// `contentScript`); by default it runs in the page's main world.
+    pub content_script: bool,
 }
 
 impl Default for SelectorConfig {
@@ -49,6 +58,16 @@ impl Selectors {
     /// `selectors.register(name, script)`: `script` evaluates to an engine
     /// object with `query(root, selector)` and `queryAll(root, selector)`.
     pub fn register(&self, name: &str, script: &str) -> Result<()> {
+        self.register_with(name, script, SelectorRegisterOptions::default())
+    }
+
+    /// `selectors.register(name, script, { contentScript })`.
+    pub fn register_with(
+        &self,
+        name: &str,
+        script: &str,
+        options: SelectorRegisterOptions,
+    ) -> Result<()> {
         let valid = !name.is_empty()
             && name
                 .chars()
@@ -59,12 +78,13 @@ impl Selectors {
             ));
         }
         let mut cfg = self.shared.selectors.lock().unwrap();
-        if cfg.engines.iter().any(|(n, _)| n == name) {
+        if cfg.engines.iter().any(|(n, ..)| n == name) {
             return Err(Error::InvalidArgument(format!(
                 "\"{name}\" selector engine has been already registered"
             )));
         }
-        cfg.engines.push((name.to_owned(), script.to_owned()));
+        cfg.engines
+            .push((name.to_owned(), script.to_owned(), options.content_script));
         Ok(())
     }
 }
@@ -93,13 +113,24 @@ impl Page {
             .clone()
     }
 
+    /// Playwright's `parseSelector` world rule: a custom engine that is not
+    /// a content script runs in the main world. Detected by its `name=`
+    /// prefix, so a match inside quoted text only costs the isolation.
+    pub(crate) fn uses_main_world_engine(&self, selector: &str) -> bool {
+        let cfg = self.inner.shared.selectors.lock().unwrap();
+        cfg.engines
+            .iter()
+            .filter(|(_, _, content_script)| !content_script)
+            .any(|(name, ..)| selector.contains(&format!("{name}=")))
+    }
+
     pub(crate) fn custom_engines(&self) -> Value {
         let cfg = self.inner.shared.selectors.lock().unwrap();
         let mut engines = vec![json!({"name": "chromiumoxide-handle", "source": HANDLE_ENGINE})];
         engines.extend(
             cfg.engines
                 .iter()
-                .map(|(name, source)| json!({"name": name, "source": source})),
+                .map(|(name, source, _)| json!({"name": name, "source": source})),
         );
         Value::Array(engines)
     }

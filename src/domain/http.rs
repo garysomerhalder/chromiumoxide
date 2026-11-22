@@ -12,6 +12,8 @@ pub struct HttpRequest {
     pub body: Vec<u8>,
     pub timeout_ms: Option<u64>,
     pub ignore_https_errors: bool,
+    /// The client certificate to present, if the server asks.
+    pub client_identity: Option<crate::domain::client_cert::ClientIdentity>,
 }
 
 /// A response from the HTTP client port (no redirects followed).

@@ -39,6 +39,8 @@ pub struct LaunchSpec {
     pub user_data_dir: PathBuf,
     /// `LaunchOptions::proxy`.
     pub proxy: Option<Proxy>,
+    /// Playwright's `chromiumSandbox`: keep Chromium's sandbox (no `--no-sandbox`).
+    pub chromium_sandbox: bool,
 }
 
 /// Playwright's `proxy` option (launch or context).
@@ -138,7 +140,9 @@ pub fn command_line(spec: &LaunchSpec) -> Vec<String> {
             });
             args.extend(HEADLESS_ARGS.iter().map(|a| (*a).to_owned()));
         }
-        args.push("--no-sandbox".to_owned());
+        if !spec.chromium_sandbox {
+            args.push("--no-sandbox".to_owned());
+        }
         if let Some(p) = &spec.proxy {
             args.extend(proxy_args(p));
         }
@@ -264,6 +268,7 @@ mod tests {
             ignore_default_args: false,
             user_data_dir: PathBuf::from("/tmp/profile-1"),
             proxy: None,
+            chromium_sandbox: false,
         }
     }
 
@@ -361,6 +366,19 @@ mod tests {
     }
 
     #[test]
+    fn chromium_sandbox_drops_no_sandbox() {
+        let mut s = spec(BrowserKind::Chrome, true);
+        s.chromium_sandbox = true;
+        let args = command_line(&s);
+        assert!(!args.contains(&"--no-sandbox".to_owned()), "{args:?}");
+        let rest: Vec<_> = command_line(&spec(BrowserKind::Chrome, true))
+            .into_iter()
+            .filter(|a| a != "--no-sandbox")
+            .collect();
+        assert_eq!(args, rest, "only --no-sandbox changes");
+    }
+
+    #[test]
     fn user_args_come_after_preset_and_before_profile() {
         let mut s = spec(BrowserKind::HeadlessShell, true);
         s.args = vec!["--lang=de".into()];
@@ -429,6 +447,7 @@ mod persistent_tests {
             ignore_default_args: false,
             user_data_dir: "/tmp/profile-1".into(),
             proxy: None,
+            chromium_sandbox: false,
         };
         let args = persistent_command_line(&spec);
         assert_eq!(args.last().map(String::as_str), Some("about:blank"));

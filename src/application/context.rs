@@ -18,6 +18,8 @@ pub(crate) struct ContextInner {
     pub(crate) options: Arc<ContextOptions>,
     pub(crate) shared: Arc<Shared>,
     pub(crate) pages: Mutex<Vec<Page>>,
+    /// Files of this context's downloads (deleted when it closes).
+    pub(crate) downloaded: Mutex<Vec<std::path::PathBuf>>,
     /// `context.clock` has installed its script.
     pub(crate) clock_installed: std::sync::atomic::AtomicBool,
     pub(crate) debugger: Mutex<crate::application::debugger::DebuggerState>,
@@ -67,6 +69,23 @@ pub enum ContextEvent {
     WebError(WebError),
     /// A dialog of any page (`context.on('dialog')`).
     Dialog(crate::application::events::Dialog),
+    /// `context.on('dialogclosed')`.
+    DialogClosed(crate::application::events::Dialog),
+    /// A download of any page (`context.on('download')`).
+    Download(crate::application::download::Download),
+    /// `context.on('frameattached')`.
+    FrameAttached(crate::application::frame::Frame),
+    /// `context.on('framedetached')`.
+    FrameDetached(crate::application::frame::Frame),
+    /// `context.on('framenavigated')`.
+    FrameNavigated(crate::application::frame::Frame),
+    /// A page fired `load` (`context.on('pageload')`).
+    PageLoad(Page),
+    /// A page closed (`context.on('pageclose')`).
+    PageClose(Page),
+    /// `context.on('backgroundpage')`: never fires in Chromium (Playwright
+    /// deprecates background pages; see `backgroundPages()`).
+    BackgroundPage(Page),
 }
 
 /// Playwright's `WebError`: an uncaught error and its page.
@@ -182,6 +201,7 @@ impl BrowserContext {
             options: Arc::new(options),
             shared: shared.clone(),
             pages: Mutex::new(Vec::new()),
+            downloaded: Mutex::new(Vec::new()),
             init_errors: Mutex::new(HashMap::new()),
             init_scripts: Mutex::new(Vec::new()),
             clock_installed: std::sync::atomic::AtomicBool::new(false),
@@ -238,6 +258,9 @@ impl BrowserContext {
         }
         if let Some(state) = context.inner.options.storage_state.clone() {
             context.restore_storage_state(&state).await?;
+        }
+        if !context.inner.options.client_certificates.is_empty() {
+            context.route_client_certificate_origins().await?;
         }
         Ok(context)
     }
@@ -354,6 +377,10 @@ impl BrowserContext {
             p.mark_closed();
         }
         shared.contexts.lock().unwrap().remove(&self.inner.id);
+        // Like Playwright, downloads go with their context.
+        for path in std::mem::take(&mut *self.inner.downloaded.lock().unwrap()) {
+            let _ = shared.services.fs.remove_file(&path);
+        }
         self.inner.changed.send_modify(|v| *v += 1);
         self.inner.emit(ContextEvent::Close);
         Ok(())

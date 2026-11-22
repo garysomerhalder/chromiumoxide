@@ -247,7 +247,10 @@ async fn storage_state_with_indexed_db_round_trips() {
     .await
     .unwrap();
     let state = ctx
-        .storage_state_with(chromiumoxide::StorageStateOptions { indexed_db: true })
+        .storage_state_with(chromiumoxide::StorageStateOptions {
+            indexed_db: true,
+            ..Default::default()
+        })
         .await
         .unwrap();
     // Recorded from Playwright 1.63 (storageState({ indexedDB: true })).

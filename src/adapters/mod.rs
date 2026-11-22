@@ -5,5 +5,6 @@ pub mod clock;
 pub mod http;
 pub mod os;
 pub mod process;
+pub mod signals;
 pub mod transport;
 pub mod video;

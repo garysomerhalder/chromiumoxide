@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.0] (in progress)
 
+### Milestone 8: the 1.65.1 backlog (options, events, methods)
+
+- Input `delay` on clicks, presses and typing (locators, shortcuts,
+  `Keyboard`, `Mouse`).
+- `page.$`, `$$`, `$eval`, `$$eval` on pages, frames and element handles;
+  `ContextOptions::strict_selectors`. Selector shortcuts now use the first
+  match unless `strict_selectors` (they were always strict).
+- Events: page `Crash`, `DialogClosed`, `FrameAttached`, `FrameDetached`,
+  `FrameNavigated`; the matching context events plus `Download`,
+  `PageLoad`, `PageClose`, `BackgroundPage`; `Browser::events()` with
+  `Context` and `Disconnected`.
+- `page.close_with(PageCloseOptions { run_before_unload })`.
+- `max_retries` on API requests and `route.fetch()`; OPFS in storage state
+  (`StorageStateOptions { indexed_db, opfs }`).
+- `Debugger::run_to(SourceLocation)`, `PausedDetails::location`.
+- `BrowserServer::process()`, `Download::create_read_stream()`.
+- `LaunchOptions`: `slow_mo`, `downloads_path`, `traces_dir`,
+  `artifacts_dir`, `chromium_sandbox`, `handle_sigint` / `handle_sigterm` /
+  `handle_sighup` (opt-in). A context's downloads are deleted when it closes.
+- `Chromium::launch_server_with(LaunchServerOptions { host, port, ws_path })`;
+  `Browser::bind_with(BindOptions { title, host, port, workspace_dir,
+  metadata })` and `Chromium::bound_browsers()`. The bridge serves only its
+  (by default unguessable) path.
+- `Selectors::register_with(.., SelectorRegisterOptions { content_script })`;
+  custom engines run in the page's main world unless they are content scripts.
+- `RouteFromHar::update / update_content / update_mode`;
+  `Tracing::start_har_with(path, HarOptions { content, mode, resources_dir,
+  url_filter })`; attached bodies, minimal mode and `.zip` HARs.
+- `ClientCertificate` (`ContextOptions::client_certificates`,
+  `ApiRequestOptions::client_certificates`): PEM/DER, encrypted PKCS#8 and
+  PFX. New dependencies `p12-keystore` and `pkcs8`.
+- `Browser::new_page_with(ContextOptions)`.
+- Fixes: the blocked-click log names the element;
+  `disconnected` comes after the temporary profile is removed.
+- Breaking for struct literals without `..Default::default()`: new fields on
+  `LaunchOptions`, `ContextOptions`, `ApiRequestOptions`, `RecordHar`,
+  `LaunchSpec` (`chromium_sandbox`), `PausedDetails`, `HttpRequest` and
+  `Services` (`signals`); the `CdpBridge` port takes a `BridgeAddress`.
+
 ### Milestone 7: Playwright 1.65.1
 
 - Vendored Playwright scripts updated to playwright-core 1.65.1; elements in
