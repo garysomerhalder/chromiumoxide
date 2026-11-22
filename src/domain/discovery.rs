@@ -74,20 +74,200 @@ pub enum Probe {
 }
 
 /// All probes for `env`, highest priority first.
-pub fn probes(_env: &DiscoveryEnv) -> Vec<Probe> {
-    unimplemented!()
+pub fn probes(env: &DiscoveryEnv) -> Vec<Probe> {
+    let mut out = Vec::new();
+    let required = [
+        (&env.explicit, Source::Explicit),
+        (&env.mockup_chromium, Source::MockupChromiumEnv),
+        (&env.chrome, Source::ChromeEnv),
+    ];
+    for (path, source) in required {
+        if let Some(path) = path.as_ref().filter(|p| !p.as_os_str().is_empty()) {
+            out.push(Probe::Required {
+                path: path.clone(),
+                source,
+            });
+        }
+    }
+
+    let playwright = |root: PathBuf, source| Probe::Root {
+        root,
+        layout: Layout::Playwright,
+        source,
+    };
+    if let Some(root) = env
+        .playwright_browsers_path
+        .as_ref()
+        .filter(|p| !p.as_os_str().is_empty() && p.as_os_str() != "0")
+    {
+        out.push(playwright(root.clone(), Source::PlaywrightBrowsersPath));
+    }
+    if env.os != Os::Windows {
+        out.push(playwright(
+            PathBuf::from("/opt/pw-browsers"),
+            Source::OptPwBrowsers,
+        ));
+    }
+    if let Some(home) = &env.home {
+        out.push(playwright(
+            home.join(".cache/ms-playwright"),
+            Source::PlaywrightCache,
+        ));
+        out.push(playwright(
+            home.join("Library/Caches/ms-playwright"),
+            Source::PlaywrightCache,
+        ));
+    }
+    if let Some(local) = &env.local_app_data {
+        out.push(playwright(
+            local.join("ms-playwright"),
+            Source::PlaywrightCache,
+        ));
+    }
+
+    let cft = |root: PathBuf| Probe::Root {
+        root,
+        layout: Layout::ChromeForTesting,
+        source: Source::ChromeForTesting,
+    };
+    let fetcher_cache = match env.os {
+        Os::Linux => env.home.as_ref().map(|h| h.join(".cache/chromiumoxide")),
+        Os::MacOs => env
+            .home
+            .as_ref()
+            .map(|h| h.join("Library/Caches/chromiumoxide")),
+        Os::Windows => env.local_app_data.as_ref().map(|l| l.join("chromiumoxide")),
+    };
+    out.extend(fetcher_cache.map(cft));
+    if let Some(home) = &env.home {
+        out.push(cft(home.join(".cache/puppeteer/chrome-headless-shell")));
+        out.push(cft(home.join(".cache/puppeteer/chrome")));
+    }
+
+    out.extend(
+        system_candidates(env)
+            .into_iter()
+            .map(|path| Probe::Candidate {
+                path,
+                source: Source::System,
+            }),
+    );
+    out
+}
+
+fn system_candidates(env: &DiscoveryEnv) -> Vec<PathBuf> {
+    match env.os {
+        Os::Linux => {
+            const NAMES: &[&str] = &[
+                "google-chrome-stable",
+                "google-chrome",
+                "chromium",
+                "chromium-browser",
+                "chrome",
+            ];
+            let mut out: Vec<PathBuf> = NAMES
+                .iter()
+                .flat_map(|name| env.path.iter().map(move |dir| dir.join(name)))
+                .collect();
+            out.extend(
+                [
+                    "/opt/google/chrome/chrome",
+                    "/usr/bin/google-chrome",
+                    "/usr/bin/chromium",
+                    "/snap/bin/chromium",
+                ]
+                .into_iter()
+                .map(PathBuf::from),
+            );
+            out
+        }
+        Os::MacOs => {
+            let apps = [
+                "Google Chrome.app/Contents/MacOS/Google Chrome",
+                "Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+                "Chromium.app/Contents/MacOS/Chromium",
+            ];
+            let mut out: Vec<PathBuf> = apps
+                .iter()
+                .map(|a| PathBuf::from("/Applications").join(a))
+                .collect();
+            if let Some(home) = &env.home {
+                out.extend(apps.iter().map(|a| home.join("Applications").join(a)));
+            }
+            out
+        }
+        Os::Windows => {
+            let rel = "Google/Chrome/Application/chrome.exe";
+            let mut out: Vec<PathBuf> = env.program_files.iter().map(|d| d.join(rel)).collect();
+            out.extend(env.local_app_data.iter().map(|d| d.join(rel)));
+            out.extend(env.path.iter().map(|d| d.join("chrome.exe")));
+            out
+        }
+    }
 }
 
 /// Ranks directory entries of a browsers root: for the Playwright layout,
 /// `chromium_headless_shell-*` before `chromium-*`, each newest revision first;
 /// for Chrome for Testing, newest version first. Unrelated entries are dropped.
-pub fn rank_entries(_layout: Layout, _names: &[String]) -> Vec<String> {
-    unimplemented!()
+pub fn rank_entries(layout: Layout, names: &[String]) -> Vec<String> {
+    let mut ranked: Vec<((u8, Vec<u64>), &String)> = names
+        .iter()
+        .filter_map(|name| {
+            let key = match layout {
+                Layout::Playwright => {
+                    let (class, rest) =
+                        if let Some(rest) = name.strip_prefix("chromium_headless_shell-") {
+                            (0, rest)
+                        } else if let Some(rest) = name.strip_prefix("chromium-") {
+                            (1, rest)
+                        } else {
+                            return None;
+                        };
+                    (class, vec![rest.parse::<u64>().ok()?])
+                }
+                Layout::ChromeForTesting => {
+                    let (_, version) = name.rsplit_once('-')?;
+                    let parts = version
+                        .split('.')
+                        .map(|part| part.parse::<u64>().ok())
+                        .collect::<Option<Vec<_>>>()?;
+                    (0, parts)
+                }
+            };
+            Some((key, name))
+        })
+        .collect();
+    // class ascending, version descending
+    ranked.sort_by(|(a, _), (b, _)| a.0.cmp(&b.0).then_with(|| b.1.cmp(&a.1)));
+    ranked.into_iter().map(|(_, name)| name.clone()).collect()
 }
 
 /// Executable paths relative to one revision directory, preferred first.
-pub fn executables_within(_os: Os) -> Vec<PathBuf> {
-    unimplemented!()
+pub fn executables_within(os: Os) -> Vec<PathBuf> {
+    let rel: &[&str] = match os {
+        Os::Linux => &[
+            "chrome-headless-shell-linux64/chrome-headless-shell",
+            "chrome-headless-shell-linux-arm64/chrome-headless-shell",
+            "chrome-linux64/chrome",
+            "chrome-linux/chrome",
+            "chrome-linux-arm64/chrome",
+        ],
+        Os::MacOs => &[
+            "chrome-headless-shell-mac-arm64/chrome-headless-shell",
+            "chrome-headless-shell-mac-x64/chrome-headless-shell",
+            "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+            "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+            "chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium",
+            "chrome-mac/Chromium.app/Contents/MacOS/Chromium",
+        ],
+        Os::Windows => &[
+            "chrome-headless-shell-win64/chrome-headless-shell.exe",
+            "chrome-headless-shell-win32/chrome-headless-shell.exe",
+            "chrome-win64/chrome.exe",
+            "chrome-win/chrome.exe",
+        ],
+    };
+    rel.iter().map(PathBuf::from).collect()
 }
 
 #[cfg(test)]
