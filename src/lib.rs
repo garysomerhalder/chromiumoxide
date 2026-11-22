@@ -69,7 +69,7 @@ pub use application::screencast::{
 };
 pub use application::screenshot::Screenshot;
 pub use application::scripts::{BindingSource, ScriptTag};
-pub use application::selectors::Selectors;
+pub use application::selectors::{SelectorRegisterOptions, Selectors};
 pub use application::services::Services;
 pub use application::snapshot::{ScreenshotAssertion, UpdateSnapshots};
 pub use application::storage::{StorageStateOptions, WebStorage};

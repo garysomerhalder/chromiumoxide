@@ -193,7 +193,18 @@ impl Page {
 
     /// The utility-world context of the main frame with the injected script installed.
     async fn injected_context(&self, frame: Option<&str>, timeout: Duration) -> Result<i64> {
-        let context_id = self.frame_context(frame, World::Utility, timeout).await?;
+        self.injected_context_in(frame, World::Utility, timeout)
+            .await
+    }
+
+    /// A frame's context in `world` with the injected script installed.
+    async fn injected_context_in(
+        &self,
+        frame: Option<&str>,
+        world: World,
+        timeout: Duration,
+    ) -> Result<i64> {
+        let context_id = self.frame_context(frame, world, timeout).await?;
         let installed = self
             .send(
                 "Runtime.evaluate",
@@ -205,7 +216,7 @@ impl Page {
             let options = json!({
                 "isUnderTest": false, "sdkLanguage": "javascript", "frameSeq": frame_seq,
                 "testIdAttributeName": self.test_id_attribute(), "stableRafCount": 1, "browserName": "chromium",
-                "isUtilityWorld": true, "customEngines": self.custom_engines(),
+                "isUtilityWorld": world == World::Utility, "customEngines": self.custom_engines(),
             });
             let install = format!(
                 "(() => {{ if ({INJECTED}) return; const module = {{}};\n{INJECTED_SOURCE}\n{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); {INJECTED}.__chromiumoxide_render_aria_yaml = json => renderAriaSnapshotAsYaml(json); }})()"
@@ -237,7 +248,8 @@ impl Page {
         st.tree.frame_by_seq(seq).map(|f| f.id.clone())
     }
 
-    /// Calls `body(injected, ...args)` in the utility world.
+    /// Calls `body(injected, ...args)` in the utility world, or in the main
+    /// world when an argument (a selector) uses a main-world engine.
     pub(crate) async fn injected_call(
         &self,
         frame: Option<&str>,
@@ -246,7 +258,16 @@ impl Page {
         by_value: bool,
         timeout: Duration,
     ) -> Result<Value> {
-        let context_id = self.injected_context(frame, timeout).await?;
+        let world = if args
+            .iter()
+            .filter_map(Value::as_str)
+            .any(|a| self.uses_main_world_engine(a))
+        {
+            World::Main
+        } else {
+            World::Utility
+        };
+        let context_id = self.injected_context_in(frame, world, timeout).await?;
         let declaration = format!("function(...args) {{ return ({body})({INJECTED}, ...args); }}");
         let arguments: Vec<Value> = args.iter().map(|v| json!({"value": v})).collect();
         let r = self
