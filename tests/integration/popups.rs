@@ -50,7 +50,10 @@ async fn popups_and_context_pages() {
             | ContextEvent::Response(_)
             | ContextEvent::RequestFinished(_)
             | ContextEvent::RequestFailed(_)
-            | ContextEvent::Console(_) => {}
+            | ContextEvent::Console(_)
+            | ContextEvent::FrameAttached(_)
+            | ContextEvent::FrameNavigated(_)
+            | ContextEvent::PageLoad(_) => {}
             other => panic!("{other:?}"),
         }
     }

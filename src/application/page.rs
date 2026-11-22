@@ -344,17 +344,27 @@ impl Page {
                 .to_owned()
         };
         let mut effects = Vec::new();
+        let mut frame_events: Vec<crate::application::events::PageEvent> = Vec::new();
         {
             let mut st = self.inner.state.lock().unwrap();
             match e.method.as_str() {
                 "Page.frameAttached" => {
-                    effects = st.tree.attached(
-                        &s(p, "frameId"),
-                        p.get("parentFrameId").and_then(Value::as_str),
-                    );
+                    let id = s(p, "frameId");
+                    let known = st.tree.frame(&id).is_some();
+                    effects = st
+                        .tree
+                        .attached(&id, p.get("parentFrameId").and_then(Value::as_str));
+                    if !known {
+                        frame_events.push(crate::application::events::PageEvent::FrameAttached(
+                            self.frame_by_id(&id),
+                        ));
+                    }
                 }
                 "Page.frameNavigated" => {
                     let f = &p["frame"];
+                    frame_events.push(crate::application::events::PageEvent::FrameNavigated(
+                        self.frame_by_id(&s(f, "id")),
+                    ));
                     let url = format!("{}{}", s(f, "url"), s(f, "urlFragment"));
                     if let Some(origin) = crate::application::storage::origin_of(&url)
                         && let Some(ctx) = self.inner.context.upgrade()
@@ -377,6 +387,9 @@ impl Page {
                 }
                 "Page.navigatedWithinDocument" => {
                     let frame_id = s(p, "frameId");
+                    frame_events.push(crate::application::events::PageEvent::FrameNavigated(
+                        self.frame_by_id(&frame_id),
+                    ));
                     if st.tree.main_frame().is_some_and(|m| m.id == frame_id) {
                         st.main_navigations += 1;
                         st.last_navigation_same_document = true;
@@ -387,7 +400,15 @@ impl Page {
                 }
                 "Page.frameDetached" => {
                     if p.get("reason").and_then(Value::as_str) != Some("swap") {
-                        st.tree.detached(&s(p, "frameId"));
+                        let id = s(p, "frameId");
+                        if st.tree.frame(&id).is_some() {
+                            frame_events.push(
+                                crate::application::events::PageEvent::FrameDetached(
+                                    self.frame_by_id(&id),
+                                ),
+                            );
+                        }
+                        st.tree.detached(&id);
                     }
                 }
                 "Page.lifecycleEvent" => {
@@ -478,6 +499,7 @@ impl Page {
                 }
                 "Inspector.targetCrashed" => {
                     drop(st);
+                    self.emit(crate::application::events::PageEvent::Crash);
                     self.mark_closed();
                     return;
                 }
@@ -486,6 +508,9 @@ impl Page {
         }
         self.apply_effects(effects);
         self.bump();
+        for e in frame_events {
+            self.emit(e);
+        }
     }
 
     pub(crate) fn apply_effects(&self, effects: Vec<Effect>) {

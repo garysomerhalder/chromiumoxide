@@ -127,9 +127,11 @@ where
 fn page_event_name(e: &chromiumoxide::PageEvent) -> Option<String> {
     use chromiumoxide::PageEvent::*;
     Some(match e {
-        FrameAttached(f) => format!("frameattached:{}", f.name()),
+        // Like Playwright, a frame has no name yet when it attaches, and is
+        // gone from the page once detached.
+        FrameAttached(_) => "frameattached".into(),
         FrameNavigated(f) => format!("framenavigated:{}", f.name()),
-        FrameDetached(f) => format!("framedetached:{}", f.name()),
+        FrameDetached(_) => "framedetached".into(),
         Dialog(d) => format!("dialog:{}", d.message()),
         DialogClosed(d) => format!("dialogclosed:{}", d.message()),
         Crash => "crash".into(),
@@ -143,6 +145,7 @@ fn page_event_name(e: &chromiumoxide::PageEvent) -> Option<String> {
 async fn page_frame_dialog_and_crash_events() {
     let (browser, page) = page_with("<p>x</p>").await;
     let seen = collect(page.events(), page_event_name);
+    page.goto("data:text/html,<p>main</p>").await.unwrap();
     page.set_content("<iframe name=child srcdoc='<p>c</p>'></iframe>")
         .await
         .unwrap();
@@ -156,9 +159,9 @@ async fn page_frame_dialog_and_crash_events() {
     let got = seen.lock().unwrap().clone();
     for want in [
         "framenavigated:",
-        "frameattached:child",
+        "frameattached",
         "framenavigated:child",
-        "framedetached:child",
+        "framedetached",
         "dialog:hi",
         "dialogclosed:hi",
     ] {

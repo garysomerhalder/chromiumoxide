@@ -83,6 +83,37 @@ pub(crate) struct BrowserInner {
     launch_args: Option<Vec<String>>,
     /// `LaunchOptions::proxy`.
     launch_proxy: Option<crate::domain::launch::Proxy>,
+    /// `browser.events()` subscribers.
+    subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<BrowserEvent>>>,
+    /// `disconnected` was emitted.
+    disconnected: AtomicBool,
+}
+
+/// Something that happened to a browser (Playwright's `browser.on(...)`).
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum BrowserEvent {
+    /// A context was created (`browser.on('context')`).
+    Context(BrowserContext),
+    /// The browser closed or the connection was lost (`browser.on('disconnected')`).
+    Disconnected,
+}
+
+impl BrowserInner {
+    fn emit(&self, event: BrowserEvent) {
+        self.subscribers
+            .lock()
+            .unwrap()
+            .retain(|s| s.unbounded_send(event.clone()).is_ok());
+    }
+
+    /// Emits `disconnected` once.
+    pub(crate) fn emit_disconnected(&self) {
+        self.closed.store(true, Ordering::SeqCst);
+        if !self.disconnected.swap(true, Ordering::SeqCst) {
+            self.emit(BrowserEvent::Disconnected);
+        }
+    }
 }
 
 impl Drop for BrowserInner {
@@ -187,6 +218,8 @@ impl Browser {
                 bridge: Mutex::new(None),
                 launch_args: Some(options.args.clone()),
                 launch_proxy: options.proxy.clone(),
+                subscribers: Mutex::new(Vec::new()),
+                disconnected: AtomicBool::new(false),
             }),
         };
         let default_options = persistent.map(|(_, o)| o);
@@ -222,6 +255,8 @@ impl Browser {
                 bridge: Mutex::new(None),
                 launch_args: None,
                 launch_proxy: None,
+                subscribers: Mutex::new(Vec::new()),
+                disconnected: AtomicBool::new(false),
             }),
         };
         browser.handshake(None).await?;
@@ -298,7 +333,15 @@ impl Browser {
             Some(o) => Some(BrowserContext::register(shared.clone(), o, String::new()).await?),
             None => None,
         };
-        tokio::spawn(target_loop(Arc::downgrade(&shared), events));
+        let weak = Arc::downgrade(&self.inner);
+        let loop_shared = Arc::downgrade(&shared);
+        tokio::spawn(async move {
+            target_loop(loop_shared, events).await;
+            // The connection is gone: Playwright's `disconnected`.
+            if let Some(inner) = weak.upgrade() {
+                inner.emit_disconnected();
+            }
+        });
         cdp.call(
             None,
             "Target.setAutoAttach",
@@ -322,7 +365,16 @@ impl Browser {
 
     /// Creates an isolated context (Playwright's `browser.newContext`).
     pub async fn new_context(&self, options: ContextOptions) -> Result<BrowserContext> {
-        BrowserContext::create(self.shared()?, options).await
+        let ctx = BrowserContext::create(self.shared()?, options).await?;
+        self.inner.emit(BrowserEvent::Context(ctx.clone()));
+        Ok(ctx)
+    }
+
+    /// `browser.on(...)`: this browser's events from now on.
+    pub fn events(&self) -> impl futures::Stream<Item = BrowserEvent> + Send + use<> {
+        let (tx, rx) = futures::channel::mpsc::unbounded();
+        self.inner.subscribers.lock().unwrap().push(tx);
+        rx
     }
 
     /// A page in a fresh context of its own; closing the page closes the context.
@@ -441,6 +493,7 @@ impl Browser {
                     .await;
             }
             self.inner.cdp.disconnect();
+            self.inner.emit_disconnected();
             return Ok(());
         }
         let _ = self.inner.cdp.call(None, "Browser.close", json!({})).await;
@@ -455,6 +508,7 @@ impl Browser {
         {
             let _ = self.inner.services.fs.remove_dir_all(dir);
         }
+        self.inner.emit_disconnected();
         Ok(())
     }
 }

@@ -31,7 +31,7 @@ pub use chromiumoxide_fetcher as fetcher;
 pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::aria::AriaAssertion;
 pub use application::aria_snapshot::{AriaSnapshotMode, AriaSnapshotOptions};
-pub use application::browser::{Browser, LaunchOptions};
+pub use application::browser::{Browser, BrowserEvent, LaunchOptions};
 pub use application::clock::Clock;
 pub use application::context::{BrowserContext, ContextEvent, PageWaiter, WebError};
 pub use application::coverage::{Coverage, CoverageOptions, CssCoverageEntry, JsCoverageEntry};

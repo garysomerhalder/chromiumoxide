@@ -67,6 +67,23 @@ pub enum ContextEvent {
     WebError(WebError),
     /// A dialog of any page (`context.on('dialog')`).
     Dialog(crate::application::events::Dialog),
+    /// `context.on('dialogclosed')`.
+    DialogClosed(crate::application::events::Dialog),
+    /// A download of any page (`context.on('download')`).
+    Download(crate::application::download::Download),
+    /// `context.on('frameattached')`.
+    FrameAttached(crate::application::frame::Frame),
+    /// `context.on('framedetached')`.
+    FrameDetached(crate::application::frame::Frame),
+    /// `context.on('framenavigated')`.
+    FrameNavigated(crate::application::frame::Frame),
+    /// A page fired `load` (`context.on('pageload')`).
+    PageLoad(Page),
+    /// A page closed (`context.on('pageclose')`).
+    PageClose(Page),
+    /// `context.on('backgroundpage')`: never fires in Chromium (Playwright
+    /// deprecates background pages; see `backgroundPages()`).
+    BackgroundPage(Page),
 }
 
 /// Playwright's `WebError`: an uncaught error and its page.
