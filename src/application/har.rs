@@ -14,9 +14,9 @@ use crate::application::page::Page;
 use crate::application::route::Route;
 use crate::domain::error::{Error, Result};
 use crate::domain::har::{
-    Content, Creator, Entry, Har, HarNotFound, HarPage, HarRequest, HarResponse, Log,
-    NameValuePair, PostData, RecordHar, iso_time, query_string, request_cookies, response_cookie,
-    timings,
+    Content, Creator, Entry, Har, HarContent, HarMode, HarNotFound, HarPage, HarRequest,
+    HarResponse, Log, NameValuePair, PostData, RecordHar, attachment_name, iso_time, query_string,
+    request_cookies, response_cookie, slim, timings,
 };
 use crate::domain::url_matcher::UrlMatcher;
 
@@ -25,18 +25,41 @@ pub(crate) struct HarRecording {
     options: RecordHar,
     filter: Option<UrlMatcher>,
     pages: Vec<HarPage>,
-    pending: Vec<tokio::task::JoinHandle<Option<Entry>>>,
+    pending: Vec<tokio::task::JoinHandle<Option<RecordedEntry>>>,
+    /// Only this page's traffic (`page.routeFromHAR(.., { update })`).
+    page_only: Option<String>,
+}
+
+/// An attached body: its file name and bytes.
+pub(crate) type Attachment = (String, Vec<u8>);
+
+/// A recorded entry and its attached body.
+pub(crate) type RecordedEntry = (Entry, Option<Attachment>);
+
+impl HarRecording {
+    pub(crate) fn new(
+        options: RecordHar,
+        filter: Option<UrlMatcher>,
+        page_only: Option<String>,
+    ) -> Self {
+        HarRecording {
+            filter: filter.or_else(|| options.url_filter.as_deref().map(UrlMatcher::glob)),
+            options,
+            pages: Vec::new(),
+            pending: Vec::new(),
+            page_only,
+        }
+    }
 }
 
 pub(crate) type HarState = Mutex<Option<HarRecording>>;
 
 pub(crate) fn recording(options: &Option<RecordHar>) -> HarState {
-    Mutex::new(options.as_ref().map(|o| HarRecording {
-        filter: o.url_filter.as_deref().map(UrlMatcher::glob),
-        options: o.clone(),
-        pages: Vec::new(),
-        pending: Vec::new(),
-    }))
+    Mutex::new(
+        options
+            .as_ref()
+            .map(|o| HarRecording::new(o.clone(), None, None)),
+    )
 }
 
 fn pairs(entries: Vec<crate::domain::network::HeaderEntry>) -> Vec<NameValuePair> {
@@ -46,7 +69,12 @@ fn pairs(entries: Vec<crate::domain::network::HeaderEntry>) -> Vec<NameValuePair
         .collect()
 }
 
-pub(crate) async fn entry_for(request: Request, page_id: String, omit_content: bool) -> Entry {
+pub(crate) async fn entry_for(
+    request: Request,
+    page_id: String,
+    content_policy: HarContent,
+) -> (Entry, Option<Attachment>) {
+    let mut attachment = None;
     let timing = request.timing();
     let request_headers = pairs(request.headers_array().await.unwrap_or_default());
     let cookies = request_headers
@@ -91,11 +119,18 @@ pub(crate) async fn entry_for(request: Request, page_id: String, omit_content: b
             mime_type: mime.clone(),
             ..Default::default()
         };
-        if !omit_content
+        if content_policy != HarContent::Omit
             && !(300..400).contains(&response.status)
             && let Ok(body) = response.body().await
         {
             content = Content::from_body(&body, &mime);
+            if content_policy == HarContent::Attach {
+                let name = attachment_name(&body, &mime);
+                content.text = None;
+                content.encoding = None;
+                content.file = Some(name.clone());
+                attachment = Some((name, body));
+            }
         }
         let redirect_url = headers
             .iter()
@@ -123,7 +158,7 @@ pub(crate) async fn entry_for(request: Request, page_id: String, omit_content: b
         entry.timings = timings(&request.timing());
         entry.time = entry.timings.total();
     }
-    entry
+    (entry, attachment)
 }
 
 impl ContextInner {
@@ -135,6 +170,9 @@ impl ContextInner {
             let Some(rec) = har.as_mut() else {
                 return;
             };
+            if rec.page_only.as_ref().is_some_and(|p| *p != page_id) {
+                return;
+            }
             rec.pages.push(HarPage {
                 id: page_id.clone(),
                 ..Default::default()
@@ -159,10 +197,10 @@ impl ContextInner {
                 {
                     continue;
                 }
-                let omit = rec.options.omit_content;
+                let policy = rec.options.content_policy();
                 let id = page_id.clone();
                 rec.pending.push(tokio::spawn(async move {
-                    Some(entry_for(request, id, omit).await)
+                    Some(entry_for(request, id, policy).await)
                 }));
             }
         });
@@ -176,9 +214,13 @@ impl BrowserContext {
             return Ok(());
         };
         let mut entries = Vec::new();
+        let mut attachments: Vec<Attachment> = Vec::new();
         for handle in rec.pending.drain(..) {
-            if let Ok(Some(e)) = handle.await {
+            if let Ok(Some((e, a))) = handle.await {
                 entries.push(e);
+                if let Some(a) = a.filter(|a| !attachments.iter().any(|b| b.0 == a.0)) {
+                    attachments.push(a);
+                }
             }
         }
         entries.sort_by(|a, b| a.started_date_time.cmp(&b.started_date_time));
@@ -198,6 +240,10 @@ impl BrowserContext {
         {
             rec.pages[0].title = title;
         }
+        if rec.options.mode == HarMode::Minimal {
+            rec.pages.clear();
+            entries.iter_mut().for_each(slim);
+        }
         let version = self.inner.shared.browser_version.clone();
         let har = Har {
             log: Log {
@@ -211,11 +257,23 @@ impl BrowserContext {
             },
         };
         let json = serde_json::to_vec_pretty(&har)?;
-        self.inner
-            .shared
-            .services
-            .fs
-            .write(&rec.options.path, &json)?;
+        let fs = &self.inner.shared.services.fs;
+        if rec.options.is_zip() {
+            let mut files: Vec<(&str, Vec<u8>)> = vec![("har.har", json)];
+            files.extend(attachments.iter().map(|(n, b)| (n.as_str(), b.clone())));
+            fs.write(&rec.options.path, &crate::domain::trace::zip_stored(&files))?;
+            return Ok(());
+        }
+        fs.write(&rec.options.path, &json)?;
+        let dir = rec
+            .options
+            .resources_dir
+            .clone()
+            .or_else(|| rec.options.path.parent().map(PathBuf::from))
+            .unwrap_or_default();
+        for (name, body) in &attachments {
+            fs.write(&dir.join(name), body)?;
+        }
         Ok(())
     }
 }
@@ -228,6 +286,9 @@ pub struct RouteFromHar<'a> {
     path: PathBuf,
     url: Option<UrlMatcher>,
     not_found: HarNotFound,
+    update: bool,
+    update_content: HarContent,
+    update_mode: HarMode,
 }
 
 impl<'a> RouteFromHar<'a> {
@@ -242,9 +303,28 @@ impl<'a> RouteFromHar<'a> {
         self.not_found = mode;
         self
     }
+
+    /// Playwright's `update`: record the traffic into the HAR instead of
+    /// serving from it (written when the context closes).
+    pub fn update(mut self, update: bool) -> Self {
+        self.update = update;
+        self
+    }
+
+    /// Playwright's `updateContent` (default `Attach`).
+    pub fn update_content(mut self, content: HarContent) -> Self {
+        self.update_content = content;
+        self
+    }
+
+    /// Playwright's `updateMode` (default `Minimal`).
+    pub fn update_mode(mut self, mode: HarMode) -> Self {
+        self.update_mode = mode;
+        self
+    }
 }
 
-async fn serve(route: Route, log: Arc<Log>, not_found: HarNotFound) {
+async fn serve(route: Route, log: Arc<Log>, not_found: HarNotFound, base: Arc<HarBase>) {
     let request = route.request();
     let post = request.post_data_buffer();
     let entry = log
@@ -267,7 +347,10 @@ async fn serve(route: Route, log: Arc<Log>, not_found: HarNotFound) {
                 .fulfill()
                 .status(e.response.status as u16)
                 .headers(headers)
-                .body(e.response.content.body())
+                .body(match &e.response.content.file {
+                    Some(file) => base.fs.read(&base.dir.join(file)).unwrap_or_default(),
+                    None => e.response.content.body(),
+                })
                 .await
         }
         None => match not_found {
@@ -275,6 +358,12 @@ async fn serve(route: Route, log: Arc<Log>, not_found: HarNotFound) {
             HarNotFound::Fallback => route.fallback().await,
         },
     };
+}
+
+/// Where a HAR's attached bodies are read from.
+struct HarBase {
+    fs: Arc<dyn crate::ports::FileSystem>,
+    dir: PathBuf,
 }
 
 impl<'a> IntoFuture for RouteFromHar<'a> {
@@ -287,6 +376,41 @@ impl<'a> IntoFuture for RouteFromHar<'a> {
                 (_, Some(c)) => c.inner.shared.services.fs.clone(),
                 _ => unreachable!("RouteFromHar always has a target"),
             };
+            if self.update {
+                let context = match (self.page, self.context) {
+                    (Some(p), _) => {
+                        p.context()
+                            .ok_or_else(|| {
+                                Error::TargetClosed(
+                                    "page.routeFromHAR: the page has no context".into(),
+                                )
+                            })?
+                            .inner
+                    }
+                    (_, Some(c)) => c.inner.clone(),
+                    _ => unreachable!("RouteFromHar always has a target"),
+                };
+                let options = RecordHar {
+                    content: Some(self.update_content),
+                    mode: self.update_mode,
+                    ..RecordHar::new(&self.path)
+                };
+                let page_only = self.page.map(|p| format!("page@{}", p.target_id()));
+                {
+                    let mut har = context.har.lock().unwrap();
+                    if har.is_some() {
+                        return Err(Error::InvalidArgument(
+                            "HAR recording is already started".into(),
+                        ));
+                    }
+                    *har = Some(HarRecording::new(options, self.url.clone(), page_only));
+                }
+                let pages: Vec<Page> = context.pages.lock().unwrap().clone();
+                for page in pages {
+                    context.har_track_page(&page);
+                }
+                return Ok(());
+            }
             let bytes = fs.read(&self.path)?;
             let har: Har = serde_json::from_slice(&bytes).map_err(|e| {
                 Error::InvalidArgument(format!(
@@ -295,11 +419,16 @@ impl<'a> IntoFuture for RouteFromHar<'a> {
                 ))
             })?;
             let log = Arc::new(har.log);
+            let base = Arc::new(HarBase {
+                fs: fs.clone(),
+                dir: self.path.parent().map(PathBuf::from).unwrap_or_default(),
+            });
             let url = self.url.unwrap_or_else(|| UrlMatcher::glob("**/*"));
             let not_found = self.not_found;
             let handler = move |r: Route| {
                 let log = log.clone();
-                async move { serve(r, log, not_found).await }
+                let base = base.clone();
+                async move { serve(r, log, not_found, base).await }
             };
             match (self.page, self.context) {
                 (Some(p), _) => p.route(url, handler).await,
@@ -320,6 +449,9 @@ impl Page {
             path: path.into(),
             url: None,
             not_found: HarNotFound::Abort,
+            update: false,
+            update_content: HarContent::Attach,
+            update_mode: HarMode::Minimal,
         }
     }
 }
@@ -333,6 +465,9 @@ impl BrowserContext {
             path: path.into(),
             url: None,
             not_found: HarNotFound::Abort,
+            update: false,
+            update_content: HarContent::Attach,
+            update_mode: HarMode::Minimal,
         }
     }
 }

@@ -7,15 +7,56 @@ use serde::{Deserialize, Serialize};
 
 use crate::domain::network::Timing;
 
+/// Where recorded response bodies go (Playwright's HAR `content`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HarContent {
+    /// Not recorded.
+    Omit,
+    /// Inline in the HAR (`text`, base64 for binary).
+    Embed,
+    /// Separate `<sha1>.<ext>` files, named by `content._file`: next to the
+    /// HAR (or in `resources_dir`), or inside a `.zip` HAR.
+    Attach,
+}
+
+/// How much a HAR records (Playwright's HAR `mode`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HarMode {
+    #[default]
+    Full,
+    /// Only what replay needs: no pages, sizes, timings, cookies or server
+    /// addresses.
+    Minimal,
+}
+
+/// Options of `tracing.startHar(path, options)`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HarOptions {
+    /// Default: `Attach` for a `.zip` path, `Embed` otherwise.
+    pub content: Option<HarContent>,
+    pub mode: HarMode,
+    /// With `Attach` and a `.har` path: put bodies here instead of next to
+    /// the HAR.
+    pub resources_dir: Option<PathBuf>,
+    /// Only record URLs matching this glob.
+    pub url_filter: Option<String>,
+}
+
 /// `recordHar` context option.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordHar {
-    /// Where the HAR is written when the context closes.
+    /// Where the HAR is written when the context closes (a `.zip` path
+    /// writes an archive with `har.har` and the attached bodies).
     pub path: PathBuf,
-    /// Leave response bodies out (`content: 'omit'`).
+    /// Leave response bodies out (`content: 'omit'`; wins over `content`).
     pub omit_content: bool,
     /// Only record URLs matching this glob.
     pub url_filter: Option<String>,
+    /// Default: `Attach` for a `.zip` path, `Embed` otherwise.
+    pub content: Option<HarContent>,
+    pub mode: HarMode,
+    /// See [`HarOptions::resources_dir`].
+    pub resources_dir: Option<PathBuf>,
 }
 
 impl RecordHar {
@@ -24,8 +65,85 @@ impl RecordHar {
             path: path.into(),
             omit_content: false,
             url_filter: None,
+            content: None,
+            mode: HarMode::Full,
+            resources_dir: None,
         }
     }
+
+    /// `path` with `startHar`-style options.
+    pub fn with_options(path: impl Into<PathBuf>, options: HarOptions) -> Self {
+        RecordHar {
+            url_filter: options.url_filter,
+            content: options.content,
+            mode: options.mode,
+            resources_dir: options.resources_dir,
+            ..Self::new(path)
+        }
+    }
+
+    /// Whether the HAR is written as a zip archive.
+    pub fn is_zip(&self) -> bool {
+        self.path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("zip"))
+    }
+
+    /// The content policy in effect.
+    pub fn content_policy(&self) -> HarContent {
+        if self.omit_content {
+            return HarContent::Omit;
+        }
+        self.content.unwrap_or(if self.is_zip() {
+            HarContent::Attach
+        } else {
+            HarContent::Embed
+        })
+    }
+}
+
+/// File extension of a stored body, like Playwright's `mime.getExtension`.
+pub fn extension_for(mime: &str) -> &'static str {
+    match mime.split(';').next().unwrap_or_default().trim() {
+        "text/html" => "html",
+        "text/css" => "css",
+        "text/javascript" | "application/javascript" => "js",
+        "application/json" => "json",
+        "text/plain" => "txt",
+        "image/png" => "png",
+        "image/jpeg" => "jpeg",
+        "image/gif" => "gif",
+        "image/svg+xml" => "svg",
+        "image/webp" => "webp",
+        "font/woff" => "woff",
+        "font/woff2" => "woff2",
+        _ => "dat",
+    }
+}
+
+/// An attached body's file name: `<sha1>.<ext>`.
+pub fn attachment_name(body: &[u8], mime: &str) -> String {
+    format!(
+        "{}.{}",
+        crate::domain::trace::sha1_hex(body),
+        extension_for(mime)
+    )
+}
+
+/// `mode: 'minimal'`: drops what replay does not use.
+pub fn slim(entry: &mut Entry) {
+    entry.pageref = None;
+    entry.time = -1.0;
+    entry.timings = Timings::default();
+    entry.server_ip_address = None;
+    entry.server_port = None;
+    entry.request.cookies.clear();
+    entry.response.cookies.clear();
+    entry.request.headers_size = -1;
+    entry.request.body_size = -1;
+    entry.response.headers_size = -1;
+    entry.response.body_size = -1;
+    entry.response.content.size = -1;
 }
 
 /// What `routeFromHAR` does with requests the HAR has no entry for.

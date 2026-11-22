@@ -90,7 +90,7 @@ pub use domain::emulation::{
 };
 pub use domain::error::{Error, Result};
 pub use domain::frame::LifecycleEvent as WaitUntil;
-pub use domain::har::{Har, HarNotFound, RecordHar};
+pub use domain::har::{Har, HarContent, HarMode, HarNotFound, HarOptions, RecordHar};
 pub use domain::http::MultipartValue;
 pub use domain::input::MouseButton;
 pub use domain::launch::{BrowserKind, Proxy};

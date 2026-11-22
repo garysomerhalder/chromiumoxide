@@ -47,24 +47,7 @@ pub(crate) struct TraceRecording {
 
 const SNAPSHOT_STREAMER: &str = include_str!("scripts/snapshot_streamer.js");
 
-/// File extension of a stored resource, like Playwright's `mime.getExtension`.
-fn extension_for(mime: &str) -> &'static str {
-    match mime.split(';').next().unwrap_or_default().trim() {
-        "text/html" => "html",
-        "text/css" => "css",
-        "text/javascript" | "application/javascript" => "js",
-        "application/json" => "json",
-        "text/plain" => "txt",
-        "image/png" => "png",
-        "image/jpeg" => "jpeg",
-        "image/gif" => "gif",
-        "image/svg+xml" => "svg",
-        "image/webp" => "webp",
-        "font/woff" => "woff",
-        "font/woff2" => "woff2",
-        _ => "dat",
-    }
-}
+use crate::domain::har::extension_for;
 
 pub(crate) type TracingState = Mutex<Option<TraceRecording>>;
 
@@ -147,7 +130,9 @@ impl ContextInner {
                             let store = rec.streamer.is_some().then(|| Arc::downgrade(&ctx));
                             rec.network.push(tokio::spawn(async move {
                                 let mut entry =
-                                    crate::application::har::entry_for(r, id, false).await;
+                                    crate::application::har::entry_for(r, id, crate::domain::har::HarContent::Embed)
+                                        .await
+                                        .0;
                                 // With snapshots, bodies go to resources/ (`_file`).
                                 if let Some(ctx) = store.and_then(|w| w.upgrade()) {
                                     let content = &mut entry.response.content;
@@ -490,6 +475,16 @@ impl Tracing {
 
     /// `tracing.startHar(path)`: records a HAR from now on.
     pub async fn start_har(&self, path: impl AsRef<Path>) -> Result<()> {
+        self.start_har_with(path, crate::domain::har::HarOptions::default())
+            .await
+    }
+
+    /// `tracing.startHar(path, { content, mode, resourcesDir, urlFilter })`.
+    pub async fn start_har_with(
+        &self,
+        path: impl AsRef<Path>,
+        options: crate::domain::har::HarOptions,
+    ) -> Result<()> {
         {
             let mut har = self.context.har.lock().unwrap();
             if har.is_some() {
@@ -497,11 +492,11 @@ impl Tracing {
                     "HAR recording is already started".into(),
                 ));
             }
-            *har = crate::application::har::recording(&Some(crate::domain::har::RecordHar::new(
-                path.as_ref(),
-            )))
-            .into_inner()
-            .unwrap();
+            *har = Some(crate::application::har::HarRecording::new(
+                crate::domain::har::RecordHar::with_options(path.as_ref(), options),
+                None,
+                None,
+            ));
         }
         let pages: Vec<Page> = self.context.pages.lock().unwrap().clone();
         for page in pages {
