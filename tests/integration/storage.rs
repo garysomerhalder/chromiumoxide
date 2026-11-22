@@ -54,15 +54,32 @@ async fn cookies_and_storage_state_like_playwright() {
 
     let mut cookies = context.cookies().await.unwrap();
     cookies.sort_by(|a, b| a.name.cmp(&b.name));
+    // Chromium caps cookie lifetimes at 400 days (Playwright reports the same).
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f64();
+    let dom = cookies.iter().find(|c| c.name == "dom").unwrap();
+    assert!(
+        (dom.expires - (now + 400.0 * 86400.0)).abs() < 60.0,
+        "{}",
+        dom.expires
+    );
     let as_json: Vec<Value> = cookies
         .iter()
-        .map(|c| serde_json::to_value(c).unwrap())
+        .map(|c| {
+            let mut v = serde_json::to_value(c).unwrap();
+            if c.name == "dom" {
+                v["expires"] = json!("capped");
+            }
+            v
+        })
         .collect();
     assert_eq!(
         as_json,
         [
             json!({"name":"added","value":"v","domain":"127.0.0.1","path":"/","expires":-1.0,"httpOnly":false,"secure":false,"sameSite":"Lax"}),
-            json!({"name":"dom","value":"d","domain":"127.0.0.1","path":"/sub","expires":2000000000.0,"httpOnly":false,"secure":false,"sameSite":"Strict"}),
+            json!({"name":"dom","value":"d","domain":"127.0.0.1","path":"/sub","expires":"capped","httpOnly":false,"secure":false,"sameSite":"Strict"}),
             json!({"name":"js","value":"3","domain":"127.0.0.1","path":"/","expires":-1.0,"httpOnly":false,"secure":false,"sameSite":"Lax"}),
             json!({"name":"srv","value":"1","domain":"127.0.0.1","path":"/","expires":-1.0,"httpOnly":true,"secure":false,"sameSite":"Lax"}),
             json!({"name":"strict","value":"2","domain":"127.0.0.1","path":"/","expires":-1.0,"httpOnly":false,"secure":false,"sameSite":"Strict"}),
@@ -173,12 +190,14 @@ async fn cookies_and_storage_state_like_playwright() {
     assert!(c2.pages().is_empty(), "the helper page is closed");
     let p2 = c2.new_page().await.unwrap();
     p2.goto(&server.url("/")).await.unwrap();
-    assert_eq!(
-        p2.evaluate::<Value>("() => [localStorage.getItem('k'), document.cookie]")
-            .await
-            .unwrap(),
-        json!(["v", "added=v; js=3; strict=2"])
-    );
+    let (item, cookie): (Option<String>, String) = p2
+        .evaluate("() => [localStorage.getItem('k'), document.cookie]")
+        .await
+        .unwrap();
+    assert_eq!(item.as_deref(), Some("v"));
+    let mut sent: Vec<&str> = cookie.split("; ").collect();
+    sent.sort();
+    assert_eq!(sent, ["added=v", "js=3", "strict=2"]);
     assert_eq!(c2.cookies().await.unwrap().len(), 5);
     // Origins visited are kept, even without a page on them.
     p2.close().await.unwrap();
