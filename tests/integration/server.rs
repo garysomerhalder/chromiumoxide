@@ -7,16 +7,19 @@ use base64::Engine;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
+/// path -> (content type, body, delay ms)
+type Routes = Arc<Mutex<HashMap<String, (String, Vec<u8>, u64)>>>;
+
 pub struct TestServer {
     pub port: u16,
-    routes: Arc<Mutex<HashMap<String, (String, Vec<u8>, u64)>>>,
+    routes: Routes,
 }
 
 impl TestServer {
     pub async fn start() -> TestServer {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
-        let routes: Arc<Mutex<HashMap<String, (String, Vec<u8>, u64)>>> = Arc::default();
+        let routes: Routes = Arc::default();
         let r = routes.clone();
         tokio::spawn(async move {
             loop {

@@ -22,6 +22,10 @@ async fn context_emulation_reaches_the_page() {
         .await
         .unwrap();
     let page = context.new_page().await.unwrap();
+    // userAgentData only exists in secure contexts; localhost is one.
+    let server = TestServer::start().await;
+    server.route("/", "text/html", "<p>hi</p>", 0);
+    page.goto(&server.url("/")).await.unwrap();
     let got: Value = page
         .evaluate(
             "() => ({ w: innerWidth, h: innerHeight, dpr: devicePixelRatio, sw: screen.width, ua: navigator.userAgent, \

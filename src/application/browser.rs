@@ -5,13 +5,21 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use serde_json::json;
+use std::collections::HashMap;
+use std::sync::Weak;
 
+use futures::StreamExt;
+use serde_json::{Value, json};
+
+use crate::application::context::BrowserContext;
 use crate::application::discovery::discover;
+use crate::application::page::Page;
 use crate::application::services::Services;
-use crate::domain::error::Result;
+use crate::application::shared::Shared;
+use crate::domain::emulation::{ContextOptions, FontPlatform};
+use crate::domain::error::{Error, Result};
 use crate::domain::launch::{LaunchSpec, command_line};
-use crate::ports::{BrowserProcess, CdpSession, Channel, LaunchCommand};
+use crate::ports::{BrowserProcess, CdpSession, Channel, EventStream, LaunchCommand};
 
 /// Playwright's `browserType.launch(options)`.
 #[derive(Debug, Clone, PartialEq)]
@@ -55,6 +63,8 @@ pub struct Browser {
 struct BrowserInner {
     cdp: Arc<dyn CdpSession>,
     services: Services,
+    shared: Mutex<Option<Arc<Shared>>>,
+    headless: bool,
     process: Mutex<Option<Box<dyn BrowserProcess>>>,
     user_data_dir: Option<PathBuf>,
     executable: Option<PathBuf>,
@@ -117,6 +127,8 @@ impl Browser {
             inner: Arc::new(BrowserInner {
                 cdp: launched.cdp,
                 services,
+                shared: Mutex::new(None),
+                headless: options.headless,
                 process: Mutex::new(Some(launched.process)),
                 user_data_dir: Some(user_data_dir),
                 executable: Some(found.executable),
@@ -142,6 +154,8 @@ impl Browser {
             inner: Arc::new(BrowserInner {
                 cdp,
                 services,
+                shared: Mutex::new(None),
+                headless: true,
                 process: Mutex::new(None),
                 user_data_dir: None,
                 executable: None,
@@ -158,10 +172,25 @@ impl Browser {
         self.inner.ws_endpoint.clone()
     }
 
-    /// Playwright's connection handshake on the browser target.
+    /// Playwright's connection handshake on the browser target, and the
+    /// event loop that resumes or initialises auto-attached targets.
     async fn handshake(&self) -> Result<()> {
         let cdp = &self.inner.cdp;
-        cdp.call(None, "Browser.getVersion", json!({})).await?;
+        let events = cdp.subscribe();
+        let version = cdp.call(None, "Browser.getVersion", json!({})).await?;
+        let ua = version
+            .get("userAgent")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let shared = Arc::new(Shared {
+            cdp: cdp.clone(),
+            services: self.inner.services.clone(),
+            headless: self.inner.headless,
+            font_platform: FontPlatform::from_user_agent(ua),
+            contexts: Mutex::new(HashMap::new()),
+        });
+        *self.inner.shared.lock().unwrap() = Some(shared.clone());
+        tokio::spawn(target_loop(Arc::downgrade(&shared), events));
         cdp.call(
             None,
             "Target.setAutoAttach",
@@ -169,6 +198,45 @@ impl Browser {
         )
         .await?;
         Ok(())
+    }
+
+    fn shared(&self) -> Result<Arc<Shared>> {
+        if !self.is_connected() {
+            return Err(Error::TargetClosed("browser has been closed".into()));
+        }
+        self.inner
+            .shared
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or_else(|| Error::TargetClosed("browser is not connected".into()))
+    }
+
+    /// Creates an isolated context (Playwright's `browser.newContext`).
+    pub async fn new_context(&self, options: ContextOptions) -> Result<BrowserContext> {
+        BrowserContext::create(self.shared()?, options).await
+    }
+
+    /// A page in a fresh context of its own; closing the page closes the context.
+    pub async fn new_page(&self) -> Result<Page> {
+        let ctx = self.new_context(ContextOptions::default()).await?;
+        let page = ctx.new_page().await?;
+        page.inner.owns_context.store(true, Ordering::SeqCst);
+        Ok(page)
+    }
+
+    /// Contexts created through this browser that are still open.
+    pub fn contexts(&self) -> Vec<BrowserContext> {
+        let Ok(shared) = self.shared() else {
+            return Vec::new();
+        };
+        let contexts = shared.contexts.lock().unwrap();
+        contexts
+            .values()
+            .map(|inner| BrowserContext {
+                inner: inner.clone(),
+            })
+            .collect()
     }
 
     /// The browser's product string, e.g. `HeadlessChrome/157.0.8103.78`.
@@ -208,6 +276,23 @@ impl Browser {
         if self.inner.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
+        let shared = self.inner.shared.lock().unwrap().take();
+        if let Some(shared) = shared {
+            let contexts: Vec<_> = shared
+                .contexts
+                .lock()
+                .unwrap()
+                .drain()
+                .map(|(_, c)| c)
+                .collect();
+            for c in contexts {
+                c.closed.store(true, Ordering::SeqCst);
+                let pages = std::mem::take(&mut *c.pages.lock().unwrap());
+                for p in pages {
+                    p.mark_closed();
+                }
+            }
+        }
         let _ = self.inner.cdp.call(None, "Browser.close", json!({})).await;
         let process = self.inner.process.lock().unwrap().take();
         if let Some(process) = process {
@@ -217,6 +302,56 @@ impl Browser {
             let _ = self.inner.services.fs.remove_dir_all(dir);
         }
         Ok(())
+    }
+}
+
+/// Resumes auto-attached targets; initialises pages of our contexts.
+async fn target_loop(shared: Weak<Shared>, mut events: EventStream) {
+    while let Some(event) = events.next().await {
+        let Some(shared) = shared.upgrade() else {
+            break;
+        };
+        if event.method != "Target.attachedToTarget" {
+            continue;
+        }
+        let p = &event.params;
+        let Some(session_id) = p
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
+            continue;
+        };
+        let info = &p["targetInfo"];
+        let kind = info.get("type").and_then(Value::as_str).unwrap_or_default();
+        let target_id = info
+            .get("targetId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        let context = info
+            .get("browserContextId")
+            .and_then(Value::as_str)
+            .and_then(|id| shared.contexts.lock().unwrap().get(id).cloned());
+        match context {
+            Some(context) if kind == "page" && event.session_id.is_none() => {
+                let shared = shared.clone();
+                tokio::spawn(async move {
+                    match Page::initialize(shared, &context, session_id, target_id.clone()).await {
+                        Ok(page) => context.add_page(page),
+                        Err(e) => context.page_failed(&target_id, &e),
+                    }
+                });
+            }
+            _ => {
+                let fut = shared.cdp.call(
+                    Some(&session_id),
+                    "Runtime.runIfWaitingForDebugger",
+                    json!({}),
+                );
+                tokio::spawn(fut);
+            }
+        }
     }
 }
 

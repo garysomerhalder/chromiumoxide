@@ -25,10 +25,17 @@ use std::sync::Arc;
 pub use chromiumoxide_cdp::cdp;
 
 pub use application::browser::{Browser, LaunchOptions};
+pub use application::context::BrowserContext;
 pub use application::discovery::Discovered;
+pub use application::page::{Goto, Page, Response};
 pub use application::services::Services;
 pub use domain::discovery::Source as DiscoverySource;
+pub use domain::emulation::{
+    ColorScheme, ContextOptions, Contrast, ForcedColors, Geolocation, HttpCredentials, Media,
+    ReducedMotion, Viewport,
+};
 pub use domain::error::{Error, Result};
+pub use domain::frame::LifecycleEvent as WaitUntil;
 pub use domain::launch::BrowserKind;
 pub use ports::Channel;
 
