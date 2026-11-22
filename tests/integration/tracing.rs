@@ -268,11 +268,28 @@ async fn trace_dom_snapshots_and_resources() {
         after["viewport"],
         serde_json::json!({"width": 1280, "height": 720})
     );
-    assert_eq!(
-        after["html"][3],
-        serde_json::json!(["BODY", {}, ["BUTTON", {}, "B"]])
-    );
     assert!(after["frameId"].as_str().unwrap().starts_with("frame@"));
+    // Unchanged documents are back-references to an earlier snapshot, as in
+    // Playwright 1.63 (`[[1, 2]]` for its click); the goto's has the full tree.
+    assert!(after["html"][0].is_array(), "{}", after["html"]);
+    let goto = events
+        .iter()
+        .find(|e| e["type"] == "before" && e["method"] == "goto")
+        .unwrap();
+    let goto_after = events
+        .iter()
+        .find(|e| {
+            e["type"] == "frame-snapshot"
+                && e["snapshot"]["callId"] == goto["callId"]
+                && e["snapshot"]["phase"] == "after"
+        })
+        .unwrap();
+    assert_eq!(
+        goto_after["snapshot"]["html"][3],
+        serde_json::json!(["BODY", {}, ["BUTTON", {}, "B"]]),
+        "{}",
+        goto_after["snapshot"]["html"]
+    );
     let _ = std::fs::remove_dir_all(dir);
     browser.close().await.unwrap();
 }

@@ -239,6 +239,9 @@ pub struct Content {
     pub text: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub encoding: Option<String>,
+    /// The body stored next to the trace (`resources/<sha1>.<ext>`).
+    #[serde(default, rename = "_file", skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
 }
 
 impl Default for Content {
@@ -248,6 +251,7 @@ impl Default for Content {
             mime_type: "x-unknown".into(),
             text: None,
             encoding: None,
+            file: None,
         }
     }
 }
@@ -265,6 +269,7 @@ impl Content {
                 base64::engine::general_purpose::STANDARD.encode(body)
             }),
             encoding: (!text_ok).then(|| "base64".to_owned()),
+            file: None,
         }
     }
 
