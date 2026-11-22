@@ -7,6 +7,7 @@ mod events;
 mod extras;
 mod frames;
 mod handles;
+mod har;
 mod input;
 mod launch;
 mod locator;
