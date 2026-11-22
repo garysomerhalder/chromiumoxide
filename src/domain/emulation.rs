@@ -628,3 +628,64 @@ mod tests {
         );
     }
 }
+
+/// Browser platform, as Playwright infers it from the browser's user agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FontPlatform {
+    Linux,
+    Mac,
+    Win,
+}
+
+impl FontPlatform {
+    /// Playwright's `CRBrowser._platform()`.
+    pub fn from_user_agent(_ua: &str) -> Self {
+        unimplemented!()
+    }
+}
+
+/// Playwright's `platformToFontFamilies` entry: the `Page.setFontFamilies`
+/// parameters applied to every headless page.
+pub fn default_font_families(_platform: FontPlatform) -> serde_json::Value {
+    unimplemented!()
+}
+
+#[cfg(test)]
+mod font_tests {
+    use super::*;
+
+    #[test]
+    fn platform_from_browser_user_agent() {
+        assert_eq!(
+            FontPlatform::from_user_agent("Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/157"),
+            FontPlatform::Linux
+        );
+        assert_eq!(
+            FontPlatform::from_user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"),
+            FontPlatform::Mac
+        );
+        assert_eq!(
+            FontPlatform::from_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)"),
+            FontPlatform::Win
+        );
+    }
+
+    #[test]
+    fn linux_families_match_recorded_playwright_traffic() {
+        assert_eq!(
+            default_font_families(FontPlatform::Linux),
+            serde_json::json!({"fontFamilies": {"standard": "Times New Roman", "fixed": "Monospace", "serif": "Times New Roman", "sansSerif": "Arial", "cursive": "Comic Sans MS", "fantasy": "Impact"}})
+        );
+    }
+
+    #[test]
+    fn mac_families_include_per_script_fonts() {
+        let mac = default_font_families(FontPlatform::Mac);
+        assert_eq!(mac["fontFamilies"]["sansSerif"], "Helvetica");
+        assert!(mac["forScripts"].as_array().is_some_and(|a| !a.is_empty()));
+        assert_eq!(
+            default_font_families(FontPlatform::Win)["fontFamilies"]["standard"],
+            "Times New Roman"
+        );
+    }
+}
