@@ -9,16 +9,22 @@ use tokio::sync::watch;
 use crate::application::context::BrowserContext;
 use crate::application::page::Page;
 use crate::domain::error::{Error, Result};
+use crate::domain::source::SourceLocation;
 
 /// What the debugger is paused on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PausedDetails {
     /// Playwright's call title, e.g. `Click locator('button')`.
     pub title: String,
+    /// Where the call came from, when the binary has debug info (read from
+    /// a backtrace: the innermost frame outside chromiumoxide and the
+    /// toolchain, runtime and other dependencies).
+    pub location: Option<SourceLocation>,
 }
 
 pub(crate) struct DebuggerState {
     pause_next: bool,
+    pause_at: Option<SourceLocation>,
     paused: watch::Sender<Option<PausedDetails>>,
 }
 
@@ -26,6 +32,7 @@ impl Default for DebuggerState {
     fn default() -> Self {
         Self {
             pause_next: false,
+            pause_at: None,
             paused: watch::channel(None).0,
         }
     }
@@ -79,12 +86,13 @@ impl Debugger {
         })
     }
 
-    fn resume_with(&self, pause_next: bool) -> Result<()> {
+    fn resume_with(&self, pause_next: bool, pause_at: Option<SourceLocation>) -> Result<()> {
         self.with(|d| {
             if d.paused.borrow().is_none() {
                 return Err(Error::InvalidArgument("Debugger is not paused".into()));
             }
             d.pause_next = pause_next;
+            d.pause_at = pause_at;
             d.paused.send_replace(None);
             Ok(())
         })
@@ -92,18 +100,29 @@ impl Debugger {
 
     /// `debugger.resume()`.
     pub async fn resume(&self) -> Result<()> {
-        self.resume_with(false)
+        self.resume_with(false, None)
     }
 
     /// `debugger.next()`: resume, then pause before the next action.
     pub async fn next(&self) -> Result<()> {
-        self.resume_with(true)
+        self.resume_with(true, None)
+    }
+
+    /// `debugger.runTo(location)`: resume, then pause before the next action
+    /// called from `location` (a part of the file path, and optionally the
+    /// line and column). Call sites come from backtraces, so this needs a
+    /// binary with debug info (the default for `cargo test` and debug builds).
+    pub async fn run_to(&self, location: SourceLocation) -> Result<()> {
+        self.resume_with(false, Some(location))
     }
 
     /// Pauses with `title` until resumed.
-    async fn pause(&self, title: String) {
+    async fn pause(&self, title: String, location: Option<SourceLocation>) {
         let mut rx = self.with(|d| {
-            d.paused.send_replace(Some(PausedDetails { title }));
+            d.pause_next = false;
+            d.pause_at = None;
+            d.paused
+                .send_replace(Some(PausedDetails { title, location }));
             d.paused.subscribe()
         });
         while rx.borrow_and_update().is_some() {
@@ -118,7 +137,8 @@ impl Page {
     /// `page.pause()`: stops here until `context.debugger().resume()`.
     pub async fn pause(&self) -> Result<()> {
         if let Some(ctx) = self.context() {
-            ctx.debugger().pause("Pause".into()).await;
+            let location = caller_location(&*self.inner.shared.services.env);
+            ctx.debugger().pause("Pause".into(), location).await;
         }
         Ok(())
     }
@@ -134,11 +154,17 @@ impl Page {
         let Some(ctx) = self.context() else {
             return;
         };
-        let pause = {
-            let mut d = ctx.inner.debugger.lock().unwrap();
-            std::mem::take(&mut d.pause_next)
+        let (next, at) = {
+            let d = ctx.inner.debugger.lock().unwrap();
+            (d.pause_next, d.pause_at.clone())
         };
-        if !pause {
+        if !next && at.is_none() {
+            return;
+        }
+        // Captured before any await, while the caller's frames are on the stack.
+        let location = caller_location(&*self.inner.shared.services.env);
+        let at_location = matches!((&at, &location), (Some(at), Some(here)) if here.matches(at));
+        if !next && !at_location {
             return;
         }
         let locator = match params.get("selector").and_then(Value::as_str) {
@@ -156,8 +182,27 @@ impl Page {
             None => None,
         };
         let title = crate::domain::trace::action_title(method, params, locator.as_deref());
-        ctx.debugger().pause(title).await;
+        ctx.debugger().pause(title, location).await;
     }
+}
+
+/// The innermost frame of the current stack that is the caller's code: not
+/// chromiumoxide's own `src`, the Rust toolchain or a crate from a registry.
+fn caller_location(env: &dyn crate::ports::Environment) -> Option<SourceLocation> {
+    let own_src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    env.call_stack().into_iter().find(|loc| {
+        let path = std::path::Path::new(&loc.file);
+        let toolchain = [
+            "/rustc/",
+            "/.cargo/",
+            "/.rustup/",
+            "\\rustc\\",
+            "\\.cargo\\",
+        ]
+        .iter()
+        .any(|p| loc.file.contains(p));
+        path.is_absolute() && !toolchain && !path.starts_with(&own_src)
+    })
 }
 
 /// Picking mode in one frame: hover highlights the element with its

@@ -542,7 +542,7 @@ async fn debugger_run_to_a_source_location() {
     let first = location.line.unwrap();
     dbg.run_to(chromiumoxide::SourceLocation {
         file: "integration/backlog.rs".into(),
-        line: Some(first + 4),
+        line: Some(first + 3),
         column: None,
     })
     .await
@@ -557,11 +557,11 @@ async fn debugger_run_to_a_source_location() {
     }
     let p = paused.expect("paused at the third click");
     assert_eq!(p.title, "Click locator('#c')");
-    assert_eq!(p.location.unwrap().line, Some(first + 4));
+    assert_eq!(p.location.unwrap().line, Some(first + 3));
     assert_eq!(page.evaluate::<Vec<String>>("n").await.unwrap(), ["a", "b"]);
     dbg.resume().await.unwrap();
     let (a, c) = actions.await.unwrap();
-    assert_eq!((a, c), (first, first + 4));
+    assert_eq!((a, c), (first, first + 3));
     assert_eq!(
         page.evaluate::<Vec<String>>("n").await.unwrap(),
         ["a", "b", "c"]
