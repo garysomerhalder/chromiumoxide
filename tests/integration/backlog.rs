@@ -100,3 +100,134 @@ async fn hit_target_message_names_the_element() {
     assert!(!err.contains("hitTargetDescription"), "{err}");
     browser.close().await.unwrap();
 }
+
+/// Collects event names from a stream in the background.
+fn collect<S, E>(
+    stream: S,
+    name: fn(&E) -> Option<String>,
+) -> std::sync::Arc<std::sync::Mutex<Vec<String>>>
+where
+    S: futures::Stream<Item = E> + Send + 'static,
+    E: Send + 'static,
+{
+    use futures::StreamExt;
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let out = seen.clone();
+    tokio::spawn(async move {
+        let mut stream = Box::pin(stream);
+        while let Some(e) = stream.next().await {
+            if let Some(n) = name(&e) {
+                out.lock().unwrap().push(n);
+            }
+        }
+    });
+    seen
+}
+
+fn page_event_name(e: &chromiumoxide::PageEvent) -> Option<String> {
+    use chromiumoxide::PageEvent::*;
+    Some(match e {
+        FrameAttached(f) => format!("frameattached:{}", f.name()),
+        FrameNavigated(f) => format!("framenavigated:{}", f.name()),
+        FrameDetached(f) => format!("framedetached:{}", f.name()),
+        Dialog(d) => format!("dialog:{}", d.message()),
+        DialogClosed(d) => format!("dialogclosed:{}", d.message()),
+        Crash => "crash".into(),
+        _ => return None,
+    })
+}
+
+/// `page.on('frameattached' | 'framenavigated' | 'framedetached' |
+/// 'dialogclosed' | 'crash')`.
+#[tokio::test]
+async fn page_frame_dialog_and_crash_events() {
+    let (browser, page) = page_with("<p>x</p>").await;
+    let seen = collect(page.events(), page_event_name);
+    page.set_content("<iframe name=child srcdoc='<p>c</p>'></iframe>")
+        .await
+        .unwrap();
+    page.evaluate::<()>("document.querySelector('iframe').remove()")
+        .await
+        .unwrap();
+    page.evaluate::<()>("void setTimeout(() => alert('hi'), 0)")
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let got = seen.lock().unwrap().clone();
+    for want in [
+        "framenavigated:",
+        "frameattached:child",
+        "framenavigated:child",
+        "framedetached:child",
+        "dialog:hi",
+        "dialogclosed:hi",
+    ] {
+        assert!(got.iter().any(|g| g == want), "{want} not in {got:?}");
+    }
+    let _ = page.goto("chrome://crash").await;
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    assert!(
+        seen.lock().unwrap().iter().any(|g| g == "crash"),
+        "{:?}",
+        seen.lock().unwrap()
+    );
+    browser.close().await.unwrap();
+}
+
+/// `context.on('pageload' | 'pageclose' | 'download' | 'dialogclosed' |
+/// 'frameattached' | ...)` and `browser.on('context' | 'disconnected')`.
+#[tokio::test]
+async fn context_and_browser_events() {
+    use chromiumoxide::{BrowserEvent, ContextEvent};
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let browser_seen = collect(browser.events(), |e: &BrowserEvent| {
+        Some(match e {
+            BrowserEvent::Context(_) => "context".into(),
+            BrowserEvent::Disconnected => "disconnected".into(),
+            _ => return None,
+        })
+    });
+    let context = browser
+        .new_context(chromiumoxide::ContextOptions::default())
+        .await
+        .unwrap();
+    let seen = collect(context.events(), |e: &ContextEvent| {
+        Some(match e {
+            ContextEvent::PageLoad(_) => "pageload".into(),
+            ContextEvent::PageClose(_) => "pageclose".into(),
+            ContextEvent::Download(_) => "download".into(),
+            ContextEvent::DialogClosed(_) => "dialogclosed".into(),
+            ContextEvent::FrameAttached(_) => "frameattached".into(),
+            ContextEvent::FrameNavigated(_) => "framenavigated".into(),
+            ContextEvent::FrameDetached(_) => "framedetached".into(),
+            _ => return None,
+        })
+    });
+    let page = context.new_page().await.unwrap();
+    page.set_content(
+        "<a download=f.txt href='data:text/plain,hi'>d</a><iframe srcdoc='x'></iframe>",
+    )
+    .await
+    .unwrap();
+    page.locator("a").click().await.unwrap();
+    page.evaluate::<()>("void setTimeout(() => alert('x'), 0)")
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    page.close().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let got = seen.lock().unwrap().clone();
+    for want in [
+        "pageload",
+        "frameattached",
+        "framenavigated",
+        "download",
+        "dialogclosed",
+        "pageclose",
+    ] {
+        assert!(got.iter().any(|g| g == want), "{want} not in {got:?}");
+    }
+    browser.close().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(*browser_seen.lock().unwrap(), ["context", "disconnected"]);
+}
