@@ -235,7 +235,7 @@ Chrome for Testing and chrome-headless-shell.
 | `focus` | M3 | ✅ |
 | `frame` | M3 | ✅ |
 | `frameLocator` | M3 | ✅ |
-| `frames` | M3 | 🟡 same-process frames; out-of-process (cross-site) iframes not yet |
+| `frames` | M3 | ✅ incl. out-of-process (cross-site) iframes; routing / init scripts inside those not yet |
 | `getAttribute` | M3 | ✅ |
 | `getByAltText` | M3 | ✅ |
 | `getByLabel` | M3 | ✅ |
