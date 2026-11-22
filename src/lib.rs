@@ -32,6 +32,7 @@ pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
 pub use application::browser::{Browser, LaunchOptions};
 pub use application::context::BrowserContext;
 pub use application::discovery::Discovered;
+pub use application::navigation::{Navigation, WaitForUrl};
 pub use application::page::{Goto, Page, Response};
 pub use application::screenshot::Screenshot;
 pub use application::services::Services;
@@ -47,6 +48,7 @@ pub use domain::launch::BrowserKind;
 pub use domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale,
 };
+pub use domain::url_matcher::UrlMatcher;
 pub use ports::Channel;
 
 /// Entry point, like Playwright's `chromium` browser type.

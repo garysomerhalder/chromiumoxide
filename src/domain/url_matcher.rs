@@ -19,13 +19,20 @@ impl UrlMatcher {
     pub fn glob(glob: &str) -> Self {
         let pattern = glob_to_regex_pattern(glob).unwrap_or_else(|_| "$^".to_owned());
         let regex = Regex::new(&pattern).unwrap_or_else(|_| Regex::new("$^").expect("valid"));
-        UrlMatcher::Glob { glob: glob.to_owned(), regex }
+        UrlMatcher::Glob {
+            glob: glob.to_owned(),
+            regex,
+        }
     }
 
     /// An exact URL (no glob characters are special).
     pub fn exact(url: &str) -> Self {
-        let regex = Regex::new(&format!("^{}$", regex::escape(url))).expect("escaped regex is valid");
-        UrlMatcher::Glob { glob: url.to_owned(), regex }
+        let regex =
+            Regex::new(&format!("^{}$", regex::escape(url))).expect("escaped regex is valid");
+        UrlMatcher::Glob {
+            glob: url.to_owned(),
+            regex,
+        }
     }
 
     /// A regular expression (searched anywhere in the URL, like JS `RegExp.test`).
@@ -52,14 +59,22 @@ impl From<Regex> for UrlMatcher {
     }
 }
 
-const ESCAPED: &[char] = &['$', '^', '+', '.', '*', '(', ')', '|', '\\', '?', '{', '}', '[', ']'];
+const ESCAPED: &[char] = &[
+    '$', '^', '+', '.', '*', '(', ')', '|', '\\', '?', '{', '}', '[', ']',
+];
 
 /// Playwright's `globToRegexPattern`.
 pub fn glob_to_regex_pattern(glob: &str) -> Result<String, String> {
     let chars: Vec<char> = glob.chars().collect();
     let mut out = String::from("^");
     let mut in_group = false;
-    let esc = |c: char| if ESCAPED.contains(&c) { format!("\\{c}") } else { c.to_string() };
+    let esc = |c: char| {
+        if ESCAPED.contains(&c) {
+            format!("\\{c}")
+        } else {
+            c.to_string()
+        }
+    };
     let mut i = 0;
     while i < chars.len() {
         let c = chars[i];
@@ -78,7 +93,11 @@ pub fn glob_to_regex_pattern(glob: &str) -> Result<String, String> {
             }
             if stars > 1 {
                 if chars.get(i + 1) == Some(&'/') {
-                    out.push_str(if before == Some('/') { "((.+/)|)" } else { "(.*/)" });
+                    out.push_str(if before == Some('/') {
+                        "((.+/)|)"
+                    } else {
+                        "(.*/)"
+                    });
                     i += 1;
                 } else {
                     out.push_str("(.*)");
@@ -92,7 +111,9 @@ pub fn glob_to_regex_pattern(glob: &str) -> Result<String, String> {
         match c {
             '{' => {
                 if in_group {
-                    return Err(format!("Invalid glob pattern {glob:?}: nested '{{' is not supported"));
+                    return Err(format!(
+                        "Invalid glob pattern {glob:?}: nested '{{' is not supported"
+                    ));
                 }
                 in_group = true;
                 out.push('(');

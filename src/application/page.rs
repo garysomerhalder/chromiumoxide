@@ -48,10 +48,14 @@ impl Response {
 #[derive(Default)]
 pub(crate) struct PageState {
     pub(crate) tree: FrameTree,
-    responses: HashMap<String, Response>,
+    pub(crate) responses: HashMap<String, Response>,
     auth_attempts: HashSet<String>,
     pub(crate) documents_opened: u64,
     pub(crate) viewport: Option<Viewport>,
+    /// Bumped on every main-frame navigation (new document or same document).
+    pub(crate) main_navigations: u64,
+    /// Whether the latest main-frame navigation stayed in the same document.
+    pub(crate) last_navigation_same_document: bool,
 }
 
 pub(crate) struct PageInner {
@@ -216,6 +220,10 @@ impl Page {
                 "Page.frameNavigated" => {
                     let f = &p["frame"];
                     let url = format!("{}{}", s(f, "url"), s(f, "urlFragment"));
+                    if f.get("parentId").is_none() {
+                        st.main_navigations += 1;
+                        st.last_navigation_same_document = false;
+                    }
                     effects = st.tree.navigated(
                         &s(f, "id"),
                         f.get("parentId").and_then(Value::as_str),
@@ -224,9 +232,14 @@ impl Page {
                         &s(f, "loaderId"),
                     );
                 }
-                "Page.navigatedWithinDocument" => st
-                    .tree
-                    .navigated_within_document(&s(p, "frameId"), &s(p, "url")),
+                "Page.navigatedWithinDocument" => {
+                    let frame_id = s(p, "frameId");
+                    if st.tree.main_frame().is_some_and(|m| m.id == frame_id) {
+                        st.main_navigations += 1;
+                        st.last_navigation_same_document = true;
+                    }
+                    st.tree.navigated_within_document(&frame_id, &s(p, "url"));
+                }
                 "Page.frameDetached" => {
                     if p.get("reason").and_then(Value::as_str) != Some("swap") {
                         st.tree.detached(&s(p, "frameId"));
