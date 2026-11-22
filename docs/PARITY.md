@@ -546,7 +546,7 @@ Chrome for Testing and chrome-headless-shell.
 | `redirectedTo` | M4 | ✅ |
 | `resourceType` | M4 | ✅ |
 | `response` | M4 | ✅ |
-| `serviceWorker` | M4 | 🟡 service-worker requests are not tracked yet |
+| `serviceWorker` | M4 | ✅ |
 | `sizes` | M4 | ✅ |
 | `timing` | M4 | ✅ |
 | `url` | M4 | ✅ |
