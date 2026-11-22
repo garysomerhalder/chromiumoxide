@@ -7,4 +7,5 @@ pub mod frame;
 pub mod input;
 pub mod launch;
 pub mod screenshot;
+pub mod selectors;
 pub mod url_matcher;
