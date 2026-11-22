@@ -460,14 +460,13 @@ mod tests {
             "Expected an image 2px by 2px, received 3px by 2px. "
         );
         assert_eq!((m.diff.width, m.diff.height), (3, 2));
+        // Like Playwright 1.63 (whose expected image is padded first), the ratio
+        // is over the padded size: 6 of 6 pixels.
         let actual = solid(3, 2, BLACK);
         let m = compare_images(&actual, &expected, &CompareOptions::default()).unwrap();
-        assert!(
-            m.message.starts_with(
-                "Expected an image 2px by 2px, received 3px by 2px. 6 pixels (ratio 1.50"
-            ),
-            "{}",
-            m.message
+        assert_eq!(
+            m.message,
+            "Expected an image 2px by 2px, received 3px by 2px. 6 pixels (ratio 1.00 of all image pixels) are different."
         );
     }
 
