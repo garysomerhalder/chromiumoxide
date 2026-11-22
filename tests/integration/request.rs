@@ -243,3 +243,56 @@ async fn standalone_request_context() {
         "Target page, context or browser has been closed"
     );
 }
+
+#[tokio::test]
+async fn response_server_addr_security_details_and_timing() {
+    let server = TestServer::start().await;
+    let rq = Chromium::request_context(ApiRequestOptions {
+        ignore_https_errors: true,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let r = rq.get(&server.url("/dump")).await.unwrap();
+    let addr = r.server_addr().await.unwrap().expect("an address");
+    assert_eq!(
+        (addr.ip_address.as_str(), addr.port),
+        ("127.0.0.1", server.port)
+    );
+    assert!(r.security_details().await.unwrap().is_none());
+    let t = r.timing();
+    assert!(t.start_time > 1.7e12, "{t:?}");
+    // Playwright 1.63: no DNS lookup for an IP, no TLS for http.
+    assert_eq!((t.domain_lookup_start, t.domain_lookup_end), (-1.0, -1.0));
+    assert_eq!(t.secure_connection_start, -1.0);
+    assert_eq!(t.connect_start, 0.0);
+    assert!(
+        t.connect_end >= 0.0 && t.request_start >= t.connect_end,
+        "{t:?}"
+    );
+    assert!(
+        t.response_start >= t.request_start && t.response_end >= t.response_start,
+        "{t:?}"
+    );
+
+    let Some((_tls, port)) = crate::https::https_server() else {
+        eprintln!("no openssl; skipping the TLS part");
+        return;
+    };
+    let r = rq.get(&format!("https://localhost:{port}/")).await.unwrap();
+    let s = r.security_details().await.unwrap().expect("TLS details");
+    assert_eq!(s.protocol.as_deref(), Some("TLSv1.3"));
+    assert_eq!(s.subject_name.as_deref(), Some("localhost"));
+    assert_eq!(s.issuer.as_deref(), Some("localhost"));
+    assert_eq!(s.valid_to.unwrap() - s.valid_from.unwrap(), 86_400.0);
+    let t = r.timing();
+    assert_eq!(t.domain_lookup_start, 0.0);
+    assert!(
+        t.domain_lookup_end >= 0.0 && t.connect_start >= t.domain_lookup_end,
+        "{t:?}"
+    );
+    assert!(
+        t.secure_connection_start >= t.connect_start && t.connect_end >= t.secure_connection_start,
+        "{t:?}"
+    );
+}

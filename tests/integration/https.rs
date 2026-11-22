@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use chromiumoxide::{Chromium, ContextOptions, LaunchOptions};
 
-struct Server(Child, std::path::PathBuf);
+pub struct Server(Child, std::path::PathBuf);
 
 impl Drop for Server {
     fn drop(&mut self) {
@@ -14,7 +14,7 @@ impl Drop for Server {
     }
 }
 
-fn https_server() -> Option<(Server, u16)> {
+pub fn https_server() -> Option<(Server, u16)> {
     let dir = std::env::temp_dir().join(format!("cox-https-{}", std::process::id()));
     std::fs::create_dir_all(&dir).ok()?;
     let ok = Command::new("openssl")
