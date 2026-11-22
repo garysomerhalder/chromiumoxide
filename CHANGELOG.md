@@ -87,6 +87,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Video: `ContextOptions::record_video`, `page.video()` (needs ffmpeg; uses
     Playwright's build when installed).
   - Tracing: `context.tracing().start/stop` writing a Playwright-style trace.zip.
+  - `ContextOptions::base_url`, `java_script_enabled`, `bypass_csp` (tested);
+    `browser.selectors()` (`set_test_id_attribute`, `register`);
+    `locator.aria_snapshot_json()`; `Chromium::launch_persistent_context`;
+    request/response `headers_array`/`header_value`, `post_data_json`.
+  - `add_script_tag` fails fast when the page's CSP blocks it.
 
 ### Fixed
 

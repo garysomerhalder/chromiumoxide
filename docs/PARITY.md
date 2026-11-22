@@ -78,13 +78,13 @@ Chrome for Testing and chrome-headless-shell.
 | `permissions` | M4 | ✅ Playwright permission names (and `grant_permissions` / `clear_permissions`) |
 | `offline` | M4 | ✅ (and `context.set_offline`) |
 | `extraHTTPHeaders` | M4 | ✅ (and context / page `set_extra_http_headers`) |
-| `javaScriptEnabled`, `bypassCSP`, `ignoreHTTPSErrors` | M4 | 🟡 set at creation |
+| `javaScriptEnabled`, `bypassCSP`, `ignoreHTTPSErrors` | M4 | 🟡 `javaScriptEnabled`, `bypassCSP` tested; `ignoreHTTPSErrors` set at creation |
 | `storageState` | M4 | ✅ cookies + localStorage, JSON-compatible with Playwright files (IndexedDB not yet) |
 | `acceptDownloads` | M4 | ✅ |
 | `recordHar` | M5 | ✅ `record_har` (embedded or omitted content, URL filter) |
 | `recordVideo` | M5 | ✅ VP8 `.webm` via Playwright's ffmpeg; default size like Playwright |
 | `serviceWorkers` | M4 | ✅ `allow` / `block` |
-| `baseURL` | M3 | ⬜ |
+| `baseURL` | M3 | ✅ |
 | Device descriptors (`playwright.devices`) | M1 | ✅ |
 
 ## 4. Screenshots
@@ -215,7 +215,7 @@ Chrome for Testing and chrome-headless-shell.
 | `addScriptTag` | M3 | ✅ |
 | `addStyleTag` | M1 | ✅ |
 | `ariaSnapshot` | M5 | ✅ |
-| `ariaSnapshotJSON` | M5 | ⬜ |
+| `ariaSnapshotJSON` | M5 | ✅ |
 | `bringToFront` | M3 | ✅ |
 | `cancelPickLocator` | M6 | ⬜ |
 | `check` | M3 | ✅ |
@@ -388,7 +388,7 @@ Chrome for Testing and chrome-headless-shell.
 | `allTextContents` | M3 | ✅ |
 | `and` | M3 | ✅ |
 | `ariaSnapshot` | M5 | ✅ |
-| `ariaSnapshotJSON` | M5 | ⬜ |
+| `ariaSnapshotJSON` | M5 | ✅ |
 | `blur` | M3 | ✅ |
 | `boundingBox` | M3 | ✅ |
 | `check` | M3 | ✅ |
@@ -534,13 +534,13 @@ Chrome for Testing and chrome-headless-shell.
 | `failure` | M4 | ✅ |
 | `frame` | M4 | ✅ |
 | `headers` | M4 | ✅ |
-| `headersArray` | M4 | 🟡 implemented, not yet covered by a test |
-| `headerValue` | M4 | 🟡 implemented, not yet covered by a test |
+| `headersArray` | M4 | ✅ |
+| `headerValue` | M4 | ✅ |
 | `isNavigationRequest` | M4 | ✅ |
 | `method` | M4 | ✅ |
 | `postData` | M4 | ✅ |
 | `postDataBuffer` | M4 | ✅ |
-| `postDataJSON` | M4 | 🟡 implemented, not yet covered by a test |
+| `postDataJSON` | M4 | ✅ |
 | `redirectedFrom` | M4 | ✅ |
 | `redirectedTo` | M4 | ✅ |
 | `resourceType` | M4 | ✅ |
@@ -560,14 +560,14 @@ Chrome for Testing and chrome-headless-shell.
 | `frame` | M4 | ✅ |
 | `fromServiceWorker` | M4 | ✅ |
 | `headers` | M4 | ✅ |
-| `headersArray` | M4 | 🟡 implemented, not yet covered by a test |
+| `headersArray` | M4 | ✅ |
 | `headerValue` | M4 | ✅ |
 | `headerValues` | M4 | ✅ |
 | `httpVersion` | M4 | ✅ |
 | `json` | M4 | ✅ |
 | `ok` | M4 | ✅ |
 | `request` | M4 | ✅ |
-| `securityDetails` | M4 | 🟡 implemented, not yet covered by a test |
+| `securityDetails` | M4 | ✅ `None` for plain HTTP |
 | `serverAddr` | M4 | ✅ |
 | `status` | M4 | ✅ |
 | `statusText` | M4 | ✅ |
@@ -627,7 +627,7 @@ Chrome for Testing and chrome-headless-shell.
 | `defaultValue` | M4 | ✅ |
 | `dismiss` | M4 | ✅ |
 | `message` | M4 | ✅ |
-| `page` | M4 | 🟡 implemented, not yet covered by a test |
+| `page` | M4 | ✅ |
 | `type` | M4 | ✅ |
 
 ### FileChooser
@@ -750,7 +750,7 @@ Chrome for Testing and chrome-headless-shell.
 | `connect` | M6 | ⬜ |
 | `executablePath` | M1 | ✅ |
 | `launch` | M1 | ✅ |
-| `launchPersistentContext` | M3 | ⬜ |
+| `launchPersistentContext` | M3 | ✅ |
 | `launchServer` | M6 | ⬜ |
 | `name` | M1 | ✅ |
 
@@ -758,5 +758,5 @@ Chrome for Testing and chrome-headless-shell.
 
 | Member | Milestone | Status |
 |---|---|---|
-| `register` | M3 | ⬜ |
-| `setTestIdAttribute` | M3 | ⬜ |
+| `register` | M3 | ✅ |
+| `setTestIdAttribute` | M3 | ✅ |
