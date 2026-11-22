@@ -307,7 +307,7 @@ Chrome for Testing and chrome-headless-shell.
 | `localStorage` | M4 | ✅ |
 | `mouse` | M3 | ✅ |
 | `request` | M6 | ⬜ |
-| `screencast` | M5 | 🟡 start/stop (frames, `.webm`), overlays, chapters; `showActions` not yet |
+| `screencast` | M5 | ✅ start/stop (frames, `.webm`), overlays, chapters, actions |
 | `sessionStorage` | M4 | ✅ |
 | `touchscreen` | M3 | ✅ |
 

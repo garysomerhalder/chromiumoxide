@@ -79,7 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `fulfill().path()/.response()`, `routeWebSocket`, `page.local_storage()` /
   `session_storage()`, `context.credentials()` (WebAuthn), file chooser,
   `page.requests()`, `set_storage_state`.
-- Milestone 5 (in progress):
+- Milestone 5 (completed):
   - `page.pdf()` with Playwright's options.
   - Web-first assertions: `expect(&locator | &page | &response)` with
     Playwright's matchers, retry schedule and failure messages.
@@ -97,7 +97,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     pixelmatch comparison, update modes and messages (PNG snapshots).
   - `expect(page | locator).to_match_aria_snapshot(template)` and
     `to_match_aria_snapshot_file(path)`.
-  - `page.screencast()`: frames, `.webm` recording, overlays and chapters.
+  - `page.screencast()`: frames, `.webm` recording, overlays, chapters and
+    `show_actions` annotations.
 
 ### Fixed
 
