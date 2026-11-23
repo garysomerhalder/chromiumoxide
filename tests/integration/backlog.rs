@@ -1073,3 +1073,83 @@ async fn new_page_with_context_options() {
     assert!(browser.contexts().is_empty(), "its context closed with it");
     browser.close().await.unwrap();
 }
+
+/// Playwright 1.66's `locateOnlyVisible` (values recorded with the 1.66.0
+/// alpha of 2026-11-22): locators find only visible elements, `first()`,
+/// `last()` and `nth()` pick among visible ones, explicit visibility filters
+/// win, and selector-based methods (`$$`) are unchanged.
+#[tokio::test]
+async fn locate_only_visible() {
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let context = browser
+        .new_context(chromiumoxide::ContextOptions {
+            locate_only_visible: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.set_content(
+        "<div hidden>One</div><div>Two</div><div>Three</div>\
+         <section style='width:0;height:0;overflow:hidden'><button>Hidden</button></section>\
+         <section><button>Go</button></section>\
+         <iframe srcdoc='<p hidden>a</p><p>b</p>'></iframe>",
+    )
+    .await
+    .unwrap();
+    let div = page.locator("div");
+    assert_eq!(div.count().await.unwrap(), 2);
+    assert_eq!(
+        div.first().text_content().await.unwrap().as_deref(),
+        Some("Two")
+    );
+    assert_eq!(
+        div.last().text_content().await.unwrap().as_deref(),
+        Some("Three")
+    );
+    assert_eq!(
+        page.locator("section")
+            .get_by_role("button", Default::default())
+            .count()
+            .await
+            .unwrap(),
+        2
+    );
+    assert_eq!(
+        div.filter(chromiumoxide::Filter {
+            visible: Some(false),
+            ..Default::default()
+        })
+        .first()
+        .text_content()
+        .await
+        .unwrap()
+        .as_deref(),
+        Some("One")
+    );
+    assert_eq!(
+        page.frame_locator("iframe")
+            .locator("p")
+            .count()
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(page.query_selector_all("div").await.unwrap().len(), 3);
+    assert_eq!(div.evaluate_all::<i64>("e => e.length").await.unwrap(), 2);
+    // Element handles are not locators: a hidden element's handle still works.
+    let hidden = page
+        .query_selector("div")
+        .await
+        .unwrap()
+        .expect("first div");
+    assert_eq!(hidden.text_content().await.unwrap().as_deref(), Some("One"));
+    // Off by default.
+    let plain = browser.new_page().await.unwrap();
+    plain
+        .set_content("<div hidden>One</div><div>Two</div>")
+        .await
+        .unwrap();
+    assert_eq!(plain.locator("div").count().await.unwrap(), 2);
+    browser.close().await.unwrap();
+}

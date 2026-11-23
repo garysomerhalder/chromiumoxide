@@ -835,3 +835,13 @@ Chromium-relevant classes ([`BACKLOG.md`](BACKLOG.md)). Tests:
 | Context events `dialogclosed`, `download`, `frameattached`, `framedetached`, `framenavigated`, `pageclose`, `pageload`, `backgroundpage` | M8 | ✅ (`backgroundpage` never fires in Chromium) |
 | Browser events `context`, `disconnected` | M8 | ✅ `browser.events()` |
 | Blocked-click log names the element (`<body>…</body> intercepts pointer events`) | M8 | ✅ |
+
+## 9. Playwright 1.66 alpha (M9)
+
+From the 1.66.0 alpha of 2026-11-22 (not released yet; re-check against the
+release notes when it ships).
+
+| Item | Milestone | Status |
+|---|---|---|
+| `locateOnlyVisible` context option (also `newPage`, `launchPersistentContext`) | M9 | ✅ selector rewrite checked against the alpha; selector shortcuts, `$` and element handles unaffected |
+| Chromium 159.0.8154.13 | M9 | ✅ pixel-parity test passes on Chrome for Testing 159.0.8154.13 |
