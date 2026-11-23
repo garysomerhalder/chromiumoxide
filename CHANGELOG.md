@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.0] (in progress)
 
+### Milestone 11: Android
+
+- `Android::devices(AndroidDevicesOptions)` and `AndroidDevice` (Playwright's
+  `_android`): shell, sockets, push, APK install, screenshots, Chrome
+  (`launch_browser`) and WebViews as browser contexts, over the adb server's
+  protocol (new `AdbClient` port). Tested against a fake adb server and,
+  with `examples/android_device.rs`, a real emulator. UI-automator input
+  (tap, swipe, ...) is not included (it needs Playwright's driver APK).
+
 ### Milestone 10: Electron
 
 - `Electron::launch(ElectronLaunchOptions)` and `ElectronApplication`

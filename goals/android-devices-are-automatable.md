@@ -62,10 +62,10 @@ Out (until a driver is available):
 
 ## Done when
 
-- [ ] Every in-scope member above has an integration test that passes against the fake adb server.
-- [ ] A page from `launchBrowser()` runs `goto`, `evaluate` and `screenshot` in the test.
-- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
-- [ ] `docs/PARITY.md` lists the in-scope members as done and the out-of-scope ones with the reason.
+- [x] Every in-scope member above has an integration test that passes against the fake adb server.
+- [x] A page from `launchBrowser()` runs `goto`, `evaluate` and `screenshot` in the test.
+- [x] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
+- [x] `docs/PARITY.md` lists the in-scope members as done and the out-of-scope ones with the reason.
 - [ ] `CHANGELOG.md` has the entry and a draft PR is open.
 
 ## Stop rule
@@ -80,6 +80,13 @@ check is needed that the container cannot do.
   CI job's commands run locally; "Set it" changed with it.
 - 2026-11-23: active. Scope: `connect` / `launchServer` out (Playwright's own
   protocol); Gary's PC runs the emulator for the real-device check.
+- 2026-11-23: real emulator (Gary's PC, Galaxy_S26, Android 17, Chrome 145)
+  through `examples/android_device.rs`: devices, model
+  (`sdk_gphone64_x86_64`), shell, push + read back, screenshot (1.38 MB PNG)
+  all work. `launch_browser` timed out: on a `user` build Chrome ignores
+  `/data/local/tmp/chrome-command-line` unless chrome://flags "Enable command
+  line on non-rooted devices" is on (Playwright needs the same). Noted in
+  PARITY; to re-check once the flag is on.
 
 ## Set it
 
