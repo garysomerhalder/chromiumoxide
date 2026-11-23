@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.0] (in progress)
 
+### Milestone 13: Firefox (in progress)
+
+- `chromiumoxide::Firefox::launch` and `chromiumoxide::firefox::{Browser,
+  BrowserContext, Page, Locator}`: a second engine over WebDriver BiDi,
+  with the Playwright method names. The Chromium engine is unchanged.
+- So far:
+  - contexts with emulation (viewport, device scale factor, user agent,
+    locale, timezone, screen, geolocation, extra headers);
+  - `goto`, `set_content`, `evaluate`, `add_style_tag`,
+    `set_viewport_size`;
+  - screenshots (viewport, clip, full page, JPEG), pixel-identical to
+    Playwright's Firefox;
+  - locators (`locator`, `get_by_*`, `nth`, reads, visibility, waiting,
+    strictness);
+  - input (`click`, `hover`, `fill`, `press`, `press_sequentially`,
+    `check`, `uncheck`).
+- Over BiDi in Firefox 159 there is no command for isMobile, hasTouch or
+  colorScheme; those context options are an error for now.
+
 ### Milestone 12: every CDP domain
 
 - `page.protocol()` and `browser.protocol()`: a typed client for every
