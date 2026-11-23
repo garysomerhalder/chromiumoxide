@@ -97,6 +97,11 @@ port change, so they come first.
 
 ### M15 The rest of CDP
 
+**Done (2026-11-23, branch `claude/rewrite-m12-cdp`):** every domain below
+has a generated typed client (`page.protocol().<domain>()`) and a
+real-Chromium test; see `docs/PARITY.md` section 12. Hand-written,
+Playwright-style APIs on top of these clients stay possible per domain.
+
 Every CDP command is already available, typed, through `chromiumoxide_cdp`
 and `page.send()` / `CdpSessionHandle`. This milestone adds a tested
 high-level API for the domains that have none, most useful first.

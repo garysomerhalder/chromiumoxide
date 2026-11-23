@@ -761,6 +761,7 @@ Chrome for Testing and chrome-headless-shell.
 | `executablePath` | M1 | ✅ |
 | `launch` | M1 | ✅ |
 | `launchPersistentContext` | M3 | ✅ |
+| `launch({ ignoreDefaultArgs: [...] })` | M12 | ✅ `LaunchOptions::ignored_default_args` (exact switches; `ignoreDefaultArgs: true` is `ignore_default_args`) |
 | `launchServer` | M6 | ✅ `BrowserServer` (CDP endpoint) |
 | `name` | M1 | ✅ |
 
@@ -884,3 +885,332 @@ real device or emulator). Goal:
 | `androidDevice.close()`, `on('close')` | M11 | ✅ |
 | `android.connect`, `android.launchServer` | M11 | out of scope: Playwright's own client-server protocol; use `AndroidDevicesOptions { host, port }` for a remote adb server |
 | `tap`, `fill`, `press`, `drag`, `fling`, `longTap`, `pinchOpen/Close`, `scroll`, `swipe`, `wait`, `info`, `input.*` | M11 | out of scope for now: they need Playwright's UI-automator driver APK installed on the device |
+
+## 12. Every CDP domain (M12)
+
+Every non-deprecated command and event of protocol `r1751165` has a typed method, generated from the PDL by `chromiumoxide_pdl` into `chromiumoxide_cdp::cdp::domains`: `page.protocol().<domain>().<command>(params)` returns the typed result; `.on_<event>()` is a typed stream. `browser.protocol()` does the same on the browser target. The coverage check (`chromiumoxide_cdp/tests/domains.rs`) fails when a command or event has no method, or a domain has no `cdp_<domain>` test in `tests/integration/cdp_domains.rs`.
+
+Totals: 57 domains, 634 commands, 224 events, all with a typed method.
+
+Deprecated, raw types only (`page.execute` / `page.cdp_events`), by design: the domains Console and Schema, and every command or event marked deprecated:
+
+- Console: (whole domain: clearMessages, disable, enable, messageAdded)
+- Debugger: `getWasmBytecode`, `pauseOnAsyncCall`, `setScriptSource`, `breakpointResolved`
+- Schema: (whole domain: getDomains)
+- Browser: `grantPermissions`
+- CSS: `setContainerQueryText`
+- DOM: `getFlattenedDocument`
+- DOMDebugger: `removeInstrumentationBreakpoint`, `setInstrumentationBreakpoint`
+- DOMSnapshot: `getSnapshot`
+- Emulation: `canEmulate`, `setNavigatorOverrides`, `setVisibleSize`
+- HeadlessExperimental: `disable`, `enable`
+- IO: `resolveBlob`
+- Network: `canClearBrowserCache`, `canClearBrowserCookies`, `canEmulateNetworkConditions`, `emulateNetworkConditions`, `getAllCookies`
+- Overlay: `highlightFrame`, `setShowHitTestBorders`, `setShowWebVitals`
+- Page: `addScriptToEvaluateOnLoad`, `clearDeviceMetricsOverride`, `clearDeviceOrientationOverride`, `clearGeolocationOverride`, `deleteCookie`, `getManifestIcons`, `removeScriptToEvaluateOnLoad`, `setDeviceMetricsOverride`, `setDeviceOrientationOverride`, `setDownloadBehavior`, `setGeolocationOverride`, `setTouchEmulationEnabled`, `frameClearedScheduledNavigation`, `frameScheduledNavigation`, `downloadWillBegin`, `downloadProgress`
+- Performance: `setTimeDomain`
+- Security: `handleCertificateError`, `setOverrideCertificateErrors`, `certificateError`, `securityStateChanged`
+- Storage: `getStorageKeyForFrame`
+- Target: `sendMessageToTarget`
+
+### CDP Accessibility
+
+- [x] `protocol().accessibility()`: 8 commands, 2 events (experimental domain).
+- [x] Test: `cdp_accessibility` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Ads
+
+- [x] `protocol().ads()`: 2 commands, 0 events (experimental domain).
+- [x] Test: `cdp_ads` in `tests/integration/cdp_domains.rs`, on the page target.
+- Note: The test checks Chromium's answer.
+
+### CDP Animation
+
+- [x] `protocol().animation()`: 10 commands, 4 events (experimental domain).
+- [x] Test: `cdp_animation` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Audits
+
+- [x] `protocol().audits()`: 4 commands, 1 events (experimental domain).
+- [x] Test: `cdp_audits` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Autofill
+
+- [x] `protocol().autofill()`: 4 commands, 1 events (experimental domain).
+- [x] Test: `cdp_autofill` in `tests/integration/cdp_domains.rs`, on the page (full Chrome) target.
+- Note: Full Chrome only (not in the headless shell).
+
+### CDP BackgroundService
+
+- [x] `protocol().background_service()`: 4 commands, 2 events (experimental domain).
+- [x] Test: `cdp_background_service` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP BluetoothEmulation
+
+- [x] `protocol().bluetooth_emulation()`: 16 commands, 3 events (experimental domain).
+- [x] Test: `cdp_bluetooth_emulation` in `tests/integration/cdp_domains.rs`, on the browser (full Chrome) target.
+- Note: Full Chrome only, on the browser target.
+
+### CDP Browser
+
+- [x] `protocol().browser()`: 20 commands, 2 events.
+- [x] Test: `cdp_browser` in `tests/integration/cdp_domains.rs`, on the browser target.
+
+### CDP CSS
+
+- [x] `protocol().css()`: 39 commands, 6 events (experimental domain).
+- [x] Test: `cdp_css` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP CacheStorage
+
+- [x] `protocol().cache_storage()`: 5 commands, 0 events (experimental domain).
+- [x] Test: `cdp_cache_storage` in `tests/integration/cdp_domains.rs`, on the page target.
+- Note: The test checks Chromium's answer.
+
+### CDP Cast
+
+- [x] `protocol().cast()`: 6 commands, 2 events (experimental domain).
+- [x] Test: `cdp_cast` in `tests/integration/cdp_domains.rs`, on the page (full Chrome) target.
+- Note: Full Chrome only. Playwright's default arguments disable Media Router, so Chrome answers `Cast.enable` with "You must enable the Media Router feature"; the test checks that answer.
+
+### CDP CrashReportContext
+
+- [x] `protocol().crash_report_context()`: 1 commands, 0 events (experimental domain).
+- [x] Test: `cdp_crash_report_context` in `tests/integration/cdp_domains.rs`, on the page target.
+- Note: The test checks Chromium's answer.
+
+### CDP DOM
+
+- [x] `protocol().dom()`: 56 commands, 19 events.
+- [x] Test: `cdp_dom` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP DOMDebugger
+
+- [x] `protocol().dom_debugger()`: 8 commands, 0 events.
+- [x] Test: `cdp_dom_debugger` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP DOMSnapshot
+
+- [x] `protocol().dom_snapshot()`: 3 commands, 0 events (experimental domain).
+- [x] Test: `cdp_dom_snapshot` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP DOMStorage
+
+- [x] `protocol().dom_storage()`: 6 commands, 4 events (experimental domain).
+- [x] Test: `cdp_dom_storage` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Debugger
+
+- [x] `protocol().debugger()`: 31 commands, 4 events.
+- [x] Test: `cdp_debugger` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP DeviceAccess
+
+- [x] `protocol().device_access()`: 4 commands, 1 events (experimental domain).
+- [x] Test: `cdp_device_access` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP DeviceOrientation
+
+- [x] `protocol().device_orientation()`: 2 commands, 0 events (experimental domain).
+- [x] Test: `cdp_device_orientation` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP DigitalCredentials
+
+- [x] `protocol().digital_credentials()`: 1 commands, 0 events (experimental domain).
+- [x] Test: `cdp_digital_credentials` in `tests/integration/cdp_domains.rs`, on the page target.
+- Note: The test checks Chromium's answer.
+
+### CDP Emulation
+
+- [x] `protocol().emulation()`: 46 commands, 2 events.
+- [x] Test: `cdp_emulation` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP EventBreakpoints
+
+- [x] `protocol().event_breakpoints()`: 3 commands, 0 events (experimental domain).
+- [x] Test: `cdp_event_breakpoints` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Extensions
+
+- [x] `protocol().extensions()`: 8 commands, 0 events (experimental domain).
+- [x] Test: `cdp_extensions` in `tests/integration/cdp_domains.rs`, on the browser (full Chrome, `--enable-unsafe-extension-debugging`) target.
+- Note: Full Chrome only, with `--enable-unsafe-extension-debugging` and without the default `--disable-extensions` (`LaunchOptions::ignored_default_args`); the test loads, lists and uninstalls an unpacked extension.
+
+### CDP FedCm
+
+- [x] `protocol().fed_cm()`: 7 commands, 2 events (experimental domain).
+- [x] Test: `cdp_fed_cm` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Fetch
+
+- [x] `protocol().fetch()`: 9 commands, 2 events.
+- [x] Test: `cdp_fetch` in `tests/integration/cdp_domains.rs`, on the browser (on a page, `page.route` owns Fetch) target.
+- Note: On a page, `Fetch` belongs to `page.route` / `context.route`, which continue every request they are not asked to handle; drive the raw domain on the browser target (as the test does) or use routing.
+
+### CDP FileSystem
+
+- [x] `protocol().file_system()`: 1 commands, 0 events (experimental domain).
+- [x] Test: `cdp_file_system` in `tests/integration/cdp_domains.rs`, on the page target.
+- Note: Chromium does not answer `getDirectory` while the origin has no private file system yet; the test writes a file through `navigator.storage.getDirectory()` first and reads it back.
+
+### CDP FindInPage
+
+- [x] `protocol().find_in_page()`: 4 commands, 0 events (experimental domain).
+- [x] Test: `cdp_find_in_page` in `tests/integration/cdp_domains.rs`, on the page target.
+- Note: The test checks Chromium's answer.
+
+### CDP HeadlessExperimental
+
+- [x] `protocol().headless_experimental()`: 1 commands, 0 events (experimental domain).
+- [x] Test: `cdp_headless_experimental` in `tests/integration/cdp_domains.rs`, on the page target.
+- Note: `beginFrame` needs `--enable-begin-frame-control` at launch; the test checks Chromium's answer.
+
+### CDP HeapProfiler
+
+- [x] `protocol().heap_profiler()`: 12 commands, 5 events (experimental domain).
+- [x] Test: `cdp_heap_profiler` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP IO
+
+- [x] `protocol().io()`: 2 commands, 0 events.
+- [x] Test: `cdp_io` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP IndexedDB
+
+- [x] `protocol().indexed_db()`: 9 commands, 0 events (experimental domain).
+- [x] Test: `cdp_indexed_db` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Input
+
+- [x] `protocol().input()`: 13 commands, 1 events.
+- [x] Test: `cdp_input` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Inspector
+
+- [x] `protocol().inspector()`: 2 commands, 4 events (experimental domain).
+- [x] Test: `cdp_inspector` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP LayerTree
+
+- [x] `protocol().layer_tree()`: 9 commands, 2 events (experimental domain).
+- [x] Test: `cdp_layer_tree` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Log
+
+- [x] `protocol().log()`: 5 commands, 1 events.
+- [x] Test: `cdp_log` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Media
+
+- [x] `protocol().media()`: 2 commands, 5 events (experimental domain).
+- [x] Test: `cdp_media` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Memory
+
+- [x] `protocol().memory()`: 11 commands, 0 events (experimental domain).
+- [x] Test: `cdp_memory` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Network
+
+- [x] `protocol().network()`: 30 commands, 43 events.
+- [x] Test: `cdp_network` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Overlay
+
+- [x] `protocol().overlay()`: 28 commands, 6 events (experimental domain).
+- [x] Test: `cdp_overlay` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP PWA
+
+- [x] `protocol().pwa()`: 7 commands, 0 events (experimental domain).
+- [x] Test: `cdp_pwa` in `tests/integration/cdp_domains.rs`, on the browser (full Chrome) target.
+- Note: Full Chrome only, on the browser target (Chrome 159 crashes when it is sent to a page session); the test checks the "Unknown web-app manifest id" answer.
+
+### CDP Page
+
+- [x] `protocol().page()`: 55 commands, 24 events.
+- [x] Test: `cdp_page` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Performance
+
+- [x] `protocol().performance()`: 3 commands, 1 events.
+- [x] Test: `cdp_performance` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP PerformanceTimeline
+
+- [x] `protocol().performance_timeline()`: 1 commands, 1 events (experimental domain).
+- [x] Test: `cdp_performance_timeline` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Preload
+
+- [x] `protocol().preload()`: 2 commands, 6 events (experimental domain).
+- [x] Test: `cdp_preload` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Profiler
+
+- [x] `protocol().profiler()`: 9 commands, 3 events.
+- [x] Test: `cdp_profiler` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Runtime
+
+- [x] `protocol().runtime()`: 23 commands, 8 events.
+- [x] Test: `cdp_runtime` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP Security
+
+- [x] `protocol().security()`: 3 commands, 1 events.
+- [x] Test: `cdp_security` in `tests/integration/cdp_domains.rs`, on the page (full Chrome) target.
+- Note: `visibleSecurityStateChanged` comes from full Chrome only (the headless shell has only the content-level handler); the test runs on full Chrome.
+
+### CDP ServiceWorker
+
+- [x] `protocol().service_worker()`: 12 commands, 3 events (experimental domain).
+- [x] Test: `cdp_service_worker` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP SmartCardEmulation
+
+- [x] `protocol().smart_card_emulation()`: 12 commands, 14 events (experimental domain).
+- [x] Test: `cdp_smart_card_emulation` in `tests/integration/cdp_domains.rs`, on the page (full Chrome) target.
+- Note: **Not served by Chrome for Testing 159 on Linux** (Chromium answers "wasn't found"; the Web Smart Card API ships on ChromeOS). The client methods exist and are typed; the test pins the current answer and fails when a Linux build starts serving the domain.
+
+### CDP Storage
+
+- [x] `protocol().storage()`: 26 commands, 7 events (experimental domain).
+- [x] Test: `cdp_storage` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP SystemInfo
+
+- [x] `protocol().system_info()`: 3 commands, 0 events (experimental domain).
+- [x] Test: `cdp_system_info` in `tests/integration/cdp_domains.rs`, on the browser target.
+
+### CDP Target
+
+- [x] `protocol().target()`: 18 commands, 7 events.
+- [x] Test: `cdp_target` in `tests/integration/cdp_domains.rs`, on the browser target.
+
+### CDP Tethering
+
+- [x] `protocol().tethering()`: 2 commands, 1 events (experimental domain).
+- [x] Test: `cdp_tethering` in `tests/integration/cdp_domains.rs`, on the browser (WebSocket connection) target.
+- Note: Served on the browser target only when connected over a WebSocket (`Channel::WebSocket`), not over the default pipe.
+
+### CDP Tracing
+
+- [x] `protocol().tracing()`: 6 commands, 3 events.
+- [x] Test: `cdp_tracing` in `tests/integration/cdp_domains.rs`, on the browser target.
+
+### CDP WebAudio
+
+- [x] `protocol().web_audio()`: 3 commands, 13 events (experimental domain).
+- [x] Test: `cdp_web_audio` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP WebAuthn
+
+- [x] `protocol().web_authn()`: 13 commands, 4 events (experimental domain).
+- [x] Test: `cdp_web_authn` in `tests/integration/cdp_domains.rs`, on the page target.
+
+### CDP WebMCP
+
+- [x] `protocol().web_mcp()`: 4 commands, 4 events (experimental domain).
+- [x] Test: `cdp_web_mcp` in `tests/integration/cdp_domains.rs`, on the page target.
+- Note: The test checks Chromium's answer.

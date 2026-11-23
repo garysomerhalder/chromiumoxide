@@ -32,6 +32,9 @@ pub struct LaunchOptions {
     pub args: Vec<String>,
     /// Drop the default argument preset.
     pub ignore_default_args: bool,
+    /// Drop only these default switches, e.g. `--disable-extensions`
+    /// (Playwright's `ignoreDefaultArgs: [...]`).
+    pub ignored_default_args: Vec<String>,
     /// Extra environment variables for the browser process.
     pub env: Vec<(String, String)>,
     /// Maximum time to wait for the browser to start (default 180 s, like Playwright).
@@ -72,6 +75,7 @@ impl Default for LaunchOptions {
             headless: true,
             args: Vec::new(),
             ignore_default_args: false,
+            ignored_default_args: Vec::new(),
             env: Vec::new(),
             timeout: Duration::from_secs(180),
             channel: Channel::Pipe,
@@ -291,6 +295,7 @@ impl Browser {
             headless: options.headless,
             args: options.args.clone(),
             ignore_default_args: options.ignore_default_args,
+            ignored_default_args: options.ignored_default_args.clone(),
             user_data_dir: user_data_dir.clone(),
             proxy: options.proxy.clone(),
             chromium_sandbox: options.chromium_sandbox,

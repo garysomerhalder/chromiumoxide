@@ -583,6 +583,13 @@ async fn cdp_file_system() {
     server.route("/fs.html", "text/html", "<p>x</p>", 0);
     let (browser, page) = page().await;
     page.goto(&server.url("/fs.html")).await.unwrap();
+    page.evaluate::<()>(
+        "(async () => { const root = await navigator.storage.getDirectory(); \
+         const f = await root.getFileHandle('cox.txt', { create: true }); \
+         const w = await f.createWritable(); await w.write('hi'); await w.close(); })()",
+    )
+    .await
+    .unwrap();
     let cdp = page.protocol();
     let key = cdp
         .storage()
@@ -593,7 +600,10 @@ async fn cdp_file_system() {
         )
         .await
         .unwrap();
-    answered(
+    // Chromium does not answer at all while the origin has no file system
+    // yet, hence the file written above and the timeout.
+    let directory = tokio::time::timeout(
+        Duration::from_secs(10),
         cdp.file_system()
             .get_directory(file_system::GetDirectoryParams::new(
                 file_system::BucketFileSystemLocator::builder()
@@ -601,8 +611,18 @@ async fn cdp_file_system() {
                     .path_components(Vec::<String>::new())
                     .build()
                     .unwrap(),
-            ))
-            .await,
+            )),
+    )
+    .await
+    .expect("FileSystem.getDirectory answers")
+    .unwrap()
+    .directory;
+    assert!(
+        directory
+            .nested_files
+            .iter()
+            .any(|f| f.name == "cox.txt" && f.size == 2.0),
+        "{directory:?}"
     );
     browser.close().await.unwrap();
 }
@@ -894,7 +914,9 @@ async fn cdp_pwa() {
 
 #[tokio::test]
 async fn cdp_security() {
-    let (browser, page) = page().await;
+    let Some((browser, page)) = full_chrome_page(LaunchOptions::default()).await else {
+        return;
+    };
     let security = page.protocol().security();
     let mut states = security.on_visible_security_state_changed();
     security
@@ -905,9 +927,11 @@ async fn cdp_security() {
     server.route("/security.html", "text/html", "<p>x</p>", 0);
     page.goto(&server.url("/security.html")).await.unwrap();
     let state = next(&mut states).await;
+    // 127.0.0.1 is a potentially trustworthy origin: plain http reads as
+    // neutral, not insecure.
     assert_eq!(
         state.visible_security_state.security_state,
-        security::SecurityState::Insecure
+        security::SecurityState::Neutral
     );
     browser.close().await.unwrap();
 }
