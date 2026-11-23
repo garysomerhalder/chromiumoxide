@@ -1,6 +1,7 @@
 //! Integration tests against a real Chromium found by discovery.
 //! No transport mocks: these talk to the browser over the real pipe/WebSocket.
 
+mod android;
 mod aria;
 mod assertions;
 mod backlog;
@@ -16,6 +17,7 @@ mod events;
 mod extras;
 mod extras2;
 mod extras3;
+mod fake_adb;
 mod frames;
 mod handles;
 mod handles2;

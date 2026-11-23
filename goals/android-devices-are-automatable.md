@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Status | proposed |
+| Status | active |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
-| Started | — |
+| Started | 2026-11-23 |
 | Finished | — |
 | Repos | garysomerhalder/chromiumoxide |
-| Environments | Linux container (adb 1.0.41, no device, no emulator: no KVM); a real device or emulator for a manual check |
+| Environments | Linux container (adb 1.0.41, no emulator: no KVM); Gary's Windows PC through the Desktop Bridge (Android SDK, emulator `Galaxy_S26`, Android 37, Rust 1.99) for the real-device check |
 
 ## Outcome
 
@@ -24,10 +24,15 @@ speak CDP, so the existing page API covers them once they are reachable.
 ## Scope
 
 In:
-- `android.devices({ host, port, omitDriverInstall })`, `android.connect`, `android.launchServer`.
+- `android.devices({ host, port, omitDriverInstall })`.
 - `AndroidDevice`: `serial`, `model`, `info`, `shell`, `open` (`AndroidSocket`), `push`,
   `installApk`, `screenshot`, `close`, `launchBrowser`, `webViews`, `webView`, event `webview`.
 - `AndroidWebView`: `page`, `pid`, `pkg`, event `close`.
+
+Out:
+- `android.connect` and `android.launchServer`: they serve and reach a
+  device over Playwright's own client-server protocol. Here a remote adb
+  server (`host`, `port`) does that job.
 
 Out (until a driver is available):
 - UI-automator input (`tap`, `fill`, `press`, `drag`, `fling`, `longTap`, `pinch*`, `scroll`,
@@ -73,6 +78,8 @@ check is needed that the container cannot do.
 - 2026-11-23: proposed.
 - 2026-11-23: GitHub CI skipped at Gary's request: the CI box now asks for the
   CI job's commands run locally; "Set it" changed with it.
+- 2026-11-23: active. Scope: `connect` / `launchServer` out (Playwright's own
+  protocol); Gary's PC runs the emulator for the real-device check.
 
 ## Set it
 
