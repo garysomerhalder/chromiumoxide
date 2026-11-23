@@ -108,6 +108,9 @@ pub struct ContextOptions {
     pub strict_selectors: bool,
     /// TLS client certificates per origin (Playwright's `clientCertificates`).
     pub client_certificates: Vec<crate::domain::client_cert::ClientCertificate>,
+    /// Locators find only visible elements, and `first()` / `last()` /
+    /// `nth()` pick among visible ones (Playwright 1.66's `locateOnlyVisible`).
+    pub locate_only_visible: bool,
     pub java_script_enabled: bool,
     pub bypass_csp: bool,
     pub ignore_https_errors: bool,
@@ -165,6 +168,7 @@ impl Default for ContextOptions {
             proxy: None,
             strict_selectors: false,
             client_certificates: Vec::new(),
+            locate_only_visible: false,
         }
     }
 }

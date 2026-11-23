@@ -24,7 +24,8 @@ impl JsHandle {
                 &page,
                 self.frame.clone(),
                 format!("chromiumoxide-handle={id}"),
-            ));
+            )
+            .ignoring_visibility());
         }
         let object_id = self
             .object_id()
@@ -37,7 +38,8 @@ impl JsHandle {
             .cloned()
             .ok_or_else(|| Error::InvalidArgument("JSHandle is not an element".into()))?;
         // Make sure the injected script (and its engine) exists in the frame.
-        let probe = Locator::in_frame(&page, self.frame.clone(), ":root".into());
+        let probe =
+            Locator::in_frame(&page, self.frame.clone(), ":root".into()).ignoring_visibility();
         probe.count().await?;
         let context = page
             .frame_context(
@@ -71,7 +73,8 @@ impl JsHandle {
             &page,
             self.frame.clone(),
             format!("chromiumoxide-handle={id}"),
-        ))
+        )
+        .ignoring_visibility())
     }
 
     pub async fn click(&self) -> Result<()> {

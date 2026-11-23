@@ -137,6 +137,9 @@ pub struct Locator {
     /// Locators are strict; selector shortcuts (`page.click(selector)`, `$`)
     /// use the first match unless the context has `strictSelectors`.
     strict: bool,
+    /// Follows the context's `locateOnlyVisible` (locators do; selector
+    /// shortcuts, `$` and element handles do not).
+    visible_only: bool,
 }
 
 /// Playwright's `locator.toString()`: its description, or the locator code
@@ -164,6 +167,7 @@ impl Page {
             frame: None,
             selector: selector.to_owned(),
             strict: true,
+            visible_only: true,
         }
     }
     pub fn get_by_role(&self, role: &str, options: RoleOptions) -> Locator {
@@ -402,6 +406,22 @@ impl Locator {
         &self.selector
     }
 
+    /// Playwright 1.66's `selectorForQuery()`: with the context's
+    /// `locateOnlyVisible`, restricted to visible elements.
+    pub(crate) fn selector_for_query(&self) -> String {
+        if self.visible_only && self.page.inner.options.locate_only_visible {
+            crate::domain::visible_only::restrict_to_visible(&self.selector)
+        } else {
+            self.selector.clone()
+        }
+    }
+
+    /// This locator without `locateOnlyVisible` (for element handles).
+    pub(crate) fn ignoring_visibility(mut self) -> Locator {
+        self.visible_only = false;
+        self
+    }
+
     pub fn page(&self) -> &Page {
         &self.page
     }
@@ -412,6 +432,7 @@ impl Locator {
             frame: self.frame.clone(),
             selector,
             strict: self.strict,
+            visible_only: self.visible_only,
         }
     }
 
@@ -421,6 +442,7 @@ impl Locator {
             frame,
             selector,
             strict: true,
+            visible_only: true,
         }
     }
 
@@ -428,6 +450,7 @@ impl Locator {
     pub(crate) fn locator_for_selector(&self, selector: &str) -> Locator {
         let mut l = self.locator(selector);
         l.strict = self.page.inner.options.strict_selectors;
+        l.visible_only = false;
         l
     }
 
@@ -439,6 +462,7 @@ impl Locator {
             frame,
             selector: selector.to_owned(),
             strict: page.inner.options.strict_selectors,
+            visible_only: false,
         }
     }
 
@@ -530,7 +554,8 @@ impl Locator {
         &self,
         timeout: Duration,
     ) -> Result<Option<(Option<String>, String, Option<String>, bool)>> {
-        let parts = split_frames(&self.selector);
+        let query = self.selector_for_query();
+        let parts = split_frames(&query);
         let (last, hops) = parts.split_last().expect("at least one part");
         let mut frame = self.frame.clone();
         let mut owner = None;
