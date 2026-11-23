@@ -39,7 +39,7 @@ fn start_app(name: &str) -> DevtoolsApp {
     let dir = std::env::temp_dir().join(format!("cox-fake-adb-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let child = Command::new(exe)
+    let mut child = Command::new(exe)
         .args(["--headless", "--no-sandbox", "--remote-debugging-port=0"])
         .arg(format!("--user-data-dir={}", dir.display()))
         .arg("about:blank")
@@ -61,6 +61,8 @@ fn start_app(name: &str) -> DevtoolsApp {
         }
         std::thread::sleep(Duration::from_millis(20));
     }
+    let _ = child.kill();
+    let _ = child.wait();
     panic!("fake device app {name} did not start");
 }
 

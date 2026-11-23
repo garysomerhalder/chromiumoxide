@@ -19,4 +19,6 @@ pub struct Services {
     pub bridge: Arc<dyn crate::ports::CdpBridge>,
     /// Process signals (`handle_sigint` and friends).
     pub signals: Arc<dyn crate::ports::Signals>,
+    /// The adb server (Android devices).
+    pub adb: Arc<dyn crate::ports::adb::AdbClient>,
 }

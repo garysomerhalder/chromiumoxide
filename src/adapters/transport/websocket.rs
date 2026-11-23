@@ -15,6 +15,26 @@ pub async fn connect(url: &str) -> Result<Transport> {
     let (ws, _) = async_tungstenite::tokio::connect_async_with_config(url, Some(config))
         .await
         .map_err(|e| Error::Transport(format!("cannot connect to {url}: {e}")))?;
+    Ok(wrap(ws))
+}
+
+/// A DevTools WebSocket over an already open stream (an adb
+/// `localabstract:` socket), upgraded at `url`'s path.
+pub async fn over_stream(stream: tokio::net::TcpStream, url: &str) -> Result<Transport> {
+    let config = WebSocketConfig::default()
+        .max_message_size(None)
+        .max_frame_size(None);
+    let (ws, _) = async_tungstenite::tokio::client_async_with_config(url, stream, Some(config))
+        .await
+        .map_err(|e| Error::Transport(format!("cannot open the DevTools socket at {url}: {e}")))?;
+    Ok(wrap(ws))
+}
+
+/// Text frames in and out, until the socket closes.
+fn wrap<S>(ws: async_tungstenite::WebSocketStream<S>) -> Transport
+where
+    S: futures::AsyncRead + futures::AsyncWrite + Unpin + Send + 'static,
+{
     let (sink, stream) = ws.split();
     let sink = sink
         .sink_map_err(std::io::Error::other)
@@ -30,8 +50,8 @@ pub async fn connect(url: &str) -> Result<Transport> {
                 _ => None,
             }
         });
-    Ok(Transport {
+    Transport {
         sink: Box::pin(sink),
         stream: stream.boxed(),
-    })
+    }
 }

@@ -94,7 +94,7 @@ async fn android_device_shell_files_webviews_and_browser() {
         .unwrap();
     assert_eq!(page.title().await.unwrap(), "Android");
     assert_eq!(page.evaluate::<i64>("1 + 1").await.unwrap(), 2);
-    let shot = page.screenshot(Default::default()).await.unwrap();
+    let shot = page.screenshot().await.unwrap();
     assert_eq!(&shot[..4], b"\x89PNG");
     context.close().await.unwrap();
 
