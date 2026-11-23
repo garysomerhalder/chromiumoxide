@@ -1,6 +1,7 @@
 //! Ports: the traits the application needs from the outside world.
 
 pub mod adb;
+pub mod bidi;
 pub mod bridge;
 pub mod cdp;
 pub mod clock;
@@ -12,6 +13,7 @@ pub mod signals;
 pub mod transport;
 pub mod video;
 
+pub use bidi::BidiSession;
 pub use bridge::{BoundBridge, BridgeAddress, CdpBridge};
 pub use cdp::{CdpSession, EventStream, RawEvent};
 pub use clock::Clock;
@@ -19,8 +21,8 @@ pub use env::Environment;
 pub use fs::FileSystem;
 pub use http::HttpClient;
 pub use process::{
-    BrowserLauncher, BrowserProcess, Channel, ElectronCommand, LaunchCommand, Launched,
-    LaunchedElectron,
+    BrowserLauncher, BrowserProcess, Channel, ElectronCommand, FirefoxCommand, LaunchCommand,
+    Launched, LaunchedElectron, LaunchedFirefox,
 };
 pub use signals::{Signal, Signals};
 pub use transport::Transport;

@@ -18,6 +18,7 @@ pub mod events;
 pub mod expect;
 pub mod extras;
 pub mod filechooser;
+pub mod firefox;
 pub mod frame;
 pub mod frame_actions;
 pub mod handle;

@@ -11,6 +11,7 @@ pub mod discovery;
 pub mod emulation;
 pub mod error;
 pub mod expect;
+pub mod firefox;
 pub mod frame;
 pub mod har;
 pub mod http;

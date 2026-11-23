@@ -1,6 +1,7 @@
 //! Adapters: implementations of the ports (CDP, transports, processes, OS).
 
 pub mod adb;
+pub mod bidi;
 pub mod cdp;
 pub mod clock;
 pub mod electron;

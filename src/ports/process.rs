@@ -61,6 +61,38 @@ pub trait BrowserLauncher: Send + Sync {
             ))
         })
     }
+
+    /// Starts Firefox with `--remote-debugging-port` and connects to the
+    /// WebDriver BiDi endpoint it prints on stderr.
+    fn launch_firefox(
+        &self,
+        command: FirefoxCommand,
+    ) -> BoxFuture<'static, Result<LaunchedFirefox>> {
+        let _ = command;
+        Box::pin(async {
+            Err(crate::domain::error::Error::Launch(
+                "this launcher cannot start Firefox".into(),
+            ))
+        })
+    }
+}
+
+/// A Firefox launch over WebDriver BiDi.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FirefoxCommand {
+    pub program: std::path::PathBuf,
+    pub args: Vec<String>,
+    /// Added to this process's environment.
+    pub env: Vec<(String, String)>,
+    pub timeout_ms: u64,
+}
+
+/// A launched Firefox with its BiDi connection (no session yet).
+pub struct LaunchedFirefox {
+    pub bidi: std::sync::Arc<dyn crate::ports::BidiSession>,
+    pub process: Box<dyn BrowserProcess>,
+    /// `ws://127.0.0.1:<port>` as printed by Firefox.
+    pub ws_endpoint: String,
 }
 
 /// An Electron launch (Playwright's `electron.launch`).

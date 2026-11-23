@@ -134,6 +134,22 @@ pub fn android_chrome_command_line(args: &[String], socket_name: &str) -> String
     domain::android::chrome_command_line(args, socket_name)
 }
 
+/// The Firefox engine (WebDriver BiDi): its `Browser`, `Page`, ... have the
+/// Playwright method names of the Chromium ones.
+pub mod firefox {
+    pub use crate::application::firefox::{Browser, FirefoxLaunchOptions, Page};
+}
+
+/// Playwright's `firefox`: launches Firefox, driven over WebDriver BiDi.
+pub struct Firefox;
+
+impl Firefox {
+    /// `firefox.launch(options)`.
+    pub async fn launch(options: firefox::FirefoxLaunchOptions) -> Result<firefox::Browser> {
+        firefox::Browser::launch(Chromium::services(), options).await
+    }
+}
+
 /// Playwright's `_electron`: launches Electron apps.
 pub struct Electron;
 

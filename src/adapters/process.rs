@@ -14,8 +14,8 @@ use tokio::process::{Child, Command};
 use crate::adapters::cdp::Connection;
 use crate::domain::error::{Error, Result};
 use crate::ports::{
-    BrowserLauncher, BrowserProcess, Channel, ElectronCommand, LaunchCommand, Launched,
-    LaunchedElectron, Transport,
+    BrowserLauncher, BrowserProcess, Channel, ElectronCommand, FirefoxCommand, LaunchCommand,
+    Launched, LaunchedElectron, LaunchedFirefox, Transport,
 };
 
 /// Spawns browsers with tokio.
@@ -33,6 +33,81 @@ impl BrowserLauncher for TokioLauncher {
     ) -> BoxFuture<'static, Result<LaunchedElectron>> {
         launch_electron(command).boxed()
     }
+
+    fn launch_firefox(
+        &self,
+        command: FirefoxCommand,
+    ) -> BoxFuture<'static, Result<LaunchedFirefox>> {
+        launch_firefox(command).boxed()
+    }
+}
+
+/// Firefox prints `WebDriver BiDi listening on ws://127.0.0.1:<port>` on
+/// stderr; the BiDi session endpoint is `<that>/session`.
+async fn launch_firefox(command: FirefoxCommand) -> Result<LaunchedFirefox> {
+    let mut cmd = Command::new(&command.program);
+    cmd.args(&command.args)
+        .envs(command.env.iter().cloned())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| Error::Launch(format!("{}: {e}", command.program.display())))?;
+    let pid = child.id();
+    let stderr = child.stderr.take().expect("piped stderr");
+    let child = Arc::new(tokio::sync::Mutex::new(Some(child)));
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            tracing::debug!(target: "chromiumoxide::firefox", "{line}");
+            let _ = tx.send(line);
+        }
+    });
+    let mut log = Vec::new();
+    let found = tokio::time::timeout(Duration::from_millis(command.timeout_ms.max(1)), async {
+        while let Some(line) = rx.recv().await {
+            if let Some(url) = line.strip_prefix("WebDriver BiDi listening on ") {
+                return Some(url.trim().to_owned());
+            }
+            log.push(line);
+        }
+        None
+    })
+    .await;
+    let endpoint = match found {
+        Ok(Some(url)) => url,
+        other => {
+            if let Some(mut c) = child.lock().await.take() {
+                let _ = c.kill().await;
+            }
+            let reason = if other.is_err() {
+                "Timed out waiting for Firefox's WebDriver BiDi endpoint"
+            } else {
+                "Firefox exited before it was ready"
+            };
+            let tail = log
+                .iter()
+                .rev()
+                .take(20)
+                .rev()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n");
+            return Err(Error::Launch(format!("{reason}\n{tail}")));
+        }
+    };
+    // Keep draining stderr so Firefox never blocks on a full pipe.
+    tokio::spawn(async move { while rx.recv().await.is_some() {} });
+    let transport =
+        crate::adapters::transport::websocket::connect(&format!("{endpoint}/session")).await?;
+    Ok(LaunchedFirefox {
+        bidi: Arc::new(crate::adapters::bidi::BidiConnection::spawn(transport)),
+        process: Box::new(Process { child, pid }),
+        ws_endpoint: endpoint,
+    })
 }
 
 /// Playwright's `electron.launch`: the app prints `Debugger listening on
