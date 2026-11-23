@@ -82,6 +82,19 @@ uses Juggler).
   shares the pure domain layer, and the Chromium code stays untouched. The
   first two "Done when" lines changed with it, and the CI line follows
   Gary's "skip GitHub". "Set it" changed in the same commit.
+- 2026-11-23: device-mockup subset works on Firefox (draft PR #13):
+  - launch, contexts with emulation, `goto`, `set_content`, `evaluate`,
+    style tags, resize and screenshots;
+  - the Firefox pixel-parity test passes: every shot matches Playwright's
+    Firefox exactly.
+
+  Findings:
+  - over BiDi, Firefox needs a window to stay alive and opens pages as
+    windows;
+  - headless Juggler hides scrollbars, so the same rule goes in the
+    profile's `userContent.css`;
+  - BiDi in Firefox 159 has no command for isMobile, hasTouch or
+    colorScheme; these are errors for now.
 
 ## Set it
 
