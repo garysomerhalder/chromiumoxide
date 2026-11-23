@@ -1137,6 +1137,13 @@ async fn locate_only_visible() {
     );
     assert_eq!(page.query_selector_all("div").await.unwrap().len(), 3);
     assert_eq!(div.evaluate_all::<i64>("e => e.length").await.unwrap(), 2);
+    // Element handles are not locators: a hidden element's handle still works.
+    let hidden = page
+        .query_selector("div")
+        .await
+        .unwrap()
+        .expect("first div");
+    assert_eq!(hidden.text_content().await.unwrap().as_deref(), Some("One"));
     // Off by default.
     let plain = browser.new_page().await.unwrap();
     plain
