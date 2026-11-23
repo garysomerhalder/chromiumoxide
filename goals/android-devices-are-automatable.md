@@ -59,7 +59,7 @@ Out (until a driver is available):
 
 - [ ] Every in-scope member above has an integration test that passes against the fake adb server.
 - [ ] A page from `launchBrowser()` runs `goto`, `evaluate` and `screenshot` in the test.
-- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass, locally and in CI.
+- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
 - [ ] `docs/PARITY.md` lists the in-scope members as done and the out-of-scope ones with the reason.
 - [ ] `CHANGELOG.md` has the entry and a draft PR is open.
 
@@ -71,9 +71,11 @@ check is needed that the container cannot do.
 ## Status
 
 - 2026-11-23: proposed.
+- 2026-11-23: GitHub CI skipped at Gary's request: the CI box now asks for the
+  CI job's commands run locally; "Set it" changed with it.
 
 ## Set it
 
 ```
-/goal Android devices are automatable (goals/android-devices-are-automatable.md): every in-scope _android member has a passing integration test against the fake adb server; a launchBrowser() page runs goto, evaluate and screenshot; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally and in CI; PARITY lists in-scope members done and out-of-scope ones with the reason; CHANGELOG has the entry; a draft PR is open.
+/goal Android devices are automatable (goals/android-devices-are-automatable.md): every in-scope _android member has a passing integration test against the fake adb server; a launchBrowser() page runs goto, evaluate and screenshot; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally; PARITY lists in-scope members done and out-of-scope ones with the reason; CHANGELOG has the entry; a draft PR is open.
 ```
