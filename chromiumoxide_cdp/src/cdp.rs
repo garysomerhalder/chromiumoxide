@@ -9527,7 +9527,6 @@ pub mod js_protocol {
             pub url: String,
             #[doc = "Scope chain for this call frame."]
             #[serde(rename = "scopeChain")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub scope_chain: Vec<Scope>,
             #[doc = "`this` object for this call frame."]
             #[serde(rename = "this")]
@@ -9989,11 +9988,9 @@ pub mod js_protocol {
         pub struct WasmDisassemblyChunk {
             #[doc = "The next chunk of disassembled lines."]
             #[serde(rename = "lines")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub lines: Vec<String>,
             #[doc = "The bytecode offsets describing the start of each line."]
             #[serde(rename = "bytecodeOffsets")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub bytecode_offsets: Vec<i64>,
         }
         impl WasmDisassemblyChunk {
@@ -10730,7 +10727,6 @@ pub mod js_protocol {
         pub struct GetPossibleBreakpointsReturns {
             #[doc = "List of the possible breakpoint locations."]
             #[serde(rename = "locations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub locations: Vec<BreakLocation>,
         }
         impl GetPossibleBreakpointsReturns {
@@ -10832,7 +10828,6 @@ pub mod js_protocol {
         pub struct GetScopeChainReturns {
             #[doc = "Scope chain for the call frame."]
             #[serde(rename = "scopeChain")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub scope_chain: Vec<Scope>,
         }
         impl GetScopeChainReturns {
@@ -11046,7 +11041,6 @@ pub mod js_protocol {
             pub total_number_of_lines: i64,
             #[doc = "The offsets of all function bodies, in the format [start1, end1,\nstart2, end2, ...] where all ends are exclusive."]
             #[serde(rename = "functionBodyOffsets")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub function_body_offsets: Vec<i64>,
             #[doc = "The first chunk of disassembly."]
             #[serde(rename = "chunk")]
@@ -11652,7 +11646,6 @@ pub mod js_protocol {
             #[doc = "New stack trace."]
             #[deprecated]
             #[serde(rename = "callFrames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub call_frames: Vec<CallFrame>,
             #[doc = "Async stack trace, if any."]
             #[deprecated]
@@ -11873,7 +11866,6 @@ pub mod js_protocol {
         pub struct SearchInContentReturns {
             #[doc = "List of search matches."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<SearchMatch>,
         }
         impl SearchInContentReturns {
@@ -11981,7 +11973,6 @@ pub mod js_protocol {
         pub struct SetBlackboxExecutionContextsParams {
             #[doc = "Array of execution context unique ids for the debugger to ignore."]
             #[serde(rename = "uniqueIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub unique_ids: Vec<String>,
         }
         impl SetBlackboxExecutionContextsParams {
@@ -12050,7 +12041,6 @@ pub mod js_protocol {
         pub struct SetBlackboxPatternsParams {
             #[doc = "Array of regexps that will be used to check script url for blackbox state."]
             #[serde(rename = "patterns")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub patterns: Vec<String>,
             #[doc = "If true, also ignore scripts with no source url."]
             #[serde(rename = "skipAnonymous")]
@@ -12134,7 +12124,6 @@ pub mod js_protocol {
             #[serde(rename = "scriptId")]
             pub script_id: super::runtime::ScriptId,
             #[serde(rename = "positions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub positions: Vec<ScriptPosition>,
         }
         impl SetBlackboxedRangesParams {
@@ -12560,7 +12549,6 @@ pub mod js_protocol {
             pub breakpoint_id: BreakpointId,
             #[doc = "List of the locations this breakpoint resolved into upon addition."]
             #[serde(rename = "locations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub locations: Vec<Location>,
         }
         impl SetBreakpointByUrlReturns {
@@ -13557,7 +13545,6 @@ pub mod js_protocol {
         pub struct EventPaused {
             #[doc = "Call stack the virtual machine stopped on."]
             #[serde(rename = "callFrames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub call_frames: Vec<CallFrame>,
             #[doc = "Pause reason."]
             #[serde(rename = "reason")]
@@ -13929,7 +13916,6 @@ pub mod js_protocol {
             pub id: i64,
             #[doc = "Child nodes."]
             #[serde(rename = "children")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub children: Vec<SamplingHeapProfileNode>,
         }
         impl SamplingHeapProfileNode {
@@ -14081,7 +14067,6 @@ pub mod js_protocol {
             #[serde(rename = "head")]
             pub head: SamplingHeapProfileNode,
             #[serde(rename = "samples")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub samples: Vec<SamplingHeapProfileSample>,
         }
         impl SamplingHeapProfile {
@@ -14904,7 +14889,6 @@ pub mod js_protocol {
         pub struct EventHeapStatsUpdate {
             #[doc = "An array of triplets. Each triplet describes a fragment. The first integer is the fragment\nindex, the second integer is a total count of objects for the fragment, the third integer is\na total size of the objects for the fragment."]
             #[serde(rename = "statsUpdate")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub stats_update: Vec<i64>,
         }
         impl EventHeapStatsUpdate {
@@ -15121,7 +15105,6 @@ pub mod js_protocol {
         pub struct Profile {
             #[doc = "The list of profile nodes. First item is the root node."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<ProfileNode>,
             #[doc = "Profiling start timestamp in microseconds."]
             #[serde(rename = "startTime")]
@@ -15368,7 +15351,6 @@ pub mod js_protocol {
             pub function_name: String,
             #[doc = "Source ranges inside the function with coverage data."]
             #[serde(rename = "ranges")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub ranges: Vec<CoverageRange>,
             #[doc = "Whether coverage data for this function has block granularity."]
             #[serde(rename = "isBlockCoverage")]
@@ -15454,7 +15436,6 @@ pub mod js_protocol {
             pub url: String,
             #[doc = "Functions contained in the script that has coverage data."]
             #[serde(rename = "functions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub functions: Vec<FunctionCoverage>,
         }
         impl ScriptCoverage {
@@ -15593,7 +15574,6 @@ pub mod js_protocol {
         pub struct GetBestEffortCoverageReturns {
             #[doc = "Coverage data for the current isolate."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<ScriptCoverage>,
         }
         impl GetBestEffortCoverageReturns {
@@ -15930,7 +15910,6 @@ pub mod js_protocol {
         pub struct TakePreciseCoverageReturns {
             #[doc = "Coverage data for the current isolate."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<ScriptCoverage>,
             #[doc = "Monotonically increasing time (in seconds) when the coverage update was taken in the backend."]
             #[serde(rename = "timestamp")]
@@ -16059,7 +16038,6 @@ pub mod js_protocol {
             pub occasion: String,
             #[doc = "Coverage data for the current isolate."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<ScriptCoverage>,
         }
         impl EventPreciseCoverageDeltaUpdate {
@@ -16841,7 +16819,6 @@ pub mod js_protocol {
             pub overflow: bool,
             #[doc = "List of the properties."]
             #[serde(rename = "properties")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub properties: Vec<PropertyPreview>,
             #[doc = "List of the entries. Specified for `map` and `set` subtype values only."]
             #[serde(rename = "entries")]
@@ -18098,7 +18075,6 @@ pub mod js_protocol {
             pub description: Option<String>,
             #[doc = "JavaScript function name."]
             #[serde(rename = "callFrames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub call_frames: Vec<CallFrame>,
             #[doc = "Asynchronous JavaScript stack trace that preceded this stack, if available."]
             #[serde(rename = "parent")]
@@ -19461,7 +19437,6 @@ pub mod js_protocol {
         pub struct GetPropertiesReturns {
             #[doc = "Object properties."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<PropertyDescriptor>,
             #[doc = "Internal object properties (only of the element itself)."]
             #[serde(rename = "internalProperties")]
@@ -19625,7 +19600,6 @@ pub mod js_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GlobalLexicalScopeNamesReturns {
             #[serde(rename = "names")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub names: Vec<String>,
         }
         impl GlobalLexicalScopeNamesReturns {
@@ -20573,7 +20547,6 @@ pub mod js_protocol {
             pub r#type: ConsoleApiCalledType,
             #[doc = "Call arguments."]
             #[serde(rename = "args")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub args: Vec<RemoteObject>,
             #[doc = "Identifier of the context where the call was made."]
             #[serde(rename = "executionContextId")]
@@ -20930,7 +20903,6 @@ pub mod js_protocol {
         pub struct GetDomainsReturns {
             #[doc = "List of supported domains."]
             #[serde(rename = "domains")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub domains: Vec<Domain>,
         }
         impl GetDomainsReturns {
@@ -22185,7 +22157,6 @@ pub mod browser_protocol {
         pub struct GetPartialAxTreeReturns {
             #[doc = "The `Accessibility.AXNode` for this DOM node, if it exists, plus its ancestors, siblings and\nchildren, if requested."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl GetPartialAxTreeReturns {
@@ -22288,7 +22259,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetFullAxTreeReturns {
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl GetFullAxTreeReturns {
@@ -22487,7 +22457,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetAxNodeAndAncestorsReturns {
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl GetAxNodeAndAncestorsReturns {
@@ -22598,7 +22567,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetChildAxNodesReturns {
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl GetChildAxNodesReturns {
@@ -22738,7 +22706,6 @@ pub mod browser_protocol {
         pub struct QueryAxTreeReturns {
             #[doc = "A list of `Accessibility.AXNode` matching the specified attributes,\nincluding nodes that are ignored for accessibility."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl QueryAxTreeReturns {
@@ -22811,7 +22778,6 @@ pub mod browser_protocol {
         pub struct EventNodesUpdated {
             #[doc = "Updated node data."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl EventNodesUpdated {
@@ -22935,11 +22901,9 @@ pub mod browser_protocol {
             pub total_ad_network_bytes: f64,
             #[doc = "The list of ad frames that have been updated since the last event."]
             #[serde(rename = "updateAdFrames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub update_ad_frames: Vec<AdFrameData>,
             #[doc = "The list of ad frame IDs that have been removed since the last event."]
             #[serde(rename = "removeAdFrames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub remove_ad_frames: Vec<super::page::FrameId>,
         }
         impl AdMetrics {
@@ -23231,7 +23195,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetAdScriptsReturns {
             #[serde(rename = "newScripts")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub new_scripts: Vec<AdScript>,
         }
         impl GetAdScriptsReturns {
@@ -23686,7 +23649,6 @@ pub mod browser_protocol {
             pub name: Option<String>,
             #[doc = "List of animation keyframes."]
             #[serde(rename = "keyframes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub keyframes: Vec<KeyframeStyle>,
         }
         impl KeyframesRule {
@@ -23998,7 +23960,6 @@ pub mod browser_protocol {
         pub struct ReleaseAnimationsParams {
             #[doc = "List of animation ids to seek."]
             #[serde(rename = "animations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub animations: Vec<String>,
         }
         impl ReleaseAnimationsParams {
@@ -24168,7 +24129,6 @@ pub mod browser_protocol {
         pub struct SeekAnimationsParams {
             #[doc = "List of animation ids to seek."]
             #[serde(rename = "animations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub animations: Vec<String>,
             #[doc = "Set each animation to the same time."]
             #[serde(rename = "currentTime")]
@@ -24268,7 +24228,6 @@ pub mod browser_protocol {
         pub struct SetPausedParams {
             #[doc = "Animations to set the pause state of."]
             #[serde(rename = "animations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub animations: Vec<String>,
             #[doc = "Paused state to set to."]
             #[serde(rename = "paused")]
@@ -25062,10 +25021,8 @@ pub mod browser_protocol {
             #[serde(skip_serializing_if = "Option::is_none")]
             pub raw_cookie_line: Option<String>,
             #[serde(rename = "cookieWarningReasons")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookie_warning_reasons: Vec<CookieWarningReason>,
             #[serde(rename = "cookieExclusionReasons")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookie_exclusion_reasons: Vec<CookieExclusionReason>,
             #[doc = "Optionally identifies the site-for-cookies and the cookie url, which\nmay be used by the front-end as additional context."]
             #[serde(rename = "operation")]
@@ -26909,7 +26866,6 @@ pub mod browser_protocol {
             #[serde(rename = "signatureBase")]
             pub signature_base: String,
             #[serde(rename = "integrityAssertions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub integrity_assertions: Vec<String>,
             #[serde(rename = "request")]
             pub request: AffectedRequest,
@@ -27314,7 +27270,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct BounceTrackingIssueDetails {
             #[serde(rename = "trackingSites")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tracking_sites: Vec<String>,
         }
         impl BounceTrackingIssueDetails {
@@ -27363,7 +27318,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct CookieDeprecationMetadataIssueDetails {
             #[serde(rename = "allowedSites")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub allowed_sites: Vec<String>,
             #[serde(rename = "optOutPercentage")]
             pub opt_out_percentage: f64,
@@ -30403,7 +30357,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct CheckFormsIssuesReturns {
             #[serde(rename = "formIssues")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub form_issues: Vec<GenericIssueDetails>,
         }
         impl CheckFormsIssuesReturns {
@@ -30602,7 +30555,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct AddressFields {
             #[serde(rename = "fields")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub fields: Vec<AddressField>,
         }
         impl AddressFields {
@@ -30651,7 +30603,6 @@ pub mod browser_protocol {
         pub struct Address {
             #[doc = "fields and values defining an address."]
             #[serde(rename = "fields")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub fields: Vec<AddressField>,
         }
         impl Address {
@@ -30701,7 +30652,6 @@ pub mod browser_protocol {
         pub struct AddressUi {
             #[doc = "A two dimension array containing the representation of values from an address profile."]
             #[serde(rename = "addressFields")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub address_fields: Vec<AddressFields>,
         }
         impl AddressUi {
@@ -30987,7 +30937,6 @@ pub mod browser_protocol {
         pub struct SetAddressesParams {
             #[doc = "Test addresses for the available countries."]
             #[serde(rename = "addresses")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub addresses: Vec<Address>,
         }
         impl SetAddressesParams {
@@ -31106,7 +31055,6 @@ pub mod browser_protocol {
         pub struct EventAddressFormFilled {
             #[doc = "Information about the fields that were filled"]
             #[serde(rename = "filledFields")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub filled_fields: Vec<FilledField>,
             #[doc = "An UI representation of the address used to fill the form.\nConsists of a 2D array where each child represents an address/profile line."]
             #[serde(rename = "addressUi")]
@@ -31256,7 +31204,6 @@ pub mod browser_protocol {
             pub instance_id: String,
             #[doc = "A list of event-specific information."]
             #[serde(rename = "eventMetadata")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub event_metadata: Vec<EventMetadata>,
             #[doc = "Storage key this event belongs to."]
             #[serde(rename = "storageKey")]
@@ -32293,10 +32240,8 @@ pub mod browser_protocol {
             #[serde(rename = "name")]
             pub name: String,
             #[serde(rename = "manufacturerData")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub manufacturer_data: Vec<ManufacturerData>,
             #[serde(rename = "knownServiceUuids")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub known_service_uuids: Vec<String>,
         }
         impl SimulatePreconnectedPeripheralParams {
@@ -34125,7 +34070,6 @@ pub mod browser_protocol {
             pub count: i64,
             #[doc = "Buckets."]
             #[serde(rename = "buckets")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub buckets: Vec<Bucket>,
         }
         impl Histogram {
@@ -34319,7 +34263,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GrantPermissionsParams {
             #[serde(rename = "permissions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub permissions: Vec<PermissionType>,
             #[doc = "Origin the permission applies to, all origins if not specified."]
             #[serde(rename = "origin")]
@@ -34868,7 +34811,6 @@ pub mod browser_protocol {
         pub struct GetBrowserCommandLineReturns {
             #[doc = "Commandline parameters"]
             #[serde(rename = "arguments")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub arguments: Vec<String>,
         }
         impl GetBrowserCommandLineReturns {
@@ -35035,7 +34977,6 @@ pub mod browser_protocol {
         pub struct GetHistogramsReturns {
             #[doc = "Histograms."]
             #[serde(rename = "histograms")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub histograms: Vec<Histogram>,
         }
         impl GetHistogramsReturns {
@@ -35932,7 +35873,6 @@ pub mod browser_protocol {
             pub pseudo_identifier: Option<String>,
             #[doc = "Matches of CSS rules applicable to the pseudo style."]
             #[serde(rename = "matches")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub matches: Vec<RuleMatch>,
         }
         impl PseudoElementMatches {
@@ -36057,7 +35997,6 @@ pub mod browser_protocol {
             pub inline_style: Option<CssStyle>,
             #[doc = "Matches of CSS rules matching the ancestor node in the style inheritance chain."]
             #[serde(rename = "matchedCSSRules")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub matched_css_rules: Vec<RuleMatch>,
         }
         impl InheritedStyleEntry {
@@ -36175,7 +36114,6 @@ pub mod browser_protocol {
         pub struct InheritedPseudoElementMatches {
             #[doc = "Matches of pseudo styles from the pseudos of an ancestor node."]
             #[serde(rename = "pseudoElements")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub pseudo_elements: Vec<PseudoElementMatches>,
         }
         impl InheritedPseudoElementMatches {
@@ -36231,7 +36169,6 @@ pub mod browser_protocol {
             pub rule: CssRule,
             #[doc = "Matching selector indices in the rule's selectorList selectors (0-based)."]
             #[serde(rename = "matchingSelectors")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub matching_selectors: Vec<i64>,
         }
         impl RuleMatch {
@@ -36527,7 +36464,6 @@ pub mod browser_protocol {
         pub struct SelectorList {
             #[doc = "Selectors in the list."]
             #[serde(rename = "selectors")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub selectors: Vec<Value>,
             #[doc = "Rule selector text."]
             #[serde(rename = "text")]
@@ -37485,11 +37421,9 @@ pub mod browser_protocol {
             pub style_sheet_id: Option<super::dom::StyleSheetId>,
             #[doc = "CSS properties in the style."]
             #[serde(rename = "cssProperties")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub css_properties: Vec<CssProperty>,
             #[doc = "Computed values for all shorthands found in the style."]
             #[serde(rename = "shorthandEntries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub shorthand_entries: Vec<ShorthandEntry>,
             #[doc = "Style declaration text (if available)."]
             #[serde(rename = "cssText")]
@@ -37892,7 +37826,6 @@ pub mod browser_protocol {
         pub struct MediaQuery {
             #[doc = "Array of media query expressions."]
             #[serde(rename = "expressions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub expressions: Vec<MediaQueryExpression>,
             #[doc = "Whether the media query condition is satisfied."]
             #[serde(rename = "active")]
@@ -39069,7 +39002,6 @@ pub mod browser_protocol {
             pub animation_name: Value,
             #[doc = "List of keyframes."]
             #[serde(rename = "keyframes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub keyframes: Vec<CssKeyframeRule>,
         }
         impl CssKeyframesRule {
@@ -39543,7 +39475,6 @@ pub mod browser_protocol {
             pub navigation: Option<CssNavigation>,
             #[doc = "Block body."]
             #[serde(rename = "children")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub children: Vec<CssFunctionNode>,
             #[doc = "The condition text."]
             #[serde(rename = "conditionText")]
@@ -39690,11 +39621,9 @@ pub mod browser_protocol {
             pub origin: StyleSheetOrigin,
             #[doc = "List of parameters."]
             #[serde(rename = "parameters")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub parameters: Vec<CssFunctionParameter>,
             #[doc = "Function body."]
             #[serde(rename = "children")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub children: Vec<CssFunctionNode>,
             #[doc = "The BackendNodeId of the DOM node that constitutes the origin tree scope of this rule."]
             #[serde(rename = "originTreeScopeNodeId")]
@@ -40155,7 +40084,6 @@ pub mod browser_protocol {
         pub struct CollectClassNamesReturns {
             #[doc = "Class name list."]
             #[serde(rename = "classNames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub class_names: Vec<String>,
         }
         impl CollectClassNamesReturns {
@@ -40363,7 +40291,6 @@ pub mod browser_protocol {
             pub node_id: super::dom::NodeId,
             #[doc = "Element pseudo classes to force when computing the element's style."]
             #[serde(rename = "forcedPseudoClasses")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub forced_pseudo_classes: Vec<String>,
         }
         impl ForcePseudoStateParams {
@@ -40752,7 +40679,6 @@ pub mod browser_protocol {
         pub struct GetComputedStyleForNodeReturns {
             #[doc = "Computed style for the specified DOM node."]
             #[serde(rename = "computedStyle")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub computed_style: Vec<CssComputedStyleProperty>,
             #[doc = "A list of non-standard \"extra fields\" which blink stores alongside each\ncomputed style."]
             #[serde(rename = "extraFields")]
@@ -40825,7 +40751,6 @@ pub mod browser_protocol {
         pub struct ResolveValuesParams {
             #[doc = "Cascade-dependent keywords (revert/revert-layer) do not work."]
             #[serde(rename = "values")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub values: Vec<String>,
             #[doc = "Id of the node in whose context the expression is evaluated"]
             #[serde(rename = "nodeId")]
@@ -40936,7 +40861,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct ResolveValuesReturns {
             #[serde(rename = "results")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub results: Vec<String>,
         }
         impl ResolveValuesReturns {
@@ -41045,7 +40969,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetLonghandPropertiesReturns {
             #[serde(rename = "longhandProperties")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub longhand_properties: Vec<CssProperty>,
         }
         impl GetLonghandPropertiesReturns {
@@ -41764,7 +41687,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetMediaQueriesReturns {
             #[serde(rename = "medias")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub medias: Vec<CssMedia>,
         }
         impl GetMediaQueriesReturns {
@@ -41865,7 +41787,6 @@ pub mod browser_protocol {
         pub struct GetPlatformFontsForNodeReturns {
             #[doc = "Usage statistics for every employed platform font."]
             #[serde(rename = "fonts")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub fonts: Vec<PlatformFontUsage>,
         }
         impl GetPlatformFontsForNodeReturns {
@@ -42167,7 +42088,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetLocationForSelectorReturns {
             #[serde(rename = "ranges")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub ranges: Vec<SourceRange>,
         }
         impl GetLocationForSelectorReturns {
@@ -42265,7 +42185,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct TrackComputedStyleUpdatesParams {
             #[serde(rename = "propertiesToTrack")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub properties_to_track: Vec<CssComputedStyleProperty>,
         }
         impl TrackComputedStyleUpdatesParams {
@@ -42361,7 +42280,6 @@ pub mod browser_protocol {
         pub struct TakeComputedStyleUpdatesReturns {
             #[doc = "The list of node Ids that have their tracked computed styles updated."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<super::dom::NodeId>,
         }
         impl TakeComputedStyleUpdatesReturns {
@@ -43669,7 +43587,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct SetStyleTextsParams {
             #[serde(rename = "edits")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub edits: Vec<StyleDeclarationEdit>,
             #[doc = "NodeId for the DOM node in whose context custom property declarations for registered properties should be\nvalidated. If omitted, declarations in the new rule text can only be validated statically, which may produce\nincorrect results if the declaration contains a var() for example."]
             #[serde(rename = "nodeForPropertySyntaxValidation")]
@@ -43749,7 +43666,6 @@ pub mod browser_protocol {
         pub struct SetStyleTextsReturns {
             #[doc = "The resulting styles after modification."]
             #[serde(rename = "styles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub styles: Vec<CssStyle>,
         }
         impl SetStyleTextsReturns {
@@ -43842,7 +43758,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct StopRuleUsageTrackingReturns {
             #[serde(rename = "ruleUsage")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub rule_usage: Vec<RuleUsage>,
         }
         impl StopRuleUsageTrackingReturns {
@@ -43910,7 +43825,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct TakeCoverageDeltaReturns {
             #[serde(rename = "coverage")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub coverage: Vec<RuleUsage>,
             #[doc = "Monotonically increasing time, in seconds."]
             #[serde(rename = "timestamp")]
@@ -44254,7 +44168,6 @@ pub mod browser_protocol {
             pub request_method: String,
             #[doc = "Request headers"]
             #[serde(rename = "requestHeaders")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub request_headers: Vec<Header>,
             #[doc = "Number of seconds since epoch."]
             #[serde(rename = "responseTime")]
@@ -44271,7 +44184,6 @@ pub mod browser_protocol {
             pub response_type: CachedResponseType,
             #[doc = "Response headers"]
             #[serde(rename = "responseHeaders")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub response_headers: Vec<Header>,
         }
         impl DataEntry {
@@ -44764,7 +44676,6 @@ pub mod browser_protocol {
         pub struct RequestCacheNamesReturns {
             #[doc = "Caches for the security origin."]
             #[serde(rename = "caches")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub caches: Vec<Cache>,
         }
         impl RequestCacheNamesReturns {
@@ -44820,7 +44731,6 @@ pub mod browser_protocol {
             pub request_url: String,
             #[doc = "headers of the request."]
             #[serde(rename = "requestHeaders")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub request_headers: Vec<Header>,
         }
         impl RequestCachedResponseParams {
@@ -45031,7 +44941,6 @@ pub mod browser_protocol {
         pub struct RequestEntriesReturns {
             #[doc = "Array of object store data entries."]
             #[serde(rename = "cacheDataEntries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cache_data_entries: Vec<DataEntry>,
             #[doc = "Count of returned entries from this storage. If pathFilter is empty, it\nis the count of all entries from this storage."]
             #[serde(rename = "returnCount")]
@@ -45482,7 +45391,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct EventSinksUpdated {
             #[serde(rename = "sinks")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub sinks: Vec<Sink>,
         }
         impl EventSinksUpdated {
@@ -45615,7 +45523,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetEntriesReturns {
             #[serde(rename = "entries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub entries: Vec<CrashReportContextEntry>,
         }
         impl GetEntriesReturns {
@@ -46618,7 +46525,6 @@ pub mod browser_protocol {
             #[serde(rename = "treeNode")]
             pub tree_node: Node,
             #[serde(rename = "retainedNodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub retained_node_ids: Vec<NodeId>,
         }
         impl DetachedElementInfo {
@@ -46870,11 +46776,9 @@ pub mod browser_protocol {
             pub bounds: Quad,
             #[doc = "Shape coordinate details"]
             #[serde(rename = "shape")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub shape: Vec<serde_json::Value>,
             #[doc = "Margin shape bounds"]
             #[serde(rename = "marginShape")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub margin_shape: Vec<serde_json::Value>,
         }
         impl ShapeOutsideInfo {
@@ -47142,7 +47046,6 @@ pub mod browser_protocol {
         pub struct CollectClassNamesFromSubtreeReturns {
             #[doc = "Class name list."]
             #[serde(rename = "classNames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub class_names: Vec<String>,
         }
         impl CollectClassNamesFromSubtreeReturns {
@@ -47812,7 +47715,6 @@ pub mod browser_protocol {
         pub struct GetAttributesReturns {
             #[doc = "An interleaved array of node attribute names and values."]
             #[serde(rename = "attributes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub attributes: Vec<String>,
         }
         impl GetAttributesReturns {
@@ -48035,7 +47937,6 @@ pub mod browser_protocol {
         pub struct GetContentQuadsReturns {
             #[doc = "Quads that describe node layout relative to viewport."]
             #[serde(rename = "quads")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub quads: Vec<Quad>,
         }
         impl GetContentQuadsReturns {
@@ -48231,7 +48132,6 @@ pub mod browser_protocol {
         pub struct GetFlattenedDocumentReturns {
             #[doc = "Resulting node."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<Node>,
         }
         impl GetFlattenedDocumentReturns {
@@ -48284,7 +48184,6 @@ pub mod browser_protocol {
             pub node_id: NodeId,
             #[doc = "The style to filter nodes by (includes nodes if any of properties matches)."]
             #[serde(rename = "computedStyles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub computed_styles: Vec<CssComputedStyleProperty>,
             #[doc = "Whether or not iframes and shadow roots in the same target should be traversed when returning the\nresults (default is false)."]
             #[serde(rename = "pierce")]
@@ -48375,7 +48274,6 @@ pub mod browser_protocol {
         pub struct GetNodesForSubtreeByStyleReturns {
             #[doc = "Resulting nodes."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl GetNodesForSubtreeByStyleReturns {
@@ -48874,7 +48772,6 @@ pub mod browser_protocol {
         pub struct GetSearchResultsReturns {
             #[doc = "Ids of the search result nodes."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl GetSearchResultsReturns {
@@ -49357,7 +49254,6 @@ pub mod browser_protocol {
         pub struct PushNodesByBackendIdsToFrontendParams {
             #[doc = "The array of backend node ids."]
             #[serde(rename = "backendNodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub backend_node_ids: Vec<BackendNodeId>,
         }
         impl PushNodesByBackendIdsToFrontendParams {
@@ -49423,7 +49319,6 @@ pub mod browser_protocol {
         pub struct PushNodesByBackendIdsToFrontendReturns {
             #[doc = "The array of ids of pushed nodes that correspond to the backend ids specified in\nbackendNodeIds."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl PushNodesByBackendIdsToFrontendReturns {
@@ -49640,7 +49535,6 @@ pub mod browser_protocol {
         pub struct QuerySelectorAllReturns {
             #[doc = "Query selector result."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl QuerySelectorAllReturns {
@@ -49709,7 +49603,6 @@ pub mod browser_protocol {
         pub struct GetTopLayerElementsReturns {
             #[doc = "NodeIds of top layer elements"]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl GetTopLayerElementsReturns {
@@ -50524,7 +50417,6 @@ pub mod browser_protocol {
         pub struct SetFileInputFilesParams {
             #[doc = "Array of file paths to set."]
             #[serde(rename = "files")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub files: Vec<String>,
             #[doc = "Identifier of the node."]
             #[serde(rename = "nodeId")]
@@ -50892,7 +50784,6 @@ pub mod browser_protocol {
         pub struct GetDetachedDomNodesReturns {
             #[doc = "The list of detached nodes"]
             #[serde(rename = "detachedNodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub detached_nodes: Vec<DetachedElementInfo>,
         }
         impl GetDetachedDomNodesReturns {
@@ -51557,7 +51448,6 @@ pub mod browser_protocol {
         pub struct GetQueryingDescendantsForContainerReturns {
             #[doc = "Descendant nodes with container queries against the given container."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl GetQueryingDescendantsForContainerReturns {
@@ -51784,7 +51674,6 @@ pub mod browser_protocol {
         pub struct ForceShowPopoverReturns {
             #[doc = "List of popovers that were closed in order to respect popover stacking order."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl ForceShowPopoverReturns {
@@ -51886,7 +51775,6 @@ pub mod browser_protocol {
         pub struct GetImplicitAnchorCandidatesReturns {
             #[doc = "Candidate elements that can invoke this popover."]
             #[serde(rename = "backendNodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub backend_node_ids: Vec<BackendNodeId>,
         }
         impl GetImplicitAnchorCandidatesReturns {
@@ -52217,7 +52105,6 @@ pub mod browser_protocol {
             pub node_id: NodeId,
             #[doc = "New adoptedStyleSheets array."]
             #[serde(rename = "adoptedStyleSheets")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub adopted_style_sheets: Vec<StyleSheetId>,
         }
         impl EventAdoptedStyleSheetsModified {
@@ -52377,7 +52264,6 @@ pub mod browser_protocol {
             pub insertion_point_id: NodeId,
             #[doc = "Distributed nodes for given insertion point."]
             #[serde(rename = "distributedNodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub distributed_nodes: Vec<BackendNode>,
         }
         impl EventDistributedNodesUpdated {
@@ -52420,7 +52306,6 @@ pub mod browser_protocol {
         pub struct EventInlineStyleInvalidated {
             #[doc = "Ids of the nodes for which the inline styles have been invalidated."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl EventInlineStyleInvalidated {
@@ -52597,7 +52482,6 @@ pub mod browser_protocol {
             pub parent_id: NodeId,
             #[doc = "Child nodes array."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<Node>,
         }
         impl EventSetChildNodes {
@@ -52960,7 +52844,6 @@ pub mod browser_protocol {
         pub struct GetEventListenersReturns {
             #[doc = "Array of relevant listeners."]
             #[serde(rename = "listeners")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub listeners: Vec<EventListener>,
         }
         impl GetEventListenersReturns {
@@ -53283,7 +53166,6 @@ pub mod browser_protocol {
         pub struct SetBreakOnCspViolationParams {
             #[doc = "CSP Violations to stop upon."]
             #[serde(rename = "violationTypes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub violation_types: Vec<CspViolationType>,
         }
         impl SetBreakOnCspViolationParams {
@@ -54227,7 +54109,6 @@ pub mod browser_protocol {
         pub struct ComputedStyle {
             #[doc = "Name/value pairs of computed style properties."]
             #[serde(rename = "properties")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub properties: Vec<NameValue>,
         }
         impl ComputedStyle {
@@ -54355,10 +54236,8 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct RareStringData {
             #[serde(rename = "index")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub index: Vec<i64>,
             #[serde(rename = "value")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub value: Vec<StringIndex>,
         }
         impl RareStringData {
@@ -54426,7 +54305,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct RareBooleanData {
             #[serde(rename = "index")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub index: Vec<i64>,
         }
         impl RareBooleanData {
@@ -54474,10 +54352,8 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct RareIntegerData {
             #[serde(rename = "index")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub index: Vec<i64>,
             #[serde(rename = "value")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub value: Vec<i64>,
         }
         impl RareIntegerData {
@@ -55020,19 +54896,15 @@ pub mod browser_protocol {
         pub struct LayoutTreeSnapshot {
             #[doc = "Index of the corresponding node in the `NodeTreeSnapshot` array returned by `captureSnapshot`."]
             #[serde(rename = "nodeIndex")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_index: Vec<i64>,
             #[doc = "Array of indexes specifying computed style strings, filtered according to the `computedStyles` parameter passed to `captureSnapshot`."]
             #[serde(rename = "styles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub styles: Vec<ArrayOfStrings>,
             #[doc = "The absolute position bounding box."]
             #[serde(rename = "bounds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub bounds: Vec<Rectangle>,
             #[doc = "Contents of the LayoutText, if any."]
             #[serde(rename = "text")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub text: Vec<StringIndex>,
             #[doc = "Stacking context information."]
             #[serde(rename = "stackingContexts")]
@@ -55289,19 +55161,15 @@ pub mod browser_protocol {
         pub struct TextBoxSnapshot {
             #[doc = "Index of the layout tree node that owns this box collection."]
             #[serde(rename = "layoutIndex")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub layout_index: Vec<i64>,
             #[doc = "The absolute position bounding box."]
             #[serde(rename = "bounds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub bounds: Vec<Rectangle>,
             #[doc = "The starting index in characters, for this post layout textbox substring. Characters that\nwould be represented as a surrogate pair in UTF-16 have length 2."]
             #[serde(rename = "start")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub start: Vec<i64>,
             #[doc = "The number of characters in this post layout textbox substring. Characters that would be\nrepresented as a surrogate pair in UTF-16 have length 2."]
             #[serde(rename = "length")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub length: Vec<i64>,
         }
         impl TextBoxSnapshot {
@@ -55472,7 +55340,6 @@ pub mod browser_protocol {
         pub struct GetSnapshotParams {
             #[doc = "Whitelist of computed styles to return."]
             #[serde(rename = "computedStyleWhitelist")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub computed_style_whitelist: Vec<String>,
             #[doc = "Whether or not to retrieve details of DOM listeners (default false)."]
             #[serde(rename = "includeEventListeners")]
@@ -55582,15 +55449,12 @@ pub mod browser_protocol {
         pub struct GetSnapshotReturns {
             #[doc = "The nodes in the DOM tree. The DOMNode at index 0 corresponds to the root document."]
             #[serde(rename = "domNodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub dom_nodes: Vec<DomNode>,
             #[doc = "The nodes in the layout tree."]
             #[serde(rename = "layoutTreeNodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub layout_tree_nodes: Vec<LayoutTreeNode>,
             #[doc = "Whitelisted ComputedStyle properties for each node in the layout tree."]
             #[serde(rename = "computedStyles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub computed_styles: Vec<ComputedStyle>,
         }
         impl GetSnapshotReturns {
@@ -55691,7 +55555,6 @@ pub mod browser_protocol {
         pub struct CaptureSnapshotParams {
             #[doc = "Whitelist of computed styles to return."]
             #[serde(rename = "computedStyles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub computed_styles: Vec<String>,
             #[doc = "Whether to include layout object paint orders into the snapshot."]
             #[serde(rename = "includePaintOrder")]
@@ -55807,11 +55670,9 @@ pub mod browser_protocol {
         pub struct CaptureSnapshotReturns {
             #[doc = "The nodes in the DOM tree. The DOMNode at index 0 corresponds to the root document."]
             #[serde(rename = "documents")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub documents: Vec<DocumentSnapshot>,
             #[doc = "Shared string table that all string properties refer to with indexes."]
             #[serde(rename = "strings")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub strings: Vec<String>,
         }
         impl CaptureSnapshotReturns {
@@ -56144,7 +56005,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetDomStorageItemsReturns {
             #[serde(rename = "entries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub entries: Vec<Item>,
         }
         impl GetDomStorageItemsReturns {
@@ -56732,7 +56592,6 @@ pub mod browser_protocol {
             #[serde(rename = "id")]
             pub id: RequestId,
             #[serde(rename = "devices")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub devices: Vec<PromptDevice>,
         }
         impl EventDeviceRequestPrompted {
@@ -59283,7 +59142,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct SetDisplayFeaturesOverrideParams {
             #[serde(rename = "features")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub features: Vec<DisplayFeature>,
         }
         impl SetDisplayFeaturesOverrideParams {
@@ -60996,7 +60854,6 @@ pub mod browser_protocol {
         pub struct SetDisabledImageTypesParams {
             #[doc = "Image types to disable."]
             #[serde(rename = "imageTypes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub image_types: Vec<DisabledImageType>,
         }
         impl SetDisabledImageTypesParams {
@@ -61505,7 +61362,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetScreenInfosReturns {
             #[serde(rename = "screenInfos")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub screen_infos: Vec<ScreenInfo>,
         }
         impl GetScreenInfosReturns {
@@ -62579,7 +62435,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetExtensionsReturns {
             #[serde(rename = "extensions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub extensions: Vec<ExtensionInfo>,
         }
         impl GetExtensionsReturns {
@@ -62821,7 +62676,6 @@ pub mod browser_protocol {
             pub storage_area: StorageArea,
             #[doc = "Keys to remove."]
             #[serde(rename = "keys")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub keys: Vec<String>,
         }
         impl RemoveStorageItemsParams {
@@ -63708,7 +63562,6 @@ pub mod browser_protocol {
             #[serde(deserialize_with = "super::super::de::deserialize_from_str")]
             pub dialog_type: DialogType,
             #[serde(rename = "accounts")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub accounts: Vec<Account>,
             #[doc = "These exist primarily so that the caller can verify the\nRP context was used appropriately."]
             #[serde(rename = "title")]
@@ -65124,11 +64977,9 @@ pub mod browser_protocol {
             #[serde(rename = "name")]
             pub name: String,
             #[serde(rename = "nestedDirectories")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nested_directories: Vec<String>,
             #[doc = "Files that are directly nested under this directory."]
             #[serde(rename = "nestedFiles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nested_files: Vec<File>,
         }
         impl Directory {
@@ -65223,7 +65074,6 @@ pub mod browser_protocol {
             pub bucket_name: Option<String>,
             #[doc = "Path to the directory using each path component as an array item."]
             #[serde(rename = "pathComponents")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub path_components: Vec<String>,
         }
         impl BucketFileSystemLocator {
@@ -66136,7 +65986,6 @@ pub mod browser_protocol {
             pub version: f64,
             #[doc = "Object stores in this database."]
             #[serde(rename = "objectStores")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub object_stores: Vec<ObjectStore>,
         }
         impl DatabaseWithObjectStores {
@@ -66219,7 +66068,6 @@ pub mod browser_protocol {
             pub auto_increment: bool,
             #[doc = "Indexes in this object store."]
             #[serde(rename = "indexes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub indexes: Vec<ObjectStoreIndex>,
         }
         impl ObjectStore {
@@ -67304,7 +67152,6 @@ pub mod browser_protocol {
         pub struct RequestDataReturns {
             #[doc = "Array of object store data entries."]
             #[serde(rename = "objectStoreDataEntries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub object_store_data_entries: Vec<DataEntry>,
             #[doc = "If true, there are more entries to fetch in the given range."]
             #[serde(rename = "hasMore")]
@@ -67744,7 +67591,6 @@ pub mod browser_protocol {
         pub struct RequestDatabaseNamesReturns {
             #[doc = "Database names for origin."]
             #[serde(rename = "databaseNames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub database_names: Vec<String>,
         }
         impl RequestDatabaseNamesReturns {
@@ -68100,7 +67946,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct DragData {
             #[serde(rename = "items")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub items: Vec<DragDataItem>,
             #[doc = "List of filenames that should be included when dropping"]
             #[serde(rename = "files")]
@@ -69081,7 +68926,6 @@ pub mod browser_protocol {
             pub r#type: DispatchTouchEventType,
             #[doc = "Active touch points on the touch device. One event per any changed point (compared to\nprevious touch event in a sequence) is generated, emulating pressing/moving/releasing points\none by one."]
             #[serde(rename = "touchPoints")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub touch_points: Vec<TouchPoint>,
             #[doc = "Bit field representing pressed modifier keys. Alt=1, Ctrl=2, Meta/Command=4, Shift=8\n(default: 0)."]
             #[serde(rename = "modifiers")]
@@ -70726,11 +70570,9 @@ pub mod browser_protocol {
         pub struct CompositingReasonsReturns {
             #[doc = "A list of strings specifying reasons for the given layer to become composited."]
             #[serde(rename = "compositingReasons")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub compositing_reasons: Vec<String>,
             #[doc = "A list of strings specifying reason IDs for the given layer to become composited."]
             #[serde(rename = "compositingReasonIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub compositing_reason_ids: Vec<String>,
         }
         impl CompositingReasonsReturns {
@@ -70865,7 +70707,6 @@ pub mod browser_protocol {
         pub struct LoadSnapshotParams {
             #[doc = "An array of tiles composing the snapshot."]
             #[serde(rename = "tiles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tiles: Vec<PictureTile>,
         }
         impl LoadSnapshotParams {
@@ -71141,7 +70982,6 @@ pub mod browser_protocol {
         pub struct ProfileSnapshotReturns {
             #[doc = "The array of paint profiles, one per run."]
             #[serde(rename = "timings")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub timings: Vec<PaintProfile>,
         }
         impl ProfileSnapshotReturns {
@@ -71430,7 +71270,6 @@ pub mod browser_protocol {
         pub struct SnapshotCommandLogReturns {
             #[doc = "The array of canvas function calls."]
             #[serde(rename = "commandLog")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub command_log: Vec<serde_json::Value>,
         }
         impl SnapshotCommandLogReturns {
@@ -72024,7 +71863,6 @@ pub mod browser_protocol {
         pub struct StartViolationsReportParams {
             #[doc = "Configuration for violations."]
             #[serde(rename = "config")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub config: Vec<ViolationSetting>,
         }
         impl StartViolationsReportParams {
@@ -72429,11 +72267,9 @@ pub mod browser_protocol {
             pub code: i64,
             #[doc = "A trace of where this error was caused / where it passed through."]
             #[serde(rename = "stack")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub stack: Vec<PlayerErrorSourceLocation>,
             #[doc = "Errors potentially have a root cause error, ie, a DecoderError might be\ncaused by an WindowsError"]
             #[serde(rename = "cause")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cause: Vec<PlayerError>,
             #[doc = "Extra data attached to an error, such as an HRESULT, Video Codec, etc."]
             #[serde(rename = "data")]
@@ -72626,7 +72462,6 @@ pub mod browser_protocol {
             #[serde(rename = "playerId")]
             pub player_id: PlayerId,
             #[serde(rename = "properties")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub properties: Vec<PlayerProperty>,
         }
         impl EventPlayerPropertiesChanged {
@@ -72651,7 +72486,6 @@ pub mod browser_protocol {
             #[serde(rename = "playerId")]
             pub player_id: PlayerId,
             #[serde(rename = "events")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub events: Vec<PlayerEvent>,
         }
         impl EventPlayerEventsAdded {
@@ -72676,7 +72510,6 @@ pub mod browser_protocol {
             #[serde(rename = "playerId")]
             pub player_id: PlayerId,
             #[serde(rename = "messages")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub messages: Vec<PlayerMessage>,
         }
         impl EventPlayerMessagesLogged {
@@ -72701,7 +72534,6 @@ pub mod browser_protocol {
             #[serde(rename = "playerId")]
             pub player_id: PlayerId,
             #[serde(rename = "errors")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub errors: Vec<PlayerError>,
         }
         impl EventPlayerErrorsRaised {
@@ -72782,7 +72614,6 @@ pub mod browser_protocol {
             pub total: f64,
             #[doc = "Execution stack at the point of allocation."]
             #[serde(rename = "stack")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub stack: Vec<String>,
         }
         impl SamplingProfileNode {
@@ -72851,10 +72682,8 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct SamplingProfile {
             #[serde(rename = "samples")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub samples: Vec<SamplingProfileNode>,
             #[serde(rename = "modules")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub modules: Vec<Module>,
         }
         impl SamplingProfile {
@@ -73160,7 +72989,6 @@ pub mod browser_protocol {
         pub struct GetDomCountersForLeakDetectionReturns {
             #[doc = "DOM object counters."]
             #[serde(rename = "counters")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub counters: Vec<DomCounter>,
         }
         impl GetDomCountersForLeakDetectionReturns {
@@ -74845,7 +74673,6 @@ pub mod browser_protocol {
             pub subject_name: String,
             #[doc = "Subject Alternative Name (SAN) DNS names and IP addresses."]
             #[serde(rename = "sanList")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub san_list: Vec<String>,
             #[doc = "Name of the issuing CA."]
             #[serde(rename = "issuer")]
@@ -74858,7 +74685,6 @@ pub mod browser_protocol {
             pub valid_to: TimeSinceEpoch,
             #[doc = "List of signed certificate timestamps (SCTs)."]
             #[serde(rename = "signedCertificateTimestampList")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub signed_certificate_timestamp_list: Vec<SignedCertificateTimestamp>,
             #[doc = "Whether the request complied with Certificate Transparency policy"]
             #[serde(rename = "certificateTransparencyCompliance")]
@@ -77191,7 +77017,6 @@ pub mod browser_protocol {
         pub struct BlockedSetCookieWithReason {
             #[doc = "The reason(s) this cookie was blocked."]
             #[serde(rename = "blockedReasons")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub blocked_reasons: Vec<SetCookieBlockedReason>,
             #[doc = "The string representing this individual cookie as it would appear in the header.\nThis is not the entire \"cookie\" or \"set-cookie\" header which could have multiple cookies."]
             #[serde(rename = "cookieLine")]
@@ -77349,7 +77174,6 @@ pub mod browser_protocol {
             pub cookie: Cookie,
             #[doc = "The reason(s) the cookie was blocked. If empty means the cookie is included."]
             #[serde(rename = "blockedReasons")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub blocked_reasons: Vec<CookieBlockedReason>,
             #[doc = "The reason the cookie should have been blocked by 3PCD but is exempted. A cookie could\nonly have at most one exemption reason."]
             #[serde(rename = "exemptionReason")]
@@ -77948,7 +77772,6 @@ pub mod browser_protocol {
             pub response_headers: Headers,
             #[doc = "Signed exchange response signature."]
             #[serde(rename = "signatures")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub signatures: Vec<SignedExchangeSignature>,
             #[doc = "Signed exchange header integrity hash in the form of `sha256-<base64-hash-value>`."]
             #[serde(rename = "headerIntegrity")]
@@ -79029,7 +78852,6 @@ pub mod browser_protocol {
         pub struct AdAncestry {
             #[doc = "A chain of `AdScriptIdentifier`s representing the ancestry of an ad\nscript that led to the creation of a resource or element. The chain is\nordered from the script itself (lowest level) up to its root ancestor\nthat was flagged by a filter list."]
             #[serde(rename = "ancestryChain")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub ancestry_chain: Vec<AdScriptIdentifier>,
             #[doc = "The filter list rule that caused the root (last) script in\n`ancestryChain` to be tagged as an ad."]
             #[serde(rename = "rootScriptFilterlistRule")]
@@ -80141,7 +79963,6 @@ pub mod browser_protocol {
             pub include_site: bool,
             #[doc = "See comments on `net::device_bound_sessions::SessionInclusionRules::url_rules_`."]
             #[serde(rename = "urlRules")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub url_rules: Vec<DeviceBoundSessionUrlRule>,
         }
         impl DeviceBoundSessionInclusionRules {
@@ -80224,7 +80045,6 @@ pub mod browser_protocol {
             pub inclusion_rules: DeviceBoundSessionInclusionRules,
             #[doc = "See comments on `net::device_bound_sessions::Session::cookie_cravings_`."]
             #[serde(rename = "cookieCravings")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookie_cravings: Vec<DeviceBoundSessionCookieCraving>,
             #[doc = "See comments on `net::device_bound_sessions::Session::expiry_date_`."]
             #[serde(rename = "expiryDate")]
@@ -80235,7 +80055,6 @@ pub mod browser_protocol {
             pub cached_challenge: Option<String>,
             #[doc = "See comments on `net::device_bound_sessions::Session::allowed_refresh_initiators_`."]
             #[serde(rename = "allowedRefreshInitiators")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub allowed_refresh_initiators: Vec<String>,
         }
         impl DeviceBoundSession {
@@ -81780,7 +81599,6 @@ pub mod browser_protocol {
             pub emulate_offline_service_worker: Option<bool>,
             #[doc = "Configure conditions for matching requests. If multiple entries match a request, the first entry wins.  Global\nconditions can be configured by leaving the urlPattern for the conditions empty. These global conditions are\nalso applied for throttling of p2p connections."]
             #[serde(rename = "matchedNetworkConditions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub matched_network_conditions: Vec<NetworkConditions>,
         }
         impl EmulateNetworkConditionsByRuleParams {
@@ -81870,7 +81688,6 @@ pub mod browser_protocol {
         pub struct EmulateNetworkConditionsByRuleReturns {
             #[doc = "An id for each entry in matchedNetworkConditions. The id will be included in the requestWillBeSentExtraInfo for\nrequests affected by a rule."]
             #[serde(rename = "ruleIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub rule_ids: Vec<String>,
         }
         impl EmulateNetworkConditionsByRuleReturns {
@@ -82220,7 +82037,6 @@ pub mod browser_protocol {
         pub struct GetAllCookiesReturns {
             #[doc = "Array of cookie objects."]
             #[serde(rename = "cookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookies: Vec<Cookie>,
         }
         impl GetAllCookiesReturns {
@@ -82326,7 +82142,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetCertificateReturns {
             #[serde(rename = "tableNames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub table_names: Vec<String>,
         }
         impl GetCertificateReturns {
@@ -82430,7 +82245,6 @@ pub mod browser_protocol {
         pub struct GetCookiesReturns {
             #[doc = "Array of cookie objects."]
             #[serde(rename = "cookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookies: Vec<Cookie>,
         }
         impl GetCookiesReturns {
@@ -82830,7 +82644,6 @@ pub mod browser_protocol {
         pub struct SearchInResponseBodyReturns {
             #[doc = "List of search matches."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<super::super::js_protocol::debugger::SearchMatch>,
         }
         impl SearchInResponseBodyReturns {
@@ -83315,7 +83128,6 @@ pub mod browser_protocol {
         pub struct SetCookiesParams {
             #[doc = "Cookies to be set."]
             #[serde(rename = "cookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookies: Vec<CookieParam>,
         }
         impl SetCookiesParams {
@@ -85261,7 +85073,6 @@ pub mod browser_protocol {
             pub request_id: RequestId,
             #[doc = "A list of cookies potentially associated to the requested URL. This includes both cookies sent with\nthe request and the ones not sent; the latter are distinguished by having blockedReasons field set."]
             #[serde(rename = "associatedCookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub associated_cookies: Vec<AssociatedCookie>,
             #[doc = "Raw request headers as they will be sent over the wire."]
             #[serde(rename = "headers")]
@@ -85310,7 +85121,6 @@ pub mod browser_protocol {
             pub request_id: RequestId,
             #[doc = "A list of cookies which were not stored from the response along with the corresponding\nreasons for blocking. The cookies here may not be valid due to syntax errors, which\nare represented by the invalid cookie line string instead of a proper cookie."]
             #[serde(rename = "blockedCookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub blocked_cookies: Vec<BlockedSetCookieWithReason>,
             #[doc = "Raw response headers as they were received over the wire.\nDuplicate headers in the response are represented as a single key with their values\nconcatentated using `\\n` as the separator.\nSee also `headersText` that contains verbatim text for HTTP/1.*."]
             #[serde(rename = "headers")]
@@ -85582,7 +85392,6 @@ pub mod browser_protocol {
             #[serde(rename = "origin")]
             pub origin: String,
             #[serde(rename = "endpoints")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub endpoints: Vec<ReportingApiEndpoint>,
         }
         impl EventReportingApiEndpointsChangedForOrigin {
@@ -85606,7 +85415,6 @@ pub mod browser_protocol {
         pub struct EventDeviceBoundSessionsAdded {
             #[doc = "The device bound sessions."]
             #[serde(rename = "sessions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub sessions: Vec<DeviceBoundSession>,
         }
         impl EventDeviceBoundSessionsAdded {
@@ -87767,7 +87575,6 @@ pub mod browser_protocol {
         pub struct GetGridHighlightObjectsForTestParams {
             #[doc = "Ids of the node to get highlight object for."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<super::dom::NodeId>,
         }
         impl GetGridHighlightObjectsForTestParams {
@@ -88776,7 +88583,6 @@ pub mod browser_protocol {
         pub struct SetShowGridOverlaysParams {
             #[doc = "An array of node identifiers and descriptors for the highlight appearance."]
             #[serde(rename = "gridNodeHighlightConfigs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub grid_node_highlight_configs: Vec<GridNodeHighlightConfig>,
         }
         impl SetShowGridOverlaysParams {
@@ -88857,7 +88663,6 @@ pub mod browser_protocol {
         pub struct SetShowFlexOverlaysParams {
             #[doc = "An array of node identifiers and descriptors for the highlight appearance."]
             #[serde(rename = "flexNodeHighlightConfigs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub flex_node_highlight_configs: Vec<FlexNodeHighlightConfig>,
         }
         impl SetShowFlexOverlaysParams {
@@ -88937,7 +88742,6 @@ pub mod browser_protocol {
         pub struct SetShowScrollSnapOverlaysParams {
             #[doc = "An array of node identifiers and descriptors for the highlight appearance."]
             #[serde(rename = "scrollSnapHighlightConfigs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub scroll_snap_highlight_configs: Vec<ScrollSnapHighlightConfig>,
         }
         impl SetShowScrollSnapOverlaysParams {
@@ -89017,7 +88821,6 @@ pub mod browser_protocol {
         pub struct SetShowContainerQueryOverlaysParams {
             #[doc = "An array of node identifiers and descriptors for the highlight appearance."]
             #[serde(rename = "containerQueryHighlightConfigs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub container_query_highlight_configs: Vec<ContainerQueryHighlightConfig>,
         }
         impl SetShowContainerQueryOverlaysParams {
@@ -89614,7 +89417,6 @@ pub mod browser_protocol {
         pub struct SetShowIsolatedElementsParams {
             #[doc = "An array of node identifiers and descriptors for the highlight appearance."]
             #[serde(rename = "isolatedElementHighlightConfigs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub isolated_element_highlight_configs: Vec<IsolatedElementHighlightConfig>,
         }
         impl SetShowIsolatedElementsParams {
@@ -89894,7 +89696,6 @@ pub mod browser_protocol {
             #[serde(rename = "mediaType")]
             pub media_type: String,
             #[serde(rename = "fileExtensions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub file_extensions: Vec<String>,
         }
         impl FileHandlerAccept {
@@ -89955,7 +89756,6 @@ pub mod browser_protocol {
             #[serde(rename = "action")]
             pub action: String,
             #[serde(rename = "accepts")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub accepts: Vec<FileHandlerAccept>,
             #[serde(rename = "displayName")]
             pub display_name: String,
@@ -90115,7 +89915,6 @@ pub mod browser_protocol {
             #[serde(rename = "badgeCount")]
             pub badge_count: i64,
             #[serde(rename = "fileHandlers")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub file_handlers: Vec<FileHandler>,
         }
         impl GetOsAppStateReturns {
@@ -90420,7 +90219,6 @@ pub mod browser_protocol {
             #[serde(rename = "manifestId")]
             pub manifest_id: String,
             #[serde(rename = "files")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub files: Vec<String>,
         }
         impl LaunchFilesInAppParams {
@@ -90494,7 +90292,6 @@ pub mod browser_protocol {
         pub struct LaunchFilesInAppReturns {
             #[doc = "IDs of the tab targets created as the result."]
             #[serde(rename = "targetIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub target_ids: Vec<super::target::TargetId>,
         }
         impl LaunchFilesInAppReturns {
@@ -92011,7 +91808,6 @@ pub mod browser_protocol {
             #[serde(deserialize_with = "super::super::de::deserialize_from_str")]
             pub status: OriginTrialStatus,
             #[serde(rename = "tokensWithStatus")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tokens_with_status: Vec<OriginTrialTokenWithStatus>,
         }
         impl OriginTrial {
@@ -92180,7 +91976,6 @@ pub mod browser_protocol {
             pub cross_origin_isolated_context_type: CrossOriginIsolatedContextType,
             #[doc = "Indicated which gated APIs / features are available."]
             #[serde(rename = "gatedAPIFeatures")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub gated_api_features: Vec<GatedApiFeatures>,
         }
         impl Frame {
@@ -92474,7 +92269,6 @@ pub mod browser_protocol {
             pub child_frames: Option<Vec<FrameResourceTree>>,
             #[doc = "Information about frame resources."]
             #[serde(rename = "resources")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub resources: Vec<FrameResource>,
         }
         impl FrameResourceTree {
@@ -93680,7 +93474,6 @@ pub mod browser_protocol {
             pub error_id: String,
             #[doc = "The list of error arguments (e.g. {name:'minimum-icon-size-in-pixels', value:'64'})."]
             #[serde(rename = "errorArguments")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub error_arguments: Vec<InstallabilityErrorArgument>,
         }
         impl InstallabilityError {
@@ -95443,11 +95236,9 @@ pub mod browser_protocol {
             pub url: String,
             #[doc = "Not restored reasons of each frame"]
             #[serde(rename = "explanations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub explanations: Vec<BackForwardCacheNotRestoredExplanation>,
             #[doc = "Array of children frame"]
             #[serde(rename = "children")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub children: Vec<BackForwardCacheNotRestoredExplanationTree>,
         }
         impl BackForwardCacheNotRestoredExplanationTree {
@@ -96475,7 +96266,6 @@ pub mod browser_protocol {
             #[serde(rename = "url")]
             pub url: String,
             #[serde(rename = "errors")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub errors: Vec<AppManifestError>,
             #[doc = "Manifest content."]
             #[serde(rename = "data")]
@@ -96590,7 +96380,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetInstallabilityErrorsReturns {
             #[serde(rename = "installabilityErrors")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub installability_errors: Vec<InstallabilityError>,
         }
         impl GetInstallabilityErrorsReturns {
@@ -96799,7 +96588,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetSubAppsReturns {
             #[serde(rename = "subApps")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub sub_apps: Vec<SubApp>,
         }
         impl GetSubAppsReturns {
@@ -96867,7 +96655,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetSiblingSubAppsReturns {
             #[serde(rename = "subApps")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub sub_apps: Vec<SubApp>,
         }
         impl GetSiblingSubAppsReturns {
@@ -97050,7 +96837,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetSpellCheckCustomDictionaryReturns {
             #[serde(rename = "words")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub words: Vec<String>,
         }
         impl GetSpellCheckCustomDictionaryReturns {
@@ -97307,7 +97093,6 @@ pub mod browser_protocol {
             pub current_index: i64,
             #[doc = "Array of navigation history entries."]
             #[serde(rename = "entries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub entries: Vec<NavigationEntry>,
         }
         impl GetNavigationHistoryReturns {
@@ -98520,7 +98305,6 @@ pub mod browser_protocol {
         pub struct SearchInResourceReturns {
             #[doc = "List of search matches."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<super::super::js_protocol::debugger::SearchMatch>,
         }
         impl SearchInResourceReturns {
@@ -98739,7 +98523,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetPermissionsPolicyStateReturns {
             #[serde(rename = "states")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub states: Vec<PermissionsPolicyFeatureState>,
         }
         impl GetPermissionsPolicyStateReturns {
@@ -98839,7 +98622,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetOriginTrialsReturns {
             #[serde(rename = "originTrials")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub origin_trials: Vec<OriginTrial>,
         }
         impl GetOriginTrialsReturns {
@@ -100243,7 +100025,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct ProduceCompilationCacheParams {
             #[serde(rename = "scripts")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub scripts: Vec<CompilationCacheParams>,
         }
         impl ProduceCompilationCacheParams {
@@ -101699,7 +101480,6 @@ pub mod browser_protocol {
             pub frame_id: FrameId,
             #[doc = "Array of reasons why the page could not be cached. This must not be empty."]
             #[serde(rename = "notRestoredExplanations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub not_restored_explanations: Vec<BackForwardCacheNotRestoredExplanation>,
             #[doc = "Tree structure of reasons why the page could not be cached for each frame."]
             #[serde(rename = "notRestoredExplanationsTree")]
@@ -101871,7 +101651,6 @@ pub mod browser_protocol {
             pub window_name: String,
             #[doc = "An array of enabled window features."]
             #[serde(rename = "windowFeatures")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub window_features: Vec<String>,
             #[doc = "Whether or not it was triggered by user gesture."]
             #[serde(rename = "userGesture")]
@@ -102195,7 +101974,6 @@ pub mod browser_protocol {
         pub struct GetMetricsReturns {
             #[doc = "Current values for run-time metrics."]
             #[serde(rename = "metrics")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub metrics: Vec<Metric>,
         }
         impl GetMetricsReturns {
@@ -102245,7 +102023,6 @@ pub mod browser_protocol {
         pub struct EventMetrics {
             #[doc = "Current values of the metrics."]
             #[serde(rename = "metrics")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub metrics: Vec<Metric>,
             #[doc = "Timestamp title."]
             #[serde(rename = "title")]
@@ -102446,7 +102223,6 @@ pub mod browser_protocol {
             #[serde(rename = "lastInputTime")]
             pub last_input_time: super::network::TimeSinceEpoch,
             #[serde(rename = "sources")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub sources: Vec<LayoutShiftAttribution>,
         }
         impl LayoutShift {
@@ -102649,7 +102425,6 @@ pub mod browser_protocol {
         pub struct EnableParams {
             #[doc = "The types of event to report, as specified in\nhttps://w3c.github.io/performance-timeline/#dom-performanceentry-entrytype\nThe specified filter overrides any previous filters, passing empty\nfilter disables recording.\nNote that not all types exposed to the web platform are currently supported."]
             #[serde(rename = "eventTypes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub event_types: Vec<String>,
         }
         impl EnableParams {
@@ -103094,10 +102869,8 @@ pub mod browser_protocol {
             #[serde(rename = "key")]
             pub key: PreloadingAttemptKey,
             #[serde(rename = "ruleSetIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub rule_set_ids: Vec<RuleSetId>,
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<super::dom::BackendNodeId>,
         }
         impl PreloadingAttemptSource {
@@ -103998,7 +103771,6 @@ pub mod browser_protocol {
             #[serde(rename = "loaderId")]
             pub loader_id: super::network::LoaderId,
             #[serde(rename = "preloadingAttemptSources")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub preloading_attempt_sources: Vec<PreloadingAttemptSource>,
         }
         impl EventPreloadingAttemptSourcesUpdated {
@@ -104130,7 +103902,6 @@ pub mod browser_protocol {
             pub mac: Option<String>,
             #[doc = "Page certificate."]
             #[serde(rename = "certificate")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub certificate: Vec<String>,
             #[doc = "Certificate subject name."]
             #[serde(rename = "subjectName")]
@@ -104477,7 +104248,6 @@ pub mod browser_protocol {
             pub safety_tip_info: Option<SafetyTipInfo>,
             #[doc = "Array of security state issues ids."]
             #[serde(rename = "securityStateIssueIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub security_state_issue_ids: Vec<String>,
         }
         impl VisibleSecurityState {
@@ -104581,7 +104351,6 @@ pub mod browser_protocol {
             pub mixed_content_type: MixedContentType,
             #[doc = "Page certificate."]
             #[serde(rename = "certificate")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub certificate: Vec<String>,
             #[doc = "Recommendations to fix any issues."]
             #[serde(rename = "recommendations")]
@@ -105172,7 +104941,6 @@ pub mod browser_protocol {
             #[doc = "Previously a list of explanations for the security state. Now always\nempty."]
             #[deprecated]
             #[serde(rename = "explanations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub explanations: Vec<SecurityStateExplanation>,
             #[doc = "Information about insecure content on the page."]
             #[deprecated]
@@ -106644,7 +106412,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct EventWorkerRegistrationUpdated {
             #[serde(rename = "registrations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub registrations: Vec<ServiceWorkerRegistration>,
         }
         impl EventWorkerRegistrationUpdated {
@@ -106666,7 +106433,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct EventWorkerVersionUpdated {
             #[serde(rename = "versions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub versions: Vec<ServiceWorkerVersion>,
         }
         impl EventWorkerVersionUpdated {
@@ -107476,7 +107242,6 @@ pub mod browser_protocol {
             #[serde(rename = "requestId")]
             pub request_id: String,
             #[serde(rename = "readers")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub readers: Vec<String>,
         }
         impl ReportListReadersResultParams {
@@ -107557,7 +107322,6 @@ pub mod browser_protocol {
             #[serde(rename = "requestId")]
             pub request_id: String,
             #[serde(rename = "readerStates")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub reader_states: Vec<ReaderStateOut>,
         }
         impl ReportGetStatusChangeResultParams {
@@ -108168,7 +107932,6 @@ pub mod browser_protocol {
             #[serde(rename = "contextId")]
             pub context_id: i64,
             #[serde(rename = "readerStates")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub reader_states: Vec<ReaderStateIn>,
             #[doc = "in milliseconds, if absent, it means \"infinite\""]
             #[serde(rename = "timeout")]
@@ -108767,7 +108530,6 @@ pub mod browser_protocol {
             pub issuer_origin: String,
             #[doc = "Origins authorized to redeem tokens from this issuer."]
             #[serde(rename = "redeemerOrigins")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub redeemer_origins: Vec<String>,
         }
         impl PrivateVerificationTokensIssuerConfig {
@@ -109347,7 +109109,6 @@ pub mod browser_protocol {
         pub struct GetCookiesReturns {
             #[doc = "Array of cookie objects."]
             #[serde(rename = "cookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookies: Vec<super::network::Cookie>,
         }
         impl GetCookiesReturns {
@@ -109397,7 +109158,6 @@ pub mod browser_protocol {
         pub struct SetCookiesParams {
             #[doc = "Cookies to be set."]
             #[serde(rename = "cookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookies: Vec<super::network::CookieParam>,
             #[doc = "Browser context to use when called on the browser endpoint."]
             #[serde(rename = "browserContextId")]
@@ -109601,7 +109361,6 @@ pub mod browser_protocol {
             pub override_active: bool,
             #[doc = "Storage usage per type (bytes)."]
             #[serde(rename = "usageBreakdown")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub usage_breakdown: Vec<UsageForType>,
         }
         impl GetUsageAndQuotaReturns {
@@ -110281,7 +110040,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetTrustTokensReturns {
             #[serde(rename = "tokens")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tokens: Vec<TrustTokens>,
         }
         impl GetTrustTokensReturns {
@@ -110447,7 +110205,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetPrivateVerificationTokensReturns {
             #[serde(rename = "tokens")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tokens: Vec<PrivateVerificationToken>,
         }
         impl GetPrivateVerificationTokensReturns {
@@ -110516,7 +110273,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetPrivateVerificationTokensIssuerConfigsReturns {
             #[serde(rename = "configs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub configs: Vec<PrivateVerificationTokensIssuerConfig>,
         }
         impl GetPrivateVerificationTokensIssuerConfigsReturns {
@@ -110893,7 +110649,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct RunBounceTrackingMitigationsReturns {
             #[serde(rename = "deletedSites")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub deleted_sites: Vec<String>,
         }
         impl RunBounceTrackingMitigationsReturns {
@@ -111509,7 +111264,6 @@ pub mod browser_protocol {
         pub struct GpuInfo {
             #[doc = "The graphics devices on the system. Element 0 is the primary GPU."]
             #[serde(rename = "devices")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub devices: Vec<GpuDevice>,
             #[doc = "An optional dictionary of additional GPU related attributes."]
             #[serde(rename = "auxAttributes")]
@@ -111521,15 +111275,12 @@ pub mod browser_protocol {
             pub feature_status: Option<serde_json::Value>,
             #[doc = "An optional array of GPU driver bug workarounds."]
             #[serde(rename = "driverBugWorkarounds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub driver_bug_workarounds: Vec<String>,
             #[doc = "Supported accelerated video decoding capabilities."]
             #[serde(rename = "videoDecoding")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub video_decoding: Vec<VideoDecodeAcceleratorCapability>,
             #[doc = "Supported accelerated video encoding capabilities."]
             #[serde(rename = "videoEncoding")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub video_encoding: Vec<VideoEncodeAcceleratorCapability>,
         }
         impl GpuInfo {
@@ -111954,7 +111705,6 @@ pub mod browser_protocol {
         pub struct GetProcessInfoReturns {
             #[doc = "An array of process info blocks."]
             #[serde(rename = "processInfo")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub process_info: Vec<ProcessInfo>,
         }
         impl GetProcessInfoReturns {
@@ -112923,7 +112673,6 @@ pub mod browser_protocol {
         pub struct GetBrowserContextsReturns {
             #[doc = "An array of browser context ids."]
             #[serde(rename = "browserContextIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub browser_context_ids: Vec<super::browser::BrowserContextId>,
             #[doc = "The id of the default browser context if available."]
             #[serde(rename = "defaultBrowserContextId")]
@@ -113480,7 +113229,6 @@ pub mod browser_protocol {
         pub struct GetTargetsReturns {
             #[doc = "The list of targets."]
             #[serde(rename = "targetInfos")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub target_infos: Vec<TargetInfo>,
         }
         impl GetTargetsReturns {
@@ -113879,7 +113627,6 @@ pub mod browser_protocol {
         pub struct SetRemoteLocationsParams {
             #[doc = "List of remote locations."]
             #[serde(rename = "locations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub locations: Vec<RemoteLocation>,
         }
         impl SetRemoteLocationsParams {
@@ -114826,7 +114573,6 @@ pub mod browser_protocol {
         pub struct GetCategoriesReturns {
             #[doc = "A list of supported tracing categories."]
             #[serde(rename = "categories")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub categories: Vec<String>,
         }
         impl GetCategoriesReturns {
@@ -115334,7 +115080,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct EventDataCollected {
             #[serde(rename = "value")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub value: Vec<serde_json::Value>,
         }
         impl EventDataCollected {
@@ -117740,7 +117485,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetCredentialsReturns {
             #[serde(rename = "credentials")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub credentials: Vec<Credential>,
         }
         impl GetCredentialsReturns {
@@ -118914,7 +118658,6 @@ pub mod browser_protocol {
         pub struct EventToolsAdded {
             #[doc = "Array of tools that were added."]
             #[serde(rename = "tools")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tools: Vec<Tool>,
         }
         impl EventToolsAdded {
@@ -118938,7 +118681,6 @@ pub mod browser_protocol {
         pub struct EventToolsRemoved {
             #[doc = "Array of tools that were removed."]
             #[serde(rename = "tools")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tools: Vec<RemovedTool>,
         }
         impl EventToolsRemoved {

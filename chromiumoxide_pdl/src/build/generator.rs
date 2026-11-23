@@ -1120,20 +1120,6 @@ impl SerdeSupport {
         }
     }
 
-    pub(crate) fn generate_vec_field_attr(&self) -> TokenStream {
-        match self {
-            SerdeSupport::None => TokenStream::default(),
-            SerdeSupport::Default => quote! {
-                 #[serde(skip_serializing_if = "Vec::is_empty")]
-            },
-            SerdeSupport::Feature(feature) => {
-                quote! {
-                     #[cfg_attr(feature = #feature, serde(skip_serializing_if = "Vec::is_empty"))]
-                }
-            }
-        }
-    }
-
     pub(crate) fn generate_enum_de_with(is_option: bool) -> TokenStream {
         if is_option {
             // NOTE: `#[serde(default)]` is needed here: https://stackoverflow.com/a/44303505/6242846
