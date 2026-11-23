@@ -175,6 +175,26 @@ pub fn plan_page(
     Ok(Target::Viewport(rect))
 }
 
+/// The viewport size for a page without a viewport option, from
+/// `window.innerWidth` / `innerHeight` and the visual viewport scale.
+///
+/// Playwright's clip math divides the viewport by the scale, which assumes
+/// the ideal viewport. That holds on desktop (scale 1, or above 1 when
+/// pinch-zoomed). A mobile page wider than the screen (no
+/// `<meta name=viewport>` on Chrome for Android) is zoomed out below 1 and
+/// its window size is the wider layout: the ideal size is the window size
+/// times the scale.
+pub fn ideal_viewport(window: Size, scale: f64) -> Size {
+    if scale > 0.0 && scale < 1.0 {
+        Size {
+            width: (window.width * scale).round(),
+            height: (window.height * scale).round(),
+        }
+    } else {
+        window
+    }
+}
+
 /// Turns a target into the capture parameters using the live layout metrics.
 /// `css_ratio` is the device scale factor used for `scale: css`.
 pub fn capture(
@@ -373,6 +393,54 @@ mod tests {
             1.0,
         );
         assert_eq!(c.clip, Rect::new(5.0, 300.0, 500.0, 400.0));
+    }
+
+    /// Chrome on Android lays a page without `<meta name=viewport>` out 980
+    /// CSS px wide and zooms out to fit the screen (scale < 1). Then
+    /// `innerWidth` / `innerHeight` are the 980 px layout, not the ideal
+    /// viewport Playwright's clip math expects (it divides by the scale), so
+    /// the clip came out 2.7x too large and Chrome tiled the page 3x3. The
+    /// ideal viewport is the window size times the scale. Numbers from a real emulator (Chrome 145,
+    /// 1080x1944 screen, DPR 3).
+    #[test]
+    fn zoomed_out_mobile_page_captures_the_visible_area() {
+        let vv = VisualViewport {
+            page_x: 0.0,
+            page_y: 0.0,
+            scale: 0.36734694242477417,
+        };
+        // window.innerWidth / innerHeight with no viewport option.
+        let inner = Size {
+            width: 980.0,
+            height: 1764.0,
+        };
+        let viewport = ideal_viewport(inner, vv.scale);
+        assert_eq!(
+            viewport,
+            Size {
+                width: 360.0,
+                height: 648.0
+            }
+        );
+        let c = capture(
+            plan_page(&opts(), viewport, None).unwrap(),
+            vv,
+            ScreenshotScale::Device,
+            3.0,
+        );
+        assert_eq!(c.clip, Rect::new(0.0, 0.0, 980.0, 1764.0));
+        assert_eq!(c.scale, 0.36734694242477417);
+    }
+
+    /// Desktop and zoomed-in pages keep the window size, as in Playwright.
+    #[test]
+    fn ideal_viewport_keeps_the_window_size_at_scale_one_or_more() {
+        let inner = Size {
+            width: 1280.0,
+            height: 720.0,
+        };
+        assert_eq!(ideal_viewport(inner, 1.0), inner);
+        assert_eq!(ideal_viewport(inner, 2.5), inner);
     }
 
     #[test]

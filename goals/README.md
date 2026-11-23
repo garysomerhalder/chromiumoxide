@@ -52,7 +52,7 @@ goals.
 |---|---|
 | [Electron apps are automatable](electron-apps-are-automatable.md) | met |
 | [Android devices are automatable](android-devices-are-automatable.md) | met |
-| [Every CDP domain has a tested API](every-cdp-domain-has-a-tested-api.md) | proposed |
+| [Every CDP domain has a tested API](every-cdp-domain-has-a-tested-api.md) | met |
 | [Firefox runs the Playwright API](firefox-runs-the-playwright-api.md) | proposed |
 | [WebKit runs the Playwright API](webkit-runs-the-playwright-api.md) | proposed |
 | [Tauri apps are automatable](tauri-apps-are-automatable.md) | proposed |

@@ -333,3 +333,33 @@ impl ClickOptionsBuilder {
         }
     }
 }
+
+/// Sends commands and subscribes to events for the generated per-domain
+/// clients (`chromiumoxide_cdp::cdp::domains`).
+///
+/// A page, a browser or any other CDP session implements this once; every
+/// domain client (`Protocol::performance()`, `Protocol::network()`, ...) then
+/// works on it.
+pub trait CommandExecutor {
+    /// The error a failed command resolves to.
+    type Error;
+
+    /// The stream of one event type, from the moment it is created.
+    type Events<E>
+    where
+        E: MethodType + DeserializeOwned + Send + 'static;
+
+    /// Sends one command and resolves to its typed response.
+    fn execute<C>(
+        &self,
+        cmd: C,
+    ) -> impl std::future::Future<Output = Result<C::Response, Self::Error>> + Send
+    where
+        C: Command + Send + 'static,
+        C::Response: Send;
+
+    /// Subscribes to one event type.
+    fn events<E>(&self) -> Self::Events<E>
+    where
+        E: MethodType + DeserializeOwned + Send + 'static;
+}

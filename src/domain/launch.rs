@@ -35,6 +35,9 @@ pub struct LaunchSpec {
     pub args: Vec<String>,
     /// Skip the preset entirely (Playwright's `ignoreDefaultArgs: true`).
     pub ignore_default_args: bool,
+    /// Drop these switches from the preset (Playwright's
+    /// `ignoreDefaultArgs: [...]`); exact matches only.
+    pub ignored_default_args: Vec<String>,
     /// The (unique, temporary) profile directory.
     pub user_data_dir: PathBuf,
     /// `LaunchOptions::proxy`.
@@ -146,6 +149,7 @@ pub fn command_line(spec: &LaunchSpec) -> Vec<String> {
         if let Some(p) = &spec.proxy {
             args.extend(proxy_args(p));
         }
+        args.retain(|a| !spec.ignored_default_args.contains(a));
     }
     args.extend(spec.args.iter().cloned());
     args.push(format!("--user-data-dir={}", spec.user_data_dir.display()));
@@ -266,6 +270,7 @@ mod tests {
             headless,
             args: vec![],
             ignore_default_args: false,
+            ignored_default_args: Vec::new(),
             user_data_dir: PathBuf::from("/tmp/profile-1"),
             proxy: None,
             chromium_sandbox: false,
@@ -405,6 +410,20 @@ mod tests {
         );
     }
 
+    /// Playwright's `ignoreDefaultArgs: ['--disable-extensions']`: only the
+    /// named default switches go; the rest of the preset stays.
+    #[test]
+    fn ignored_default_args_drop_only_those_switches() {
+        let mut s = spec(BrowserKind::HeadlessShell, true);
+        s.ignored_default_args = vec!["--disable-extensions".into(), "--mute-audio".into()];
+        let args = command_line(&s);
+        assert!(!args.iter().any(|a| a == "--disable-extensions"));
+        assert!(!args.iter().any(|a| a == "--mute-audio"));
+        let mut expected = command_line(&spec(BrowserKind::HeadlessShell, true));
+        expected.retain(|a| a != "--disable-extensions" && a != "--mute-audio");
+        assert_eq!(args, expected);
+    }
+
     #[test]
     fn kind_is_inferred_from_the_executable_name() {
         use BrowserKind::*;
@@ -445,6 +464,7 @@ mod persistent_tests {
             headless: true,
             args: Vec::new(),
             ignore_default_args: false,
+            ignored_default_args: Vec::new(),
             user_data_dir: "/tmp/profile-1".into(),
             proxy: None,
             chromium_sandbox: false,

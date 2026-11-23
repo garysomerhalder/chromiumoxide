@@ -9527,7 +9527,6 @@ pub mod js_protocol {
             pub url: String,
             #[doc = "Scope chain for this call frame."]
             #[serde(rename = "scopeChain")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub scope_chain: Vec<Scope>,
             #[doc = "`this` object for this call frame."]
             #[serde(rename = "this")]
@@ -9989,11 +9988,9 @@ pub mod js_protocol {
         pub struct WasmDisassemblyChunk {
             #[doc = "The next chunk of disassembled lines."]
             #[serde(rename = "lines")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub lines: Vec<String>,
             #[doc = "The bytecode offsets describing the start of each line."]
             #[serde(rename = "bytecodeOffsets")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub bytecode_offsets: Vec<i64>,
         }
         impl WasmDisassemblyChunk {
@@ -10730,7 +10727,6 @@ pub mod js_protocol {
         pub struct GetPossibleBreakpointsReturns {
             #[doc = "List of the possible breakpoint locations."]
             #[serde(rename = "locations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub locations: Vec<BreakLocation>,
         }
         impl GetPossibleBreakpointsReturns {
@@ -10832,7 +10828,6 @@ pub mod js_protocol {
         pub struct GetScopeChainReturns {
             #[doc = "Scope chain for the call frame."]
             #[serde(rename = "scopeChain")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub scope_chain: Vec<Scope>,
         }
         impl GetScopeChainReturns {
@@ -11046,7 +11041,6 @@ pub mod js_protocol {
             pub total_number_of_lines: i64,
             #[doc = "The offsets of all function bodies, in the format [start1, end1,\nstart2, end2, ...] where all ends are exclusive."]
             #[serde(rename = "functionBodyOffsets")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub function_body_offsets: Vec<i64>,
             #[doc = "The first chunk of disassembly."]
             #[serde(rename = "chunk")]
@@ -11652,7 +11646,6 @@ pub mod js_protocol {
             #[doc = "New stack trace."]
             #[deprecated]
             #[serde(rename = "callFrames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub call_frames: Vec<CallFrame>,
             #[doc = "Async stack trace, if any."]
             #[deprecated]
@@ -11873,7 +11866,6 @@ pub mod js_protocol {
         pub struct SearchInContentReturns {
             #[doc = "List of search matches."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<SearchMatch>,
         }
         impl SearchInContentReturns {
@@ -11981,7 +11973,6 @@ pub mod js_protocol {
         pub struct SetBlackboxExecutionContextsParams {
             #[doc = "Array of execution context unique ids for the debugger to ignore."]
             #[serde(rename = "uniqueIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub unique_ids: Vec<String>,
         }
         impl SetBlackboxExecutionContextsParams {
@@ -12050,7 +12041,6 @@ pub mod js_protocol {
         pub struct SetBlackboxPatternsParams {
             #[doc = "Array of regexps that will be used to check script url for blackbox state."]
             #[serde(rename = "patterns")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub patterns: Vec<String>,
             #[doc = "If true, also ignore scripts with no source url."]
             #[serde(rename = "skipAnonymous")]
@@ -12134,7 +12124,6 @@ pub mod js_protocol {
             #[serde(rename = "scriptId")]
             pub script_id: super::runtime::ScriptId,
             #[serde(rename = "positions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub positions: Vec<ScriptPosition>,
         }
         impl SetBlackboxedRangesParams {
@@ -12560,7 +12549,6 @@ pub mod js_protocol {
             pub breakpoint_id: BreakpointId,
             #[doc = "List of the locations this breakpoint resolved into upon addition."]
             #[serde(rename = "locations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub locations: Vec<Location>,
         }
         impl SetBreakpointByUrlReturns {
@@ -13557,7 +13545,6 @@ pub mod js_protocol {
         pub struct EventPaused {
             #[doc = "Call stack the virtual machine stopped on."]
             #[serde(rename = "callFrames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub call_frames: Vec<CallFrame>,
             #[doc = "Pause reason."]
             #[serde(rename = "reason")]
@@ -13929,7 +13916,6 @@ pub mod js_protocol {
             pub id: i64,
             #[doc = "Child nodes."]
             #[serde(rename = "children")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub children: Vec<SamplingHeapProfileNode>,
         }
         impl SamplingHeapProfileNode {
@@ -14081,7 +14067,6 @@ pub mod js_protocol {
             #[serde(rename = "head")]
             pub head: SamplingHeapProfileNode,
             #[serde(rename = "samples")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub samples: Vec<SamplingHeapProfileSample>,
         }
         impl SamplingHeapProfile {
@@ -14904,7 +14889,6 @@ pub mod js_protocol {
         pub struct EventHeapStatsUpdate {
             #[doc = "An array of triplets. Each triplet describes a fragment. The first integer is the fragment\nindex, the second integer is a total count of objects for the fragment, the third integer is\na total size of the objects for the fragment."]
             #[serde(rename = "statsUpdate")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub stats_update: Vec<i64>,
         }
         impl EventHeapStatsUpdate {
@@ -15121,7 +15105,6 @@ pub mod js_protocol {
         pub struct Profile {
             #[doc = "The list of profile nodes. First item is the root node."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<ProfileNode>,
             #[doc = "Profiling start timestamp in microseconds."]
             #[serde(rename = "startTime")]
@@ -15368,7 +15351,6 @@ pub mod js_protocol {
             pub function_name: String,
             #[doc = "Source ranges inside the function with coverage data."]
             #[serde(rename = "ranges")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub ranges: Vec<CoverageRange>,
             #[doc = "Whether coverage data for this function has block granularity."]
             #[serde(rename = "isBlockCoverage")]
@@ -15454,7 +15436,6 @@ pub mod js_protocol {
             pub url: String,
             #[doc = "Functions contained in the script that has coverage data."]
             #[serde(rename = "functions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub functions: Vec<FunctionCoverage>,
         }
         impl ScriptCoverage {
@@ -15593,7 +15574,6 @@ pub mod js_protocol {
         pub struct GetBestEffortCoverageReturns {
             #[doc = "Coverage data for the current isolate."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<ScriptCoverage>,
         }
         impl GetBestEffortCoverageReturns {
@@ -15930,7 +15910,6 @@ pub mod js_protocol {
         pub struct TakePreciseCoverageReturns {
             #[doc = "Coverage data for the current isolate."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<ScriptCoverage>,
             #[doc = "Monotonically increasing time (in seconds) when the coverage update was taken in the backend."]
             #[serde(rename = "timestamp")]
@@ -16059,7 +16038,6 @@ pub mod js_protocol {
             pub occasion: String,
             #[doc = "Coverage data for the current isolate."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<ScriptCoverage>,
         }
         impl EventPreciseCoverageDeltaUpdate {
@@ -16841,7 +16819,6 @@ pub mod js_protocol {
             pub overflow: bool,
             #[doc = "List of the properties."]
             #[serde(rename = "properties")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub properties: Vec<PropertyPreview>,
             #[doc = "List of the entries. Specified for `map` and `set` subtype values only."]
             #[serde(rename = "entries")]
@@ -18098,7 +18075,6 @@ pub mod js_protocol {
             pub description: Option<String>,
             #[doc = "JavaScript function name."]
             #[serde(rename = "callFrames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub call_frames: Vec<CallFrame>,
             #[doc = "Asynchronous JavaScript stack trace that preceded this stack, if available."]
             #[serde(rename = "parent")]
@@ -19461,7 +19437,6 @@ pub mod js_protocol {
         pub struct GetPropertiesReturns {
             #[doc = "Object properties."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<PropertyDescriptor>,
             #[doc = "Internal object properties (only of the element itself)."]
             #[serde(rename = "internalProperties")]
@@ -19625,7 +19600,6 @@ pub mod js_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GlobalLexicalScopeNamesReturns {
             #[serde(rename = "names")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub names: Vec<String>,
         }
         impl GlobalLexicalScopeNamesReturns {
@@ -20573,7 +20547,6 @@ pub mod js_protocol {
             pub r#type: ConsoleApiCalledType,
             #[doc = "Call arguments."]
             #[serde(rename = "args")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub args: Vec<RemoteObject>,
             #[doc = "Identifier of the context where the call was made."]
             #[serde(rename = "executionContextId")]
@@ -20930,7 +20903,6 @@ pub mod js_protocol {
         pub struct GetDomainsReturns {
             #[doc = "List of supported domains."]
             #[serde(rename = "domains")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub domains: Vec<Domain>,
         }
         impl GetDomainsReturns {
@@ -22185,7 +22157,6 @@ pub mod browser_protocol {
         pub struct GetPartialAxTreeReturns {
             #[doc = "The `Accessibility.AXNode` for this DOM node, if it exists, plus its ancestors, siblings and\nchildren, if requested."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl GetPartialAxTreeReturns {
@@ -22288,7 +22259,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetFullAxTreeReturns {
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl GetFullAxTreeReturns {
@@ -22487,7 +22457,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetAxNodeAndAncestorsReturns {
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl GetAxNodeAndAncestorsReturns {
@@ -22598,7 +22567,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetChildAxNodesReturns {
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl GetChildAxNodesReturns {
@@ -22738,7 +22706,6 @@ pub mod browser_protocol {
         pub struct QueryAxTreeReturns {
             #[doc = "A list of `Accessibility.AXNode` matching the specified attributes,\nincluding nodes that are ignored for accessibility."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl QueryAxTreeReturns {
@@ -22811,7 +22778,6 @@ pub mod browser_protocol {
         pub struct EventNodesUpdated {
             #[doc = "Updated node data."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<AxNode>,
         }
         impl EventNodesUpdated {
@@ -22935,11 +22901,9 @@ pub mod browser_protocol {
             pub total_ad_network_bytes: f64,
             #[doc = "The list of ad frames that have been updated since the last event."]
             #[serde(rename = "updateAdFrames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub update_ad_frames: Vec<AdFrameData>,
             #[doc = "The list of ad frame IDs that have been removed since the last event."]
             #[serde(rename = "removeAdFrames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub remove_ad_frames: Vec<super::page::FrameId>,
         }
         impl AdMetrics {
@@ -23231,7 +23195,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetAdScriptsReturns {
             #[serde(rename = "newScripts")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub new_scripts: Vec<AdScript>,
         }
         impl GetAdScriptsReturns {
@@ -23686,7 +23649,6 @@ pub mod browser_protocol {
             pub name: Option<String>,
             #[doc = "List of animation keyframes."]
             #[serde(rename = "keyframes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub keyframes: Vec<KeyframeStyle>,
         }
         impl KeyframesRule {
@@ -23998,7 +23960,6 @@ pub mod browser_protocol {
         pub struct ReleaseAnimationsParams {
             #[doc = "List of animation ids to seek."]
             #[serde(rename = "animations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub animations: Vec<String>,
         }
         impl ReleaseAnimationsParams {
@@ -24168,7 +24129,6 @@ pub mod browser_protocol {
         pub struct SeekAnimationsParams {
             #[doc = "List of animation ids to seek."]
             #[serde(rename = "animations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub animations: Vec<String>,
             #[doc = "Set each animation to the same time."]
             #[serde(rename = "currentTime")]
@@ -24268,7 +24228,6 @@ pub mod browser_protocol {
         pub struct SetPausedParams {
             #[doc = "Animations to set the pause state of."]
             #[serde(rename = "animations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub animations: Vec<String>,
             #[doc = "Paused state to set to."]
             #[serde(rename = "paused")]
@@ -25062,10 +25021,8 @@ pub mod browser_protocol {
             #[serde(skip_serializing_if = "Option::is_none")]
             pub raw_cookie_line: Option<String>,
             #[serde(rename = "cookieWarningReasons")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookie_warning_reasons: Vec<CookieWarningReason>,
             #[serde(rename = "cookieExclusionReasons")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookie_exclusion_reasons: Vec<CookieExclusionReason>,
             #[doc = "Optionally identifies the site-for-cookies and the cookie url, which\nmay be used by the front-end as additional context."]
             #[serde(rename = "operation")]
@@ -26909,7 +26866,6 @@ pub mod browser_protocol {
             #[serde(rename = "signatureBase")]
             pub signature_base: String,
             #[serde(rename = "integrityAssertions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub integrity_assertions: Vec<String>,
             #[serde(rename = "request")]
             pub request: AffectedRequest,
@@ -27314,7 +27270,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct BounceTrackingIssueDetails {
             #[serde(rename = "trackingSites")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tracking_sites: Vec<String>,
         }
         impl BounceTrackingIssueDetails {
@@ -27363,7 +27318,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct CookieDeprecationMetadataIssueDetails {
             #[serde(rename = "allowedSites")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub allowed_sites: Vec<String>,
             #[serde(rename = "optOutPercentage")]
             pub opt_out_percentage: f64,
@@ -30403,7 +30357,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct CheckFormsIssuesReturns {
             #[serde(rename = "formIssues")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub form_issues: Vec<GenericIssueDetails>,
         }
         impl CheckFormsIssuesReturns {
@@ -30602,7 +30555,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct AddressFields {
             #[serde(rename = "fields")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub fields: Vec<AddressField>,
         }
         impl AddressFields {
@@ -30651,7 +30603,6 @@ pub mod browser_protocol {
         pub struct Address {
             #[doc = "fields and values defining an address."]
             #[serde(rename = "fields")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub fields: Vec<AddressField>,
         }
         impl Address {
@@ -30701,7 +30652,6 @@ pub mod browser_protocol {
         pub struct AddressUi {
             #[doc = "A two dimension array containing the representation of values from an address profile."]
             #[serde(rename = "addressFields")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub address_fields: Vec<AddressFields>,
         }
         impl AddressUi {
@@ -30987,7 +30937,6 @@ pub mod browser_protocol {
         pub struct SetAddressesParams {
             #[doc = "Test addresses for the available countries."]
             #[serde(rename = "addresses")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub addresses: Vec<Address>,
         }
         impl SetAddressesParams {
@@ -31106,7 +31055,6 @@ pub mod browser_protocol {
         pub struct EventAddressFormFilled {
             #[doc = "Information about the fields that were filled"]
             #[serde(rename = "filledFields")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub filled_fields: Vec<FilledField>,
             #[doc = "An UI representation of the address used to fill the form.\nConsists of a 2D array where each child represents an address/profile line."]
             #[serde(rename = "addressUi")]
@@ -31256,7 +31204,6 @@ pub mod browser_protocol {
             pub instance_id: String,
             #[doc = "A list of event-specific information."]
             #[serde(rename = "eventMetadata")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub event_metadata: Vec<EventMetadata>,
             #[doc = "Storage key this event belongs to."]
             #[serde(rename = "storageKey")]
@@ -32293,10 +32240,8 @@ pub mod browser_protocol {
             #[serde(rename = "name")]
             pub name: String,
             #[serde(rename = "manufacturerData")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub manufacturer_data: Vec<ManufacturerData>,
             #[serde(rename = "knownServiceUuids")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub known_service_uuids: Vec<String>,
         }
         impl SimulatePreconnectedPeripheralParams {
@@ -34125,7 +34070,6 @@ pub mod browser_protocol {
             pub count: i64,
             #[doc = "Buckets."]
             #[serde(rename = "buckets")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub buckets: Vec<Bucket>,
         }
         impl Histogram {
@@ -34319,7 +34263,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GrantPermissionsParams {
             #[serde(rename = "permissions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub permissions: Vec<PermissionType>,
             #[doc = "Origin the permission applies to, all origins if not specified."]
             #[serde(rename = "origin")]
@@ -34868,7 +34811,6 @@ pub mod browser_protocol {
         pub struct GetBrowserCommandLineReturns {
             #[doc = "Commandline parameters"]
             #[serde(rename = "arguments")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub arguments: Vec<String>,
         }
         impl GetBrowserCommandLineReturns {
@@ -35035,7 +34977,6 @@ pub mod browser_protocol {
         pub struct GetHistogramsReturns {
             #[doc = "Histograms."]
             #[serde(rename = "histograms")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub histograms: Vec<Histogram>,
         }
         impl GetHistogramsReturns {
@@ -35932,7 +35873,6 @@ pub mod browser_protocol {
             pub pseudo_identifier: Option<String>,
             #[doc = "Matches of CSS rules applicable to the pseudo style."]
             #[serde(rename = "matches")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub matches: Vec<RuleMatch>,
         }
         impl PseudoElementMatches {
@@ -36057,7 +35997,6 @@ pub mod browser_protocol {
             pub inline_style: Option<CssStyle>,
             #[doc = "Matches of CSS rules matching the ancestor node in the style inheritance chain."]
             #[serde(rename = "matchedCSSRules")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub matched_css_rules: Vec<RuleMatch>,
         }
         impl InheritedStyleEntry {
@@ -36175,7 +36114,6 @@ pub mod browser_protocol {
         pub struct InheritedPseudoElementMatches {
             #[doc = "Matches of pseudo styles from the pseudos of an ancestor node."]
             #[serde(rename = "pseudoElements")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub pseudo_elements: Vec<PseudoElementMatches>,
         }
         impl InheritedPseudoElementMatches {
@@ -36231,7 +36169,6 @@ pub mod browser_protocol {
             pub rule: CssRule,
             #[doc = "Matching selector indices in the rule's selectorList selectors (0-based)."]
             #[serde(rename = "matchingSelectors")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub matching_selectors: Vec<i64>,
         }
         impl RuleMatch {
@@ -36527,7 +36464,6 @@ pub mod browser_protocol {
         pub struct SelectorList {
             #[doc = "Selectors in the list."]
             #[serde(rename = "selectors")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub selectors: Vec<Value>,
             #[doc = "Rule selector text."]
             #[serde(rename = "text")]
@@ -37485,11 +37421,9 @@ pub mod browser_protocol {
             pub style_sheet_id: Option<super::dom::StyleSheetId>,
             #[doc = "CSS properties in the style."]
             #[serde(rename = "cssProperties")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub css_properties: Vec<CssProperty>,
             #[doc = "Computed values for all shorthands found in the style."]
             #[serde(rename = "shorthandEntries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub shorthand_entries: Vec<ShorthandEntry>,
             #[doc = "Style declaration text (if available)."]
             #[serde(rename = "cssText")]
@@ -37892,7 +37826,6 @@ pub mod browser_protocol {
         pub struct MediaQuery {
             #[doc = "Array of media query expressions."]
             #[serde(rename = "expressions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub expressions: Vec<MediaQueryExpression>,
             #[doc = "Whether the media query condition is satisfied."]
             #[serde(rename = "active")]
@@ -39069,7 +39002,6 @@ pub mod browser_protocol {
             pub animation_name: Value,
             #[doc = "List of keyframes."]
             #[serde(rename = "keyframes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub keyframes: Vec<CssKeyframeRule>,
         }
         impl CssKeyframesRule {
@@ -39543,7 +39475,6 @@ pub mod browser_protocol {
             pub navigation: Option<CssNavigation>,
             #[doc = "Block body."]
             #[serde(rename = "children")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub children: Vec<CssFunctionNode>,
             #[doc = "The condition text."]
             #[serde(rename = "conditionText")]
@@ -39690,11 +39621,9 @@ pub mod browser_protocol {
             pub origin: StyleSheetOrigin,
             #[doc = "List of parameters."]
             #[serde(rename = "parameters")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub parameters: Vec<CssFunctionParameter>,
             #[doc = "Function body."]
             #[serde(rename = "children")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub children: Vec<CssFunctionNode>,
             #[doc = "The BackendNodeId of the DOM node that constitutes the origin tree scope of this rule."]
             #[serde(rename = "originTreeScopeNodeId")]
@@ -40155,7 +40084,6 @@ pub mod browser_protocol {
         pub struct CollectClassNamesReturns {
             #[doc = "Class name list."]
             #[serde(rename = "classNames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub class_names: Vec<String>,
         }
         impl CollectClassNamesReturns {
@@ -40363,7 +40291,6 @@ pub mod browser_protocol {
             pub node_id: super::dom::NodeId,
             #[doc = "Element pseudo classes to force when computing the element's style."]
             #[serde(rename = "forcedPseudoClasses")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub forced_pseudo_classes: Vec<String>,
         }
         impl ForcePseudoStateParams {
@@ -40752,7 +40679,6 @@ pub mod browser_protocol {
         pub struct GetComputedStyleForNodeReturns {
             #[doc = "Computed style for the specified DOM node."]
             #[serde(rename = "computedStyle")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub computed_style: Vec<CssComputedStyleProperty>,
             #[doc = "A list of non-standard \"extra fields\" which blink stores alongside each\ncomputed style."]
             #[serde(rename = "extraFields")]
@@ -40825,7 +40751,6 @@ pub mod browser_protocol {
         pub struct ResolveValuesParams {
             #[doc = "Cascade-dependent keywords (revert/revert-layer) do not work."]
             #[serde(rename = "values")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub values: Vec<String>,
             #[doc = "Id of the node in whose context the expression is evaluated"]
             #[serde(rename = "nodeId")]
@@ -40936,7 +40861,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct ResolveValuesReturns {
             #[serde(rename = "results")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub results: Vec<String>,
         }
         impl ResolveValuesReturns {
@@ -41045,7 +40969,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetLonghandPropertiesReturns {
             #[serde(rename = "longhandProperties")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub longhand_properties: Vec<CssProperty>,
         }
         impl GetLonghandPropertiesReturns {
@@ -41764,7 +41687,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetMediaQueriesReturns {
             #[serde(rename = "medias")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub medias: Vec<CssMedia>,
         }
         impl GetMediaQueriesReturns {
@@ -41865,7 +41787,6 @@ pub mod browser_protocol {
         pub struct GetPlatformFontsForNodeReturns {
             #[doc = "Usage statistics for every employed platform font."]
             #[serde(rename = "fonts")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub fonts: Vec<PlatformFontUsage>,
         }
         impl GetPlatformFontsForNodeReturns {
@@ -42167,7 +42088,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetLocationForSelectorReturns {
             #[serde(rename = "ranges")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub ranges: Vec<SourceRange>,
         }
         impl GetLocationForSelectorReturns {
@@ -42265,7 +42185,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct TrackComputedStyleUpdatesParams {
             #[serde(rename = "propertiesToTrack")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub properties_to_track: Vec<CssComputedStyleProperty>,
         }
         impl TrackComputedStyleUpdatesParams {
@@ -42361,7 +42280,6 @@ pub mod browser_protocol {
         pub struct TakeComputedStyleUpdatesReturns {
             #[doc = "The list of node Ids that have their tracked computed styles updated."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<super::dom::NodeId>,
         }
         impl TakeComputedStyleUpdatesReturns {
@@ -43669,7 +43587,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct SetStyleTextsParams {
             #[serde(rename = "edits")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub edits: Vec<StyleDeclarationEdit>,
             #[doc = "NodeId for the DOM node in whose context custom property declarations for registered properties should be\nvalidated. If omitted, declarations in the new rule text can only be validated statically, which may produce\nincorrect results if the declaration contains a var() for example."]
             #[serde(rename = "nodeForPropertySyntaxValidation")]
@@ -43749,7 +43666,6 @@ pub mod browser_protocol {
         pub struct SetStyleTextsReturns {
             #[doc = "The resulting styles after modification."]
             #[serde(rename = "styles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub styles: Vec<CssStyle>,
         }
         impl SetStyleTextsReturns {
@@ -43842,7 +43758,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct StopRuleUsageTrackingReturns {
             #[serde(rename = "ruleUsage")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub rule_usage: Vec<RuleUsage>,
         }
         impl StopRuleUsageTrackingReturns {
@@ -43910,7 +43825,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct TakeCoverageDeltaReturns {
             #[serde(rename = "coverage")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub coverage: Vec<RuleUsage>,
             #[doc = "Monotonically increasing time, in seconds."]
             #[serde(rename = "timestamp")]
@@ -44254,7 +44168,6 @@ pub mod browser_protocol {
             pub request_method: String,
             #[doc = "Request headers"]
             #[serde(rename = "requestHeaders")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub request_headers: Vec<Header>,
             #[doc = "Number of seconds since epoch."]
             #[serde(rename = "responseTime")]
@@ -44271,7 +44184,6 @@ pub mod browser_protocol {
             pub response_type: CachedResponseType,
             #[doc = "Response headers"]
             #[serde(rename = "responseHeaders")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub response_headers: Vec<Header>,
         }
         impl DataEntry {
@@ -44764,7 +44676,6 @@ pub mod browser_protocol {
         pub struct RequestCacheNamesReturns {
             #[doc = "Caches for the security origin."]
             #[serde(rename = "caches")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub caches: Vec<Cache>,
         }
         impl RequestCacheNamesReturns {
@@ -44820,7 +44731,6 @@ pub mod browser_protocol {
             pub request_url: String,
             #[doc = "headers of the request."]
             #[serde(rename = "requestHeaders")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub request_headers: Vec<Header>,
         }
         impl RequestCachedResponseParams {
@@ -45031,7 +44941,6 @@ pub mod browser_protocol {
         pub struct RequestEntriesReturns {
             #[doc = "Array of object store data entries."]
             #[serde(rename = "cacheDataEntries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cache_data_entries: Vec<DataEntry>,
             #[doc = "Count of returned entries from this storage. If pathFilter is empty, it\nis the count of all entries from this storage."]
             #[serde(rename = "returnCount")]
@@ -45482,7 +45391,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct EventSinksUpdated {
             #[serde(rename = "sinks")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub sinks: Vec<Sink>,
         }
         impl EventSinksUpdated {
@@ -45615,7 +45523,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetEntriesReturns {
             #[serde(rename = "entries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub entries: Vec<CrashReportContextEntry>,
         }
         impl GetEntriesReturns {
@@ -46618,7 +46525,6 @@ pub mod browser_protocol {
             #[serde(rename = "treeNode")]
             pub tree_node: Node,
             #[serde(rename = "retainedNodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub retained_node_ids: Vec<NodeId>,
         }
         impl DetachedElementInfo {
@@ -46870,11 +46776,9 @@ pub mod browser_protocol {
             pub bounds: Quad,
             #[doc = "Shape coordinate details"]
             #[serde(rename = "shape")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub shape: Vec<serde_json::Value>,
             #[doc = "Margin shape bounds"]
             #[serde(rename = "marginShape")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub margin_shape: Vec<serde_json::Value>,
         }
         impl ShapeOutsideInfo {
@@ -47142,7 +47046,6 @@ pub mod browser_protocol {
         pub struct CollectClassNamesFromSubtreeReturns {
             #[doc = "Class name list."]
             #[serde(rename = "classNames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub class_names: Vec<String>,
         }
         impl CollectClassNamesFromSubtreeReturns {
@@ -47812,7 +47715,6 @@ pub mod browser_protocol {
         pub struct GetAttributesReturns {
             #[doc = "An interleaved array of node attribute names and values."]
             #[serde(rename = "attributes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub attributes: Vec<String>,
         }
         impl GetAttributesReturns {
@@ -48035,7 +47937,6 @@ pub mod browser_protocol {
         pub struct GetContentQuadsReturns {
             #[doc = "Quads that describe node layout relative to viewport."]
             #[serde(rename = "quads")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub quads: Vec<Quad>,
         }
         impl GetContentQuadsReturns {
@@ -48231,7 +48132,6 @@ pub mod browser_protocol {
         pub struct GetFlattenedDocumentReturns {
             #[doc = "Resulting node."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<Node>,
         }
         impl GetFlattenedDocumentReturns {
@@ -48284,7 +48184,6 @@ pub mod browser_protocol {
             pub node_id: NodeId,
             #[doc = "The style to filter nodes by (includes nodes if any of properties matches)."]
             #[serde(rename = "computedStyles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub computed_styles: Vec<CssComputedStyleProperty>,
             #[doc = "Whether or not iframes and shadow roots in the same target should be traversed when returning the\nresults (default is false)."]
             #[serde(rename = "pierce")]
@@ -48375,7 +48274,6 @@ pub mod browser_protocol {
         pub struct GetNodesForSubtreeByStyleReturns {
             #[doc = "Resulting nodes."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl GetNodesForSubtreeByStyleReturns {
@@ -48874,7 +48772,6 @@ pub mod browser_protocol {
         pub struct GetSearchResultsReturns {
             #[doc = "Ids of the search result nodes."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl GetSearchResultsReturns {
@@ -49357,7 +49254,6 @@ pub mod browser_protocol {
         pub struct PushNodesByBackendIdsToFrontendParams {
             #[doc = "The array of backend node ids."]
             #[serde(rename = "backendNodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub backend_node_ids: Vec<BackendNodeId>,
         }
         impl PushNodesByBackendIdsToFrontendParams {
@@ -49423,7 +49319,6 @@ pub mod browser_protocol {
         pub struct PushNodesByBackendIdsToFrontendReturns {
             #[doc = "The array of ids of pushed nodes that correspond to the backend ids specified in\nbackendNodeIds."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl PushNodesByBackendIdsToFrontendReturns {
@@ -49640,7 +49535,6 @@ pub mod browser_protocol {
         pub struct QuerySelectorAllReturns {
             #[doc = "Query selector result."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl QuerySelectorAllReturns {
@@ -49709,7 +49603,6 @@ pub mod browser_protocol {
         pub struct GetTopLayerElementsReturns {
             #[doc = "NodeIds of top layer elements"]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl GetTopLayerElementsReturns {
@@ -50524,7 +50417,6 @@ pub mod browser_protocol {
         pub struct SetFileInputFilesParams {
             #[doc = "Array of file paths to set."]
             #[serde(rename = "files")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub files: Vec<String>,
             #[doc = "Identifier of the node."]
             #[serde(rename = "nodeId")]
@@ -50892,7 +50784,6 @@ pub mod browser_protocol {
         pub struct GetDetachedDomNodesReturns {
             #[doc = "The list of detached nodes"]
             #[serde(rename = "detachedNodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub detached_nodes: Vec<DetachedElementInfo>,
         }
         impl GetDetachedDomNodesReturns {
@@ -51557,7 +51448,6 @@ pub mod browser_protocol {
         pub struct GetQueryingDescendantsForContainerReturns {
             #[doc = "Descendant nodes with container queries against the given container."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl GetQueryingDescendantsForContainerReturns {
@@ -51784,7 +51674,6 @@ pub mod browser_protocol {
         pub struct ForceShowPopoverReturns {
             #[doc = "List of popovers that were closed in order to respect popover stacking order."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl ForceShowPopoverReturns {
@@ -51886,7 +51775,6 @@ pub mod browser_protocol {
         pub struct GetImplicitAnchorCandidatesReturns {
             #[doc = "Candidate elements that can invoke this popover."]
             #[serde(rename = "backendNodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub backend_node_ids: Vec<BackendNodeId>,
         }
         impl GetImplicitAnchorCandidatesReturns {
@@ -52217,7 +52105,6 @@ pub mod browser_protocol {
             pub node_id: NodeId,
             #[doc = "New adoptedStyleSheets array."]
             #[serde(rename = "adoptedStyleSheets")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub adopted_style_sheets: Vec<StyleSheetId>,
         }
         impl EventAdoptedStyleSheetsModified {
@@ -52377,7 +52264,6 @@ pub mod browser_protocol {
             pub insertion_point_id: NodeId,
             #[doc = "Distributed nodes for given insertion point."]
             #[serde(rename = "distributedNodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub distributed_nodes: Vec<BackendNode>,
         }
         impl EventDistributedNodesUpdated {
@@ -52420,7 +52306,6 @@ pub mod browser_protocol {
         pub struct EventInlineStyleInvalidated {
             #[doc = "Ids of the nodes for which the inline styles have been invalidated."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<NodeId>,
         }
         impl EventInlineStyleInvalidated {
@@ -52597,7 +52482,6 @@ pub mod browser_protocol {
             pub parent_id: NodeId,
             #[doc = "Child nodes array."]
             #[serde(rename = "nodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nodes: Vec<Node>,
         }
         impl EventSetChildNodes {
@@ -52960,7 +52844,6 @@ pub mod browser_protocol {
         pub struct GetEventListenersReturns {
             #[doc = "Array of relevant listeners."]
             #[serde(rename = "listeners")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub listeners: Vec<EventListener>,
         }
         impl GetEventListenersReturns {
@@ -53283,7 +53166,6 @@ pub mod browser_protocol {
         pub struct SetBreakOnCspViolationParams {
             #[doc = "CSP Violations to stop upon."]
             #[serde(rename = "violationTypes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub violation_types: Vec<CspViolationType>,
         }
         impl SetBreakOnCspViolationParams {
@@ -54227,7 +54109,6 @@ pub mod browser_protocol {
         pub struct ComputedStyle {
             #[doc = "Name/value pairs of computed style properties."]
             #[serde(rename = "properties")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub properties: Vec<NameValue>,
         }
         impl ComputedStyle {
@@ -54355,10 +54236,8 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct RareStringData {
             #[serde(rename = "index")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub index: Vec<i64>,
             #[serde(rename = "value")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub value: Vec<StringIndex>,
         }
         impl RareStringData {
@@ -54426,7 +54305,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct RareBooleanData {
             #[serde(rename = "index")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub index: Vec<i64>,
         }
         impl RareBooleanData {
@@ -54474,10 +54352,8 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct RareIntegerData {
             #[serde(rename = "index")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub index: Vec<i64>,
             #[serde(rename = "value")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub value: Vec<i64>,
         }
         impl RareIntegerData {
@@ -55020,19 +54896,15 @@ pub mod browser_protocol {
         pub struct LayoutTreeSnapshot {
             #[doc = "Index of the corresponding node in the `NodeTreeSnapshot` array returned by `captureSnapshot`."]
             #[serde(rename = "nodeIndex")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_index: Vec<i64>,
             #[doc = "Array of indexes specifying computed style strings, filtered according to the `computedStyles` parameter passed to `captureSnapshot`."]
             #[serde(rename = "styles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub styles: Vec<ArrayOfStrings>,
             #[doc = "The absolute position bounding box."]
             #[serde(rename = "bounds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub bounds: Vec<Rectangle>,
             #[doc = "Contents of the LayoutText, if any."]
             #[serde(rename = "text")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub text: Vec<StringIndex>,
             #[doc = "Stacking context information."]
             #[serde(rename = "stackingContexts")]
@@ -55289,19 +55161,15 @@ pub mod browser_protocol {
         pub struct TextBoxSnapshot {
             #[doc = "Index of the layout tree node that owns this box collection."]
             #[serde(rename = "layoutIndex")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub layout_index: Vec<i64>,
             #[doc = "The absolute position bounding box."]
             #[serde(rename = "bounds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub bounds: Vec<Rectangle>,
             #[doc = "The starting index in characters, for this post layout textbox substring. Characters that\nwould be represented as a surrogate pair in UTF-16 have length 2."]
             #[serde(rename = "start")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub start: Vec<i64>,
             #[doc = "The number of characters in this post layout textbox substring. Characters that would be\nrepresented as a surrogate pair in UTF-16 have length 2."]
             #[serde(rename = "length")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub length: Vec<i64>,
         }
         impl TextBoxSnapshot {
@@ -55472,7 +55340,6 @@ pub mod browser_protocol {
         pub struct GetSnapshotParams {
             #[doc = "Whitelist of computed styles to return."]
             #[serde(rename = "computedStyleWhitelist")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub computed_style_whitelist: Vec<String>,
             #[doc = "Whether or not to retrieve details of DOM listeners (default false)."]
             #[serde(rename = "includeEventListeners")]
@@ -55582,15 +55449,12 @@ pub mod browser_protocol {
         pub struct GetSnapshotReturns {
             #[doc = "The nodes in the DOM tree. The DOMNode at index 0 corresponds to the root document."]
             #[serde(rename = "domNodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub dom_nodes: Vec<DomNode>,
             #[doc = "The nodes in the layout tree."]
             #[serde(rename = "layoutTreeNodes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub layout_tree_nodes: Vec<LayoutTreeNode>,
             #[doc = "Whitelisted ComputedStyle properties for each node in the layout tree."]
             #[serde(rename = "computedStyles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub computed_styles: Vec<ComputedStyle>,
         }
         impl GetSnapshotReturns {
@@ -55691,7 +55555,6 @@ pub mod browser_protocol {
         pub struct CaptureSnapshotParams {
             #[doc = "Whitelist of computed styles to return."]
             #[serde(rename = "computedStyles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub computed_styles: Vec<String>,
             #[doc = "Whether to include layout object paint orders into the snapshot."]
             #[serde(rename = "includePaintOrder")]
@@ -55807,11 +55670,9 @@ pub mod browser_protocol {
         pub struct CaptureSnapshotReturns {
             #[doc = "The nodes in the DOM tree. The DOMNode at index 0 corresponds to the root document."]
             #[serde(rename = "documents")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub documents: Vec<DocumentSnapshot>,
             #[doc = "Shared string table that all string properties refer to with indexes."]
             #[serde(rename = "strings")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub strings: Vec<String>,
         }
         impl CaptureSnapshotReturns {
@@ -56144,7 +56005,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetDomStorageItemsReturns {
             #[serde(rename = "entries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub entries: Vec<Item>,
         }
         impl GetDomStorageItemsReturns {
@@ -56732,7 +56592,6 @@ pub mod browser_protocol {
             #[serde(rename = "id")]
             pub id: RequestId,
             #[serde(rename = "devices")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub devices: Vec<PromptDevice>,
         }
         impl EventDeviceRequestPrompted {
@@ -59283,7 +59142,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct SetDisplayFeaturesOverrideParams {
             #[serde(rename = "features")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub features: Vec<DisplayFeature>,
         }
         impl SetDisplayFeaturesOverrideParams {
@@ -60996,7 +60854,6 @@ pub mod browser_protocol {
         pub struct SetDisabledImageTypesParams {
             #[doc = "Image types to disable."]
             #[serde(rename = "imageTypes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub image_types: Vec<DisabledImageType>,
         }
         impl SetDisabledImageTypesParams {
@@ -61505,7 +61362,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetScreenInfosReturns {
             #[serde(rename = "screenInfos")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub screen_infos: Vec<ScreenInfo>,
         }
         impl GetScreenInfosReturns {
@@ -62579,7 +62435,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetExtensionsReturns {
             #[serde(rename = "extensions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub extensions: Vec<ExtensionInfo>,
         }
         impl GetExtensionsReturns {
@@ -62821,7 +62676,6 @@ pub mod browser_protocol {
             pub storage_area: StorageArea,
             #[doc = "Keys to remove."]
             #[serde(rename = "keys")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub keys: Vec<String>,
         }
         impl RemoveStorageItemsParams {
@@ -63708,7 +63562,6 @@ pub mod browser_protocol {
             #[serde(deserialize_with = "super::super::de::deserialize_from_str")]
             pub dialog_type: DialogType,
             #[serde(rename = "accounts")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub accounts: Vec<Account>,
             #[doc = "These exist primarily so that the caller can verify the\nRP context was used appropriately."]
             #[serde(rename = "title")]
@@ -65124,11 +64977,9 @@ pub mod browser_protocol {
             #[serde(rename = "name")]
             pub name: String,
             #[serde(rename = "nestedDirectories")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nested_directories: Vec<String>,
             #[doc = "Files that are directly nested under this directory."]
             #[serde(rename = "nestedFiles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub nested_files: Vec<File>,
         }
         impl Directory {
@@ -65223,7 +65074,6 @@ pub mod browser_protocol {
             pub bucket_name: Option<String>,
             #[doc = "Path to the directory using each path component as an array item."]
             #[serde(rename = "pathComponents")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub path_components: Vec<String>,
         }
         impl BucketFileSystemLocator {
@@ -66136,7 +65986,6 @@ pub mod browser_protocol {
             pub version: f64,
             #[doc = "Object stores in this database."]
             #[serde(rename = "objectStores")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub object_stores: Vec<ObjectStore>,
         }
         impl DatabaseWithObjectStores {
@@ -66219,7 +66068,6 @@ pub mod browser_protocol {
             pub auto_increment: bool,
             #[doc = "Indexes in this object store."]
             #[serde(rename = "indexes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub indexes: Vec<ObjectStoreIndex>,
         }
         impl ObjectStore {
@@ -67304,7 +67152,6 @@ pub mod browser_protocol {
         pub struct RequestDataReturns {
             #[doc = "Array of object store data entries."]
             #[serde(rename = "objectStoreDataEntries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub object_store_data_entries: Vec<DataEntry>,
             #[doc = "If true, there are more entries to fetch in the given range."]
             #[serde(rename = "hasMore")]
@@ -67744,7 +67591,6 @@ pub mod browser_protocol {
         pub struct RequestDatabaseNamesReturns {
             #[doc = "Database names for origin."]
             #[serde(rename = "databaseNames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub database_names: Vec<String>,
         }
         impl RequestDatabaseNamesReturns {
@@ -68100,7 +67946,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct DragData {
             #[serde(rename = "items")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub items: Vec<DragDataItem>,
             #[doc = "List of filenames that should be included when dropping"]
             #[serde(rename = "files")]
@@ -69081,7 +68926,6 @@ pub mod browser_protocol {
             pub r#type: DispatchTouchEventType,
             #[doc = "Active touch points on the touch device. One event per any changed point (compared to\nprevious touch event in a sequence) is generated, emulating pressing/moving/releasing points\none by one."]
             #[serde(rename = "touchPoints")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub touch_points: Vec<TouchPoint>,
             #[doc = "Bit field representing pressed modifier keys. Alt=1, Ctrl=2, Meta/Command=4, Shift=8\n(default: 0)."]
             #[serde(rename = "modifiers")]
@@ -70726,11 +70570,9 @@ pub mod browser_protocol {
         pub struct CompositingReasonsReturns {
             #[doc = "A list of strings specifying reasons for the given layer to become composited."]
             #[serde(rename = "compositingReasons")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub compositing_reasons: Vec<String>,
             #[doc = "A list of strings specifying reason IDs for the given layer to become composited."]
             #[serde(rename = "compositingReasonIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub compositing_reason_ids: Vec<String>,
         }
         impl CompositingReasonsReturns {
@@ -70865,7 +70707,6 @@ pub mod browser_protocol {
         pub struct LoadSnapshotParams {
             #[doc = "An array of tiles composing the snapshot."]
             #[serde(rename = "tiles")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tiles: Vec<PictureTile>,
         }
         impl LoadSnapshotParams {
@@ -71141,7 +70982,6 @@ pub mod browser_protocol {
         pub struct ProfileSnapshotReturns {
             #[doc = "The array of paint profiles, one per run."]
             #[serde(rename = "timings")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub timings: Vec<PaintProfile>,
         }
         impl ProfileSnapshotReturns {
@@ -71430,7 +71270,6 @@ pub mod browser_protocol {
         pub struct SnapshotCommandLogReturns {
             #[doc = "The array of canvas function calls."]
             #[serde(rename = "commandLog")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub command_log: Vec<serde_json::Value>,
         }
         impl SnapshotCommandLogReturns {
@@ -72024,7 +71863,6 @@ pub mod browser_protocol {
         pub struct StartViolationsReportParams {
             #[doc = "Configuration for violations."]
             #[serde(rename = "config")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub config: Vec<ViolationSetting>,
         }
         impl StartViolationsReportParams {
@@ -72429,11 +72267,9 @@ pub mod browser_protocol {
             pub code: i64,
             #[doc = "A trace of where this error was caused / where it passed through."]
             #[serde(rename = "stack")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub stack: Vec<PlayerErrorSourceLocation>,
             #[doc = "Errors potentially have a root cause error, ie, a DecoderError might be\ncaused by an WindowsError"]
             #[serde(rename = "cause")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cause: Vec<PlayerError>,
             #[doc = "Extra data attached to an error, such as an HRESULT, Video Codec, etc."]
             #[serde(rename = "data")]
@@ -72626,7 +72462,6 @@ pub mod browser_protocol {
             #[serde(rename = "playerId")]
             pub player_id: PlayerId,
             #[serde(rename = "properties")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub properties: Vec<PlayerProperty>,
         }
         impl EventPlayerPropertiesChanged {
@@ -72651,7 +72486,6 @@ pub mod browser_protocol {
             #[serde(rename = "playerId")]
             pub player_id: PlayerId,
             #[serde(rename = "events")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub events: Vec<PlayerEvent>,
         }
         impl EventPlayerEventsAdded {
@@ -72676,7 +72510,6 @@ pub mod browser_protocol {
             #[serde(rename = "playerId")]
             pub player_id: PlayerId,
             #[serde(rename = "messages")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub messages: Vec<PlayerMessage>,
         }
         impl EventPlayerMessagesLogged {
@@ -72701,7 +72534,6 @@ pub mod browser_protocol {
             #[serde(rename = "playerId")]
             pub player_id: PlayerId,
             #[serde(rename = "errors")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub errors: Vec<PlayerError>,
         }
         impl EventPlayerErrorsRaised {
@@ -72782,7 +72614,6 @@ pub mod browser_protocol {
             pub total: f64,
             #[doc = "Execution stack at the point of allocation."]
             #[serde(rename = "stack")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub stack: Vec<String>,
         }
         impl SamplingProfileNode {
@@ -72851,10 +72682,8 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct SamplingProfile {
             #[serde(rename = "samples")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub samples: Vec<SamplingProfileNode>,
             #[serde(rename = "modules")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub modules: Vec<Module>,
         }
         impl SamplingProfile {
@@ -73160,7 +72989,6 @@ pub mod browser_protocol {
         pub struct GetDomCountersForLeakDetectionReturns {
             #[doc = "DOM object counters."]
             #[serde(rename = "counters")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub counters: Vec<DomCounter>,
         }
         impl GetDomCountersForLeakDetectionReturns {
@@ -74845,7 +74673,6 @@ pub mod browser_protocol {
             pub subject_name: String,
             #[doc = "Subject Alternative Name (SAN) DNS names and IP addresses."]
             #[serde(rename = "sanList")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub san_list: Vec<String>,
             #[doc = "Name of the issuing CA."]
             #[serde(rename = "issuer")]
@@ -74858,7 +74685,6 @@ pub mod browser_protocol {
             pub valid_to: TimeSinceEpoch,
             #[doc = "List of signed certificate timestamps (SCTs)."]
             #[serde(rename = "signedCertificateTimestampList")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub signed_certificate_timestamp_list: Vec<SignedCertificateTimestamp>,
             #[doc = "Whether the request complied with Certificate Transparency policy"]
             #[serde(rename = "certificateTransparencyCompliance")]
@@ -77191,7 +77017,6 @@ pub mod browser_protocol {
         pub struct BlockedSetCookieWithReason {
             #[doc = "The reason(s) this cookie was blocked."]
             #[serde(rename = "blockedReasons")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub blocked_reasons: Vec<SetCookieBlockedReason>,
             #[doc = "The string representing this individual cookie as it would appear in the header.\nThis is not the entire \"cookie\" or \"set-cookie\" header which could have multiple cookies."]
             #[serde(rename = "cookieLine")]
@@ -77349,7 +77174,6 @@ pub mod browser_protocol {
             pub cookie: Cookie,
             #[doc = "The reason(s) the cookie was blocked. If empty means the cookie is included."]
             #[serde(rename = "blockedReasons")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub blocked_reasons: Vec<CookieBlockedReason>,
             #[doc = "The reason the cookie should have been blocked by 3PCD but is exempted. A cookie could\nonly have at most one exemption reason."]
             #[serde(rename = "exemptionReason")]
@@ -77948,7 +77772,6 @@ pub mod browser_protocol {
             pub response_headers: Headers,
             #[doc = "Signed exchange response signature."]
             #[serde(rename = "signatures")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub signatures: Vec<SignedExchangeSignature>,
             #[doc = "Signed exchange header integrity hash in the form of `sha256-<base64-hash-value>`."]
             #[serde(rename = "headerIntegrity")]
@@ -79029,7 +78852,6 @@ pub mod browser_protocol {
         pub struct AdAncestry {
             #[doc = "A chain of `AdScriptIdentifier`s representing the ancestry of an ad\nscript that led to the creation of a resource or element. The chain is\nordered from the script itself (lowest level) up to its root ancestor\nthat was flagged by a filter list."]
             #[serde(rename = "ancestryChain")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub ancestry_chain: Vec<AdScriptIdentifier>,
             #[doc = "The filter list rule that caused the root (last) script in\n`ancestryChain` to be tagged as an ad."]
             #[serde(rename = "rootScriptFilterlistRule")]
@@ -80141,7 +79963,6 @@ pub mod browser_protocol {
             pub include_site: bool,
             #[doc = "See comments on `net::device_bound_sessions::SessionInclusionRules::url_rules_`."]
             #[serde(rename = "urlRules")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub url_rules: Vec<DeviceBoundSessionUrlRule>,
         }
         impl DeviceBoundSessionInclusionRules {
@@ -80224,7 +80045,6 @@ pub mod browser_protocol {
             pub inclusion_rules: DeviceBoundSessionInclusionRules,
             #[doc = "See comments on `net::device_bound_sessions::Session::cookie_cravings_`."]
             #[serde(rename = "cookieCravings")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookie_cravings: Vec<DeviceBoundSessionCookieCraving>,
             #[doc = "See comments on `net::device_bound_sessions::Session::expiry_date_`."]
             #[serde(rename = "expiryDate")]
@@ -80235,7 +80055,6 @@ pub mod browser_protocol {
             pub cached_challenge: Option<String>,
             #[doc = "See comments on `net::device_bound_sessions::Session::allowed_refresh_initiators_`."]
             #[serde(rename = "allowedRefreshInitiators")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub allowed_refresh_initiators: Vec<String>,
         }
         impl DeviceBoundSession {
@@ -81780,7 +81599,6 @@ pub mod browser_protocol {
             pub emulate_offline_service_worker: Option<bool>,
             #[doc = "Configure conditions for matching requests. If multiple entries match a request, the first entry wins.  Global\nconditions can be configured by leaving the urlPattern for the conditions empty. These global conditions are\nalso applied for throttling of p2p connections."]
             #[serde(rename = "matchedNetworkConditions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub matched_network_conditions: Vec<NetworkConditions>,
         }
         impl EmulateNetworkConditionsByRuleParams {
@@ -81870,7 +81688,6 @@ pub mod browser_protocol {
         pub struct EmulateNetworkConditionsByRuleReturns {
             #[doc = "An id for each entry in matchedNetworkConditions. The id will be included in the requestWillBeSentExtraInfo for\nrequests affected by a rule."]
             #[serde(rename = "ruleIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub rule_ids: Vec<String>,
         }
         impl EmulateNetworkConditionsByRuleReturns {
@@ -82220,7 +82037,6 @@ pub mod browser_protocol {
         pub struct GetAllCookiesReturns {
             #[doc = "Array of cookie objects."]
             #[serde(rename = "cookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookies: Vec<Cookie>,
         }
         impl GetAllCookiesReturns {
@@ -82326,7 +82142,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetCertificateReturns {
             #[serde(rename = "tableNames")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub table_names: Vec<String>,
         }
         impl GetCertificateReturns {
@@ -82430,7 +82245,6 @@ pub mod browser_protocol {
         pub struct GetCookiesReturns {
             #[doc = "Array of cookie objects."]
             #[serde(rename = "cookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookies: Vec<Cookie>,
         }
         impl GetCookiesReturns {
@@ -82830,7 +82644,6 @@ pub mod browser_protocol {
         pub struct SearchInResponseBodyReturns {
             #[doc = "List of search matches."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<super::super::js_protocol::debugger::SearchMatch>,
         }
         impl SearchInResponseBodyReturns {
@@ -83315,7 +83128,6 @@ pub mod browser_protocol {
         pub struct SetCookiesParams {
             #[doc = "Cookies to be set."]
             #[serde(rename = "cookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookies: Vec<CookieParam>,
         }
         impl SetCookiesParams {
@@ -85261,7 +85073,6 @@ pub mod browser_protocol {
             pub request_id: RequestId,
             #[doc = "A list of cookies potentially associated to the requested URL. This includes both cookies sent with\nthe request and the ones not sent; the latter are distinguished by having blockedReasons field set."]
             #[serde(rename = "associatedCookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub associated_cookies: Vec<AssociatedCookie>,
             #[doc = "Raw request headers as they will be sent over the wire."]
             #[serde(rename = "headers")]
@@ -85310,7 +85121,6 @@ pub mod browser_protocol {
             pub request_id: RequestId,
             #[doc = "A list of cookies which were not stored from the response along with the corresponding\nreasons for blocking. The cookies here may not be valid due to syntax errors, which\nare represented by the invalid cookie line string instead of a proper cookie."]
             #[serde(rename = "blockedCookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub blocked_cookies: Vec<BlockedSetCookieWithReason>,
             #[doc = "Raw response headers as they were received over the wire.\nDuplicate headers in the response are represented as a single key with their values\nconcatentated using `\\n` as the separator.\nSee also `headersText` that contains verbatim text for HTTP/1.*."]
             #[serde(rename = "headers")]
@@ -85582,7 +85392,6 @@ pub mod browser_protocol {
             #[serde(rename = "origin")]
             pub origin: String,
             #[serde(rename = "endpoints")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub endpoints: Vec<ReportingApiEndpoint>,
         }
         impl EventReportingApiEndpointsChangedForOrigin {
@@ -85606,7 +85415,6 @@ pub mod browser_protocol {
         pub struct EventDeviceBoundSessionsAdded {
             #[doc = "The device bound sessions."]
             #[serde(rename = "sessions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub sessions: Vec<DeviceBoundSession>,
         }
         impl EventDeviceBoundSessionsAdded {
@@ -87767,7 +87575,6 @@ pub mod browser_protocol {
         pub struct GetGridHighlightObjectsForTestParams {
             #[doc = "Ids of the node to get highlight object for."]
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<super::dom::NodeId>,
         }
         impl GetGridHighlightObjectsForTestParams {
@@ -88776,7 +88583,6 @@ pub mod browser_protocol {
         pub struct SetShowGridOverlaysParams {
             #[doc = "An array of node identifiers and descriptors for the highlight appearance."]
             #[serde(rename = "gridNodeHighlightConfigs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub grid_node_highlight_configs: Vec<GridNodeHighlightConfig>,
         }
         impl SetShowGridOverlaysParams {
@@ -88857,7 +88663,6 @@ pub mod browser_protocol {
         pub struct SetShowFlexOverlaysParams {
             #[doc = "An array of node identifiers and descriptors for the highlight appearance."]
             #[serde(rename = "flexNodeHighlightConfigs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub flex_node_highlight_configs: Vec<FlexNodeHighlightConfig>,
         }
         impl SetShowFlexOverlaysParams {
@@ -88937,7 +88742,6 @@ pub mod browser_protocol {
         pub struct SetShowScrollSnapOverlaysParams {
             #[doc = "An array of node identifiers and descriptors for the highlight appearance."]
             #[serde(rename = "scrollSnapHighlightConfigs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub scroll_snap_highlight_configs: Vec<ScrollSnapHighlightConfig>,
         }
         impl SetShowScrollSnapOverlaysParams {
@@ -89017,7 +88821,6 @@ pub mod browser_protocol {
         pub struct SetShowContainerQueryOverlaysParams {
             #[doc = "An array of node identifiers and descriptors for the highlight appearance."]
             #[serde(rename = "containerQueryHighlightConfigs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub container_query_highlight_configs: Vec<ContainerQueryHighlightConfig>,
         }
         impl SetShowContainerQueryOverlaysParams {
@@ -89614,7 +89417,6 @@ pub mod browser_protocol {
         pub struct SetShowIsolatedElementsParams {
             #[doc = "An array of node identifiers and descriptors for the highlight appearance."]
             #[serde(rename = "isolatedElementHighlightConfigs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub isolated_element_highlight_configs: Vec<IsolatedElementHighlightConfig>,
         }
         impl SetShowIsolatedElementsParams {
@@ -89894,7 +89696,6 @@ pub mod browser_protocol {
             #[serde(rename = "mediaType")]
             pub media_type: String,
             #[serde(rename = "fileExtensions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub file_extensions: Vec<String>,
         }
         impl FileHandlerAccept {
@@ -89955,7 +89756,6 @@ pub mod browser_protocol {
             #[serde(rename = "action")]
             pub action: String,
             #[serde(rename = "accepts")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub accepts: Vec<FileHandlerAccept>,
             #[serde(rename = "displayName")]
             pub display_name: String,
@@ -90115,7 +89915,6 @@ pub mod browser_protocol {
             #[serde(rename = "badgeCount")]
             pub badge_count: i64,
             #[serde(rename = "fileHandlers")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub file_handlers: Vec<FileHandler>,
         }
         impl GetOsAppStateReturns {
@@ -90420,7 +90219,6 @@ pub mod browser_protocol {
             #[serde(rename = "manifestId")]
             pub manifest_id: String,
             #[serde(rename = "files")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub files: Vec<String>,
         }
         impl LaunchFilesInAppParams {
@@ -90494,7 +90292,6 @@ pub mod browser_protocol {
         pub struct LaunchFilesInAppReturns {
             #[doc = "IDs of the tab targets created as the result."]
             #[serde(rename = "targetIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub target_ids: Vec<super::target::TargetId>,
         }
         impl LaunchFilesInAppReturns {
@@ -92011,7 +91808,6 @@ pub mod browser_protocol {
             #[serde(deserialize_with = "super::super::de::deserialize_from_str")]
             pub status: OriginTrialStatus,
             #[serde(rename = "tokensWithStatus")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tokens_with_status: Vec<OriginTrialTokenWithStatus>,
         }
         impl OriginTrial {
@@ -92180,7 +91976,6 @@ pub mod browser_protocol {
             pub cross_origin_isolated_context_type: CrossOriginIsolatedContextType,
             #[doc = "Indicated which gated APIs / features are available."]
             #[serde(rename = "gatedAPIFeatures")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub gated_api_features: Vec<GatedApiFeatures>,
         }
         impl Frame {
@@ -92474,7 +92269,6 @@ pub mod browser_protocol {
             pub child_frames: Option<Vec<FrameResourceTree>>,
             #[doc = "Information about frame resources."]
             #[serde(rename = "resources")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub resources: Vec<FrameResource>,
         }
         impl FrameResourceTree {
@@ -93680,7 +93474,6 @@ pub mod browser_protocol {
             pub error_id: String,
             #[doc = "The list of error arguments (e.g. {name:'minimum-icon-size-in-pixels', value:'64'})."]
             #[serde(rename = "errorArguments")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub error_arguments: Vec<InstallabilityErrorArgument>,
         }
         impl InstallabilityError {
@@ -95443,11 +95236,9 @@ pub mod browser_protocol {
             pub url: String,
             #[doc = "Not restored reasons of each frame"]
             #[serde(rename = "explanations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub explanations: Vec<BackForwardCacheNotRestoredExplanation>,
             #[doc = "Array of children frame"]
             #[serde(rename = "children")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub children: Vec<BackForwardCacheNotRestoredExplanationTree>,
         }
         impl BackForwardCacheNotRestoredExplanationTree {
@@ -96475,7 +96266,6 @@ pub mod browser_protocol {
             #[serde(rename = "url")]
             pub url: String,
             #[serde(rename = "errors")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub errors: Vec<AppManifestError>,
             #[doc = "Manifest content."]
             #[serde(rename = "data")]
@@ -96590,7 +96380,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetInstallabilityErrorsReturns {
             #[serde(rename = "installabilityErrors")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub installability_errors: Vec<InstallabilityError>,
         }
         impl GetInstallabilityErrorsReturns {
@@ -96799,7 +96588,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetSubAppsReturns {
             #[serde(rename = "subApps")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub sub_apps: Vec<SubApp>,
         }
         impl GetSubAppsReturns {
@@ -96867,7 +96655,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetSiblingSubAppsReturns {
             #[serde(rename = "subApps")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub sub_apps: Vec<SubApp>,
         }
         impl GetSiblingSubAppsReturns {
@@ -97050,7 +96837,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetSpellCheckCustomDictionaryReturns {
             #[serde(rename = "words")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub words: Vec<String>,
         }
         impl GetSpellCheckCustomDictionaryReturns {
@@ -97307,7 +97093,6 @@ pub mod browser_protocol {
             pub current_index: i64,
             #[doc = "Array of navigation history entries."]
             #[serde(rename = "entries")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub entries: Vec<NavigationEntry>,
         }
         impl GetNavigationHistoryReturns {
@@ -98520,7 +98305,6 @@ pub mod browser_protocol {
         pub struct SearchInResourceReturns {
             #[doc = "List of search matches."]
             #[serde(rename = "result")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub result: Vec<super::super::js_protocol::debugger::SearchMatch>,
         }
         impl SearchInResourceReturns {
@@ -98739,7 +98523,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetPermissionsPolicyStateReturns {
             #[serde(rename = "states")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub states: Vec<PermissionsPolicyFeatureState>,
         }
         impl GetPermissionsPolicyStateReturns {
@@ -98839,7 +98622,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetOriginTrialsReturns {
             #[serde(rename = "originTrials")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub origin_trials: Vec<OriginTrial>,
         }
         impl GetOriginTrialsReturns {
@@ -100243,7 +100025,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct ProduceCompilationCacheParams {
             #[serde(rename = "scripts")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub scripts: Vec<CompilationCacheParams>,
         }
         impl ProduceCompilationCacheParams {
@@ -101699,7 +101480,6 @@ pub mod browser_protocol {
             pub frame_id: FrameId,
             #[doc = "Array of reasons why the page could not be cached. This must not be empty."]
             #[serde(rename = "notRestoredExplanations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub not_restored_explanations: Vec<BackForwardCacheNotRestoredExplanation>,
             #[doc = "Tree structure of reasons why the page could not be cached for each frame."]
             #[serde(rename = "notRestoredExplanationsTree")]
@@ -101871,7 +101651,6 @@ pub mod browser_protocol {
             pub window_name: String,
             #[doc = "An array of enabled window features."]
             #[serde(rename = "windowFeatures")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub window_features: Vec<String>,
             #[doc = "Whether or not it was triggered by user gesture."]
             #[serde(rename = "userGesture")]
@@ -102195,7 +101974,6 @@ pub mod browser_protocol {
         pub struct GetMetricsReturns {
             #[doc = "Current values for run-time metrics."]
             #[serde(rename = "metrics")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub metrics: Vec<Metric>,
         }
         impl GetMetricsReturns {
@@ -102245,7 +102023,6 @@ pub mod browser_protocol {
         pub struct EventMetrics {
             #[doc = "Current values of the metrics."]
             #[serde(rename = "metrics")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub metrics: Vec<Metric>,
             #[doc = "Timestamp title."]
             #[serde(rename = "title")]
@@ -102446,7 +102223,6 @@ pub mod browser_protocol {
             #[serde(rename = "lastInputTime")]
             pub last_input_time: super::network::TimeSinceEpoch,
             #[serde(rename = "sources")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub sources: Vec<LayoutShiftAttribution>,
         }
         impl LayoutShift {
@@ -102649,7 +102425,6 @@ pub mod browser_protocol {
         pub struct EnableParams {
             #[doc = "The types of event to report, as specified in\nhttps://w3c.github.io/performance-timeline/#dom-performanceentry-entrytype\nThe specified filter overrides any previous filters, passing empty\nfilter disables recording.\nNote that not all types exposed to the web platform are currently supported."]
             #[serde(rename = "eventTypes")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub event_types: Vec<String>,
         }
         impl EnableParams {
@@ -103094,10 +102869,8 @@ pub mod browser_protocol {
             #[serde(rename = "key")]
             pub key: PreloadingAttemptKey,
             #[serde(rename = "ruleSetIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub rule_set_ids: Vec<RuleSetId>,
             #[serde(rename = "nodeIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub node_ids: Vec<super::dom::BackendNodeId>,
         }
         impl PreloadingAttemptSource {
@@ -103998,7 +103771,6 @@ pub mod browser_protocol {
             #[serde(rename = "loaderId")]
             pub loader_id: super::network::LoaderId,
             #[serde(rename = "preloadingAttemptSources")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub preloading_attempt_sources: Vec<PreloadingAttemptSource>,
         }
         impl EventPreloadingAttemptSourcesUpdated {
@@ -104130,7 +103902,6 @@ pub mod browser_protocol {
             pub mac: Option<String>,
             #[doc = "Page certificate."]
             #[serde(rename = "certificate")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub certificate: Vec<String>,
             #[doc = "Certificate subject name."]
             #[serde(rename = "subjectName")]
@@ -104477,7 +104248,6 @@ pub mod browser_protocol {
             pub safety_tip_info: Option<SafetyTipInfo>,
             #[doc = "Array of security state issues ids."]
             #[serde(rename = "securityStateIssueIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub security_state_issue_ids: Vec<String>,
         }
         impl VisibleSecurityState {
@@ -104581,7 +104351,6 @@ pub mod browser_protocol {
             pub mixed_content_type: MixedContentType,
             #[doc = "Page certificate."]
             #[serde(rename = "certificate")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub certificate: Vec<String>,
             #[doc = "Recommendations to fix any issues."]
             #[serde(rename = "recommendations")]
@@ -105172,7 +104941,6 @@ pub mod browser_protocol {
             #[doc = "Previously a list of explanations for the security state. Now always\nempty."]
             #[deprecated]
             #[serde(rename = "explanations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub explanations: Vec<SecurityStateExplanation>,
             #[doc = "Information about insecure content on the page."]
             #[deprecated]
@@ -106644,7 +106412,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct EventWorkerRegistrationUpdated {
             #[serde(rename = "registrations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub registrations: Vec<ServiceWorkerRegistration>,
         }
         impl EventWorkerRegistrationUpdated {
@@ -106666,7 +106433,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct EventWorkerVersionUpdated {
             #[serde(rename = "versions")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub versions: Vec<ServiceWorkerVersion>,
         }
         impl EventWorkerVersionUpdated {
@@ -107476,7 +107242,6 @@ pub mod browser_protocol {
             #[serde(rename = "requestId")]
             pub request_id: String,
             #[serde(rename = "readers")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub readers: Vec<String>,
         }
         impl ReportListReadersResultParams {
@@ -107557,7 +107322,6 @@ pub mod browser_protocol {
             #[serde(rename = "requestId")]
             pub request_id: String,
             #[serde(rename = "readerStates")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub reader_states: Vec<ReaderStateOut>,
         }
         impl ReportGetStatusChangeResultParams {
@@ -108168,7 +107932,6 @@ pub mod browser_protocol {
             #[serde(rename = "contextId")]
             pub context_id: i64,
             #[serde(rename = "readerStates")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub reader_states: Vec<ReaderStateIn>,
             #[doc = "in milliseconds, if absent, it means \"infinite\""]
             #[serde(rename = "timeout")]
@@ -108767,7 +108530,6 @@ pub mod browser_protocol {
             pub issuer_origin: String,
             #[doc = "Origins authorized to redeem tokens from this issuer."]
             #[serde(rename = "redeemerOrigins")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub redeemer_origins: Vec<String>,
         }
         impl PrivateVerificationTokensIssuerConfig {
@@ -109347,7 +109109,6 @@ pub mod browser_protocol {
         pub struct GetCookiesReturns {
             #[doc = "Array of cookie objects."]
             #[serde(rename = "cookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookies: Vec<super::network::Cookie>,
         }
         impl GetCookiesReturns {
@@ -109397,7 +109158,6 @@ pub mod browser_protocol {
         pub struct SetCookiesParams {
             #[doc = "Cookies to be set."]
             #[serde(rename = "cookies")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub cookies: Vec<super::network::CookieParam>,
             #[doc = "Browser context to use when called on the browser endpoint."]
             #[serde(rename = "browserContextId")]
@@ -109601,7 +109361,6 @@ pub mod browser_protocol {
             pub override_active: bool,
             #[doc = "Storage usage per type (bytes)."]
             #[serde(rename = "usageBreakdown")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub usage_breakdown: Vec<UsageForType>,
         }
         impl GetUsageAndQuotaReturns {
@@ -110281,7 +110040,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetTrustTokensReturns {
             #[serde(rename = "tokens")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tokens: Vec<TrustTokens>,
         }
         impl GetTrustTokensReturns {
@@ -110447,7 +110205,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetPrivateVerificationTokensReturns {
             #[serde(rename = "tokens")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tokens: Vec<PrivateVerificationToken>,
         }
         impl GetPrivateVerificationTokensReturns {
@@ -110516,7 +110273,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetPrivateVerificationTokensIssuerConfigsReturns {
             #[serde(rename = "configs")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub configs: Vec<PrivateVerificationTokensIssuerConfig>,
         }
         impl GetPrivateVerificationTokensIssuerConfigsReturns {
@@ -110893,7 +110649,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct RunBounceTrackingMitigationsReturns {
             #[serde(rename = "deletedSites")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub deleted_sites: Vec<String>,
         }
         impl RunBounceTrackingMitigationsReturns {
@@ -111509,7 +111264,6 @@ pub mod browser_protocol {
         pub struct GpuInfo {
             #[doc = "The graphics devices on the system. Element 0 is the primary GPU."]
             #[serde(rename = "devices")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub devices: Vec<GpuDevice>,
             #[doc = "An optional dictionary of additional GPU related attributes."]
             #[serde(rename = "auxAttributes")]
@@ -111521,15 +111275,12 @@ pub mod browser_protocol {
             pub feature_status: Option<serde_json::Value>,
             #[doc = "An optional array of GPU driver bug workarounds."]
             #[serde(rename = "driverBugWorkarounds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub driver_bug_workarounds: Vec<String>,
             #[doc = "Supported accelerated video decoding capabilities."]
             #[serde(rename = "videoDecoding")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub video_decoding: Vec<VideoDecodeAcceleratorCapability>,
             #[doc = "Supported accelerated video encoding capabilities."]
             #[serde(rename = "videoEncoding")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub video_encoding: Vec<VideoEncodeAcceleratorCapability>,
         }
         impl GpuInfo {
@@ -111954,7 +111705,6 @@ pub mod browser_protocol {
         pub struct GetProcessInfoReturns {
             #[doc = "An array of process info blocks."]
             #[serde(rename = "processInfo")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub process_info: Vec<ProcessInfo>,
         }
         impl GetProcessInfoReturns {
@@ -112923,7 +112673,6 @@ pub mod browser_protocol {
         pub struct GetBrowserContextsReturns {
             #[doc = "An array of browser context ids."]
             #[serde(rename = "browserContextIds")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub browser_context_ids: Vec<super::browser::BrowserContextId>,
             #[doc = "The id of the default browser context if available."]
             #[serde(rename = "defaultBrowserContextId")]
@@ -113480,7 +113229,6 @@ pub mod browser_protocol {
         pub struct GetTargetsReturns {
             #[doc = "The list of targets."]
             #[serde(rename = "targetInfos")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub target_infos: Vec<TargetInfo>,
         }
         impl GetTargetsReturns {
@@ -113879,7 +113627,6 @@ pub mod browser_protocol {
         pub struct SetRemoteLocationsParams {
             #[doc = "List of remote locations."]
             #[serde(rename = "locations")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub locations: Vec<RemoteLocation>,
         }
         impl SetRemoteLocationsParams {
@@ -114826,7 +114573,6 @@ pub mod browser_protocol {
         pub struct GetCategoriesReturns {
             #[doc = "A list of supported tracing categories."]
             #[serde(rename = "categories")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub categories: Vec<String>,
         }
         impl GetCategoriesReturns {
@@ -115334,7 +115080,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct EventDataCollected {
             #[serde(rename = "value")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub value: Vec<serde_json::Value>,
         }
         impl EventDataCollected {
@@ -117740,7 +117485,6 @@ pub mod browser_protocol {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct GetCredentialsReturns {
             #[serde(rename = "credentials")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub credentials: Vec<Credential>,
         }
         impl GetCredentialsReturns {
@@ -118914,7 +118658,6 @@ pub mod browser_protocol {
         pub struct EventToolsAdded {
             #[doc = "Array of tools that were added."]
             #[serde(rename = "tools")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tools: Vec<Tool>,
         }
         impl EventToolsAdded {
@@ -118938,7 +118681,6 @@ pub mod browser_protocol {
         pub struct EventToolsRemoved {
             #[doc = "Array of tools that were removed."]
             #[serde(rename = "tools")]
-            #[serde(skip_serializing_if = "Vec::is_empty")]
             pub tools: Vec<RemovedTool>,
         }
         impl EventToolsRemoved {
@@ -119032,6 +118774,8710 @@ pub mod browser_protocol {
             {
                 Self::IDENTIFIER.into()
             }
+        }
+    }
+}
+#[doc = r" Typed clients for every protocol domain."]
+#[doc = r""]
+#[doc = r" [`Protocol`] wraps anything that implements"]
+#[doc = r" [`chromiumoxide_types::CommandExecutor`] (a page or a browser) and"]
+#[doc = r" hands out one client per domain: `protocol.performance().get_metrics(..)`"]
+#[doc = r" sends `Performance.getMetrics`, `protocol.network().on_request_will_be_sent()`"]
+#[doc = r" streams `Network.requestWillBeSent`."]
+#[allow(clippy::too_many_arguments)]
+pub mod domains {
+    use chromiumoxide_types::CommandExecutor;
+    #[doc = r" `(protocol name, accessor)` of every domain with a client."]
+    pub const DOMAINS: &[(&str, &str)] = &[
+        ("Debugger", "debugger"),
+        ("HeapProfiler", "heap_profiler"),
+        ("Profiler", "profiler"),
+        ("Runtime", "runtime"),
+        ("Accessibility", "accessibility"),
+        ("Ads", "ads"),
+        ("Animation", "animation"),
+        ("Audits", "audits"),
+        ("Autofill", "autofill"),
+        ("BackgroundService", "background_service"),
+        ("BluetoothEmulation", "bluetooth_emulation"),
+        ("Browser", "browser"),
+        ("CSS", "css"),
+        ("CacheStorage", "cache_storage"),
+        ("Cast", "cast"),
+        ("CrashReportContext", "crash_report_context"),
+        ("DOM", "dom"),
+        ("DOMDebugger", "dom_debugger"),
+        ("DOMSnapshot", "dom_snapshot"),
+        ("DOMStorage", "dom_storage"),
+        ("DeviceAccess", "device_access"),
+        ("DeviceOrientation", "device_orientation"),
+        ("DigitalCredentials", "digital_credentials"),
+        ("Emulation", "emulation"),
+        ("EventBreakpoints", "event_breakpoints"),
+        ("Extensions", "extensions"),
+        ("FedCm", "fed_cm"),
+        ("Fetch", "fetch"),
+        ("FileSystem", "file_system"),
+        ("FindInPage", "find_in_page"),
+        ("HeadlessExperimental", "headless_experimental"),
+        ("IO", "io"),
+        ("IndexedDB", "indexed_db"),
+        ("Input", "input"),
+        ("Inspector", "inspector"),
+        ("LayerTree", "layer_tree"),
+        ("Log", "log"),
+        ("Media", "media"),
+        ("Memory", "memory"),
+        ("Network", "network"),
+        ("Overlay", "overlay"),
+        ("PWA", "pwa"),
+        ("Page", "page"),
+        ("Performance", "performance"),
+        ("PerformanceTimeline", "performance_timeline"),
+        ("Preload", "preload"),
+        ("Security", "security"),
+        ("ServiceWorker", "service_worker"),
+        ("SmartCardEmulation", "smart_card_emulation"),
+        ("Storage", "storage"),
+        ("SystemInfo", "system_info"),
+        ("Target", "target"),
+        ("Tethering", "tethering"),
+        ("Tracing", "tracing"),
+        ("WebAudio", "web_audio"),
+        ("WebAuthn", "web_authn"),
+        ("WebMCP", "web_mcp"),
+    ];
+    #[doc = r" `(Domain.method, client method)` of every command and event with a client method."]
+    pub const COVERED: &[(&str, &str)] = &[
+        ("Debugger.continueToLocation", "continue_to_location"),
+        ("Debugger.disable", "disable"),
+        ("Debugger.enable", "enable"),
+        ("Debugger.evaluateOnCallFrame", "evaluate_on_call_frame"),
+        (
+            "Debugger.getPossibleBreakpoints",
+            "get_possible_breakpoints",
+        ),
+        ("Debugger.getScopeChain", "get_scope_chain"),
+        ("Debugger.getScriptSource", "get_script_source"),
+        ("Debugger.disassembleWasmModule", "disassemble_wasm_module"),
+        (
+            "Debugger.nextWasmDisassemblyChunk",
+            "next_wasm_disassembly_chunk",
+        ),
+        ("Debugger.getStackTrace", "get_stack_trace"),
+        ("Debugger.pause", "pause"),
+        ("Debugger.removeBreakpoint", "remove_breakpoint"),
+        ("Debugger.restartFrame", "restart_frame"),
+        ("Debugger.resume", "resume"),
+        ("Debugger.searchInContent", "search_in_content"),
+        (
+            "Debugger.setAsyncCallStackDepth",
+            "set_async_call_stack_depth",
+        ),
+        (
+            "Debugger.setBlackboxExecutionContexts",
+            "set_blackbox_execution_contexts",
+        ),
+        ("Debugger.setBlackboxPatterns", "set_blackbox_patterns"),
+        ("Debugger.setBlackboxedRanges", "set_blackboxed_ranges"),
+        ("Debugger.setBreakpoint", "set_breakpoint"),
+        (
+            "Debugger.setInstrumentationBreakpoint",
+            "set_instrumentation_breakpoint",
+        ),
+        ("Debugger.setBreakpointByUrl", "set_breakpoint_by_url"),
+        (
+            "Debugger.setBreakpointOnFunctionCall",
+            "set_breakpoint_on_function_call",
+        ),
+        ("Debugger.setBreakpointsActive", "set_breakpoints_active"),
+        ("Debugger.setPauseOnExceptions", "set_pause_on_exceptions"),
+        ("Debugger.setReturnValue", "set_return_value"),
+        ("Debugger.setSkipAllPauses", "set_skip_all_pauses"),
+        ("Debugger.setVariableValue", "set_variable_value"),
+        ("Debugger.stepInto", "step_into"),
+        ("Debugger.stepOut", "step_out"),
+        ("Debugger.stepOver", "step_over"),
+        ("Debugger.paused", "on_paused"),
+        ("Debugger.resumed", "on_resumed"),
+        ("Debugger.scriptFailedToParse", "on_script_failed_to_parse"),
+        ("Debugger.scriptParsed", "on_script_parsed"),
+        (
+            "HeapProfiler.addInspectedHeapObject",
+            "add_inspected_heap_object",
+        ),
+        ("HeapProfiler.collectGarbage", "collect_garbage"),
+        ("HeapProfiler.disable", "disable"),
+        ("HeapProfiler.enable", "enable"),
+        ("HeapProfiler.getHeapObjectId", "get_heap_object_id"),
+        (
+            "HeapProfiler.getObjectByHeapObjectId",
+            "get_object_by_heap_object_id",
+        ),
+        ("HeapProfiler.getSamplingProfile", "get_sampling_profile"),
+        ("HeapProfiler.startSampling", "start_sampling"),
+        (
+            "HeapProfiler.startTrackingHeapObjects",
+            "start_tracking_heap_objects",
+        ),
+        ("HeapProfiler.stopSampling", "stop_sampling"),
+        (
+            "HeapProfiler.stopTrackingHeapObjects",
+            "stop_tracking_heap_objects",
+        ),
+        ("HeapProfiler.takeHeapSnapshot", "take_heap_snapshot"),
+        (
+            "HeapProfiler.addHeapSnapshotChunk",
+            "on_add_heap_snapshot_chunk",
+        ),
+        ("HeapProfiler.heapStatsUpdate", "on_heap_stats_update"),
+        ("HeapProfiler.lastSeenObjectId", "on_last_seen_object_id"),
+        (
+            "HeapProfiler.reportHeapSnapshotProgress",
+            "on_report_heap_snapshot_progress",
+        ),
+        ("HeapProfiler.resetProfiles", "on_reset_profiles"),
+        ("Profiler.disable", "disable"),
+        ("Profiler.enable", "enable"),
+        ("Profiler.getBestEffortCoverage", "get_best_effort_coverage"),
+        ("Profiler.setSamplingInterval", "set_sampling_interval"),
+        ("Profiler.start", "start"),
+        ("Profiler.startPreciseCoverage", "start_precise_coverage"),
+        ("Profiler.stop", "stop"),
+        ("Profiler.stopPreciseCoverage", "stop_precise_coverage"),
+        ("Profiler.takePreciseCoverage", "take_precise_coverage"),
+        (
+            "Profiler.consoleProfileFinished",
+            "on_console_profile_finished",
+        ),
+        (
+            "Profiler.consoleProfileStarted",
+            "on_console_profile_started",
+        ),
+        (
+            "Profiler.preciseCoverageDeltaUpdate",
+            "on_precise_coverage_delta_update",
+        ),
+        ("Runtime.awaitPromise", "await_promise"),
+        ("Runtime.callFunctionOn", "call_function_on"),
+        ("Runtime.compileScript", "compile_script"),
+        ("Runtime.disable", "disable"),
+        ("Runtime.discardConsoleEntries", "discard_console_entries"),
+        ("Runtime.enable", "enable"),
+        ("Runtime.evaluate", "evaluate"),
+        ("Runtime.getIsolateId", "get_isolate_id"),
+        ("Runtime.getHeapUsage", "get_heap_usage"),
+        ("Runtime.getProperties", "get_properties"),
+        (
+            "Runtime.globalLexicalScopeNames",
+            "global_lexical_scope_names",
+        ),
+        ("Runtime.queryObjects", "query_objects"),
+        ("Runtime.releaseObject", "release_object"),
+        ("Runtime.releaseObjectGroup", "release_object_group"),
+        (
+            "Runtime.runIfWaitingForDebugger",
+            "run_if_waiting_for_debugger",
+        ),
+        ("Runtime.runScript", "run_script"),
+        (
+            "Runtime.setAsyncCallStackDepth",
+            "set_async_call_stack_depth",
+        ),
+        (
+            "Runtime.setCustomObjectFormatterEnabled",
+            "set_custom_object_formatter_enabled",
+        ),
+        (
+            "Runtime.setMaxCallStackSizeToCapture",
+            "set_max_call_stack_size_to_capture",
+        ),
+        ("Runtime.terminateExecution", "terminate_execution"),
+        ("Runtime.addBinding", "add_binding"),
+        ("Runtime.removeBinding", "remove_binding"),
+        ("Runtime.getExceptionDetails", "get_exception_details"),
+        ("Runtime.bindingCalled", "on_binding_called"),
+        ("Runtime.consoleAPICalled", "on_console_api_called"),
+        ("Runtime.exceptionRevoked", "on_exception_revoked"),
+        ("Runtime.exceptionThrown", "on_exception_thrown"),
+        (
+            "Runtime.executionContextCreated",
+            "on_execution_context_created",
+        ),
+        (
+            "Runtime.executionContextDestroyed",
+            "on_execution_context_destroyed",
+        ),
+        (
+            "Runtime.executionContextsCleared",
+            "on_execution_contexts_cleared",
+        ),
+        ("Runtime.inspectRequested", "on_inspect_requested"),
+        ("Accessibility.disable", "disable"),
+        ("Accessibility.enable", "enable"),
+        ("Accessibility.getPartialAXTree", "get_partial_ax_tree"),
+        ("Accessibility.getFullAXTree", "get_full_ax_tree"),
+        ("Accessibility.getRootAXNode", "get_root_ax_node"),
+        (
+            "Accessibility.getAXNodeAndAncestors",
+            "get_ax_node_and_ancestors",
+        ),
+        ("Accessibility.getChildAXNodes", "get_child_ax_nodes"),
+        ("Accessibility.queryAXTree", "query_ax_tree"),
+        ("Accessibility.loadComplete", "on_load_complete"),
+        ("Accessibility.nodesUpdated", "on_nodes_updated"),
+        ("Ads.getAdMetrics", "get_ad_metrics"),
+        ("Ads.getAdScripts", "get_ad_scripts"),
+        ("Animation.disable", "disable"),
+        ("Animation.enable", "enable"),
+        ("Animation.getCurrentTime", "get_current_time"),
+        ("Animation.getPlaybackRate", "get_playback_rate"),
+        ("Animation.releaseAnimations", "release_animations"),
+        ("Animation.resolveAnimation", "resolve_animation"),
+        ("Animation.seekAnimations", "seek_animations"),
+        ("Animation.setPaused", "set_paused"),
+        ("Animation.setPlaybackRate", "set_playback_rate"),
+        ("Animation.setTiming", "set_timing"),
+        ("Animation.animationCanceled", "on_animation_canceled"),
+        ("Animation.animationCreated", "on_animation_created"),
+        ("Animation.animationStarted", "on_animation_started"),
+        ("Animation.animationUpdated", "on_animation_updated"),
+        ("Audits.getEncodedResponse", "get_encoded_response"),
+        ("Audits.disable", "disable"),
+        ("Audits.enable", "enable"),
+        ("Audits.checkFormsIssues", "check_forms_issues"),
+        ("Audits.issueAdded", "on_issue_added"),
+        ("Autofill.trigger", "trigger"),
+        ("Autofill.setAddresses", "set_addresses"),
+        ("Autofill.disable", "disable"),
+        ("Autofill.enable", "enable"),
+        ("Autofill.addressFormFilled", "on_address_form_filled"),
+        ("BackgroundService.startObserving", "start_observing"),
+        ("BackgroundService.stopObserving", "stop_observing"),
+        ("BackgroundService.setRecording", "set_recording"),
+        ("BackgroundService.clearEvents", "clear_events"),
+        (
+            "BackgroundService.recordingStateChanged",
+            "on_recording_state_changed",
+        ),
+        (
+            "BackgroundService.backgroundServiceEventReceived",
+            "on_background_service_event_received",
+        ),
+        ("BluetoothEmulation.enable", "enable"),
+        (
+            "BluetoothEmulation.setSimulatedCentralState",
+            "set_simulated_central_state",
+        ),
+        ("BluetoothEmulation.disable", "disable"),
+        (
+            "BluetoothEmulation.simulatePreconnectedPeripheral",
+            "simulate_preconnected_peripheral",
+        ),
+        (
+            "BluetoothEmulation.simulateAdvertisement",
+            "simulate_advertisement",
+        ),
+        (
+            "BluetoothEmulation.simulateGATTOperationResponse",
+            "simulate_gatt_operation_response",
+        ),
+        (
+            "BluetoothEmulation.simulateCharacteristicOperationResponse",
+            "simulate_characteristic_operation_response",
+        ),
+        (
+            "BluetoothEmulation.simulateDescriptorOperationResponse",
+            "simulate_descriptor_operation_response",
+        ),
+        ("BluetoothEmulation.addService", "add_service"),
+        ("BluetoothEmulation.removeService", "remove_service"),
+        ("BluetoothEmulation.addCharacteristic", "add_characteristic"),
+        (
+            "BluetoothEmulation.removeCharacteristic",
+            "remove_characteristic",
+        ),
+        ("BluetoothEmulation.addDescriptor", "add_descriptor"),
+        ("BluetoothEmulation.removeDescriptor", "remove_descriptor"),
+        (
+            "BluetoothEmulation.simulateGATTDisconnection",
+            "simulate_gatt_disconnection",
+        ),
+        (
+            "BluetoothEmulation.simulateGATTMtuChange",
+            "simulate_gatt_mtu_change",
+        ),
+        (
+            "BluetoothEmulation.gattOperationReceived",
+            "on_gatt_operation_received",
+        ),
+        (
+            "BluetoothEmulation.characteristicOperationReceived",
+            "on_characteristic_operation_received",
+        ),
+        (
+            "BluetoothEmulation.descriptorOperationReceived",
+            "on_descriptor_operation_received",
+        ),
+        ("Browser.setPermission", "set_permission"),
+        ("Browser.resetPermissions", "reset_permissions"),
+        ("Browser.setDownloadBehavior", "set_download_behavior"),
+        ("Browser.cancelDownload", "cancel_download"),
+        ("Browser.close", "close"),
+        ("Browser.crash", "crash"),
+        ("Browser.crashGpuProcess", "crash_gpu_process"),
+        ("Browser.getVersion", "get_version"),
+        ("Browser.getBrowserCommandLine", "get_browser_command_line"),
+        ("Browser.addMockCamera", "add_mock_camera"),
+        ("Browser.getHistograms", "get_histograms"),
+        ("Browser.getHistogram", "get_histogram"),
+        ("Browser.getWindowBounds", "get_window_bounds"),
+        ("Browser.getWindowForTarget", "get_window_for_target"),
+        ("Browser.setWindowBounds", "set_window_bounds"),
+        ("Browser.setContentsSize", "set_contents_size"),
+        ("Browser.setDockTile", "set_dock_tile"),
+        ("Browser.executeBrowserCommand", "execute_browser_command"),
+        (
+            "Browser.getGlobalPrivacyControl",
+            "get_global_privacy_control",
+        ),
+        (
+            "Browser.setGlobalPrivacyControl",
+            "set_global_privacy_control",
+        ),
+        ("Browser.downloadWillBegin", "on_download_will_begin"),
+        ("Browser.downloadProgress", "on_download_progress"),
+        ("CSS.addRule", "add_rule"),
+        ("CSS.collectClassNames", "collect_class_names"),
+        ("CSS.createStyleSheet", "create_style_sheet"),
+        ("CSS.disable", "disable"),
+        ("CSS.enable", "enable"),
+        ("CSS.forcePseudoState", "force_pseudo_state"),
+        ("CSS.forceStartingStyle", "force_starting_style"),
+        ("CSS.forcePositionTryOption", "force_position_try_option"),
+        ("CSS.getBackgroundColors", "get_background_colors"),
+        ("CSS.getComputedStyleForNode", "get_computed_style_for_node"),
+        ("CSS.resolveValues", "resolve_values"),
+        ("CSS.getLonghandProperties", "get_longhand_properties"),
+        ("CSS.getInlineStylesForNode", "get_inline_styles_for_node"),
+        (
+            "CSS.getAnimatedStylesForNode",
+            "get_animated_styles_for_node",
+        ),
+        ("CSS.getMatchedStylesForNode", "get_matched_styles_for_node"),
+        ("CSS.getEnvironmentVariables", "get_environment_variables"),
+        ("CSS.getMediaQueries", "get_media_queries"),
+        ("CSS.getPlatformFontsForNode", "get_platform_fonts_for_node"),
+        ("CSS.getStyleSheetText", "get_style_sheet_text"),
+        ("CSS.getLayersForNode", "get_layers_for_node"),
+        ("CSS.getLocationForSelector", "get_location_for_selector"),
+        (
+            "CSS.trackComputedStyleUpdatesForNode",
+            "track_computed_style_updates_for_node",
+        ),
+        (
+            "CSS.trackComputedStyleUpdates",
+            "track_computed_style_updates",
+        ),
+        (
+            "CSS.takeComputedStyleUpdates",
+            "take_computed_style_updates",
+        ),
+        (
+            "CSS.setEffectivePropertyValueForNode",
+            "set_effective_property_value_for_node",
+        ),
+        (
+            "CSS.setPropertyRulePropertyName",
+            "set_property_rule_property_name",
+        ),
+        ("CSS.setKeyframeKey", "set_keyframe_key"),
+        ("CSS.setMediaText", "set_media_text"),
+        (
+            "CSS.setContainerQueryConditionText",
+            "set_container_query_condition_text",
+        ),
+        ("CSS.setSupportsText", "set_supports_text"),
+        ("CSS.setNavigationText", "set_navigation_text"),
+        ("CSS.setScopeText", "set_scope_text"),
+        ("CSS.setRuleSelector", "set_rule_selector"),
+        ("CSS.setStyleSheetText", "set_style_sheet_text"),
+        ("CSS.setStyleTexts", "set_style_texts"),
+        ("CSS.startRuleUsageTracking", "start_rule_usage_tracking"),
+        ("CSS.stopRuleUsageTracking", "stop_rule_usage_tracking"),
+        ("CSS.takeCoverageDelta", "take_coverage_delta"),
+        ("CSS.setLocalFontsEnabled", "set_local_fonts_enabled"),
+        ("CSS.fontsUpdated", "on_fonts_updated"),
+        (
+            "CSS.mediaQueryResultChanged",
+            "on_media_query_result_changed",
+        ),
+        ("CSS.styleSheetAdded", "on_style_sheet_added"),
+        ("CSS.styleSheetChanged", "on_style_sheet_changed"),
+        ("CSS.styleSheetRemoved", "on_style_sheet_removed"),
+        ("CSS.computedStyleUpdated", "on_computed_style_updated"),
+        ("CacheStorage.deleteCache", "delete_cache"),
+        ("CacheStorage.deleteEntry", "delete_entry"),
+        ("CacheStorage.requestCacheNames", "request_cache_names"),
+        (
+            "CacheStorage.requestCachedResponse",
+            "request_cached_response",
+        ),
+        ("CacheStorage.requestEntries", "request_entries"),
+        ("Cast.enable", "enable"),
+        ("Cast.disable", "disable"),
+        ("Cast.setSinkToUse", "set_sink_to_use"),
+        ("Cast.startDesktopMirroring", "start_desktop_mirroring"),
+        ("Cast.startTabMirroring", "start_tab_mirroring"),
+        ("Cast.stopCasting", "stop_casting"),
+        ("Cast.sinksUpdated", "on_sinks_updated"),
+        ("Cast.issueUpdated", "on_issue_updated"),
+        ("CrashReportContext.getEntries", "get_entries"),
+        (
+            "DOM.collectClassNamesFromSubtree",
+            "collect_class_names_from_subtree",
+        ),
+        ("DOM.copyTo", "copy_to"),
+        ("DOM.describeNode", "describe_node"),
+        ("DOM.scrollIntoViewIfNeeded", "scroll_into_view_if_needed"),
+        ("DOM.disable", "disable"),
+        ("DOM.discardSearchResults", "discard_search_results"),
+        ("DOM.enable", "enable"),
+        ("DOM.focus", "focus"),
+        ("DOM.getAttributes", "get_attributes"),
+        ("DOM.getBoxModel", "get_box_model"),
+        ("DOM.getContentQuads", "get_content_quads"),
+        ("DOM.getDocument", "get_document"),
+        (
+            "DOM.getNodesForSubtreeByStyle",
+            "get_nodes_for_subtree_by_style",
+        ),
+        ("DOM.getNodeForLocation", "get_node_for_location"),
+        ("DOM.getOuterHTML", "get_outer_html"),
+        ("DOM.getRelayoutBoundary", "get_relayout_boundary"),
+        ("DOM.getSearchResults", "get_search_results"),
+        ("DOM.hideHighlight", "hide_highlight"),
+        ("DOM.highlightNode", "highlight_node"),
+        ("DOM.highlightRect", "highlight_rect"),
+        ("DOM.markUndoableState", "mark_undoable_state"),
+        ("DOM.moveTo", "move_to"),
+        ("DOM.performSearch", "perform_search"),
+        (
+            "DOM.pushNodeByPathToFrontend",
+            "push_node_by_path_to_frontend",
+        ),
+        (
+            "DOM.pushNodesByBackendIdsToFrontend",
+            "push_nodes_by_backend_ids_to_frontend",
+        ),
+        ("DOM.querySelector", "query_selector"),
+        ("DOM.querySelectorAll", "query_selector_all"),
+        ("DOM.getTopLayerElements", "get_top_layer_elements"),
+        ("DOM.getElementByRelation", "get_element_by_relation"),
+        ("DOM.redo", "redo"),
+        ("DOM.removeAttribute", "remove_attribute"),
+        ("DOM.removeNode", "remove_node"),
+        ("DOM.requestChildNodes", "request_child_nodes"),
+        ("DOM.requestNode", "request_node"),
+        ("DOM.resolveNode", "resolve_node"),
+        ("DOM.setAttributeValue", "set_attribute_value"),
+        ("DOM.setAttributesAsText", "set_attributes_as_text"),
+        ("DOM.setFileInputFiles", "set_file_input_files"),
+        (
+            "DOM.setNodeStackTracesEnabled",
+            "set_node_stack_traces_enabled",
+        ),
+        ("DOM.getNodeStackTraces", "get_node_stack_traces"),
+        ("DOM.getFileInfo", "get_file_info"),
+        ("DOM.getDetachedDomNodes", "get_detached_dom_nodes"),
+        ("DOM.setInspectedNode", "set_inspected_node"),
+        ("DOM.setNodeName", "set_node_name"),
+        ("DOM.setNodeValue", "set_node_value"),
+        ("DOM.setOuterHTML", "set_outer_html"),
+        ("DOM.undo", "undo"),
+        ("DOM.getFrameOwner", "get_frame_owner"),
+        ("DOM.getContainerForNode", "get_container_for_node"),
+        (
+            "DOM.getQueryingDescendantsForContainer",
+            "get_querying_descendants_for_container",
+        ),
+        ("DOM.getAnchorElement", "get_anchor_element"),
+        ("DOM.forceShowPopover", "force_show_popover"),
+        (
+            "DOM.getImplicitAnchorCandidates",
+            "get_implicit_anchor_candidates",
+        ),
+        ("DOM.forceShowInterest", "force_show_interest"),
+        ("DOM.setTextMarker", "set_text_marker"),
+        ("DOM.clearTextMarkers", "clear_text_markers"),
+        ("DOM.attributeModified", "on_attribute_modified"),
+        (
+            "DOM.adoptedStyleSheetsModified",
+            "on_adopted_style_sheets_modified",
+        ),
+        ("DOM.attributeRemoved", "on_attribute_removed"),
+        ("DOM.characterDataModified", "on_character_data_modified"),
+        ("DOM.childNodeCountUpdated", "on_child_node_count_updated"),
+        ("DOM.childNodeInserted", "on_child_node_inserted"),
+        ("DOM.childNodeRemoved", "on_child_node_removed"),
+        (
+            "DOM.distributedNodesUpdated",
+            "on_distributed_nodes_updated",
+        ),
+        ("DOM.documentUpdated", "on_document_updated"),
+        ("DOM.inlineStyleInvalidated", "on_inline_style_invalidated"),
+        ("DOM.pseudoElementAdded", "on_pseudo_element_added"),
+        (
+            "DOM.topLayerElementsUpdated",
+            "on_top_layer_elements_updated",
+        ),
+        ("DOM.scrollableFlagUpdated", "on_scrollable_flag_updated"),
+        ("DOM.adRelatedStateUpdated", "on_ad_related_state_updated"),
+        (
+            "DOM.affectedByStartingStylesFlagUpdated",
+            "on_affected_by_starting_styles_flag_updated",
+        ),
+        ("DOM.pseudoElementRemoved", "on_pseudo_element_removed"),
+        ("DOM.setChildNodes", "on_set_child_nodes"),
+        ("DOM.shadowRootPopped", "on_shadow_root_popped"),
+        ("DOM.shadowRootPushed", "on_shadow_root_pushed"),
+        ("DOMDebugger.getEventListeners", "get_event_listeners"),
+        ("DOMDebugger.removeDOMBreakpoint", "remove_dom_breakpoint"),
+        (
+            "DOMDebugger.removeEventListenerBreakpoint",
+            "remove_event_listener_breakpoint",
+        ),
+        ("DOMDebugger.removeXHRBreakpoint", "remove_xhr_breakpoint"),
+        (
+            "DOMDebugger.setBreakOnCSPViolation",
+            "set_break_on_csp_violation",
+        ),
+        ("DOMDebugger.setDOMBreakpoint", "set_dom_breakpoint"),
+        (
+            "DOMDebugger.setEventListenerBreakpoint",
+            "set_event_listener_breakpoint",
+        ),
+        ("DOMDebugger.setXHRBreakpoint", "set_xhr_breakpoint"),
+        ("DOMSnapshot.disable", "disable"),
+        ("DOMSnapshot.enable", "enable"),
+        ("DOMSnapshot.captureSnapshot", "capture_snapshot"),
+        ("DOMStorage.clear", "clear"),
+        ("DOMStorage.disable", "disable"),
+        ("DOMStorage.enable", "enable"),
+        ("DOMStorage.getDOMStorageItems", "get_dom_storage_items"),
+        ("DOMStorage.removeDOMStorageItem", "remove_dom_storage_item"),
+        ("DOMStorage.setDOMStorageItem", "set_dom_storage_item"),
+        (
+            "DOMStorage.domStorageItemAdded",
+            "on_dom_storage_item_added",
+        ),
+        (
+            "DOMStorage.domStorageItemRemoved",
+            "on_dom_storage_item_removed",
+        ),
+        (
+            "DOMStorage.domStorageItemUpdated",
+            "on_dom_storage_item_updated",
+        ),
+        (
+            "DOMStorage.domStorageItemsCleared",
+            "on_dom_storage_items_cleared",
+        ),
+        ("DeviceAccess.enable", "enable"),
+        ("DeviceAccess.disable", "disable"),
+        ("DeviceAccess.selectPrompt", "select_prompt"),
+        ("DeviceAccess.cancelPrompt", "cancel_prompt"),
+        (
+            "DeviceAccess.deviceRequestPrompted",
+            "on_device_request_prompted",
+        ),
+        (
+            "DeviceOrientation.clearDeviceOrientationOverride",
+            "clear_device_orientation_override",
+        ),
+        (
+            "DeviceOrientation.setDeviceOrientationOverride",
+            "set_device_orientation_override",
+        ),
+        (
+            "DigitalCredentials.setVirtualWalletBehavior",
+            "set_virtual_wallet_behavior",
+        ),
+        (
+            "Emulation.clearDeviceMetricsOverride",
+            "clear_device_metrics_override",
+        ),
+        (
+            "Emulation.clearGeolocationOverride",
+            "clear_geolocation_override",
+        ),
+        ("Emulation.resetPageScaleFactor", "reset_page_scale_factor"),
+        (
+            "Emulation.setFocusEmulationEnabled",
+            "set_focus_emulation_enabled",
+        ),
+        (
+            "Emulation.setAutoDarkModeOverride",
+            "set_auto_dark_mode_override",
+        ),
+        ("Emulation.setCPUThrottlingRate", "set_cpu_throttling_rate"),
+        (
+            "Emulation.setDefaultBackgroundColorOverride",
+            "set_default_background_color_override",
+        ),
+        (
+            "Emulation.setSafeAreaInsetsOverride",
+            "set_safe_area_insets_override",
+        ),
+        (
+            "Emulation.setVirtualKeyboardGeometryOverride",
+            "set_virtual_keyboard_geometry_override",
+        ),
+        (
+            "Emulation.setDeviceMetricsOverride",
+            "set_device_metrics_override",
+        ),
+        (
+            "Emulation.setDevicePostureOverride",
+            "set_device_posture_override",
+        ),
+        (
+            "Emulation.clearDevicePostureOverride",
+            "clear_device_posture_override",
+        ),
+        (
+            "Emulation.setDisplayFeaturesOverride",
+            "set_display_features_override",
+        ),
+        (
+            "Emulation.clearDisplayFeaturesOverride",
+            "clear_display_features_override",
+        ),
+        ("Emulation.setScrollbarsHidden", "set_scrollbars_hidden"),
+        (
+            "Emulation.setDocumentCookieDisabled",
+            "set_document_cookie_disabled",
+        ),
+        (
+            "Emulation.setEmitTouchEventsForMouse",
+            "set_emit_touch_events_for_mouse",
+        ),
+        ("Emulation.setEmulatedMedia", "set_emulated_media"),
+        (
+            "Emulation.setEmulatedVisionDeficiency",
+            "set_emulated_vision_deficiency",
+        ),
+        (
+            "Emulation.setEmulatedOSTextScale",
+            "set_emulated_os_text_scale",
+        ),
+        (
+            "Emulation.setGeolocationOverride",
+            "set_geolocation_override",
+        ),
+        (
+            "Emulation.getOverriddenSensorInformation",
+            "get_overridden_sensor_information",
+        ),
+        (
+            "Emulation.setSensorOverrideEnabled",
+            "set_sensor_override_enabled",
+        ),
+        (
+            "Emulation.setSensorOverrideReadings",
+            "set_sensor_override_readings",
+        ),
+        (
+            "Emulation.setPressureSourceOverrideEnabled",
+            "set_pressure_source_override_enabled",
+        ),
+        (
+            "Emulation.setPressureStateOverride",
+            "set_pressure_state_override",
+        ),
+        ("Emulation.setIdleOverride", "set_idle_override"),
+        ("Emulation.clearIdleOverride", "clear_idle_override"),
+        ("Emulation.setPageScaleFactor", "set_page_scale_factor"),
+        (
+            "Emulation.setScriptExecutionDisabled",
+            "set_script_execution_disabled",
+        ),
+        (
+            "Emulation.setTouchEmulationEnabled",
+            "set_touch_emulation_enabled",
+        ),
+        ("Emulation.setVirtualTimePolicy", "set_virtual_time_policy"),
+        ("Emulation.setLocaleOverride", "set_locale_override"),
+        ("Emulation.setTimezoneOverride", "set_timezone_override"),
+        (
+            "Emulation.setDisabledImageTypes",
+            "set_disabled_image_types",
+        ),
+        ("Emulation.setDataSaverOverride", "set_data_saver_override"),
+        (
+            "Emulation.setHardwareConcurrencyOverride",
+            "set_hardware_concurrency_override",
+        ),
+        (
+            "Emulation.setCPUPerformanceOverride",
+            "set_cpu_performance_override",
+        ),
+        ("Emulation.setUserAgentOverride", "set_user_agent_override"),
+        ("Emulation.setAutomationOverride", "set_automation_override"),
+        (
+            "Emulation.setSmallViewportHeightDifferenceOverride",
+            "set_small_viewport_height_difference_override",
+        ),
+        ("Emulation.getScreenInfos", "get_screen_infos"),
+        ("Emulation.addScreen", "add_screen"),
+        ("Emulation.updateScreen", "update_screen"),
+        ("Emulation.removeScreen", "remove_screen"),
+        ("Emulation.setPrimaryScreen", "set_primary_screen"),
+        (
+            "Emulation.virtualTimeBudgetExpired",
+            "on_virtual_time_budget_expired",
+        ),
+        (
+            "Emulation.screenOrientationLockChanged",
+            "on_screen_orientation_lock_changed",
+        ),
+        (
+            "EventBreakpoints.setInstrumentationBreakpoint",
+            "set_instrumentation_breakpoint",
+        ),
+        (
+            "EventBreakpoints.removeInstrumentationBreakpoint",
+            "remove_instrumentation_breakpoint",
+        ),
+        ("EventBreakpoints.disable", "disable"),
+        ("Extensions.triggerAction", "trigger_action"),
+        ("Extensions.loadUnpacked", "load_unpacked"),
+        ("Extensions.getExtensions", "get_extensions"),
+        ("Extensions.uninstall", "uninstall"),
+        ("Extensions.getStorageItems", "get_storage_items"),
+        ("Extensions.removeStorageItems", "remove_storage_items"),
+        ("Extensions.clearStorageItems", "clear_storage_items"),
+        ("Extensions.setStorageItems", "set_storage_items"),
+        ("FedCm.enable", "enable"),
+        ("FedCm.disable", "disable"),
+        ("FedCm.selectAccount", "select_account"),
+        ("FedCm.clickDialogButton", "click_dialog_button"),
+        ("FedCm.openUrl", "open_url"),
+        ("FedCm.dismissDialog", "dismiss_dialog"),
+        ("FedCm.resetCooldown", "reset_cooldown"),
+        ("FedCm.dialogShown", "on_dialog_shown"),
+        ("FedCm.dialogClosed", "on_dialog_closed"),
+        ("Fetch.disable", "disable"),
+        ("Fetch.enable", "enable"),
+        ("Fetch.failRequest", "fail_request"),
+        ("Fetch.fulfillRequest", "fulfill_request"),
+        ("Fetch.continueRequest", "continue_request"),
+        ("Fetch.continueWithAuth", "continue_with_auth"),
+        ("Fetch.continueResponse", "continue_response"),
+        ("Fetch.getResponseBody", "get_response_body"),
+        (
+            "Fetch.takeResponseBodyAsStream",
+            "take_response_body_as_stream",
+        ),
+        ("Fetch.requestPaused", "on_request_paused"),
+        ("Fetch.authRequired", "on_auth_required"),
+        ("FileSystem.getDirectory", "get_directory"),
+        ("FindInPage.findFirst", "find_first"),
+        ("FindInPage.findNext", "find_next"),
+        ("FindInPage.findPrev", "find_prev"),
+        ("FindInPage.stop", "stop"),
+        ("HeadlessExperimental.beginFrame", "begin_frame"),
+        ("IO.close", "close"),
+        ("IO.read", "read"),
+        ("IndexedDB.clearObjectStore", "clear_object_store"),
+        ("IndexedDB.deleteDatabase", "delete_database"),
+        (
+            "IndexedDB.deleteObjectStoreEntries",
+            "delete_object_store_entries",
+        ),
+        ("IndexedDB.disable", "disable"),
+        ("IndexedDB.enable", "enable"),
+        ("IndexedDB.requestData", "request_data"),
+        ("IndexedDB.getMetadata", "get_metadata"),
+        ("IndexedDB.requestDatabase", "request_database"),
+        ("IndexedDB.requestDatabaseNames", "request_database_names"),
+        ("Input.dispatchDragEvent", "dispatch_drag_event"),
+        ("Input.dispatchKeyEvent", "dispatch_key_event"),
+        ("Input.insertText", "insert_text"),
+        ("Input.imeSetComposition", "ime_set_composition"),
+        ("Input.dispatchMouseEvent", "dispatch_mouse_event"),
+        ("Input.dispatchTouchEvent", "dispatch_touch_event"),
+        ("Input.cancelDragging", "cancel_dragging"),
+        (
+            "Input.emulateTouchFromMouseEvent",
+            "emulate_touch_from_mouse_event",
+        ),
+        ("Input.setIgnoreInputEvents", "set_ignore_input_events"),
+        ("Input.setInterceptDrags", "set_intercept_drags"),
+        ("Input.synthesizePinchGesture", "synthesize_pinch_gesture"),
+        ("Input.synthesizeScrollGesture", "synthesize_scroll_gesture"),
+        ("Input.synthesizeTapGesture", "synthesize_tap_gesture"),
+        ("Input.dragIntercepted", "on_drag_intercepted"),
+        ("Inspector.disable", "disable"),
+        ("Inspector.enable", "enable"),
+        ("Inspector.detached", "on_detached"),
+        ("Inspector.targetCrashed", "on_target_crashed"),
+        (
+            "Inspector.targetReloadedAfterCrash",
+            "on_target_reloaded_after_crash",
+        ),
+        ("Inspector.workerScriptLoaded", "on_worker_script_loaded"),
+        ("LayerTree.compositingReasons", "compositing_reasons"),
+        ("LayerTree.disable", "disable"),
+        ("LayerTree.enable", "enable"),
+        ("LayerTree.loadSnapshot", "load_snapshot"),
+        ("LayerTree.makeSnapshot", "make_snapshot"),
+        ("LayerTree.profileSnapshot", "profile_snapshot"),
+        ("LayerTree.releaseSnapshot", "release_snapshot"),
+        ("LayerTree.replaySnapshot", "replay_snapshot"),
+        ("LayerTree.snapshotCommandLog", "snapshot_command_log"),
+        ("LayerTree.layerPainted", "on_layer_painted"),
+        ("LayerTree.layerTreeDidChange", "on_layer_tree_did_change"),
+        ("Log.clear", "clear"),
+        ("Log.disable", "disable"),
+        ("Log.enable", "enable"),
+        ("Log.startViolationsReport", "start_violations_report"),
+        ("Log.stopViolationsReport", "stop_violations_report"),
+        ("Log.entryAdded", "on_entry_added"),
+        ("Media.enable", "enable"),
+        ("Media.disable", "disable"),
+        (
+            "Media.playerPropertiesChanged",
+            "on_player_properties_changed",
+        ),
+        ("Media.playerEventsAdded", "on_player_events_added"),
+        ("Media.playerMessagesLogged", "on_player_messages_logged"),
+        ("Media.playerErrorsRaised", "on_player_errors_raised"),
+        ("Media.playerCreated", "on_player_created"),
+        ("Memory.getDOMCounters", "get_dom_counters"),
+        (
+            "Memory.getDOMCountersForLeakDetection",
+            "get_dom_counters_for_leak_detection",
+        ),
+        (
+            "Memory.prepareForLeakDetection",
+            "prepare_for_leak_detection",
+        ),
+        (
+            "Memory.forciblyPurgeJavaScriptMemory",
+            "forcibly_purge_java_script_memory",
+        ),
+        (
+            "Memory.setPressureNotificationsSuppressed",
+            "set_pressure_notifications_suppressed",
+        ),
+        (
+            "Memory.simulatePressureNotification",
+            "simulate_pressure_notification",
+        ),
+        ("Memory.startSampling", "start_sampling"),
+        ("Memory.stopSampling", "stop_sampling"),
+        (
+            "Memory.getAllTimeSamplingProfile",
+            "get_all_time_sampling_profile",
+        ),
+        (
+            "Memory.getBrowserSamplingProfile",
+            "get_browser_sampling_profile",
+        ),
+        ("Memory.getSamplingProfile", "get_sampling_profile"),
+        ("Network.clearBrowserCache", "clear_browser_cache"),
+        ("Network.clearBrowserCookies", "clear_browser_cookies"),
+        ("Network.deleteCookies", "delete_cookies"),
+        ("Network.disable", "disable"),
+        (
+            "Network.emulateNetworkConditionsByRule",
+            "emulate_network_conditions_by_rule",
+        ),
+        ("Network.overrideNetworkState", "override_network_state"),
+        ("Network.enable", "enable"),
+        (
+            "Network.configureDurableMessages",
+            "configure_durable_messages",
+        ),
+        ("Network.getCertificate", "get_certificate"),
+        ("Network.getCookies", "get_cookies"),
+        ("Network.getResponseBody", "get_response_body"),
+        ("Network.getRequestPostData", "get_request_post_data"),
+        ("Network.replayXHR", "replay_xhr"),
+        ("Network.searchInResponseBody", "search_in_response_body"),
+        ("Network.setBlockedURLs", "set_blocked_ur_ls"),
+        (
+            "Network.setBypassServiceWorker",
+            "set_bypass_service_worker",
+        ),
+        ("Network.setCacheDisabled", "set_cache_disabled"),
+        ("Network.setCookie", "set_cookie"),
+        ("Network.setCookies", "set_cookies"),
+        ("Network.setExtraHTTPHeaders", "set_extra_http_headers"),
+        ("Network.setAttachDebugStack", "set_attach_debug_stack"),
+        ("Network.setUserAgentOverride", "set_user_agent_override"),
+        ("Network.streamResourceContent", "stream_resource_content"),
+        (
+            "Network.getSecurityIsolationStatus",
+            "get_security_isolation_status",
+        ),
+        ("Network.enableReportingApi", "enable_reporting_api"),
+        (
+            "Network.enableDeviceBoundSessions",
+            "enable_device_bound_sessions",
+        ),
+        (
+            "Network.deleteDeviceBoundSession",
+            "delete_device_bound_session",
+        ),
+        ("Network.fetchSchemefulSite", "fetch_schemeful_site"),
+        ("Network.loadNetworkResource", "load_network_resource"),
+        ("Network.setCookieControls", "set_cookie_controls"),
+        ("Network.dataReceived", "on_data_received"),
+        (
+            "Network.eventSourceMessageReceived",
+            "on_event_source_message_received",
+        ),
+        ("Network.loadingFailed", "on_loading_failed"),
+        ("Network.loadingFinished", "on_loading_finished"),
+        (
+            "Network.requestServedFromCache",
+            "on_request_served_from_cache",
+        ),
+        ("Network.requestWillBeSent", "on_request_will_be_sent"),
+        (
+            "Network.resourceChangedPriority",
+            "on_resource_changed_priority",
+        ),
+        (
+            "Network.signedExchangeReceived",
+            "on_signed_exchange_received",
+        ),
+        ("Network.responseReceived", "on_response_received"),
+        ("Network.webSocketClosed", "on_web_socket_closed"),
+        ("Network.webSocketCreated", "on_web_socket_created"),
+        ("Network.webSocketFrameError", "on_web_socket_frame_error"),
+        (
+            "Network.webSocketFrameReceived",
+            "on_web_socket_frame_received",
+        ),
+        ("Network.webSocketFrameSent", "on_web_socket_frame_sent"),
+        (
+            "Network.webSocketHandshakeResponseReceived",
+            "on_web_socket_handshake_response_received",
+        ),
+        (
+            "Network.webSocketWillSendHandshakeRequest",
+            "on_web_socket_will_send_handshake_request",
+        ),
+        ("Network.webTransportCreated", "on_web_transport_created"),
+        (
+            "Network.webTransportConnectionEstablished",
+            "on_web_transport_connection_established",
+        ),
+        ("Network.webTransportClosed", "on_web_transport_closed"),
+        (
+            "Network.directTCPSocketCreated",
+            "on_direct_tcp_socket_created",
+        ),
+        (
+            "Network.directTCPSocketOpened",
+            "on_direct_tcp_socket_opened",
+        ),
+        (
+            "Network.directTCPSocketAborted",
+            "on_direct_tcp_socket_aborted",
+        ),
+        (
+            "Network.directTCPSocketClosed",
+            "on_direct_tcp_socket_closed",
+        ),
+        (
+            "Network.directTCPSocketChunkSent",
+            "on_direct_tcp_socket_chunk_sent",
+        ),
+        (
+            "Network.directTCPSocketChunkReceived",
+            "on_direct_tcp_socket_chunk_received",
+        ),
+        (
+            "Network.directUDPSocketJoinedMulticastGroup",
+            "on_direct_udp_socket_joined_multicast_group",
+        ),
+        (
+            "Network.directUDPSocketLeftMulticastGroup",
+            "on_direct_udp_socket_left_multicast_group",
+        ),
+        (
+            "Network.directUDPSocketCreated",
+            "on_direct_udp_socket_created",
+        ),
+        (
+            "Network.directUDPSocketOpened",
+            "on_direct_udp_socket_opened",
+        ),
+        (
+            "Network.directUDPSocketAborted",
+            "on_direct_udp_socket_aborted",
+        ),
+        (
+            "Network.directUDPSocketClosed",
+            "on_direct_udp_socket_closed",
+        ),
+        (
+            "Network.directUDPSocketChunkSent",
+            "on_direct_udp_socket_chunk_sent",
+        ),
+        (
+            "Network.directUDPSocketChunkReceived",
+            "on_direct_udp_socket_chunk_received",
+        ),
+        (
+            "Network.requestWillBeSentExtraInfo",
+            "on_request_will_be_sent_extra_info",
+        ),
+        (
+            "Network.responseReceivedExtraInfo",
+            "on_response_received_extra_info",
+        ),
+        (
+            "Network.responseReceivedEarlyHints",
+            "on_response_received_early_hints",
+        ),
+        (
+            "Network.trustTokenOperationDone",
+            "on_trust_token_operation_done",
+        ),
+        ("Network.policyUpdated", "on_policy_updated"),
+        (
+            "Network.reportingApiReportAdded",
+            "on_reporting_api_report_added",
+        ),
+        (
+            "Network.reportingApiReportUpdated",
+            "on_reporting_api_report_updated",
+        ),
+        (
+            "Network.reportingApiEndpointsChangedForOrigin",
+            "on_reporting_api_endpoints_changed_for_origin",
+        ),
+        (
+            "Network.deviceBoundSessionsAdded",
+            "on_device_bound_sessions_added",
+        ),
+        (
+            "Network.deviceBoundSessionEventOccurred",
+            "on_device_bound_session_event_occurred",
+        ),
+        ("Overlay.disable", "disable"),
+        ("Overlay.enable", "enable"),
+        (
+            "Overlay.getHighlightObjectForTest",
+            "get_highlight_object_for_test",
+        ),
+        (
+            "Overlay.getGridHighlightObjectsForTest",
+            "get_grid_highlight_objects_for_test",
+        ),
+        (
+            "Overlay.getSourceOrderHighlightObjectForTest",
+            "get_source_order_highlight_object_for_test",
+        ),
+        ("Overlay.hideHighlight", "hide_highlight"),
+        ("Overlay.highlightNode", "highlight_node"),
+        ("Overlay.highlightQuad", "highlight_quad"),
+        ("Overlay.highlightRect", "highlight_rect"),
+        ("Overlay.highlightSourceOrder", "highlight_source_order"),
+        ("Overlay.setInspectMode", "set_inspect_mode"),
+        ("Overlay.setShowAdHighlights", "set_show_ad_highlights"),
+        (
+            "Overlay.setPausedInDebuggerMessage",
+            "set_paused_in_debugger_message",
+        ),
+        ("Overlay.setShowDebugBorders", "set_show_debug_borders"),
+        ("Overlay.setShowFPSCounter", "set_show_fps_counter"),
+        ("Overlay.setShowGridOverlays", "set_show_grid_overlays"),
+        ("Overlay.setShowFlexOverlays", "set_show_flex_overlays"),
+        (
+            "Overlay.setShowScrollSnapOverlays",
+            "set_show_scroll_snap_overlays",
+        ),
+        (
+            "Overlay.setShowContainerQueryOverlays",
+            "set_show_container_query_overlays",
+        ),
+        (
+            "Overlay.setShowInspectedElementAnchor",
+            "set_show_inspected_element_anchor",
+        ),
+        ("Overlay.setShowPaintRects", "set_show_paint_rects"),
+        (
+            "Overlay.setShowLayoutShiftRegions",
+            "set_show_layout_shift_regions",
+        ),
+        (
+            "Overlay.setShowScrollBottleneckRects",
+            "set_show_scroll_bottleneck_rects",
+        ),
+        (
+            "Overlay.setShowViewportSizeOnResize",
+            "set_show_viewport_size_on_resize",
+        ),
+        ("Overlay.setShowHinge", "set_show_hinge"),
+        ("Overlay.setShowDisplayCutout", "set_show_display_cutout"),
+        (
+            "Overlay.setShowIsolatedElements",
+            "set_show_isolated_elements",
+        ),
+        (
+            "Overlay.setShowWindowControlsOverlay",
+            "set_show_window_controls_overlay",
+        ),
+        ("Overlay.inspectNodeRequested", "on_inspect_node_requested"),
+        (
+            "Overlay.nodeHighlightRequested",
+            "on_node_highlight_requested",
+        ),
+        ("Overlay.screenshotRequested", "on_screenshot_requested"),
+        (
+            "Overlay.inspectPanelShowRequested",
+            "on_inspect_panel_show_requested",
+        ),
+        (
+            "Overlay.inspectedElementWindowRestored",
+            "on_inspected_element_window_restored",
+        ),
+        ("Overlay.inspectModeCanceled", "on_inspect_mode_canceled"),
+        ("PWA.getOsAppState", "get_os_app_state"),
+        ("PWA.install", "install"),
+        ("PWA.uninstall", "uninstall"),
+        ("PWA.launch", "launch"),
+        ("PWA.launchFilesInApp", "launch_files_in_app"),
+        ("PWA.openCurrentPageInApp", "open_current_page_in_app"),
+        ("PWA.changeAppUserSettings", "change_app_user_settings"),
+        (
+            "Page.addScriptToEvaluateOnNewDocument",
+            "add_script_to_evaluate_on_new_document",
+        ),
+        ("Page.bringToFront", "bring_to_front"),
+        ("Page.captureScreenshot", "capture_screenshot"),
+        ("Page.captureSnapshot", "capture_snapshot"),
+        ("Page.createIsolatedWorld", "create_isolated_world"),
+        ("Page.disable", "disable"),
+        ("Page.enable", "enable"),
+        ("Page.getAppManifest", "get_app_manifest"),
+        ("Page.getInstallabilityErrors", "get_installability_errors"),
+        ("Page.getAppId", "get_app_id"),
+        ("Page.getSubApps", "get_sub_apps"),
+        ("Page.getSiblingSubApps", "get_sibling_sub_apps"),
+        ("Page.getAdScriptAncestry", "get_ad_script_ancestry"),
+        (
+            "Page.getSpellCheckCustomDictionary",
+            "get_spell_check_custom_dictionary",
+        ),
+        ("Page.getFrameTree", "get_frame_tree"),
+        ("Page.getLayoutMetrics", "get_layout_metrics"),
+        ("Page.getNavigationHistory", "get_navigation_history"),
+        ("Page.resetNavigationHistory", "reset_navigation_history"),
+        ("Page.getResourceContent", "get_resource_content"),
+        ("Page.getResourceTree", "get_resource_tree"),
+        ("Page.handleJavaScriptDialog", "handle_java_script_dialog"),
+        ("Page.navigate", "navigate"),
+        ("Page.navigateToHistoryEntry", "navigate_to_history_entry"),
+        ("Page.printToPDF", "print_to_pdf"),
+        ("Page.reload", "reload"),
+        (
+            "Page.removeScriptToEvaluateOnNewDocument",
+            "remove_script_to_evaluate_on_new_document",
+        ),
+        ("Page.screencastFrameAck", "screencast_frame_ack"),
+        ("Page.searchInResource", "search_in_resource"),
+        ("Page.setAdBlockingEnabled", "set_ad_blocking_enabled"),
+        ("Page.setBypassCSP", "set_bypass_csp"),
+        (
+            "Page.getPermissionsPolicyState",
+            "get_permissions_policy_state",
+        ),
+        ("Page.getOriginTrials", "get_origin_trials"),
+        ("Page.setFontFamilies", "set_font_families"),
+        ("Page.setFontSizes", "set_font_sizes"),
+        ("Page.setDocumentContent", "set_document_content"),
+        (
+            "Page.setLifecycleEventsEnabled",
+            "set_lifecycle_events_enabled",
+        ),
+        ("Page.startScreencast", "start_screencast"),
+        ("Page.startScreenRecording", "start_screen_recording"),
+        ("Page.stopScreenRecording", "stop_screen_recording"),
+        ("Page.stopLoading", "stop_loading"),
+        ("Page.crash", "crash"),
+        ("Page.close", "close"),
+        ("Page.setWebLifecycleState", "set_web_lifecycle_state"),
+        ("Page.stopScreencast", "stop_screencast"),
+        ("Page.produceCompilationCache", "produce_compilation_cache"),
+        ("Page.addCompilationCache", "add_compilation_cache"),
+        ("Page.clearCompilationCache", "clear_compilation_cache"),
+        ("Page.setSPCTransactionMode", "set_spc_transaction_mode"),
+        ("Page.setRPHRegistrationMode", "set_rph_registration_mode"),
+        ("Page.generateTestReport", "generate_test_report"),
+        ("Page.waitForDebugger", "wait_for_debugger"),
+        (
+            "Page.setInterceptFileChooserDialog",
+            "set_intercept_file_chooser_dialog",
+        ),
+        ("Page.setPrerenderingAllowed", "set_prerendering_allowed"),
+        ("Page.getAnnotatedPageContent", "get_annotated_page_content"),
+        ("Page.setInputVisualization", "set_input_visualization"),
+        ("Page.domContentEventFired", "on_dom_content_event_fired"),
+        ("Page.fileChooserOpened", "on_file_chooser_opened"),
+        ("Page.frameAttached", "on_frame_attached"),
+        ("Page.frameDetached", "on_frame_detached"),
+        (
+            "Page.frameSubtreeWillBeDetached",
+            "on_frame_subtree_will_be_detached",
+        ),
+        ("Page.frameNavigated", "on_frame_navigated"),
+        ("Page.documentOpened", "on_document_opened"),
+        ("Page.frameResized", "on_frame_resized"),
+        ("Page.frameStartedNavigating", "on_frame_started_navigating"),
+        (
+            "Page.frameRequestedNavigation",
+            "on_frame_requested_navigation",
+        ),
+        ("Page.frameStartedLoading", "on_frame_started_loading"),
+        ("Page.frameStoppedLoading", "on_frame_stopped_loading"),
+        ("Page.interstitialHidden", "on_interstitial_hidden"),
+        ("Page.interstitialShown", "on_interstitial_shown"),
+        ("Page.javascriptDialogClosed", "on_javascript_dialog_closed"),
+        (
+            "Page.javascriptDialogOpening",
+            "on_javascript_dialog_opening",
+        ),
+        ("Page.lifecycleEvent", "on_lifecycle_event"),
+        (
+            "Page.backForwardCacheNotUsed",
+            "on_back_forward_cache_not_used",
+        ),
+        ("Page.loadEventFired", "on_load_event_fired"),
+        (
+            "Page.navigatedWithinDocument",
+            "on_navigated_within_document",
+        ),
+        ("Page.screencastFrame", "on_screencast_frame"),
+        (
+            "Page.screencastVisibilityChanged",
+            "on_screencast_visibility_changed",
+        ),
+        ("Page.windowOpen", "on_window_open"),
+        (
+            "Page.compilationCacheProduced",
+            "on_compilation_cache_produced",
+        ),
+        ("Performance.disable", "disable"),
+        ("Performance.enable", "enable"),
+        ("Performance.getMetrics", "get_metrics"),
+        ("Performance.metrics", "on_metrics"),
+        ("PerformanceTimeline.enable", "enable"),
+        (
+            "PerformanceTimeline.timelineEventAdded",
+            "on_timeline_event_added",
+        ),
+        ("Preload.enable", "enable"),
+        ("Preload.disable", "disable"),
+        ("Preload.ruleSetUpdated", "on_rule_set_updated"),
+        ("Preload.ruleSetRemoved", "on_rule_set_removed"),
+        (
+            "Preload.preloadEnabledStateUpdated",
+            "on_preload_enabled_state_updated",
+        ),
+        (
+            "Preload.prefetchStatusUpdated",
+            "on_prefetch_status_updated",
+        ),
+        (
+            "Preload.prerenderStatusUpdated",
+            "on_prerender_status_updated",
+        ),
+        (
+            "Preload.preloadingAttemptSourcesUpdated",
+            "on_preloading_attempt_sources_updated",
+        ),
+        ("Security.disable", "disable"),
+        ("Security.enable", "enable"),
+        (
+            "Security.setIgnoreCertificateErrors",
+            "set_ignore_certificate_errors",
+        ),
+        (
+            "Security.visibleSecurityStateChanged",
+            "on_visible_security_state_changed",
+        ),
+        ("ServiceWorker.deliverPushMessage", "deliver_push_message"),
+        ("ServiceWorker.disable", "disable"),
+        ("ServiceWorker.dispatchSyncEvent", "dispatch_sync_event"),
+        (
+            "ServiceWorker.dispatchPeriodicSyncEvent",
+            "dispatch_periodic_sync_event",
+        ),
+        ("ServiceWorker.enable", "enable"),
+        (
+            "ServiceWorker.setForceUpdateOnPageLoad",
+            "set_force_update_on_page_load",
+        ),
+        ("ServiceWorker.skipWaiting", "skip_waiting"),
+        ("ServiceWorker.startWorker", "start_worker"),
+        ("ServiceWorker.stopAllWorkers", "stop_all_workers"),
+        ("ServiceWorker.stopWorker", "stop_worker"),
+        ("ServiceWorker.unregister", "unregister"),
+        ("ServiceWorker.updateRegistration", "update_registration"),
+        (
+            "ServiceWorker.workerErrorReported",
+            "on_worker_error_reported",
+        ),
+        (
+            "ServiceWorker.workerRegistrationUpdated",
+            "on_worker_registration_updated",
+        ),
+        (
+            "ServiceWorker.workerVersionUpdated",
+            "on_worker_version_updated",
+        ),
+        ("SmartCardEmulation.enable", "enable"),
+        ("SmartCardEmulation.disable", "disable"),
+        (
+            "SmartCardEmulation.reportEstablishContextResult",
+            "report_establish_context_result",
+        ),
+        (
+            "SmartCardEmulation.reportReleaseContextResult",
+            "report_release_context_result",
+        ),
+        (
+            "SmartCardEmulation.reportListReadersResult",
+            "report_list_readers_result",
+        ),
+        (
+            "SmartCardEmulation.reportGetStatusChangeResult",
+            "report_get_status_change_result",
+        ),
+        (
+            "SmartCardEmulation.reportBeginTransactionResult",
+            "report_begin_transaction_result",
+        ),
+        (
+            "SmartCardEmulation.reportPlainResult",
+            "report_plain_result",
+        ),
+        (
+            "SmartCardEmulation.reportConnectResult",
+            "report_connect_result",
+        ),
+        ("SmartCardEmulation.reportDataResult", "report_data_result"),
+        (
+            "SmartCardEmulation.reportStatusResult",
+            "report_status_result",
+        ),
+        ("SmartCardEmulation.reportError", "report_error"),
+        (
+            "SmartCardEmulation.establishContextRequested",
+            "on_establish_context_requested",
+        ),
+        (
+            "SmartCardEmulation.releaseContextRequested",
+            "on_release_context_requested",
+        ),
+        (
+            "SmartCardEmulation.listReadersRequested",
+            "on_list_readers_requested",
+        ),
+        (
+            "SmartCardEmulation.getStatusChangeRequested",
+            "on_get_status_change_requested",
+        ),
+        ("SmartCardEmulation.cancelRequested", "on_cancel_requested"),
+        (
+            "SmartCardEmulation.connectRequested",
+            "on_connect_requested",
+        ),
+        (
+            "SmartCardEmulation.disconnectRequested",
+            "on_disconnect_requested",
+        ),
+        (
+            "SmartCardEmulation.transmitRequested",
+            "on_transmit_requested",
+        ),
+        (
+            "SmartCardEmulation.controlRequested",
+            "on_control_requested",
+        ),
+        (
+            "SmartCardEmulation.getAttribRequested",
+            "on_get_attrib_requested",
+        ),
+        (
+            "SmartCardEmulation.setAttribRequested",
+            "on_set_attrib_requested",
+        ),
+        ("SmartCardEmulation.statusRequested", "on_status_requested"),
+        (
+            "SmartCardEmulation.beginTransactionRequested",
+            "on_begin_transaction_requested",
+        ),
+        (
+            "SmartCardEmulation.endTransactionRequested",
+            "on_end_transaction_requested",
+        ),
+        ("Storage.getStorageKey", "get_storage_key"),
+        ("Storage.clearDataForOrigin", "clear_data_for_origin"),
+        (
+            "Storage.clearDataForStorageKey",
+            "clear_data_for_storage_key",
+        ),
+        ("Storage.getCookies", "get_cookies"),
+        ("Storage.setCookies", "set_cookies"),
+        ("Storage.clearCookies", "clear_cookies"),
+        ("Storage.getUsageAndQuota", "get_usage_and_quota"),
+        (
+            "Storage.overrideQuotaForOrigin",
+            "override_quota_for_origin",
+        ),
+        (
+            "Storage.trackCacheStorageForOrigin",
+            "track_cache_storage_for_origin",
+        ),
+        (
+            "Storage.trackCacheStorageForStorageKey",
+            "track_cache_storage_for_storage_key",
+        ),
+        (
+            "Storage.trackIndexedDBForOrigin",
+            "track_indexed_db_for_origin",
+        ),
+        (
+            "Storage.trackIndexedDBForStorageKey",
+            "track_indexed_db_for_storage_key",
+        ),
+        (
+            "Storage.untrackCacheStorageForOrigin",
+            "untrack_cache_storage_for_origin",
+        ),
+        (
+            "Storage.untrackCacheStorageForStorageKey",
+            "untrack_cache_storage_for_storage_key",
+        ),
+        (
+            "Storage.untrackIndexedDBForOrigin",
+            "untrack_indexed_db_for_origin",
+        ),
+        (
+            "Storage.untrackIndexedDBForStorageKey",
+            "untrack_indexed_db_for_storage_key",
+        ),
+        ("Storage.getTrustTokens", "get_trust_tokens"),
+        ("Storage.clearTrustTokens", "clear_trust_tokens"),
+        (
+            "Storage.getPrivateVerificationTokens",
+            "get_private_verification_tokens",
+        ),
+        (
+            "Storage.getPrivateVerificationTokensIssuerConfigs",
+            "get_private_verification_tokens_issuer_configs",
+        ),
+        (
+            "Storage.clearPrivateVerificationTokens",
+            "clear_private_verification_tokens",
+        ),
+        (
+            "Storage.deletePrivateVerificationToken",
+            "delete_private_verification_token",
+        ),
+        (
+            "Storage.setPrivateVerificationTokensTracking",
+            "set_private_verification_tokens_tracking",
+        ),
+        (
+            "Storage.setStorageBucketTracking",
+            "set_storage_bucket_tracking",
+        ),
+        ("Storage.deleteStorageBucket", "delete_storage_bucket"),
+        (
+            "Storage.runBounceTrackingMitigations",
+            "run_bounce_tracking_mitigations",
+        ),
+        (
+            "Storage.cacheStorageContentUpdated",
+            "on_cache_storage_content_updated",
+        ),
+        (
+            "Storage.cacheStorageListUpdated",
+            "on_cache_storage_list_updated",
+        ),
+        (
+            "Storage.indexedDBContentUpdated",
+            "on_indexed_db_content_updated",
+        ),
+        ("Storage.indexedDBListUpdated", "on_indexed_db_list_updated"),
+        (
+            "Storage.storageBucketCreatedOrUpdated",
+            "on_storage_bucket_created_or_updated",
+        ),
+        ("Storage.storageBucketDeleted", "on_storage_bucket_deleted"),
+        (
+            "Storage.privateVerificationTokensUpdated",
+            "on_private_verification_tokens_updated",
+        ),
+        ("SystemInfo.getInfo", "get_info"),
+        ("SystemInfo.getFeatureState", "get_feature_state"),
+        ("SystemInfo.getProcessInfo", "get_process_info"),
+        ("Target.activateTarget", "activate_target"),
+        ("Target.attachToTarget", "attach_to_target"),
+        ("Target.attachToBrowserTarget", "attach_to_browser_target"),
+        ("Target.closeTarget", "close_target"),
+        ("Target.exposeDevToolsProtocol", "expose_dev_tools_protocol"),
+        ("Target.createBrowserContext", "create_browser_context"),
+        ("Target.getBrowserContexts", "get_browser_contexts"),
+        ("Target.createTarget", "create_target"),
+        ("Target.detachFromTarget", "detach_from_target"),
+        ("Target.disposeBrowserContext", "dispose_browser_context"),
+        ("Target.getTargetInfo", "get_target_info"),
+        ("Target.getTargets", "get_targets"),
+        ("Target.setAutoAttach", "set_auto_attach"),
+        ("Target.autoAttachRelated", "auto_attach_related"),
+        ("Target.setDiscoverTargets", "set_discover_targets"),
+        ("Target.setRemoteLocations", "set_remote_locations"),
+        ("Target.getDevToolsTarget", "get_dev_tools_target"),
+        ("Target.openDevTools", "open_dev_tools"),
+        ("Target.attachedToTarget", "on_attached_to_target"),
+        ("Target.detachedFromTarget", "on_detached_from_target"),
+        (
+            "Target.receivedMessageFromTarget",
+            "on_received_message_from_target",
+        ),
+        ("Target.targetCreated", "on_target_created"),
+        ("Target.targetDestroyed", "on_target_destroyed"),
+        ("Target.targetCrashed", "on_target_crashed"),
+        ("Target.targetInfoChanged", "on_target_info_changed"),
+        ("Tethering.bind", "bind"),
+        ("Tethering.unbind", "unbind"),
+        ("Tethering.accepted", "on_accepted"),
+        ("Tracing.end", "end"),
+        ("Tracing.getCategories", "get_categories"),
+        (
+            "Tracing.getTrackEventDescriptor",
+            "get_track_event_descriptor",
+        ),
+        ("Tracing.recordClockSyncMarker", "record_clock_sync_marker"),
+        ("Tracing.requestMemoryDump", "request_memory_dump"),
+        ("Tracing.start", "start"),
+        ("Tracing.bufferUsage", "on_buffer_usage"),
+        ("Tracing.dataCollected", "on_data_collected"),
+        ("Tracing.tracingComplete", "on_tracing_complete"),
+        ("WebAudio.enable", "enable"),
+        ("WebAudio.disable", "disable"),
+        ("WebAudio.getRealtimeData", "get_realtime_data"),
+        ("WebAudio.contextCreated", "on_context_created"),
+        (
+            "WebAudio.contextWillBeDestroyed",
+            "on_context_will_be_destroyed",
+        ),
+        ("WebAudio.contextChanged", "on_context_changed"),
+        ("WebAudio.audioListenerCreated", "on_audio_listener_created"),
+        (
+            "WebAudio.audioListenerWillBeDestroyed",
+            "on_audio_listener_will_be_destroyed",
+        ),
+        ("WebAudio.audioNodeCreated", "on_audio_node_created"),
+        (
+            "WebAudio.audioNodeWillBeDestroyed",
+            "on_audio_node_will_be_destroyed",
+        ),
+        ("WebAudio.audioParamCreated", "on_audio_param_created"),
+        (
+            "WebAudio.audioParamWillBeDestroyed",
+            "on_audio_param_will_be_destroyed",
+        ),
+        ("WebAudio.nodesConnected", "on_nodes_connected"),
+        ("WebAudio.nodesDisconnected", "on_nodes_disconnected"),
+        ("WebAudio.nodeParamConnected", "on_node_param_connected"),
+        (
+            "WebAudio.nodeParamDisconnected",
+            "on_node_param_disconnected",
+        ),
+        ("WebAuthn.enable", "enable"),
+        ("WebAuthn.disable", "disable"),
+        (
+            "WebAuthn.addVirtualAuthenticator",
+            "add_virtual_authenticator",
+        ),
+        (
+            "WebAuthn.setResponseOverrideBits",
+            "set_response_override_bits",
+        ),
+        (
+            "WebAuthn.removeVirtualAuthenticator",
+            "remove_virtual_authenticator",
+        ),
+        ("WebAuthn.addCredential", "add_credential"),
+        ("WebAuthn.getCredential", "get_credential"),
+        ("WebAuthn.getCredentials", "get_credentials"),
+        ("WebAuthn.removeCredential", "remove_credential"),
+        ("WebAuthn.clearCredentials", "clear_credentials"),
+        ("WebAuthn.setUserVerified", "set_user_verified"),
+        (
+            "WebAuthn.setAutomaticPresenceSimulation",
+            "set_automatic_presence_simulation",
+        ),
+        (
+            "WebAuthn.setCredentialProperties",
+            "set_credential_properties",
+        ),
+        ("WebAuthn.credentialAdded", "on_credential_added"),
+        ("WebAuthn.credentialDeleted", "on_credential_deleted"),
+        ("WebAuthn.credentialUpdated", "on_credential_updated"),
+        ("WebAuthn.credentialAsserted", "on_credential_asserted"),
+        ("WebMCP.enable", "enable"),
+        ("WebMCP.disable", "disable"),
+        ("WebMCP.invokeTool", "invoke_tool"),
+        ("WebMCP.cancelInvocation", "cancel_invocation"),
+        ("WebMCP.toolsAdded", "on_tools_added"),
+        ("WebMCP.toolsRemoved", "on_tools_removed"),
+        ("WebMCP.toolInvoked", "on_tool_invoked"),
+        ("WebMCP.toolResponded", "on_tool_responded"),
+    ];
+    #[doc = r" Every domain's client on one executor (a page or a browser)."]
+    pub struct Protocol<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Protocol<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Protocol<'_, X> {}
+    impl<'a, X: ?Sized> Protocol<'a, X> {
+        #[doc = r" Wraps an executor."]
+        pub fn new(exec: &'a X) -> Self {
+            Self { exec }
+        }
+    }
+    impl<'a, X: CommandExecutor + ?Sized> Protocol<'a, X> {
+        #[doc = "The `Debugger` domain."]
+        pub fn debugger(&self) -> Debugger<'a, X> {
+            Debugger { exec: self.exec }
+        }
+        #[doc = "The `HeapProfiler` domain."]
+        pub fn heap_profiler(&self) -> HeapProfiler<'a, X> {
+            HeapProfiler { exec: self.exec }
+        }
+        #[doc = "The `Profiler` domain."]
+        pub fn profiler(&self) -> Profiler<'a, X> {
+            Profiler { exec: self.exec }
+        }
+        #[doc = "The `Runtime` domain."]
+        pub fn runtime(&self) -> Runtime<'a, X> {
+            Runtime { exec: self.exec }
+        }
+        #[doc = "The `Accessibility` domain."]
+        pub fn accessibility(&self) -> Accessibility<'a, X> {
+            Accessibility { exec: self.exec }
+        }
+        #[doc = "The `Ads` domain."]
+        pub fn ads(&self) -> Ads<'a, X> {
+            Ads { exec: self.exec }
+        }
+        #[doc = "The `Animation` domain."]
+        pub fn animation(&self) -> Animation<'a, X> {
+            Animation { exec: self.exec }
+        }
+        #[doc = "The `Audits` domain."]
+        pub fn audits(&self) -> Audits<'a, X> {
+            Audits { exec: self.exec }
+        }
+        #[doc = "The `Autofill` domain."]
+        pub fn autofill(&self) -> Autofill<'a, X> {
+            Autofill { exec: self.exec }
+        }
+        #[doc = "The `BackgroundService` domain."]
+        pub fn background_service(&self) -> BackgroundService<'a, X> {
+            BackgroundService { exec: self.exec }
+        }
+        #[doc = "The `BluetoothEmulation` domain."]
+        pub fn bluetooth_emulation(&self) -> BluetoothEmulation<'a, X> {
+            BluetoothEmulation { exec: self.exec }
+        }
+        #[doc = "The `Browser` domain."]
+        pub fn browser(&self) -> Browser<'a, X> {
+            Browser { exec: self.exec }
+        }
+        #[doc = "The `CSS` domain."]
+        pub fn css(&self) -> Css<'a, X> {
+            Css { exec: self.exec }
+        }
+        #[doc = "The `CacheStorage` domain."]
+        pub fn cache_storage(&self) -> CacheStorage<'a, X> {
+            CacheStorage { exec: self.exec }
+        }
+        #[doc = "The `Cast` domain."]
+        pub fn cast(&self) -> Cast<'a, X> {
+            Cast { exec: self.exec }
+        }
+        #[doc = "The `CrashReportContext` domain."]
+        pub fn crash_report_context(&self) -> CrashReportContext<'a, X> {
+            CrashReportContext { exec: self.exec }
+        }
+        #[doc = "The `DOM` domain."]
+        pub fn dom(&self) -> Dom<'a, X> {
+            Dom { exec: self.exec }
+        }
+        #[doc = "The `DOMDebugger` domain."]
+        pub fn dom_debugger(&self) -> DomDebugger<'a, X> {
+            DomDebugger { exec: self.exec }
+        }
+        #[doc = "The `DOMSnapshot` domain."]
+        pub fn dom_snapshot(&self) -> DomSnapshot<'a, X> {
+            DomSnapshot { exec: self.exec }
+        }
+        #[doc = "The `DOMStorage` domain."]
+        pub fn dom_storage(&self) -> DomStorage<'a, X> {
+            DomStorage { exec: self.exec }
+        }
+        #[doc = "The `DeviceAccess` domain."]
+        pub fn device_access(&self) -> DeviceAccess<'a, X> {
+            DeviceAccess { exec: self.exec }
+        }
+        #[doc = "The `DeviceOrientation` domain."]
+        pub fn device_orientation(&self) -> DeviceOrientation<'a, X> {
+            DeviceOrientation { exec: self.exec }
+        }
+        #[doc = "The `DigitalCredentials` domain."]
+        pub fn digital_credentials(&self) -> DigitalCredentials<'a, X> {
+            DigitalCredentials { exec: self.exec }
+        }
+        #[doc = "The `Emulation` domain."]
+        pub fn emulation(&self) -> Emulation<'a, X> {
+            Emulation { exec: self.exec }
+        }
+        #[doc = "The `EventBreakpoints` domain."]
+        pub fn event_breakpoints(&self) -> EventBreakpoints<'a, X> {
+            EventBreakpoints { exec: self.exec }
+        }
+        #[doc = "The `Extensions` domain."]
+        pub fn extensions(&self) -> Extensions<'a, X> {
+            Extensions { exec: self.exec }
+        }
+        #[doc = "The `FedCm` domain."]
+        pub fn fed_cm(&self) -> FedCm<'a, X> {
+            FedCm { exec: self.exec }
+        }
+        #[doc = "The `Fetch` domain."]
+        pub fn fetch(&self) -> Fetch<'a, X> {
+            Fetch { exec: self.exec }
+        }
+        #[doc = "The `FileSystem` domain."]
+        pub fn file_system(&self) -> FileSystem<'a, X> {
+            FileSystem { exec: self.exec }
+        }
+        #[doc = "The `FindInPage` domain."]
+        pub fn find_in_page(&self) -> FindInPage<'a, X> {
+            FindInPage { exec: self.exec }
+        }
+        #[doc = "The `HeadlessExperimental` domain."]
+        pub fn headless_experimental(&self) -> HeadlessExperimental<'a, X> {
+            HeadlessExperimental { exec: self.exec }
+        }
+        #[doc = "The `IO` domain."]
+        pub fn io(&self) -> Io<'a, X> {
+            Io { exec: self.exec }
+        }
+        #[doc = "The `IndexedDB` domain."]
+        pub fn indexed_db(&self) -> IndexedDb<'a, X> {
+            IndexedDb { exec: self.exec }
+        }
+        #[doc = "The `Input` domain."]
+        pub fn input(&self) -> Input<'a, X> {
+            Input { exec: self.exec }
+        }
+        #[doc = "The `Inspector` domain."]
+        pub fn inspector(&self) -> Inspector<'a, X> {
+            Inspector { exec: self.exec }
+        }
+        #[doc = "The `LayerTree` domain."]
+        pub fn layer_tree(&self) -> LayerTree<'a, X> {
+            LayerTree { exec: self.exec }
+        }
+        #[doc = "The `Log` domain."]
+        pub fn log(&self) -> Log<'a, X> {
+            Log { exec: self.exec }
+        }
+        #[doc = "The `Media` domain."]
+        pub fn media(&self) -> Media<'a, X> {
+            Media { exec: self.exec }
+        }
+        #[doc = "The `Memory` domain."]
+        pub fn memory(&self) -> Memory<'a, X> {
+            Memory { exec: self.exec }
+        }
+        #[doc = "The `Network` domain."]
+        pub fn network(&self) -> Network<'a, X> {
+            Network { exec: self.exec }
+        }
+        #[doc = "The `Overlay` domain."]
+        pub fn overlay(&self) -> Overlay<'a, X> {
+            Overlay { exec: self.exec }
+        }
+        #[doc = "The `PWA` domain."]
+        pub fn pwa(&self) -> Pwa<'a, X> {
+            Pwa { exec: self.exec }
+        }
+        #[doc = "The `Page` domain."]
+        pub fn page(&self) -> Page<'a, X> {
+            Page { exec: self.exec }
+        }
+        #[doc = "The `Performance` domain."]
+        pub fn performance(&self) -> Performance<'a, X> {
+            Performance { exec: self.exec }
+        }
+        #[doc = "The `PerformanceTimeline` domain."]
+        pub fn performance_timeline(&self) -> PerformanceTimeline<'a, X> {
+            PerformanceTimeline { exec: self.exec }
+        }
+        #[doc = "The `Preload` domain."]
+        pub fn preload(&self) -> Preload<'a, X> {
+            Preload { exec: self.exec }
+        }
+        #[doc = "The `Security` domain."]
+        pub fn security(&self) -> Security<'a, X> {
+            Security { exec: self.exec }
+        }
+        #[doc = "The `ServiceWorker` domain."]
+        pub fn service_worker(&self) -> ServiceWorker<'a, X> {
+            ServiceWorker { exec: self.exec }
+        }
+        #[doc = "The `SmartCardEmulation` domain."]
+        pub fn smart_card_emulation(&self) -> SmartCardEmulation<'a, X> {
+            SmartCardEmulation { exec: self.exec }
+        }
+        #[doc = "The `Storage` domain."]
+        pub fn storage(&self) -> Storage<'a, X> {
+            Storage { exec: self.exec }
+        }
+        #[doc = "The `SystemInfo` domain."]
+        pub fn system_info(&self) -> SystemInfo<'a, X> {
+            SystemInfo { exec: self.exec }
+        }
+        #[doc = "The `Target` domain."]
+        pub fn target(&self) -> Target<'a, X> {
+            Target { exec: self.exec }
+        }
+        #[doc = "The `Tethering` domain."]
+        pub fn tethering(&self) -> Tethering<'a, X> {
+            Tethering { exec: self.exec }
+        }
+        #[doc = "The `Tracing` domain."]
+        pub fn tracing(&self) -> Tracing<'a, X> {
+            Tracing { exec: self.exec }
+        }
+        #[doc = "The `WebAudio` domain."]
+        pub fn web_audio(&self) -> WebAudio<'a, X> {
+            WebAudio { exec: self.exec }
+        }
+        #[doc = "The `WebAuthn` domain."]
+        pub fn web_authn(&self) -> WebAuthn<'a, X> {
+            WebAuthn { exec: self.exec }
+        }
+        #[doc = "The `WebMCP` domain."]
+        pub fn web_mcp(&self) -> WebMcp<'a, X> {
+            WebMcp { exec: self.exec }
+        }
+    }
+    #[doc = "Debugger domain exposes JavaScript debugging capabilities. It allows setting and removing\nbreakpoints, stepping through execution, exploring stack traces, etc.\n\n[Debugger](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/)"]
+    pub struct Debugger<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Debugger<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Debugger<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Debugger<'a, X> {
+        #[doc = "Continues execution until specific location is reached.\n\nSends [`Debugger.continueToLocation`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-continueToLocation)."]
+        pub async fn continue_to_location(
+            &self,
+            params: super::js_protocol::debugger::ContinueToLocationParams,
+        ) -> Result<super::js_protocol::debugger::ContinueToLocationReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables debugger for given page.\n\nSends [`Debugger.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::js_protocol::debugger::DisableParams,
+        ) -> Result<super::js_protocol::debugger::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables debugger for the given page. Clients should not assume that the debugging has been\nenabled until the result for this command is received.\n\nSends [`Debugger.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::js_protocol::debugger::EnableParams,
+        ) -> Result<super::js_protocol::debugger::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Evaluates expression on a given call frame.\n\nSends [`Debugger.evaluateOnCallFrame`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-evaluateOnCallFrame)."]
+        pub async fn evaluate_on_call_frame(
+            &self,
+            params: super::js_protocol::debugger::EvaluateOnCallFrameParams,
+        ) -> Result<super::js_protocol::debugger::EvaluateOnCallFrameReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns possible locations for breakpoint. scriptId in start and end range locations should be\nthe same.\n\nSends [`Debugger.getPossibleBreakpoints`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-getPossibleBreakpoints)."]
+        pub async fn get_possible_breakpoints(
+            &self,
+            params: super::js_protocol::debugger::GetPossibleBreakpointsParams,
+        ) -> Result<super::js_protocol::debugger::GetPossibleBreakpointsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the current scope chain of the given call frame. Unlike the scope chain reported\nwith the `paused` event, it reflects changes made to variables since then (e.g. via\n`evaluateOnCallFrame` or `setVariableValue`).\n\nSends [`Debugger.getScopeChain`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-getScopeChain)."]
+        pub async fn get_scope_chain(
+            &self,
+            params: super::js_protocol::debugger::GetScopeChainParams,
+        ) -> Result<super::js_protocol::debugger::GetScopeChainReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns source for the script with given id.\n\nSends [`Debugger.getScriptSource`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-getScriptSource)."]
+        pub async fn get_script_source(
+            &self,
+            params: super::js_protocol::debugger::GetScriptSourceParams,
+        ) -> Result<super::js_protocol::debugger::GetScriptSourceReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Debugger.disassembleWasmModule`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-disassembleWasmModule)."]
+        pub async fn disassemble_wasm_module(
+            &self,
+            params: super::js_protocol::debugger::DisassembleWasmModuleParams,
+        ) -> Result<super::js_protocol::debugger::DisassembleWasmModuleReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disassemble the next chunk of lines for the module corresponding to the\nstream. If disassembly is complete, this API will invalidate the streamId\nand return an empty chunk. Any subsequent calls for the now invalid stream\nwill return errors.\n\nSends [`Debugger.nextWasmDisassemblyChunk`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-nextWasmDisassemblyChunk)."]
+        pub async fn next_wasm_disassembly_chunk(
+            &self,
+            params: super::js_protocol::debugger::NextWasmDisassemblyChunkParams,
+        ) -> Result<super::js_protocol::debugger::NextWasmDisassemblyChunkReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns stack trace with given `stackTraceId`.\n\nSends [`Debugger.getStackTrace`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-getStackTrace)."]
+        pub async fn get_stack_trace(
+            &self,
+            params: super::js_protocol::debugger::GetStackTraceParams,
+        ) -> Result<super::js_protocol::debugger::GetStackTraceReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Stops on the next JavaScript statement.\n\nSends [`Debugger.pause`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-pause)."]
+        pub async fn pause(
+            &self,
+            params: super::js_protocol::debugger::PauseParams,
+        ) -> Result<super::js_protocol::debugger::PauseReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes JavaScript breakpoint.\n\nSends [`Debugger.removeBreakpoint`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-removeBreakpoint)."]
+        pub async fn remove_breakpoint(
+            &self,
+            params: super::js_protocol::debugger::RemoveBreakpointParams,
+        ) -> Result<super::js_protocol::debugger::RemoveBreakpointReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Restarts particular call frame from the beginning. The old, deprecated\nbehavior of `restartFrame` is to stay paused and allow further CDP commands\nafter a restart was scheduled. This can cause problems with restarting, so\nwe now continue execution immediatly after it has been scheduled until we\nreach the beginning of the restarted frame.\n\nTo stay back-wards compatible, `restartFrame` now expects a `mode`\nparameter to be present. If the `mode` parameter is missing, `restartFrame`\nerrors out.\n\nThe various return values are deprecated and `callFrames` is always empty.\nUse the call frames from the `Debugger#paused` events instead, that fires\nonce V8 pauses at the beginning of the restarted function.\n\nSends [`Debugger.restartFrame`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-restartFrame)."]
+        pub async fn restart_frame(
+            &self,
+            params: super::js_protocol::debugger::RestartFrameParams,
+        ) -> Result<super::js_protocol::debugger::RestartFrameReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Resumes JavaScript execution.\n\nSends [`Debugger.resume`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-resume)."]
+        pub async fn resume(
+            &self,
+            params: super::js_protocol::debugger::ResumeParams,
+        ) -> Result<super::js_protocol::debugger::ResumeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Searches for given string in script content.\n\nSends [`Debugger.searchInContent`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-searchInContent)."]
+        pub async fn search_in_content(
+            &self,
+            params: super::js_protocol::debugger::SearchInContentParams,
+        ) -> Result<super::js_protocol::debugger::SearchInContentReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables or disables async call stacks tracking.\n\nSends [`Debugger.setAsyncCallStackDepth`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setAsyncCallStackDepth)."]
+        pub async fn set_async_call_stack_depth(
+            &self,
+            params: super::js_protocol::debugger::SetAsyncCallStackDepthParams,
+        ) -> Result<super::js_protocol::debugger::SetAsyncCallStackDepthReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Replace previous blackbox execution contexts with passed ones. Forces backend to skip\nstepping/pausing in scripts in these execution contexts. VM will try to leave blackboxed script by\nperforming 'step in' several times, finally resorting to 'step out' if unsuccessful.\n\nSends [`Debugger.setBlackboxExecutionContexts`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setBlackboxExecutionContexts)."]
+        pub async fn set_blackbox_execution_contexts(
+            &self,
+            params: super::js_protocol::debugger::SetBlackboxExecutionContextsParams,
+        ) -> Result<super::js_protocol::debugger::SetBlackboxExecutionContextsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Replace previous blackbox patterns with passed ones. Forces backend to skip stepping/pausing in\nscripts with url matching one of the patterns. VM will try to leave blackboxed script by\nperforming 'step in' several times, finally resorting to 'step out' if unsuccessful.\n\nSends [`Debugger.setBlackboxPatterns`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setBlackboxPatterns)."]
+        pub async fn set_blackbox_patterns(
+            &self,
+            params: super::js_protocol::debugger::SetBlackboxPatternsParams,
+        ) -> Result<super::js_protocol::debugger::SetBlackboxPatternsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Makes backend skip steps in the script in blackboxed ranges. VM will try leave blacklisted\nscripts by performing 'step in' several times, finally resorting to 'step out' if unsuccessful.\nPositions array contains positions where blackbox state is changed. First interval isn't\nblackboxed. Array should be sorted.\n\nSends [`Debugger.setBlackboxedRanges`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setBlackboxedRanges)."]
+        pub async fn set_blackboxed_ranges(
+            &self,
+            params: super::js_protocol::debugger::SetBlackboxedRangesParams,
+        ) -> Result<super::js_protocol::debugger::SetBlackboxedRangesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets JavaScript breakpoint at a given location.\n\nSends [`Debugger.setBreakpoint`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setBreakpoint)."]
+        pub async fn set_breakpoint(
+            &self,
+            params: super::js_protocol::debugger::SetBreakpointParams,
+        ) -> Result<super::js_protocol::debugger::SetBreakpointReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets instrumentation breakpoint.\n\nSends [`Debugger.setInstrumentationBreakpoint`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setInstrumentationBreakpoint)."]
+        pub async fn set_instrumentation_breakpoint(
+            &self,
+            params: super::js_protocol::debugger::SetInstrumentationBreakpointParams,
+        ) -> Result<super::js_protocol::debugger::SetInstrumentationBreakpointReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets JavaScript breakpoint at given location specified either by URL or URL regex. Once this\ncommand is issued, all existing parsed scripts will have breakpoints resolved and returned in\n`locations` property. Further matching script parsing will result in subsequent\n`breakpointResolved` events issued. This logical breakpoint will survive page reloads.\n\nSends [`Debugger.setBreakpointByUrl`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setBreakpointByUrl)."]
+        pub async fn set_breakpoint_by_url(
+            &self,
+            params: super::js_protocol::debugger::SetBreakpointByUrlParams,
+        ) -> Result<super::js_protocol::debugger::SetBreakpointByUrlReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets JavaScript breakpoint before each call to the given function.\nIf another function was created from the same source as a given one,\ncalling it will also trigger the breakpoint.\n\nSends [`Debugger.setBreakpointOnFunctionCall`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setBreakpointOnFunctionCall)."]
+        pub async fn set_breakpoint_on_function_call(
+            &self,
+            params: super::js_protocol::debugger::SetBreakpointOnFunctionCallParams,
+        ) -> Result<super::js_protocol::debugger::SetBreakpointOnFunctionCallReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Activates / deactivates all breakpoints on the page.\n\nSends [`Debugger.setBreakpointsActive`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setBreakpointsActive)."]
+        pub async fn set_breakpoints_active(
+            &self,
+            params: super::js_protocol::debugger::SetBreakpointsActiveParams,
+        ) -> Result<super::js_protocol::debugger::SetBreakpointsActiveReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Defines pause on exceptions state. Can be set to stop on all exceptions, uncaught exceptions,\nor caught exceptions, no exceptions. Initial pause on exceptions state is `none`.\n\nSends [`Debugger.setPauseOnExceptions`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setPauseOnExceptions)."]
+        pub async fn set_pause_on_exceptions(
+            &self,
+            params: super::js_protocol::debugger::SetPauseOnExceptionsParams,
+        ) -> Result<super::js_protocol::debugger::SetPauseOnExceptionsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Changes return value in top frame. Available only at return break position.\n\nSends [`Debugger.setReturnValue`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setReturnValue)."]
+        pub async fn set_return_value(
+            &self,
+            params: super::js_protocol::debugger::SetReturnValueParams,
+        ) -> Result<super::js_protocol::debugger::SetReturnValueReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Makes page not interrupt on any pauses (breakpoint, exception, dom exception etc).\n\nSends [`Debugger.setSkipAllPauses`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setSkipAllPauses)."]
+        pub async fn set_skip_all_pauses(
+            &self,
+            params: super::js_protocol::debugger::SetSkipAllPausesParams,
+        ) -> Result<super::js_protocol::debugger::SetSkipAllPausesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Changes value of variable in a callframe. Object-based scopes are not supported and must be\nmutated manually.\n\nSends [`Debugger.setVariableValue`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-setVariableValue)."]
+        pub async fn set_variable_value(
+            &self,
+            params: super::js_protocol::debugger::SetVariableValueParams,
+        ) -> Result<super::js_protocol::debugger::SetVariableValueReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Steps into the function call.\n\nSends [`Debugger.stepInto`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-stepInto)."]
+        pub async fn step_into(
+            &self,
+            params: super::js_protocol::debugger::StepIntoParams,
+        ) -> Result<super::js_protocol::debugger::StepIntoReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Steps out of the function call.\n\nSends [`Debugger.stepOut`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-stepOut)."]
+        pub async fn step_out(
+            &self,
+            params: super::js_protocol::debugger::StepOutParams,
+        ) -> Result<super::js_protocol::debugger::StepOutReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Steps over the statement.\n\nSends [`Debugger.stepOver`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-stepOver)."]
+        pub async fn step_over(
+            &self,
+            params: super::js_protocol::debugger::StepOverParams,
+        ) -> Result<super::js_protocol::debugger::StepOverReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fired when the virtual machine stopped on breakpoint or exception or any other stop criteria.\n\nStreams [`Debugger.paused`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#event-paused) from now on."]
+        pub fn on_paused(&self) -> X::Events<super::js_protocol::debugger::EventPaused> {
+            self.exec.events()
+        }
+        #[doc = "Fired when the virtual machine resumed execution.\n\nStreams [`Debugger.resumed`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#event-resumed) from now on."]
+        pub fn on_resumed(&self) -> X::Events<super::js_protocol::debugger::EventResumed> {
+            self.exec.events()
+        }
+        #[doc = "Fired when virtual machine fails to parse the script.\n\nStreams [`Debugger.scriptFailedToParse`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#event-scriptFailedToParse) from now on."]
+        pub fn on_script_failed_to_parse(
+            &self,
+        ) -> X::Events<super::js_protocol::debugger::EventScriptFailedToParse> {
+            self.exec.events()
+        }
+        #[doc = "Fired when virtual machine parses script. This event is also fired for all known and uncollected\nscripts upon enabling debugger.\n\nStreams [`Debugger.scriptParsed`](https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#event-scriptParsed) from now on."]
+        pub fn on_script_parsed(
+            &self,
+        ) -> X::Events<super::js_protocol::debugger::EventScriptParsed> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[HeapProfiler](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/)"]
+    pub struct HeapProfiler<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for HeapProfiler<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for HeapProfiler<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> HeapProfiler<'a, X> {
+        #[doc = "Enables console to refer to the node with given id via $x (see Command Line API for more details\n$x functions).\n\nSends [`HeapProfiler.addInspectedHeapObject`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-addInspectedHeapObject)."]
+        pub async fn add_inspected_heap_object(
+            &self,
+            params: super::js_protocol::heap_profiler::AddInspectedHeapObjectParams,
+        ) -> Result<super::js_protocol::heap_profiler::AddInspectedHeapObjectReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`HeapProfiler.collectGarbage`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-collectGarbage)."]
+        pub async fn collect_garbage(
+            &self,
+            params: super::js_protocol::heap_profiler::CollectGarbageParams,
+        ) -> Result<super::js_protocol::heap_profiler::CollectGarbageReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`HeapProfiler.disable`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::js_protocol::heap_profiler::DisableParams,
+        ) -> Result<super::js_protocol::heap_profiler::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`HeapProfiler.enable`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::js_protocol::heap_profiler::EnableParams,
+        ) -> Result<super::js_protocol::heap_profiler::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`HeapProfiler.getHeapObjectId`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-getHeapObjectId)."]
+        pub async fn get_heap_object_id(
+            &self,
+            params: super::js_protocol::heap_profiler::GetHeapObjectIdParams,
+        ) -> Result<super::js_protocol::heap_profiler::GetHeapObjectIdReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`HeapProfiler.getObjectByHeapObjectId`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-getObjectByHeapObjectId)."]
+        pub async fn get_object_by_heap_object_id(
+            &self,
+            params: super::js_protocol::heap_profiler::GetObjectByHeapObjectIdParams,
+        ) -> Result<super::js_protocol::heap_profiler::GetObjectByHeapObjectIdReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`HeapProfiler.getSamplingProfile`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-getSamplingProfile)."]
+        pub async fn get_sampling_profile(
+            &self,
+            params: super::js_protocol::heap_profiler::GetSamplingProfileParams,
+        ) -> Result<super::js_protocol::heap_profiler::GetSamplingProfileReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`HeapProfiler.startSampling`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-startSampling)."]
+        pub async fn start_sampling(
+            &self,
+            params: super::js_protocol::heap_profiler::StartSamplingParams,
+        ) -> Result<super::js_protocol::heap_profiler::StartSamplingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`HeapProfiler.startTrackingHeapObjects`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-startTrackingHeapObjects)."]
+        pub async fn start_tracking_heap_objects(
+            &self,
+            params: super::js_protocol::heap_profiler::StartTrackingHeapObjectsParams,
+        ) -> Result<super::js_protocol::heap_profiler::StartTrackingHeapObjectsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`HeapProfiler.stopSampling`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-stopSampling)."]
+        pub async fn stop_sampling(
+            &self,
+            params: super::js_protocol::heap_profiler::StopSamplingParams,
+        ) -> Result<super::js_protocol::heap_profiler::StopSamplingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`HeapProfiler.stopTrackingHeapObjects`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-stopTrackingHeapObjects)."]
+        pub async fn stop_tracking_heap_objects(
+            &self,
+            params: super::js_protocol::heap_profiler::StopTrackingHeapObjectsParams,
+        ) -> Result<super::js_protocol::heap_profiler::StopTrackingHeapObjectsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`HeapProfiler.takeHeapSnapshot`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#method-takeHeapSnapshot)."]
+        pub async fn take_heap_snapshot(
+            &self,
+            params: super::js_protocol::heap_profiler::TakeHeapSnapshotParams,
+        ) -> Result<super::js_protocol::heap_profiler::TakeHeapSnapshotReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Streams [`HeapProfiler.addHeapSnapshotChunk`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#event-addHeapSnapshotChunk) from now on."]
+        pub fn on_add_heap_snapshot_chunk(
+            &self,
+        ) -> X::Events<super::js_protocol::heap_profiler::EventAddHeapSnapshotChunk> {
+            self.exec.events()
+        }
+        #[doc = "If heap objects tracking has been started then backend may send update for one or more fragments\n\nStreams [`HeapProfiler.heapStatsUpdate`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#event-heapStatsUpdate) from now on."]
+        pub fn on_heap_stats_update(
+            &self,
+        ) -> X::Events<super::js_protocol::heap_profiler::EventHeapStatsUpdate> {
+            self.exec.events()
+        }
+        #[doc = "If heap objects tracking has been started then backend regularly sends a current value for last\nseen object id and corresponding timestamp. If the were changes in the heap since last event\nthen one or more heapStatsUpdate events will be sent before a new lastSeenObjectId event.\n\nStreams [`HeapProfiler.lastSeenObjectId`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#event-lastSeenObjectId) from now on."]
+        pub fn on_last_seen_object_id(
+            &self,
+        ) -> X::Events<super::js_protocol::heap_profiler::EventLastSeenObjectId> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`HeapProfiler.reportHeapSnapshotProgress`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#event-reportHeapSnapshotProgress) from now on."]
+        pub fn on_report_heap_snapshot_progress(
+            &self,
+        ) -> X::Events<super::js_protocol::heap_profiler::EventReportHeapSnapshotProgress> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`HeapProfiler.resetProfiles`](https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/#event-resetProfiles) from now on."]
+        pub fn on_reset_profiles(
+            &self,
+        ) -> X::Events<super::js_protocol::heap_profiler::EventResetProfiles> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[Profiler](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/)"]
+    pub struct Profiler<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Profiler<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Profiler<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Profiler<'a, X> {
+        #[doc = "Sends [`Profiler.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::js_protocol::profiler::DisableParams,
+        ) -> Result<super::js_protocol::profiler::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Profiler.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::js_protocol::profiler::EnableParams,
+        ) -> Result<super::js_protocol::profiler::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Collect coverage data for the current isolate. The coverage data may be incomplete due to\ngarbage collection.\n\nSends [`Profiler.getBestEffortCoverage`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#method-getBestEffortCoverage)."]
+        pub async fn get_best_effort_coverage(
+            &self,
+            params: super::js_protocol::profiler::GetBestEffortCoverageParams,
+        ) -> Result<super::js_protocol::profiler::GetBestEffortCoverageReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Changes CPU profiler sampling interval. Must be called before CPU profiles recording started.\n\nSends [`Profiler.setSamplingInterval`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#method-setSamplingInterval)."]
+        pub async fn set_sampling_interval(
+            &self,
+            params: super::js_protocol::profiler::SetSamplingIntervalParams,
+        ) -> Result<super::js_protocol::profiler::SetSamplingIntervalReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Profiler.start`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#method-start)."]
+        pub async fn start(
+            &self,
+            params: super::js_protocol::profiler::StartParams,
+        ) -> Result<super::js_protocol::profiler::StartReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enable precise code coverage. Coverage data for JavaScript executed before enabling precise code\ncoverage may be incomplete. Enabling prevents running optimized code and resets execution\ncounters.\n\nSends [`Profiler.startPreciseCoverage`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#method-startPreciseCoverage)."]
+        pub async fn start_precise_coverage(
+            &self,
+            params: super::js_protocol::profiler::StartPreciseCoverageParams,
+        ) -> Result<super::js_protocol::profiler::StartPreciseCoverageReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Profiler.stop`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#method-stop)."]
+        pub async fn stop(
+            &self,
+            params: super::js_protocol::profiler::StopParams,
+        ) -> Result<super::js_protocol::profiler::StopReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disable precise code coverage. Disabling releases unnecessary execution count records and allows\nexecuting optimized code.\n\nSends [`Profiler.stopPreciseCoverage`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#method-stopPreciseCoverage)."]
+        pub async fn stop_precise_coverage(
+            &self,
+            params: super::js_protocol::profiler::StopPreciseCoverageParams,
+        ) -> Result<super::js_protocol::profiler::StopPreciseCoverageReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Collect coverage data for the current isolate, and resets execution counters. Precise code\ncoverage needs to have started.\n\nSends [`Profiler.takePreciseCoverage`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#method-takePreciseCoverage)."]
+        pub async fn take_precise_coverage(
+            &self,
+            params: super::js_protocol::profiler::TakePreciseCoverageParams,
+        ) -> Result<super::js_protocol::profiler::TakePreciseCoverageReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Streams [`Profiler.consoleProfileFinished`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#event-consoleProfileFinished) from now on."]
+        pub fn on_console_profile_finished(
+            &self,
+        ) -> X::Events<super::js_protocol::profiler::EventConsoleProfileFinished> {
+            self.exec.events()
+        }
+        #[doc = "Sent when new profile recording is started using console.profile() call.\n\nStreams [`Profiler.consoleProfileStarted`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#event-consoleProfileStarted) from now on."]
+        pub fn on_console_profile_started(
+            &self,
+        ) -> X::Events<super::js_protocol::profiler::EventConsoleProfileStarted> {
+            self.exec.events()
+        }
+        #[doc = "Reports coverage delta since the last poll (either from an event like this, or from\n`takePreciseCoverage` for the current isolate. May only be sent if precise code\ncoverage has been started. This event can be trigged by the embedder to, for example,\ntrigger collection of coverage data immediately at a certain point in time.\n\nStreams [`Profiler.preciseCoverageDeltaUpdate`](https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#event-preciseCoverageDeltaUpdate) from now on."]
+        pub fn on_precise_coverage_delta_update(
+            &self,
+        ) -> X::Events<super::js_protocol::profiler::EventPreciseCoverageDeltaUpdate> {
+            self.exec.events()
+        }
+    }
+    #[doc = "Runtime domain exposes JavaScript runtime by means of remote evaluation and mirror objects.\nEvaluation results are returned as mirror object that expose object type, string representation\nand unique identifier that can be used for further object reference. Original objects are\nmaintained in memory unless they are either explicitly released or are released along with the\nother objects in their object group.\n\n[Runtime](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/)"]
+    pub struct Runtime<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Runtime<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Runtime<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Runtime<'a, X> {
+        #[doc = "Add handler to promise with given promise object id.\n\nSends [`Runtime.awaitPromise`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-awaitPromise)."]
+        pub async fn await_promise(
+            &self,
+            params: super::js_protocol::runtime::AwaitPromiseParams,
+        ) -> Result<super::js_protocol::runtime::AwaitPromiseReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Calls function with given declaration on the given object. Object group of the result is\ninherited from the target object.\n\nSends [`Runtime.callFunctionOn`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-callFunctionOn)."]
+        pub async fn call_function_on(
+            &self,
+            params: super::js_protocol::runtime::CallFunctionOnParams,
+        ) -> Result<super::js_protocol::runtime::CallFunctionOnReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Compiles expression.\n\nSends [`Runtime.compileScript`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-compileScript)."]
+        pub async fn compile_script(
+            &self,
+            params: super::js_protocol::runtime::CompileScriptParams,
+        ) -> Result<super::js_protocol::runtime::CompileScriptReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables reporting of execution contexts creation.\n\nSends [`Runtime.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::js_protocol::runtime::DisableParams,
+        ) -> Result<super::js_protocol::runtime::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Discards collected exceptions and console API calls.\n\nSends [`Runtime.discardConsoleEntries`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-discardConsoleEntries)."]
+        pub async fn discard_console_entries(
+            &self,
+            params: super::js_protocol::runtime::DiscardConsoleEntriesParams,
+        ) -> Result<super::js_protocol::runtime::DiscardConsoleEntriesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables reporting of execution contexts creation by means of `executionContextCreated` event.\nWhen the reporting gets enabled the event will be sent immediately for each existing execution\ncontext.\n\nSends [`Runtime.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::js_protocol::runtime::EnableParams,
+        ) -> Result<super::js_protocol::runtime::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Evaluates expression on global object.\n\nSends [`Runtime.evaluate`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-evaluate)."]
+        pub async fn evaluate(
+            &self,
+            params: super::js_protocol::runtime::EvaluateParams,
+        ) -> Result<super::js_protocol::runtime::EvaluateReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the isolate id.\n\nSends [`Runtime.getIsolateId`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-getIsolateId)."]
+        pub async fn get_isolate_id(
+            &self,
+            params: super::js_protocol::runtime::GetIsolateIdParams,
+        ) -> Result<super::js_protocol::runtime::GetIsolateIdReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the JavaScript heap usage.\nIt is the total usage of the corresponding isolate not scoped to a particular Runtime.\n\nSends [`Runtime.getHeapUsage`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-getHeapUsage)."]
+        pub async fn get_heap_usage(
+            &self,
+            params: super::js_protocol::runtime::GetHeapUsageParams,
+        ) -> Result<super::js_protocol::runtime::GetHeapUsageReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns properties of a given object. Object group of the result is inherited from the target\nobject.\n\nSends [`Runtime.getProperties`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-getProperties)."]
+        pub async fn get_properties(
+            &self,
+            params: super::js_protocol::runtime::GetPropertiesParams,
+        ) -> Result<super::js_protocol::runtime::GetPropertiesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns all let, const and class variables from global scope.\n\nSends [`Runtime.globalLexicalScopeNames`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-globalLexicalScopeNames)."]
+        pub async fn global_lexical_scope_names(
+            &self,
+            params: super::js_protocol::runtime::GlobalLexicalScopeNamesParams,
+        ) -> Result<super::js_protocol::runtime::GlobalLexicalScopeNamesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Runtime.queryObjects`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-queryObjects)."]
+        pub async fn query_objects(
+            &self,
+            params: super::js_protocol::runtime::QueryObjectsParams,
+        ) -> Result<super::js_protocol::runtime::QueryObjectsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Releases remote object with given id.\n\nSends [`Runtime.releaseObject`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-releaseObject)."]
+        pub async fn release_object(
+            &self,
+            params: super::js_protocol::runtime::ReleaseObjectParams,
+        ) -> Result<super::js_protocol::runtime::ReleaseObjectReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Releases all remote objects that belong to a given group.\n\nSends [`Runtime.releaseObjectGroup`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-releaseObjectGroup)."]
+        pub async fn release_object_group(
+            &self,
+            params: super::js_protocol::runtime::ReleaseObjectGroupParams,
+        ) -> Result<super::js_protocol::runtime::ReleaseObjectGroupReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Tells inspected instance to run if it was waiting for debugger to attach.\n\nSends [`Runtime.runIfWaitingForDebugger`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-runIfWaitingForDebugger)."]
+        pub async fn run_if_waiting_for_debugger(
+            &self,
+            params: super::js_protocol::runtime::RunIfWaitingForDebuggerParams,
+        ) -> Result<super::js_protocol::runtime::RunIfWaitingForDebuggerReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Runs script with given id in a given context.\n\nSends [`Runtime.runScript`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-runScript)."]
+        pub async fn run_script(
+            &self,
+            params: super::js_protocol::runtime::RunScriptParams,
+        ) -> Result<super::js_protocol::runtime::RunScriptReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables or disables async call stacks tracking.\n\nSends [`Runtime.setAsyncCallStackDepth`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-setAsyncCallStackDepth)."]
+        pub async fn set_async_call_stack_depth(
+            &self,
+            params: super::js_protocol::runtime::SetAsyncCallStackDepthParams,
+        ) -> Result<super::js_protocol::runtime::SetAsyncCallStackDepthReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Runtime.setCustomObjectFormatterEnabled`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-setCustomObjectFormatterEnabled)."]
+        pub async fn set_custom_object_formatter_enabled(
+            &self,
+            params: super::js_protocol::runtime::SetCustomObjectFormatterEnabledParams,
+        ) -> Result<super::js_protocol::runtime::SetCustomObjectFormatterEnabledReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Runtime.setMaxCallStackSizeToCapture`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-setMaxCallStackSizeToCapture)."]
+        pub async fn set_max_call_stack_size_to_capture(
+            &self,
+            params: super::js_protocol::runtime::SetMaxCallStackSizeToCaptureParams,
+        ) -> Result<super::js_protocol::runtime::SetMaxCallStackSizeToCaptureReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Terminate current or next JavaScript execution.\nWill cancel the termination when the outer-most script execution ends.\n\nSends [`Runtime.terminateExecution`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-terminateExecution)."]
+        pub async fn terminate_execution(
+            &self,
+            params: super::js_protocol::runtime::TerminateExecutionParams,
+        ) -> Result<super::js_protocol::runtime::TerminateExecutionReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "If executionContextId is empty, adds binding with the given name on the\nglobal objects of all inspected contexts, including those created later,\nbindings survive reloads.\nBinding function takes exactly one argument, this argument should be string,\nin case of any other input, function throws an exception.\nEach binding function call produces Runtime.bindingCalled notification.\n\nSends [`Runtime.addBinding`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-addBinding)."]
+        pub async fn add_binding(
+            &self,
+            params: super::js_protocol::runtime::AddBindingParams,
+        ) -> Result<super::js_protocol::runtime::AddBindingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "This method does not remove binding function from global object but\nunsubscribes current runtime agent from Runtime.bindingCalled notifications.\n\nSends [`Runtime.removeBinding`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-removeBinding)."]
+        pub async fn remove_binding(
+            &self,
+            params: super::js_protocol::runtime::RemoveBindingParams,
+        ) -> Result<super::js_protocol::runtime::RemoveBindingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "This method tries to lookup and populate exception details for a\nJavaScript Error object.\nNote that the stackTrace portion of the resulting exceptionDetails will\nonly be populated if the Runtime domain was enabled at the time when the\nError was thrown.\n\nSends [`Runtime.getExceptionDetails`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-getExceptionDetails)."]
+        pub async fn get_exception_details(
+            &self,
+            params: super::js_protocol::runtime::GetExceptionDetailsParams,
+        ) -> Result<super::js_protocol::runtime::GetExceptionDetailsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Notification is issued every time when binding is called.\n\nStreams [`Runtime.bindingCalled`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#event-bindingCalled) from now on."]
+        pub fn on_binding_called(
+            &self,
+        ) -> X::Events<super::js_protocol::runtime::EventBindingCalled> {
+            self.exec.events()
+        }
+        #[doc = "Issued when console API was called.\n\nStreams [`Runtime.consoleAPICalled`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#event-consoleAPICalled) from now on."]
+        pub fn on_console_api_called(
+            &self,
+        ) -> X::Events<super::js_protocol::runtime::EventConsoleApiCalled> {
+            self.exec.events()
+        }
+        #[doc = "Issued when unhandled exception was revoked.\n\nStreams [`Runtime.exceptionRevoked`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#event-exceptionRevoked) from now on."]
+        pub fn on_exception_revoked(
+            &self,
+        ) -> X::Events<super::js_protocol::runtime::EventExceptionRevoked> {
+            self.exec.events()
+        }
+        #[doc = "Issued when exception was thrown and unhandled.\n\nStreams [`Runtime.exceptionThrown`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#event-exceptionThrown) from now on."]
+        pub fn on_exception_thrown(
+            &self,
+        ) -> X::Events<super::js_protocol::runtime::EventExceptionThrown> {
+            self.exec.events()
+        }
+        #[doc = "Issued when new execution context is created.\n\nStreams [`Runtime.executionContextCreated`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#event-executionContextCreated) from now on."]
+        pub fn on_execution_context_created(
+            &self,
+        ) -> X::Events<super::js_protocol::runtime::EventExecutionContextCreated> {
+            self.exec.events()
+        }
+        #[doc = "Issued when execution context is destroyed.\n\nStreams [`Runtime.executionContextDestroyed`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#event-executionContextDestroyed) from now on."]
+        pub fn on_execution_context_destroyed(
+            &self,
+        ) -> X::Events<super::js_protocol::runtime::EventExecutionContextDestroyed> {
+            self.exec.events()
+        }
+        #[doc = "Issued when all executionContexts were cleared in browser\n\nStreams [`Runtime.executionContextsCleared`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#event-executionContextsCleared) from now on."]
+        pub fn on_execution_contexts_cleared(
+            &self,
+        ) -> X::Events<super::js_protocol::runtime::EventExecutionContextsCleared> {
+            self.exec.events()
+        }
+        #[doc = "Issued when object should be inspected (for example, as a result of inspect() command line API\ncall).\n\nStreams [`Runtime.inspectRequested`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#event-inspectRequested) from now on."]
+        pub fn on_inspect_requested(
+            &self,
+        ) -> X::Events<super::js_protocol::runtime::EventInspectRequested> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[Accessibility](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/)"]
+    pub struct Accessibility<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Accessibility<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Accessibility<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Accessibility<'a, X> {
+        #[doc = "Disables the accessibility domain.\n\nSends [`Accessibility.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::accessibility::DisableParams,
+        ) -> Result<super::browser_protocol::accessibility::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables the accessibility domain which causes `AXNodeId`s to remain consistent between method calls.\nThis turns on accessibility for the page, which can impact performance until accessibility is disabled.\n\nSends [`Accessibility.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::accessibility::EnableParams,
+        ) -> Result<super::browser_protocol::accessibility::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fetches the accessibility node and partial accessibility tree for this DOM node, if it exists.\n\nSends [`Accessibility.getPartialAXTree`](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/#method-getPartialAXTree)."]
+        pub async fn get_partial_ax_tree(
+            &self,
+            params: super::browser_protocol::accessibility::GetPartialAxTreeParams,
+        ) -> Result<super::browser_protocol::accessibility::GetPartialAxTreeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fetches the entire accessibility tree for the root Document\n\nSends [`Accessibility.getFullAXTree`](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/#method-getFullAXTree)."]
+        pub async fn get_full_ax_tree(
+            &self,
+            params: super::browser_protocol::accessibility::GetFullAxTreeParams,
+        ) -> Result<super::browser_protocol::accessibility::GetFullAxTreeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fetches the root node.\nRequires `enable()` to have been called previously.\n\nSends [`Accessibility.getRootAXNode`](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/#method-getRootAXNode)."]
+        pub async fn get_root_ax_node(
+            &self,
+            params: super::browser_protocol::accessibility::GetRootAxNodeParams,
+        ) -> Result<super::browser_protocol::accessibility::GetRootAxNodeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fetches a node and all ancestors up to and including the root.\nRequires `enable()` to have been called previously.\n\nSends [`Accessibility.getAXNodeAndAncestors`](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/#method-getAXNodeAndAncestors)."]
+        pub async fn get_ax_node_and_ancestors(
+            &self,
+            params: super::browser_protocol::accessibility::GetAxNodeAndAncestorsParams,
+        ) -> Result<super::browser_protocol::accessibility::GetAxNodeAndAncestorsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fetches a particular accessibility node by AXNodeId.\nRequires `enable()` to have been called previously.\n\nSends [`Accessibility.getChildAXNodes`](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/#method-getChildAXNodes)."]
+        pub async fn get_child_ax_nodes(
+            &self,
+            params: super::browser_protocol::accessibility::GetChildAxNodesParams,
+        ) -> Result<super::browser_protocol::accessibility::GetChildAxNodesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Query a DOM node's accessibility subtree for accessible name and role.\nThis command computes the name and role for all nodes in the subtree, including those that are\nignored for accessibility, and returns those that match the specified name and role. If no DOM\nnode is specified, or the DOM node does not exist, the command returns an error. If neither\n`accessibleName` or `role` is specified, it returns all the accessibility nodes in the subtree.\n\nSends [`Accessibility.queryAXTree`](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/#method-queryAXTree)."]
+        pub async fn query_ax_tree(
+            &self,
+            params: super::browser_protocol::accessibility::QueryAxTreeParams,
+        ) -> Result<super::browser_protocol::accessibility::QueryAxTreeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "The loadComplete event mirrors the load complete event sent by the browser to assistive\ntechnology when the web page has finished loading.\n\nStreams [`Accessibility.loadComplete`](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/#event-loadComplete) from now on."]
+        pub fn on_load_complete(
+            &self,
+        ) -> X::Events<super::browser_protocol::accessibility::EventLoadComplete> {
+            self.exec.events()
+        }
+        #[doc = "The nodesUpdated event is sent every time a previously requested node has changed the in tree.\n\nStreams [`Accessibility.nodesUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/#event-nodesUpdated) from now on."]
+        pub fn on_nodes_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::accessibility::EventNodesUpdated> {
+            self.exec.events()
+        }
+    }
+    #[doc = "A domain for ad-related metrics and data.\n\n[Ads](https://chromedevtools.github.io/devtools-protocol/tot/Ads/)"]
+    pub struct Ads<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Ads<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Ads<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Ads<'a, X> {
+        #[doc = "Retrieves ad metrics for the current page.\n\nSends [`Ads.getAdMetrics`](https://chromedevtools.github.io/devtools-protocol/tot/Ads/#method-getAdMetrics)."]
+        pub async fn get_ad_metrics(
+            &self,
+            params: super::browser_protocol::ads::GetAdMetricsParams,
+        ) -> Result<super::browser_protocol::ads::GetAdMetricsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Retrieves ad scripts for the current page. To minimize payload size, this\nonly returns the newly tracked ad scripts since the last call to\ngetAdScripts (i.e., the delta).\n\nSends [`Ads.getAdScripts`](https://chromedevtools.github.io/devtools-protocol/tot/Ads/#method-getAdScripts)."]
+        pub async fn get_ad_scripts(
+            &self,
+            params: super::browser_protocol::ads::GetAdScriptsParams,
+        ) -> Result<super::browser_protocol::ads::GetAdScriptsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "[Animation](https://chromedevtools.github.io/devtools-protocol/tot/Animation/)"]
+    pub struct Animation<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Animation<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Animation<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Animation<'a, X> {
+        #[doc = "Disables animation domain notifications.\n\nSends [`Animation.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::animation::DisableParams,
+        ) -> Result<super::browser_protocol::animation::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables animation domain notifications.\n\nSends [`Animation.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::animation::EnableParams,
+        ) -> Result<super::browser_protocol::animation::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the current time of the an animation.\n\nSends [`Animation.getCurrentTime`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#method-getCurrentTime)."]
+        pub async fn get_current_time(
+            &self,
+            params: super::browser_protocol::animation::GetCurrentTimeParams,
+        ) -> Result<super::browser_protocol::animation::GetCurrentTimeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Gets the playback rate of the document timeline.\n\nSends [`Animation.getPlaybackRate`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#method-getPlaybackRate)."]
+        pub async fn get_playback_rate(
+            &self,
+            params: super::browser_protocol::animation::GetPlaybackRateParams,
+        ) -> Result<super::browser_protocol::animation::GetPlaybackRateReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Releases a set of animations to no longer be manipulated.\n\nSends [`Animation.releaseAnimations`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#method-releaseAnimations)."]
+        pub async fn release_animations(
+            &self,
+            params: super::browser_protocol::animation::ReleaseAnimationsParams,
+        ) -> Result<super::browser_protocol::animation::ReleaseAnimationsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Gets the remote object of the Animation.\n\nSends [`Animation.resolveAnimation`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#method-resolveAnimation)."]
+        pub async fn resolve_animation(
+            &self,
+            params: super::browser_protocol::animation::ResolveAnimationParams,
+        ) -> Result<super::browser_protocol::animation::ResolveAnimationReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Seek a set of animations to a particular time within each animation.\n\nSends [`Animation.seekAnimations`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#method-seekAnimations)."]
+        pub async fn seek_animations(
+            &self,
+            params: super::browser_protocol::animation::SeekAnimationsParams,
+        ) -> Result<super::browser_protocol::animation::SeekAnimationsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets the paused state of a set of animations.\n\nSends [`Animation.setPaused`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#method-setPaused)."]
+        pub async fn set_paused(
+            &self,
+            params: super::browser_protocol::animation::SetPausedParams,
+        ) -> Result<super::browser_protocol::animation::SetPausedReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets the playback rate of the document timeline.\n\nSends [`Animation.setPlaybackRate`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#method-setPlaybackRate)."]
+        pub async fn set_playback_rate(
+            &self,
+            params: super::browser_protocol::animation::SetPlaybackRateParams,
+        ) -> Result<super::browser_protocol::animation::SetPlaybackRateReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets the timing of an animation node.\n\nSends [`Animation.setTiming`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#method-setTiming)."]
+        pub async fn set_timing(
+            &self,
+            params: super::browser_protocol::animation::SetTimingParams,
+        ) -> Result<super::browser_protocol::animation::SetTimingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Event for when an animation has been cancelled.\n\nStreams [`Animation.animationCanceled`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#event-animationCanceled) from now on."]
+        pub fn on_animation_canceled(
+            &self,
+        ) -> X::Events<super::browser_protocol::animation::EventAnimationCanceled> {
+            self.exec.events()
+        }
+        #[doc = "Event for each animation that has been created.\n\nStreams [`Animation.animationCreated`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#event-animationCreated) from now on."]
+        pub fn on_animation_created(
+            &self,
+        ) -> X::Events<super::browser_protocol::animation::EventAnimationCreated> {
+            self.exec.events()
+        }
+        #[doc = "Event for animation that has been started.\n\nStreams [`Animation.animationStarted`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#event-animationStarted) from now on."]
+        pub fn on_animation_started(
+            &self,
+        ) -> X::Events<super::browser_protocol::animation::EventAnimationStarted> {
+            self.exec.events()
+        }
+        #[doc = "Event for animation that has been updated.\n\nStreams [`Animation.animationUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Animation/#event-animationUpdated) from now on."]
+        pub fn on_animation_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::animation::EventAnimationUpdated> {
+            self.exec.events()
+        }
+    }
+    #[doc = "Audits domain allows investigation of page violations and possible improvements.\n\n[Audits](https://chromedevtools.github.io/devtools-protocol/tot/Audits/)"]
+    pub struct Audits<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Audits<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Audits<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Audits<'a, X> {
+        #[doc = "Returns the response body and size if it were re-encoded with the specified settings. Only\napplies to images.\n\nSends [`Audits.getEncodedResponse`](https://chromedevtools.github.io/devtools-protocol/tot/Audits/#method-getEncodedResponse)."]
+        pub async fn get_encoded_response(
+            &self,
+            params: super::browser_protocol::audits::GetEncodedResponseParams,
+        ) -> Result<super::browser_protocol::audits::GetEncodedResponseReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables issues domain, prevents further issues from being reported to the client.\n\nSends [`Audits.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Audits/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::audits::DisableParams,
+        ) -> Result<super::browser_protocol::audits::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables issues domain, sends the issues collected so far to the client by means of the\n`issueAdded` event.\n\nSends [`Audits.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Audits/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::audits::EnableParams,
+        ) -> Result<super::browser_protocol::audits::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Runs the form issues check for the target page. Found issues are reported\nusing Audits.issueAdded event.\n\nSends [`Audits.checkFormsIssues`](https://chromedevtools.github.io/devtools-protocol/tot/Audits/#method-checkFormsIssues)."]
+        pub async fn check_forms_issues(
+            &self,
+            params: super::browser_protocol::audits::CheckFormsIssuesParams,
+        ) -> Result<super::browser_protocol::audits::CheckFormsIssuesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Streams [`Audits.issueAdded`](https://chromedevtools.github.io/devtools-protocol/tot/Audits/#event-issueAdded) from now on."]
+        pub fn on_issue_added(
+            &self,
+        ) -> X::Events<super::browser_protocol::audits::EventIssueAdded> {
+            self.exec.events()
+        }
+    }
+    #[doc = "Defines commands and events for Autofill.\n\n[Autofill](https://chromedevtools.github.io/devtools-protocol/tot/Autofill/)"]
+    pub struct Autofill<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Autofill<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Autofill<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Autofill<'a, X> {
+        #[doc = "Trigger autofill on a form identified by the fieldId.\nIf the field and related form cannot be autofilled, returns an error.\nReturns once the values have been applied to the form fields.\n\nSends [`Autofill.trigger`](https://chromedevtools.github.io/devtools-protocol/tot/Autofill/#method-trigger)."]
+        pub async fn trigger(
+            &self,
+            params: super::browser_protocol::autofill::TriggerParams,
+        ) -> Result<super::browser_protocol::autofill::TriggerReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set addresses so that developers can verify their forms implementation.\n\nSends [`Autofill.setAddresses`](https://chromedevtools.github.io/devtools-protocol/tot/Autofill/#method-setAddresses)."]
+        pub async fn set_addresses(
+            &self,
+            params: super::browser_protocol::autofill::SetAddressesParams,
+        ) -> Result<super::browser_protocol::autofill::SetAddressesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables autofill domain notifications.\n\nSends [`Autofill.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Autofill/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::autofill::DisableParams,
+        ) -> Result<super::browser_protocol::autofill::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables autofill domain notifications.\n\nSends [`Autofill.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Autofill/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::autofill::EnableParams,
+        ) -> Result<super::browser_protocol::autofill::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Emitted when an address form is filled.\n\nStreams [`Autofill.addressFormFilled`](https://chromedevtools.github.io/devtools-protocol/tot/Autofill/#event-addressFormFilled) from now on."]
+        pub fn on_address_form_filled(
+            &self,
+        ) -> X::Events<super::browser_protocol::autofill::EventAddressFormFilled> {
+            self.exec.events()
+        }
+    }
+    #[doc = "Defines events for background web platform features.\n\n[BackgroundService](https://chromedevtools.github.io/devtools-protocol/tot/BackgroundService/)"]
+    pub struct BackgroundService<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for BackgroundService<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for BackgroundService<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> BackgroundService<'a, X> {
+        #[doc = "Enables event updates for the service.\n\nSends [`BackgroundService.startObserving`](https://chromedevtools.github.io/devtools-protocol/tot/BackgroundService/#method-startObserving)."]
+        pub async fn start_observing(
+            &self,
+            params: super::browser_protocol::background_service::StartObservingParams,
+        ) -> Result<super::browser_protocol::background_service::StartObservingReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables event updates for the service.\n\nSends [`BackgroundService.stopObserving`](https://chromedevtools.github.io/devtools-protocol/tot/BackgroundService/#method-stopObserving)."]
+        pub async fn stop_observing(
+            &self,
+            params: super::browser_protocol::background_service::StopObservingParams,
+        ) -> Result<super::browser_protocol::background_service::StopObservingReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set the recording state for the service.\n\nSends [`BackgroundService.setRecording`](https://chromedevtools.github.io/devtools-protocol/tot/BackgroundService/#method-setRecording)."]
+        pub async fn set_recording(
+            &self,
+            params: super::browser_protocol::background_service::SetRecordingParams,
+        ) -> Result<super::browser_protocol::background_service::SetRecordingReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears all stored data for the service.\n\nSends [`BackgroundService.clearEvents`](https://chromedevtools.github.io/devtools-protocol/tot/BackgroundService/#method-clearEvents)."]
+        pub async fn clear_events(
+            &self,
+            params: super::browser_protocol::background_service::ClearEventsParams,
+        ) -> Result<super::browser_protocol::background_service::ClearEventsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Called when the recording state for the service has been updated.\n\nStreams [`BackgroundService.recordingStateChanged`](https://chromedevtools.github.io/devtools-protocol/tot/BackgroundService/#event-recordingStateChanged) from now on."]
+        pub fn on_recording_state_changed(
+            &self,
+        ) -> X::Events<super::browser_protocol::background_service::EventRecordingStateChanged>
+        {
+            self.exec.events()
+        }
+        #[doc = "Called with all existing backgroundServiceEvents when enabled, and all new\nevents afterwards if enabled and recording.\n\nStreams [`BackgroundService.backgroundServiceEventReceived`](https://chromedevtools.github.io/devtools-protocol/tot/BackgroundService/#event-backgroundServiceEventReceived) from now on."]
+        pub fn on_background_service_event_received(
+            &self,
+        ) -> X::Events<
+            super::browser_protocol::background_service::EventBackgroundServiceEventReceived,
+        > {
+            self.exec.events()
+        }
+    }
+    #[doc = "This domain allows configuring virtual Bluetooth devices to test\nthe web-bluetooth API.\n\n[BluetoothEmulation](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/)"]
+    pub struct BluetoothEmulation<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for BluetoothEmulation<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for BluetoothEmulation<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> BluetoothEmulation<'a, X> {
+        #[doc = "Enable the BluetoothEmulation domain.\n\nSends [`BluetoothEmulation.enable`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::EnableParams,
+        ) -> Result<super::browser_protocol::bluetooth_emulation::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set the state of the simulated central.\n\nSends [`BluetoothEmulation.setSimulatedCentralState`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-setSimulatedCentralState)."]
+        pub async fn set_simulated_central_state(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::SetSimulatedCentralStateParams,
+        ) -> Result<
+            super::browser_protocol::bluetooth_emulation::SetSimulatedCentralStateReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disable the BluetoothEmulation domain.\n\nSends [`BluetoothEmulation.disable`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::DisableParams,
+        ) -> Result<super::browser_protocol::bluetooth_emulation::DisableReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Simulates a peripheral with |address|, |name| and |knownServiceUuids|\nthat has already been connected to the system.\n\nSends [`BluetoothEmulation.simulatePreconnectedPeripheral`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-simulatePreconnectedPeripheral)."]
+        pub async fn simulate_preconnected_peripheral(
+            &self,
+            params : super :: browser_protocol :: bluetooth_emulation :: SimulatePreconnectedPeripheralParams,
+        ) -> Result<
+            super::browser_protocol::bluetooth_emulation::SimulatePreconnectedPeripheralReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Simulates an advertisement packet described in |entry| being received by\nthe central.\n\nSends [`BluetoothEmulation.simulateAdvertisement`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-simulateAdvertisement)."]
+        pub async fn simulate_advertisement(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::SimulateAdvertisementParams,
+        ) -> Result<
+            super::browser_protocol::bluetooth_emulation::SimulateAdvertisementReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Simulates the response code from the peripheral with |address| for a\nGATT operation of |type|. The |code| value follows the HCI Error Codes from\nBluetooth Core Specification Vol 2 Part D 1.3 List Of Error Codes.\n\nSends [`BluetoothEmulation.simulateGATTOperationResponse`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-simulateGATTOperationResponse)."]
+        pub async fn simulate_gatt_operation_response(
+            &self,
+            params : super :: browser_protocol :: bluetooth_emulation :: SimulateGattOperationResponseParams,
+        ) -> Result<
+            super::browser_protocol::bluetooth_emulation::SimulateGattOperationResponseReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Simulates the response from the characteristic with |characteristicId| for a\ncharacteristic operation of |type|. The |code| value follows the Error\nCodes from Bluetooth Core Specification Vol 3 Part F 3.4.1.1 Error Response.\nThe |data| is expected to exist when simulating a successful read operation\nresponse.\n\nSends [`BluetoothEmulation.simulateCharacteristicOperationResponse`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-simulateCharacteristicOperationResponse)."]        pub async fn simulate_characteristic_operation_response (& self , params : super :: browser_protocol :: bluetooth_emulation :: SimulateCharacteristicOperationResponseParams) -> Result < super :: browser_protocol :: bluetooth_emulation :: SimulateCharacteristicOperationResponseReturns , X :: Error >{
+            self.exec.execute(params).await
+        }
+        #[doc = "Simulates the response from the descriptor with |descriptorId| for a\ndescriptor operation of |type|. The |code| value follows the Error\nCodes from Bluetooth Core Specification Vol 3 Part F 3.4.1.1 Error Response.\nThe |data| is expected to exist when simulating a successful read operation\nresponse.\n\nSends [`BluetoothEmulation.simulateDescriptorOperationResponse`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-simulateDescriptorOperationResponse)."]        pub async fn simulate_descriptor_operation_response (& self , params : super :: browser_protocol :: bluetooth_emulation :: SimulateDescriptorOperationResponseParams) -> Result < super :: browser_protocol :: bluetooth_emulation :: SimulateDescriptorOperationResponseReturns , X :: Error >{
+            self.exec.execute(params).await
+        }
+        #[doc = "Adds a service with |serviceUuid| to the peripheral with |address|.\n\nSends [`BluetoothEmulation.addService`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-addService)."]
+        pub async fn add_service(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::AddServiceParams,
+        ) -> Result<super::browser_protocol::bluetooth_emulation::AddServiceReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes the service respresented by |serviceId| from the simulated central.\n\nSends [`BluetoothEmulation.removeService`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-removeService)."]
+        pub async fn remove_service(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::RemoveServiceParams,
+        ) -> Result<super::browser_protocol::bluetooth_emulation::RemoveServiceReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Adds a characteristic with |characteristicUuid| and |properties| to the\nservice represented by |serviceId|.\n\nSends [`BluetoothEmulation.addCharacteristic`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-addCharacteristic)."]
+        pub async fn add_characteristic(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::AddCharacteristicParams,
+        ) -> Result<super::browser_protocol::bluetooth_emulation::AddCharacteristicReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes the characteristic respresented by |characteristicId| from the\nsimulated central.\n\nSends [`BluetoothEmulation.removeCharacteristic`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-removeCharacteristic)."]
+        pub async fn remove_characteristic(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::RemoveCharacteristicParams,
+        ) -> Result<
+            super::browser_protocol::bluetooth_emulation::RemoveCharacteristicReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Adds a descriptor with |descriptorUuid| to the characteristic respresented\nby |characteristicId|.\n\nSends [`BluetoothEmulation.addDescriptor`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-addDescriptor)."]
+        pub async fn add_descriptor(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::AddDescriptorParams,
+        ) -> Result<super::browser_protocol::bluetooth_emulation::AddDescriptorReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes the descriptor with |descriptorId| from the simulated central.\n\nSends [`BluetoothEmulation.removeDescriptor`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-removeDescriptor)."]
+        pub async fn remove_descriptor(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::RemoveDescriptorParams,
+        ) -> Result<super::browser_protocol::bluetooth_emulation::RemoveDescriptorReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Simulates a GATT disconnection from the peripheral with |address|.\n\nSends [`BluetoothEmulation.simulateGATTDisconnection`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-simulateGATTDisconnection)."]
+        pub async fn simulate_gatt_disconnection(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::SimulateGattDisconnectionParams,
+        ) -> Result<
+            super::browser_protocol::bluetooth_emulation::SimulateGattDisconnectionReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Simulates the ATT MTU exchange procedure from Bluetooth Core Specification\nVol 3 Part F 3.4.2 establishing |mtu| for the connection to the peripheral\nwith |address|.\n\nSends [`BluetoothEmulation.simulateGATTMtuChange`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#method-simulateGATTMtuChange)."]
+        pub async fn simulate_gatt_mtu_change(
+            &self,
+            params: super::browser_protocol::bluetooth_emulation::SimulateGattMtuChangeParams,
+        ) -> Result<
+            super::browser_protocol::bluetooth_emulation::SimulateGattMtuChangeReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Event for when a GATT operation of |type| to the peripheral with |address|\nhappened.\n\nStreams [`BluetoothEmulation.gattOperationReceived`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#event-gattOperationReceived) from now on."]
+        pub fn on_gatt_operation_received(
+            &self,
+        ) -> X::Events<super::browser_protocol::bluetooth_emulation::EventGattOperationReceived>
+        {
+            self.exec.events()
+        }
+        #[doc = "Event for when a characteristic operation of |type| to the characteristic\nrespresented by |characteristicId| happened. |data| and |writeType| is\nexpected to exist when |type| is write.\n\nStreams [`BluetoothEmulation.characteristicOperationReceived`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#event-characteristicOperationReceived) from now on."]
+        pub fn on_characteristic_operation_received(
+            &self,
+        ) -> X::Events<
+            super::browser_protocol::bluetooth_emulation::EventCharacteristicOperationReceived,
+        > {
+            self.exec.events()
+        }
+        #[doc = "Event for when a descriptor operation of |type| to the descriptor\nrespresented by |descriptorId| happened. |data| is expected to exist when\n|type| is write.\n\nStreams [`BluetoothEmulation.descriptorOperationReceived`](https://chromedevtools.github.io/devtools-protocol/tot/BluetoothEmulation/#event-descriptorOperationReceived) from now on."]
+        pub fn on_descriptor_operation_received(
+            &self,
+        ) -> X::Events<super::browser_protocol::bluetooth_emulation::EventDescriptorOperationReceived>
+        {
+            self.exec.events()
+        }
+    }
+    #[doc = "The Browser domain defines methods and events for browser managing.\n\n[Browser](https://chromedevtools.github.io/devtools-protocol/tot/Browser/)"]
+    pub struct Browser<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Browser<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Browser<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Browser<'a, X> {
+        #[doc = "Set permission settings for given embedding and embedded origins.\n\nSends [`Browser.setPermission`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-setPermission)."]
+        pub async fn set_permission(
+            &self,
+            params: super::browser_protocol::browser::SetPermissionParams,
+        ) -> Result<super::browser_protocol::browser::SetPermissionReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reset all permission management for all origins.\n\nSends [`Browser.resetPermissions`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-resetPermissions)."]
+        pub async fn reset_permissions(
+            &self,
+            params: super::browser_protocol::browser::ResetPermissionsParams,
+        ) -> Result<super::browser_protocol::browser::ResetPermissionsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set the behavior when downloading a file.\n\nSends [`Browser.setDownloadBehavior`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-setDownloadBehavior)."]
+        pub async fn set_download_behavior(
+            &self,
+            params: super::browser_protocol::browser::SetDownloadBehaviorParams,
+        ) -> Result<super::browser_protocol::browser::SetDownloadBehaviorReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Cancel a download if in progress\n\nSends [`Browser.cancelDownload`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-cancelDownload)."]
+        pub async fn cancel_download(
+            &self,
+            params: super::browser_protocol::browser::CancelDownloadParams,
+        ) -> Result<super::browser_protocol::browser::CancelDownloadReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Close browser gracefully.\n\nSends [`Browser.close`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-close)."]
+        pub async fn close(
+            &self,
+            params: super::browser_protocol::browser::CloseParams,
+        ) -> Result<super::browser_protocol::browser::CloseReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Crashes browser on the main thread.\n\nSends [`Browser.crash`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-crash)."]
+        pub async fn crash(
+            &self,
+            params: super::browser_protocol::browser::CrashParams,
+        ) -> Result<super::browser_protocol::browser::CrashReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Crashes GPU process.\n\nSends [`Browser.crashGpuProcess`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-crashGpuProcess)."]
+        pub async fn crash_gpu_process(
+            &self,
+            params: super::browser_protocol::browser::CrashGpuProcessParams,
+        ) -> Result<super::browser_protocol::browser::CrashGpuProcessReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns version information.\n\nSends [`Browser.getVersion`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-getVersion)."]
+        pub async fn get_version(
+            &self,
+            params: super::browser_protocol::browser::GetVersionParams,
+        ) -> Result<super::browser_protocol::browser::GetVersionReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the command line switches for the browser process if, and only if\n--enable-automation is on the commandline.\n\nSends [`Browser.getBrowserCommandLine`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-getBrowserCommandLine)."]
+        pub async fn get_browser_command_line(
+            &self,
+            params: super::browser_protocol::browser::GetBrowserCommandLineParams,
+        ) -> Result<super::browser_protocol::browser::GetBrowserCommandLineReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Adds or updates a mock camera in the shared video capture device list for\ntest automation. The mock camera is not scoped to a particular page or\nframe and is removed when the DevTools session that created it disconnects.\n\nSends [`Browser.addMockCamera`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-addMockCamera)."]
+        pub async fn add_mock_camera(
+            &self,
+            params: super::browser_protocol::browser::AddMockCameraParams,
+        ) -> Result<super::browser_protocol::browser::AddMockCameraReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Get Chrome histograms.\n\nSends [`Browser.getHistograms`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-getHistograms)."]
+        pub async fn get_histograms(
+            &self,
+            params: super::browser_protocol::browser::GetHistogramsParams,
+        ) -> Result<super::browser_protocol::browser::GetHistogramsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Get a Chrome histogram by name.\n\nSends [`Browser.getHistogram`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-getHistogram)."]
+        pub async fn get_histogram(
+            &self,
+            params: super::browser_protocol::browser::GetHistogramParams,
+        ) -> Result<super::browser_protocol::browser::GetHistogramReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Get position and size of the browser window.\n\nSends [`Browser.getWindowBounds`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-getWindowBounds)."]
+        pub async fn get_window_bounds(
+            &self,
+            params: super::browser_protocol::browser::GetWindowBoundsParams,
+        ) -> Result<super::browser_protocol::browser::GetWindowBoundsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Get the browser window that contains the devtools target.\n\nSends [`Browser.getWindowForTarget`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-getWindowForTarget)."]
+        pub async fn get_window_for_target(
+            &self,
+            params: super::browser_protocol::browser::GetWindowForTargetParams,
+        ) -> Result<super::browser_protocol::browser::GetWindowForTargetReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set position and/or size of the browser window.\n\nSends [`Browser.setWindowBounds`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-setWindowBounds)."]
+        pub async fn set_window_bounds(
+            &self,
+            params: super::browser_protocol::browser::SetWindowBoundsParams,
+        ) -> Result<super::browser_protocol::browser::SetWindowBoundsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set size of the browser contents resizing browser window as necessary.\n\nSends [`Browser.setContentsSize`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-setContentsSize)."]
+        pub async fn set_contents_size(
+            &self,
+            params: super::browser_protocol::browser::SetContentsSizeParams,
+        ) -> Result<super::browser_protocol::browser::SetContentsSizeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set dock tile details, platform-specific.\n\nSends [`Browser.setDockTile`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-setDockTile)."]
+        pub async fn set_dock_tile(
+            &self,
+            params: super::browser_protocol::browser::SetDockTileParams,
+        ) -> Result<super::browser_protocol::browser::SetDockTileReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Invoke custom browser commands used by telemetry.\n\nSends [`Browser.executeBrowserCommand`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-executeBrowserCommand)."]
+        pub async fn execute_browser_command(
+            &self,
+            params: super::browser_protocol::browser::ExecuteBrowserCommandParams,
+        ) -> Result<super::browser_protocol::browser::ExecuteBrowserCommandReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Gets the current globally-applied privacy control status\nSee https://www.w3.org/TR/gpc/#get-global-privacy-control\n\nSends [`Browser.getGlobalPrivacyControl`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-getGlobalPrivacyControl)."]
+        pub async fn get_global_privacy_control(
+            &self,
+            params: super::browser_protocol::browser::GetGlobalPrivacyControlParams,
+        ) -> Result<super::browser_protocol::browser::GetGlobalPrivacyControlReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets and then gets the current globally-applied privacy control status\nSee https://www.w3.org/TR/gpc/#set-global-privacy-control\n\nSends [`Browser.setGlobalPrivacyControl`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-setGlobalPrivacyControl)."]
+        pub async fn set_global_privacy_control(
+            &self,
+            params: super::browser_protocol::browser::SetGlobalPrivacyControlParams,
+        ) -> Result<super::browser_protocol::browser::SetGlobalPrivacyControlReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fired when page is about to start a download.\n\nStreams [`Browser.downloadWillBegin`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#event-downloadWillBegin) from now on."]
+        pub fn on_download_will_begin(
+            &self,
+        ) -> X::Events<super::browser_protocol::browser::EventDownloadWillBegin> {
+            self.exec.events()
+        }
+        #[doc = "Fired when download makes progress. Last call has |done| == true.\n\nStreams [`Browser.downloadProgress`](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#event-downloadProgress) from now on."]
+        pub fn on_download_progress(
+            &self,
+        ) -> X::Events<super::browser_protocol::browser::EventDownloadProgress> {
+            self.exec.events()
+        }
+    }
+    #[doc = "This domain exposes CSS read/write operations. All CSS objects (stylesheets, rules, and styles)\nhave an associated `id` used in subsequent operations on the related object. Each object type has\na specific `id` structure, and those are not interchangeable between objects of different kinds.\nCSS objects can be loaded using the `get*ForNode()` calls (which accept a DOM node id). A client\ncan also keep track of stylesheets via the `styleSheetAdded`/`styleSheetRemoved` events and\nsubsequently load the required stylesheet contents using the `getStyleSheet[Text]()` methods.\n\n[CSS](https://chromedevtools.github.io/devtools-protocol/tot/CSS/)"]
+    pub struct Css<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Css<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Css<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Css<'a, X> {
+        #[doc = "Inserts a new rule with the given `ruleText` in a stylesheet with given `styleSheetId`, at the\nposition specified by `location`.\n\nSends [`CSS.addRule`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-addRule)."]
+        pub async fn add_rule(
+            &self,
+            params: super::browser_protocol::css::AddRuleParams,
+        ) -> Result<super::browser_protocol::css::AddRuleReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns all class names from specified stylesheet.\n\nSends [`CSS.collectClassNames`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-collectClassNames)."]
+        pub async fn collect_class_names(
+            &self,
+            params: super::browser_protocol::css::CollectClassNamesParams,
+        ) -> Result<super::browser_protocol::css::CollectClassNamesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Creates a new special \"via-inspector\" stylesheet in the frame with given `frameId`.\n\nSends [`CSS.createStyleSheet`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-createStyleSheet)."]
+        pub async fn create_style_sheet(
+            &self,
+            params: super::browser_protocol::css::CreateStyleSheetParams,
+        ) -> Result<super::browser_protocol::css::CreateStyleSheetReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables the CSS agent for the given page.\n\nSends [`CSS.disable`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::css::DisableParams,
+        ) -> Result<super::browser_protocol::css::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables the CSS agent for the given page. Clients should not assume that the CSS agent has been\nenabled until the result of this command is received.\n\nSends [`CSS.enable`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::css::EnableParams,
+        ) -> Result<super::browser_protocol::css::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Ensures that the given node will have specified pseudo-classes whenever its style is computed by\nthe browser.\n\nSends [`CSS.forcePseudoState`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-forcePseudoState)."]
+        pub async fn force_pseudo_state(
+            &self,
+            params: super::browser_protocol::css::ForcePseudoStateParams,
+        ) -> Result<super::browser_protocol::css::ForcePseudoStateReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Ensures that the given node is in its starting-style state.\n\nSends [`CSS.forceStartingStyle`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-forceStartingStyle)."]
+        pub async fn force_starting_style(
+            &self,
+            params: super::browser_protocol::css::ForceStartingStyleParams,
+        ) -> Result<super::browser_protocol::css::ForceStartingStyleReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Forces a position-try option for the given node.\n\nSends [`CSS.forcePositionTryOption`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-forcePositionTryOption)."]
+        pub async fn force_position_try_option(
+            &self,
+            params: super::browser_protocol::css::ForcePositionTryOptionParams,
+        ) -> Result<super::browser_protocol::css::ForcePositionTryOptionReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`CSS.getBackgroundColors`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getBackgroundColors)."]
+        pub async fn get_background_colors(
+            &self,
+            params: super::browser_protocol::css::GetBackgroundColorsParams,
+        ) -> Result<super::browser_protocol::css::GetBackgroundColorsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the computed style for a DOM node identified by `nodeId`.\n\nSends [`CSS.getComputedStyleForNode`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getComputedStyleForNode)."]
+        pub async fn get_computed_style_for_node(
+            &self,
+            params: super::browser_protocol::css::GetComputedStyleForNodeParams,
+        ) -> Result<super::browser_protocol::css::GetComputedStyleForNodeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Resolve the specified values in the context of the provided element.\nFor example, a value of '1em' is evaluated according to the computed\n'font-size' of the element and a value 'calc(1px + 2px)' will be\nresolved to '3px'.\nIf the `propertyName` was specified the `values` are resolved as if\nthey were property's declaration. If a value cannot be parsed according\nto the provided property syntax, the value is parsed using combined\nsyntax as if null `propertyName` was provided. If the value cannot be\nresolved even then, return the provided value without any changes.\nNote: this function currently does not resolve CSS random() function,\nit returns unmodified random() function parts.`\n\nSends [`CSS.resolveValues`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-resolveValues)."]
+        pub async fn resolve_values(
+            &self,
+            params: super::browser_protocol::css::ResolveValuesParams,
+        ) -> Result<super::browser_protocol::css::ResolveValuesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`CSS.getLonghandProperties`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getLonghandProperties)."]
+        pub async fn get_longhand_properties(
+            &self,
+            params: super::browser_protocol::css::GetLonghandPropertiesParams,
+        ) -> Result<super::browser_protocol::css::GetLonghandPropertiesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the styles defined inline (explicitly in the \"style\" attribute and implicitly, using DOM\nattributes) for a DOM node identified by `nodeId`.\n\nSends [`CSS.getInlineStylesForNode`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getInlineStylesForNode)."]
+        pub async fn get_inline_styles_for_node(
+            &self,
+            params: super::browser_protocol::css::GetInlineStylesForNodeParams,
+        ) -> Result<super::browser_protocol::css::GetInlineStylesForNodeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the styles coming from animations & transitions\nincluding the animation & transition styles coming from inheritance chain.\n\nSends [`CSS.getAnimatedStylesForNode`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getAnimatedStylesForNode)."]
+        pub async fn get_animated_styles_for_node(
+            &self,
+            params: super::browser_protocol::css::GetAnimatedStylesForNodeParams,
+        ) -> Result<super::browser_protocol::css::GetAnimatedStylesForNodeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns requested styles for a DOM node identified by `nodeId`.\n\nSends [`CSS.getMatchedStylesForNode`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getMatchedStylesForNode)."]
+        pub async fn get_matched_styles_for_node(
+            &self,
+            params: super::browser_protocol::css::GetMatchedStylesForNodeParams,
+        ) -> Result<super::browser_protocol::css::GetMatchedStylesForNodeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the values of the default UA-defined environment variables used in env()\n\nSends [`CSS.getEnvironmentVariables`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getEnvironmentVariables)."]
+        pub async fn get_environment_variables(
+            &self,
+            params: super::browser_protocol::css::GetEnvironmentVariablesParams,
+        ) -> Result<super::browser_protocol::css::GetEnvironmentVariablesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns all media queries parsed by the rendering engine.\n\nSends [`CSS.getMediaQueries`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getMediaQueries)."]
+        pub async fn get_media_queries(
+            &self,
+            params: super::browser_protocol::css::GetMediaQueriesParams,
+        ) -> Result<super::browser_protocol::css::GetMediaQueriesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests information about platform fonts which we used to render child TextNodes in the given\nnode.\n\nSends [`CSS.getPlatformFontsForNode`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getPlatformFontsForNode)."]
+        pub async fn get_platform_fonts_for_node(
+            &self,
+            params: super::browser_protocol::css::GetPlatformFontsForNodeParams,
+        ) -> Result<super::browser_protocol::css::GetPlatformFontsForNodeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the current textual content for a stylesheet.\n\nSends [`CSS.getStyleSheetText`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getStyleSheetText)."]
+        pub async fn get_style_sheet_text(
+            &self,
+            params: super::browser_protocol::css::GetStyleSheetTextParams,
+        ) -> Result<super::browser_protocol::css::GetStyleSheetTextReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns all layers parsed by the rendering engine for the tree scope of a node.\nGiven a DOM element identified by nodeId, getLayersForNode returns the root\nlayer for the nearest ancestor document or shadow root. The layer root contains\nthe full layer tree for the tree scope and their ordering.\n\nSends [`CSS.getLayersForNode`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getLayersForNode)."]
+        pub async fn get_layers_for_node(
+            &self,
+            params: super::browser_protocol::css::GetLayersForNodeParams,
+        ) -> Result<super::browser_protocol::css::GetLayersForNodeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Given a CSS selector text and a style sheet ID, getLocationForSelector\nreturns an array of locations of the CSS selector in the style sheet.\n\nSends [`CSS.getLocationForSelector`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getLocationForSelector)."]
+        pub async fn get_location_for_selector(
+            &self,
+            params: super::browser_protocol::css::GetLocationForSelectorParams,
+        ) -> Result<super::browser_protocol::css::GetLocationForSelectorReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Starts tracking the given node for the computed style updates\nand whenever the computed style is updated for node, it queues\na `computedStyleUpdated` event with throttling.\nThere can only be 1 node tracked for computed style updates\nso passing a new node id removes tracking from the previous node.\nPass `undefined` to disable tracking.\n\nSends [`CSS.trackComputedStyleUpdatesForNode`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-trackComputedStyleUpdatesForNode)."]
+        pub async fn track_computed_style_updates_for_node(
+            &self,
+            params: super::browser_protocol::css::TrackComputedStyleUpdatesForNodeParams,
+        ) -> Result<super::browser_protocol::css::TrackComputedStyleUpdatesForNodeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Starts tracking the given computed styles for updates. The specified array of properties\nreplaces the one previously specified. Pass empty array to disable tracking.\nUse takeComputedStyleUpdates to retrieve the list of nodes that had properties modified.\nThe changes to computed style properties are only tracked for nodes pushed to the front-end\nby the DOM agent. If no changes to the tracked properties occur after the node has been pushed\nto the front-end, no updates will be issued for the node.\n\nSends [`CSS.trackComputedStyleUpdates`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-trackComputedStyleUpdates)."]
+        pub async fn track_computed_style_updates(
+            &self,
+            params: super::browser_protocol::css::TrackComputedStyleUpdatesParams,
+        ) -> Result<super::browser_protocol::css::TrackComputedStyleUpdatesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Polls the next batch of computed style updates.\n\nSends [`CSS.takeComputedStyleUpdates`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-takeComputedStyleUpdates)."]
+        pub async fn take_computed_style_updates(
+            &self,
+            params: super::browser_protocol::css::TakeComputedStyleUpdatesParams,
+        ) -> Result<super::browser_protocol::css::TakeComputedStyleUpdatesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Find a rule with the given active property for the given node and set the new value for this\nproperty\n\nSends [`CSS.setEffectivePropertyValueForNode`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setEffectivePropertyValueForNode)."]
+        pub async fn set_effective_property_value_for_node(
+            &self,
+            params: super::browser_protocol::css::SetEffectivePropertyValueForNodeParams,
+        ) -> Result<super::browser_protocol::css::SetEffectivePropertyValueForNodeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Modifies the property rule property name.\n\nSends [`CSS.setPropertyRulePropertyName`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setPropertyRulePropertyName)."]
+        pub async fn set_property_rule_property_name(
+            &self,
+            params: super::browser_protocol::css::SetPropertyRulePropertyNameParams,
+        ) -> Result<super::browser_protocol::css::SetPropertyRulePropertyNameReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Modifies the keyframe rule key text.\n\nSends [`CSS.setKeyframeKey`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setKeyframeKey)."]
+        pub async fn set_keyframe_key(
+            &self,
+            params: super::browser_protocol::css::SetKeyframeKeyParams,
+        ) -> Result<super::browser_protocol::css::SetKeyframeKeyReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Modifies the rule selector.\n\nSends [`CSS.setMediaText`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setMediaText)."]
+        pub async fn set_media_text(
+            &self,
+            params: super::browser_protocol::css::SetMediaTextParams,
+        ) -> Result<super::browser_protocol::css::SetMediaTextReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`CSS.setContainerQueryConditionText`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setContainerQueryConditionText)."]
+        pub async fn set_container_query_condition_text(
+            &self,
+            params: super::browser_protocol::css::SetContainerQueryConditionTextParams,
+        ) -> Result<super::browser_protocol::css::SetContainerQueryConditionTextReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Modifies the expression of a supports at-rule.\n\nSends [`CSS.setSupportsText`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setSupportsText)."]
+        pub async fn set_supports_text(
+            &self,
+            params: super::browser_protocol::css::SetSupportsTextParams,
+        ) -> Result<super::browser_protocol::css::SetSupportsTextReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Modifies the expression of a navigation at-rule.\n\nSends [`CSS.setNavigationText`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setNavigationText)."]
+        pub async fn set_navigation_text(
+            &self,
+            params: super::browser_protocol::css::SetNavigationTextParams,
+        ) -> Result<super::browser_protocol::css::SetNavigationTextReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Modifies the expression of a scope at-rule.\n\nSends [`CSS.setScopeText`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setScopeText)."]
+        pub async fn set_scope_text(
+            &self,
+            params: super::browser_protocol::css::SetScopeTextParams,
+        ) -> Result<super::browser_protocol::css::SetScopeTextReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Modifies the rule selector.\n\nSends [`CSS.setRuleSelector`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setRuleSelector)."]
+        pub async fn set_rule_selector(
+            &self,
+            params: super::browser_protocol::css::SetRuleSelectorParams,
+        ) -> Result<super::browser_protocol::css::SetRuleSelectorReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets the new stylesheet text.\n\nSends [`CSS.setStyleSheetText`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setStyleSheetText)."]
+        pub async fn set_style_sheet_text(
+            &self,
+            params: super::browser_protocol::css::SetStyleSheetTextParams,
+        ) -> Result<super::browser_protocol::css::SetStyleSheetTextReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Applies specified style edits one after another in the given order.\n\nSends [`CSS.setStyleTexts`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setStyleTexts)."]
+        pub async fn set_style_texts(
+            &self,
+            params: super::browser_protocol::css::SetStyleTextsParams,
+        ) -> Result<super::browser_protocol::css::SetStyleTextsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables the selector recording.\n\nSends [`CSS.startRuleUsageTracking`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-startRuleUsageTracking)."]
+        pub async fn start_rule_usage_tracking(
+            &self,
+            params: super::browser_protocol::css::StartRuleUsageTrackingParams,
+        ) -> Result<super::browser_protocol::css::StartRuleUsageTrackingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Stop tracking rule usage and return the list of rules that were used since last call to\n`takeCoverageDelta` (or since start of coverage instrumentation).\n\nSends [`CSS.stopRuleUsageTracking`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-stopRuleUsageTracking)."]
+        pub async fn stop_rule_usage_tracking(
+            &self,
+            params: super::browser_protocol::css::StopRuleUsageTrackingParams,
+        ) -> Result<super::browser_protocol::css::StopRuleUsageTrackingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Obtain list of rules that became used since last call to this method (or since start of coverage\ninstrumentation).\n\nSends [`CSS.takeCoverageDelta`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-takeCoverageDelta)."]
+        pub async fn take_coverage_delta(
+            &self,
+            params: super::browser_protocol::css::TakeCoverageDeltaParams,
+        ) -> Result<super::browser_protocol::css::TakeCoverageDeltaReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables/disables rendering of local CSS fonts (enabled by default).\n\nSends [`CSS.setLocalFontsEnabled`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-setLocalFontsEnabled)."]
+        pub async fn set_local_fonts_enabled(
+            &self,
+            params: super::browser_protocol::css::SetLocalFontsEnabledParams,
+        ) -> Result<super::browser_protocol::css::SetLocalFontsEnabledReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fires whenever a web font is updated.  A non-empty font parameter indicates a successfully loaded\nweb font.\n\nStreams [`CSS.fontsUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#event-fontsUpdated) from now on."]
+        pub fn on_fonts_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::css::EventFontsUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Fires whenever a MediaQuery result changes (for example, after a browser window has been\nresized.) The current implementation considers only viewport-dependent media features.\n\nStreams [`CSS.mediaQueryResultChanged`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#event-mediaQueryResultChanged) from now on."]
+        pub fn on_media_query_result_changed(
+            &self,
+        ) -> X::Events<super::browser_protocol::css::EventMediaQueryResultChanged> {
+            self.exec.events()
+        }
+        #[doc = "Fired whenever an active document stylesheet is added.\n\nStreams [`CSS.styleSheetAdded`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#event-styleSheetAdded) from now on."]
+        pub fn on_style_sheet_added(
+            &self,
+        ) -> X::Events<super::browser_protocol::css::EventStyleSheetAdded> {
+            self.exec.events()
+        }
+        #[doc = "Fired whenever a stylesheet is changed as a result of the client operation.\n\nStreams [`CSS.styleSheetChanged`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#event-styleSheetChanged) from now on."]
+        pub fn on_style_sheet_changed(
+            &self,
+        ) -> X::Events<super::browser_protocol::css::EventStyleSheetChanged> {
+            self.exec.events()
+        }
+        #[doc = "Fired whenever an active document stylesheet is removed.\n\nStreams [`CSS.styleSheetRemoved`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#event-styleSheetRemoved) from now on."]
+        pub fn on_style_sheet_removed(
+            &self,
+        ) -> X::Events<super::browser_protocol::css::EventStyleSheetRemoved> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`CSS.computedStyleUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/CSS/#event-computedStyleUpdated) from now on."]
+        pub fn on_computed_style_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::css::EventComputedStyleUpdated> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[CacheStorage](https://chromedevtools.github.io/devtools-protocol/tot/CacheStorage/)"]
+    pub struct CacheStorage<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for CacheStorage<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for CacheStorage<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> CacheStorage<'a, X> {
+        #[doc = "Deletes a cache.\n\nSends [`CacheStorage.deleteCache`](https://chromedevtools.github.io/devtools-protocol/tot/CacheStorage/#method-deleteCache)."]
+        pub async fn delete_cache(
+            &self,
+            params: super::browser_protocol::cache_storage::DeleteCacheParams,
+        ) -> Result<super::browser_protocol::cache_storage::DeleteCacheReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Deletes a cache entry.\n\nSends [`CacheStorage.deleteEntry`](https://chromedevtools.github.io/devtools-protocol/tot/CacheStorage/#method-deleteEntry)."]
+        pub async fn delete_entry(
+            &self,
+            params: super::browser_protocol::cache_storage::DeleteEntryParams,
+        ) -> Result<super::browser_protocol::cache_storage::DeleteEntryReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests cache names.\n\nSends [`CacheStorage.requestCacheNames`](https://chromedevtools.github.io/devtools-protocol/tot/CacheStorage/#method-requestCacheNames)."]
+        pub async fn request_cache_names(
+            &self,
+            params: super::browser_protocol::cache_storage::RequestCacheNamesParams,
+        ) -> Result<super::browser_protocol::cache_storage::RequestCacheNamesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fetches cache entry.\n\nSends [`CacheStorage.requestCachedResponse`](https://chromedevtools.github.io/devtools-protocol/tot/CacheStorage/#method-requestCachedResponse)."]
+        pub async fn request_cached_response(
+            &self,
+            params: super::browser_protocol::cache_storage::RequestCachedResponseParams,
+        ) -> Result<super::browser_protocol::cache_storage::RequestCachedResponseReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests data from cache.\n\nSends [`CacheStorage.requestEntries`](https://chromedevtools.github.io/devtools-protocol/tot/CacheStorage/#method-requestEntries)."]
+        pub async fn request_entries(
+            &self,
+            params: super::browser_protocol::cache_storage::RequestEntriesParams,
+        ) -> Result<super::browser_protocol::cache_storage::RequestEntriesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "A domain for interacting with Cast, Presentation API, and Remote Playback API\nfunctionalities.\n\n[Cast](https://chromedevtools.github.io/devtools-protocol/tot/Cast/)"]
+    pub struct Cast<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Cast<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Cast<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Cast<'a, X> {
+        #[doc = "Starts observing for sinks that can be used for tab mirroring, and if set,\nsinks compatible with |presentationUrl| as well. When sinks are found, a\n|sinksUpdated| event is fired.\nAlso starts observing for issue messages. When an issue is added or removed,\nan |issueUpdated| event is fired.\n\nSends [`Cast.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Cast/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::cast::EnableParams,
+        ) -> Result<super::browser_protocol::cast::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Stops observing for sinks and issues.\n\nSends [`Cast.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Cast/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::cast::DisableParams,
+        ) -> Result<super::browser_protocol::cast::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets a sink to be used when the web page requests the browser to choose a\nsink via Presentation API, Remote Playback API, or Cast SDK.\n\nSends [`Cast.setSinkToUse`](https://chromedevtools.github.io/devtools-protocol/tot/Cast/#method-setSinkToUse)."]
+        pub async fn set_sink_to_use(
+            &self,
+            params: super::browser_protocol::cast::SetSinkToUseParams,
+        ) -> Result<super::browser_protocol::cast::SetSinkToUseReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Starts mirroring the desktop to the sink.\n\nSends [`Cast.startDesktopMirroring`](https://chromedevtools.github.io/devtools-protocol/tot/Cast/#method-startDesktopMirroring)."]
+        pub async fn start_desktop_mirroring(
+            &self,
+            params: super::browser_protocol::cast::StartDesktopMirroringParams,
+        ) -> Result<super::browser_protocol::cast::StartDesktopMirroringReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Starts mirroring the tab to the sink.\n\nSends [`Cast.startTabMirroring`](https://chromedevtools.github.io/devtools-protocol/tot/Cast/#method-startTabMirroring)."]
+        pub async fn start_tab_mirroring(
+            &self,
+            params: super::browser_protocol::cast::StartTabMirroringParams,
+        ) -> Result<super::browser_protocol::cast::StartTabMirroringReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Stops the active Cast session on the sink.\n\nSends [`Cast.stopCasting`](https://chromedevtools.github.io/devtools-protocol/tot/Cast/#method-stopCasting)."]
+        pub async fn stop_casting(
+            &self,
+            params: super::browser_protocol::cast::StopCastingParams,
+        ) -> Result<super::browser_protocol::cast::StopCastingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "This is fired whenever the list of available sinks changes. A sink is a\ndevice or a software surface that you can cast to.\n\nStreams [`Cast.sinksUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Cast/#event-sinksUpdated) from now on."]
+        pub fn on_sinks_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::cast::EventSinksUpdated> {
+            self.exec.events()
+        }
+        #[doc = "This is fired whenever the outstanding issue/error message changes.\n|issueMessage| is empty if there is no issue.\n\nStreams [`Cast.issueUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Cast/#event-issueUpdated) from now on."]
+        pub fn on_issue_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::cast::EventIssueUpdated> {
+            self.exec.events()
+        }
+    }
+    #[doc = "This domain exposes the current state of the CrashReportContext API.\n\n[CrashReportContext](https://chromedevtools.github.io/devtools-protocol/tot/CrashReportContext/)"]
+    pub struct CrashReportContext<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for CrashReportContext<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for CrashReportContext<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> CrashReportContext<'a, X> {
+        #[doc = "Returns all entries in the CrashReportContext across all frames in the page.\n\nSends [`CrashReportContext.getEntries`](https://chromedevtools.github.io/devtools-protocol/tot/CrashReportContext/#method-getEntries)."]
+        pub async fn get_entries(
+            &self,
+            params: super::browser_protocol::crash_report_context::GetEntriesParams,
+        ) -> Result<super::browser_protocol::crash_report_context::GetEntriesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "This domain exposes DOM read/write operations. Each DOM Node is represented with its mirror object\nthat has an `id`. This `id` can be used to get additional information on the Node, resolve it into\nthe JavaScript object wrapper, etc. It is important that client receives DOM events only for the\nnodes that are known to the client. Backend keeps track of the nodes that were sent to the client\nand never sends the same node twice. It is client's responsibility to collect information about\nthe nodes that were sent to the client. Note that `iframe` owner elements will return\ncorresponding document elements as their child nodes.\n\n[DOM](https://chromedevtools.github.io/devtools-protocol/tot/DOM/)"]
+    pub struct Dom<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Dom<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Dom<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Dom<'a, X> {
+        #[doc = "Collects class names for the node with given id and all of it's child nodes.\n\nSends [`DOM.collectClassNamesFromSubtree`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-collectClassNamesFromSubtree)."]
+        pub async fn collect_class_names_from_subtree(
+            &self,
+            params: super::browser_protocol::dom::CollectClassNamesFromSubtreeParams,
+        ) -> Result<super::browser_protocol::dom::CollectClassNamesFromSubtreeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Creates a deep copy of the specified node and places it into the target container before the\ngiven anchor.\n\nSends [`DOM.copyTo`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-copyTo)."]
+        pub async fn copy_to(
+            &self,
+            params: super::browser_protocol::dom::CopyToParams,
+        ) -> Result<super::browser_protocol::dom::CopyToReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Describes node given its id, does not require domain to be enabled. Does not start tracking any\nobjects, can be used for automation.\n\nSends [`DOM.describeNode`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-describeNode)."]
+        pub async fn describe_node(
+            &self,
+            params: super::browser_protocol::dom::DescribeNodeParams,
+        ) -> Result<super::browser_protocol::dom::DescribeNodeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Scrolls the specified rect of the given node into view if not already visible.\nNote: exactly one between nodeId, backendNodeId and objectId should be passed\nto identify the node.\n\nSends [`DOM.scrollIntoViewIfNeeded`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-scrollIntoViewIfNeeded)."]
+        pub async fn scroll_into_view_if_needed(
+            &self,
+            params: super::browser_protocol::dom::ScrollIntoViewIfNeededParams,
+        ) -> Result<super::browser_protocol::dom::ScrollIntoViewIfNeededReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables DOM agent for the given page.\n\nSends [`DOM.disable`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::dom::DisableParams,
+        ) -> Result<super::browser_protocol::dom::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Discards search results from the session with the given id. `getSearchResults` should no longer\nbe called for that search.\n\nSends [`DOM.discardSearchResults`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-discardSearchResults)."]
+        pub async fn discard_search_results(
+            &self,
+            params: super::browser_protocol::dom::DiscardSearchResultsParams,
+        ) -> Result<super::browser_protocol::dom::DiscardSearchResultsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables DOM agent for the given page.\n\nSends [`DOM.enable`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::dom::EnableParams,
+        ) -> Result<super::browser_protocol::dom::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Focuses the given element.\n\nSends [`DOM.focus`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-focus)."]
+        pub async fn focus(
+            &self,
+            params: super::browser_protocol::dom::FocusParams,
+        ) -> Result<super::browser_protocol::dom::FocusReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns attributes for the specified node.\n\nSends [`DOM.getAttributes`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getAttributes)."]
+        pub async fn get_attributes(
+            &self,
+            params: super::browser_protocol::dom::GetAttributesParams,
+        ) -> Result<super::browser_protocol::dom::GetAttributesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns boxes for the given node.\n\nSends [`DOM.getBoxModel`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getBoxModel)."]
+        pub async fn get_box_model(
+            &self,
+            params: super::browser_protocol::dom::GetBoxModelParams,
+        ) -> Result<super::browser_protocol::dom::GetBoxModelReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns quads that describe node position on the page. This method\nmight return multiple quads for inline nodes.\n\nSends [`DOM.getContentQuads`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getContentQuads)."]
+        pub async fn get_content_quads(
+            &self,
+            params: super::browser_protocol::dom::GetContentQuadsParams,
+        ) -> Result<super::browser_protocol::dom::GetContentQuadsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the root DOM node (and optionally the subtree) to the caller.\nImplicitly enables the DOM domain events for the current target.\n\nSends [`DOM.getDocument`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getDocument)."]
+        pub async fn get_document(
+            &self,
+            params: super::browser_protocol::dom::GetDocumentParams,
+        ) -> Result<super::browser_protocol::dom::GetDocumentReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Finds nodes with a given computed style in a subtree.\n\nSends [`DOM.getNodesForSubtreeByStyle`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getNodesForSubtreeByStyle)."]
+        pub async fn get_nodes_for_subtree_by_style(
+            &self,
+            params: super::browser_protocol::dom::GetNodesForSubtreeByStyleParams,
+        ) -> Result<super::browser_protocol::dom::GetNodesForSubtreeByStyleReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns node id at given location. Depending on whether DOM domain is enabled, nodeId is\neither returned or not.\n\nSends [`DOM.getNodeForLocation`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getNodeForLocation)."]
+        pub async fn get_node_for_location(
+            &self,
+            params: super::browser_protocol::dom::GetNodeForLocationParams,
+        ) -> Result<super::browser_protocol::dom::GetNodeForLocationReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns node's HTML markup.\n\nSends [`DOM.getOuterHTML`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getOuterHTML)."]
+        pub async fn get_outer_html(
+            &self,
+            params: super::browser_protocol::dom::GetOuterHtmlParams,
+        ) -> Result<super::browser_protocol::dom::GetOuterHtmlReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the id of the nearest ancestor that is a relayout boundary.\n\nSends [`DOM.getRelayoutBoundary`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getRelayoutBoundary)."]
+        pub async fn get_relayout_boundary(
+            &self,
+            params: super::browser_protocol::dom::GetRelayoutBoundaryParams,
+        ) -> Result<super::browser_protocol::dom::GetRelayoutBoundaryReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns search results from given `fromIndex` to given `toIndex` from the search with the given\nidentifier.\n\nSends [`DOM.getSearchResults`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getSearchResults)."]
+        pub async fn get_search_results(
+            &self,
+            params: super::browser_protocol::dom::GetSearchResultsParams,
+        ) -> Result<super::browser_protocol::dom::GetSearchResultsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Hides any highlight.\n\nSends [`DOM.hideHighlight`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-hideHighlight)."]
+        pub async fn hide_highlight(
+            &self,
+            params: super::browser_protocol::dom::HideHighlightParams,
+        ) -> Result<super::browser_protocol::dom::HideHighlightReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Highlights DOM node.\n\nSends [`DOM.highlightNode`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-highlightNode)."]
+        pub async fn highlight_node(
+            &self,
+            params: super::browser_protocol::dom::HighlightNodeParams,
+        ) -> Result<super::browser_protocol::dom::HighlightNodeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Highlights given rectangle.\n\nSends [`DOM.highlightRect`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-highlightRect)."]
+        pub async fn highlight_rect(
+            &self,
+            params: super::browser_protocol::dom::HighlightRectParams,
+        ) -> Result<super::browser_protocol::dom::HighlightRectReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Marks last undoable state.\n\nSends [`DOM.markUndoableState`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-markUndoableState)."]
+        pub async fn mark_undoable_state(
+            &self,
+            params: super::browser_protocol::dom::MarkUndoableStateParams,
+        ) -> Result<super::browser_protocol::dom::MarkUndoableStateReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Moves node into the new container, places it before the given anchor.\n\nSends [`DOM.moveTo`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-moveTo)."]
+        pub async fn move_to(
+            &self,
+            params: super::browser_protocol::dom::MoveToParams,
+        ) -> Result<super::browser_protocol::dom::MoveToReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Searches for a given string in the DOM tree. Use `getSearchResults` to access search results or\n`cancelSearch` to end this search session.\n\nSends [`DOM.performSearch`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-performSearch)."]
+        pub async fn perform_search(
+            &self,
+            params: super::browser_protocol::dom::PerformSearchParams,
+        ) -> Result<super::browser_protocol::dom::PerformSearchReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests that the node is sent to the caller given its path. // FIXME, use XPath\n\nSends [`DOM.pushNodeByPathToFrontend`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-pushNodeByPathToFrontend)."]
+        pub async fn push_node_by_path_to_frontend(
+            &self,
+            params: super::browser_protocol::dom::PushNodeByPathToFrontendParams,
+        ) -> Result<super::browser_protocol::dom::PushNodeByPathToFrontendReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests that a batch of nodes is sent to the caller given their backend node ids.\n\nSends [`DOM.pushNodesByBackendIdsToFrontend`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-pushNodesByBackendIdsToFrontend)."]
+        pub async fn push_nodes_by_backend_ids_to_frontend(
+            &self,
+            params: super::browser_protocol::dom::PushNodesByBackendIdsToFrontendParams,
+        ) -> Result<super::browser_protocol::dom::PushNodesByBackendIdsToFrontendReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Executes `querySelector` on a given node.\n\nSends [`DOM.querySelector`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-querySelector)."]
+        pub async fn query_selector(
+            &self,
+            params: super::browser_protocol::dom::QuerySelectorParams,
+        ) -> Result<super::browser_protocol::dom::QuerySelectorReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Executes `querySelectorAll` on a given node.\n\nSends [`DOM.querySelectorAll`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-querySelectorAll)."]
+        pub async fn query_selector_all(
+            &self,
+            params: super::browser_protocol::dom::QuerySelectorAllParams,
+        ) -> Result<super::browser_protocol::dom::QuerySelectorAllReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns NodeIds of current top layer elements.\nTop layer is rendered closest to the user within a viewport, therefore its elements always\nappear on top of all other content.\n\nSends [`DOM.getTopLayerElements`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getTopLayerElements)."]
+        pub async fn get_top_layer_elements(
+            &self,
+            params: super::browser_protocol::dom::GetTopLayerElementsParams,
+        ) -> Result<super::browser_protocol::dom::GetTopLayerElementsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the NodeId of the matched element according to certain relations.\n\nSends [`DOM.getElementByRelation`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getElementByRelation)."]
+        pub async fn get_element_by_relation(
+            &self,
+            params: super::browser_protocol::dom::GetElementByRelationParams,
+        ) -> Result<super::browser_protocol::dom::GetElementByRelationReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Re-does the last undone action.\n\nSends [`DOM.redo`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-redo)."]
+        pub async fn redo(
+            &self,
+            params: super::browser_protocol::dom::RedoParams,
+        ) -> Result<super::browser_protocol::dom::RedoReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes attribute with given name from an element with given id.\n\nSends [`DOM.removeAttribute`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-removeAttribute)."]
+        pub async fn remove_attribute(
+            &self,
+            params: super::browser_protocol::dom::RemoveAttributeParams,
+        ) -> Result<super::browser_protocol::dom::RemoveAttributeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes node with given id.\n\nSends [`DOM.removeNode`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-removeNode)."]
+        pub async fn remove_node(
+            &self,
+            params: super::browser_protocol::dom::RemoveNodeParams,
+        ) -> Result<super::browser_protocol::dom::RemoveNodeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests that children of the node with given id are returned to the caller in form of\n`setChildNodes` events where not only immediate children are retrieved, but all children down to\nthe specified depth.\n\nSends [`DOM.requestChildNodes`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-requestChildNodes)."]
+        pub async fn request_child_nodes(
+            &self,
+            params: super::browser_protocol::dom::RequestChildNodesParams,
+        ) -> Result<super::browser_protocol::dom::RequestChildNodesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests that the node is sent to the caller given the JavaScript node object reference. All\nnodes that form the path from the node to the root are also sent to the client as a series of\n`setChildNodes` notifications.\n\nSends [`DOM.requestNode`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-requestNode)."]
+        pub async fn request_node(
+            &self,
+            params: super::browser_protocol::dom::RequestNodeParams,
+        ) -> Result<super::browser_protocol::dom::RequestNodeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Resolves the JavaScript node object for a given NodeId or BackendNodeId.\n\nSends [`DOM.resolveNode`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-resolveNode)."]
+        pub async fn resolve_node(
+            &self,
+            params: super::browser_protocol::dom::ResolveNodeParams,
+        ) -> Result<super::browser_protocol::dom::ResolveNodeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets attribute for an element with given id.\n\nSends [`DOM.setAttributeValue`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-setAttributeValue)."]
+        pub async fn set_attribute_value(
+            &self,
+            params: super::browser_protocol::dom::SetAttributeValueParams,
+        ) -> Result<super::browser_protocol::dom::SetAttributeValueReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets attributes on element with given id. This method is useful when user edits some existing\nattribute value and types in several attribute name/value pairs.\n\nSends [`DOM.setAttributesAsText`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-setAttributesAsText)."]
+        pub async fn set_attributes_as_text(
+            &self,
+            params: super::browser_protocol::dom::SetAttributesAsTextParams,
+        ) -> Result<super::browser_protocol::dom::SetAttributesAsTextReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets files for the given file input element.\n\nSends [`DOM.setFileInputFiles`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-setFileInputFiles)."]
+        pub async fn set_file_input_files(
+            &self,
+            params: super::browser_protocol::dom::SetFileInputFilesParams,
+        ) -> Result<super::browser_protocol::dom::SetFileInputFilesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets if stack traces should be captured for Nodes. See `Node.getNodeStackTraces`. Default is disabled.\n\nSends [`DOM.setNodeStackTracesEnabled`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-setNodeStackTracesEnabled)."]
+        pub async fn set_node_stack_traces_enabled(
+            &self,
+            params: super::browser_protocol::dom::SetNodeStackTracesEnabledParams,
+        ) -> Result<super::browser_protocol::dom::SetNodeStackTracesEnabledReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Gets stack traces associated with a Node. As of now, only provides stack trace for Node creation.\n\nSends [`DOM.getNodeStackTraces`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getNodeStackTraces)."]
+        pub async fn get_node_stack_traces(
+            &self,
+            params: super::browser_protocol::dom::GetNodeStackTracesParams,
+        ) -> Result<super::browser_protocol::dom::GetNodeStackTracesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns file information for the given\nFile wrapper.\n\nSends [`DOM.getFileInfo`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getFileInfo)."]
+        pub async fn get_file_info(
+            &self,
+            params: super::browser_protocol::dom::GetFileInfoParams,
+        ) -> Result<super::browser_protocol::dom::GetFileInfoReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns list of detached nodes\n\nSends [`DOM.getDetachedDomNodes`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getDetachedDomNodes)."]
+        pub async fn get_detached_dom_nodes(
+            &self,
+            params: super::browser_protocol::dom::GetDetachedDomNodesParams,
+        ) -> Result<super::browser_protocol::dom::GetDetachedDomNodesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables console to refer to the node with given id via $x (see Command Line API for more details\n$x functions).\n\nSends [`DOM.setInspectedNode`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-setInspectedNode)."]
+        pub async fn set_inspected_node(
+            &self,
+            params: super::browser_protocol::dom::SetInspectedNodeParams,
+        ) -> Result<super::browser_protocol::dom::SetInspectedNodeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets node name for a node with given id.\n\nSends [`DOM.setNodeName`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-setNodeName)."]
+        pub async fn set_node_name(
+            &self,
+            params: super::browser_protocol::dom::SetNodeNameParams,
+        ) -> Result<super::browser_protocol::dom::SetNodeNameReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets node value for a node with given id.\n\nSends [`DOM.setNodeValue`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-setNodeValue)."]
+        pub async fn set_node_value(
+            &self,
+            params: super::browser_protocol::dom::SetNodeValueParams,
+        ) -> Result<super::browser_protocol::dom::SetNodeValueReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets node HTML markup, returns new node id.\n\nSends [`DOM.setOuterHTML`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-setOuterHTML)."]
+        pub async fn set_outer_html(
+            &self,
+            params: super::browser_protocol::dom::SetOuterHtmlParams,
+        ) -> Result<super::browser_protocol::dom::SetOuterHtmlReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Undoes the last performed action.\n\nSends [`DOM.undo`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-undo)."]
+        pub async fn undo(
+            &self,
+            params: super::browser_protocol::dom::UndoParams,
+        ) -> Result<super::browser_protocol::dom::UndoReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns iframe node that owns iframe with the given domain.\n\nSends [`DOM.getFrameOwner`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getFrameOwner)."]
+        pub async fn get_frame_owner(
+            &self,
+            params: super::browser_protocol::dom::GetFrameOwnerParams,
+        ) -> Result<super::browser_protocol::dom::GetFrameOwnerReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the query container of the given node based on container query\nconditions: containerName, physical and logical axes, and whether it queries\nscroll-state or anchored elements. If no axes are provided and\nqueriesScrollState is false, the style container is returned, which is the\ndirect parent or the closest element with a matching container-name.\n\nSends [`DOM.getContainerForNode`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getContainerForNode)."]
+        pub async fn get_container_for_node(
+            &self,
+            params: super::browser_protocol::dom::GetContainerForNodeParams,
+        ) -> Result<super::browser_protocol::dom::GetContainerForNodeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the descendants of a container query container that have\ncontainer queries against this container.\n\nSends [`DOM.getQueryingDescendantsForContainer`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getQueryingDescendantsForContainer)."]
+        pub async fn get_querying_descendants_for_container(
+            &self,
+            params: super::browser_protocol::dom::GetQueryingDescendantsForContainerParams,
+        ) -> Result<super::browser_protocol::dom::GetQueryingDescendantsForContainerReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the target anchor element of the given anchor query according to\nhttps://www.w3.org/TR/css-anchor-position-1/#target.\n\nSends [`DOM.getAnchorElement`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getAnchorElement)."]
+        pub async fn get_anchor_element(
+            &self,
+            params: super::browser_protocol::dom::GetAnchorElementParams,
+        ) -> Result<super::browser_protocol::dom::GetAnchorElementReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "When enabling, this API force-opens the popover identified by nodeId\nand keeps it open until disabled.\n\nSends [`DOM.forceShowPopover`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-forceShowPopover)."]
+        pub async fn force_show_popover(
+            &self,
+            params: super::browser_protocol::dom::ForceShowPopoverParams,
+        ) -> Result<super::browser_protocol::dom::ForceShowPopoverReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns candidate nodes that are configured as triggers for the given popover.\n\nSends [`DOM.getImplicitAnchorCandidates`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getImplicitAnchorCandidates)."]
+        pub async fn get_implicit_anchor_candidates(
+            &self,
+            params: super::browser_protocol::dom::GetImplicitAnchorCandidatesParams,
+        ) -> Result<super::browser_protocol::dom::GetImplicitAnchorCandidatesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "When enabling, this API forces an element to gain interest in its target,\nkeeping interest active until disabled.\n\nSends [`DOM.forceShowInterest`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-forceShowInterest)."]
+        pub async fn force_show_interest(
+            &self,
+            params: super::browser_protocol::dom::ForceShowInterestParams,
+        ) -> Result<super::browser_protocol::dom::ForceShowInterestReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets a spelling or grammar error marker on the given range of text.\nSee https://github.com/Igalia/explainers/blob/main/force-spelling-grammar-markers/README.md\nNote: exactly one between nodeId, backendNodeId and objectId should be passed\nto identify the node.\n\nSends [`DOM.setTextMarker`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-setTextMarker)."]
+        pub async fn set_text_marker(
+            &self,
+            params: super::browser_protocol::dom::SetTextMarkerParams,
+        ) -> Result<super::browser_protocol::dom::SetTextMarkerReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears the spelling and grammar error text markers overlapping the ranges\nset by setTextMarker in this session. These markers are also removed when\nthe DOM domain is disabled or the session ends.\n\nSends [`DOM.clearTextMarkers`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-clearTextMarkers)."]
+        pub async fn clear_text_markers(
+            &self,
+            params: super::browser_protocol::dom::ClearTextMarkersParams,
+        ) -> Result<super::browser_protocol::dom::ClearTextMarkersReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fired when `Element`'s attribute is modified.\n\nStreams [`DOM.attributeModified`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-attributeModified) from now on."]
+        pub fn on_attribute_modified(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventAttributeModified> {
+            self.exec.events()
+        }
+        #[doc = "Fired when `Element`'s adoptedStyleSheets are modified.\n\nStreams [`DOM.adoptedStyleSheetsModified`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-adoptedStyleSheetsModified) from now on."]
+        pub fn on_adopted_style_sheets_modified(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventAdoptedStyleSheetsModified> {
+            self.exec.events()
+        }
+        #[doc = "Fired when `Element`'s attribute is removed.\n\nStreams [`DOM.attributeRemoved`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-attributeRemoved) from now on."]
+        pub fn on_attribute_removed(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventAttributeRemoved> {
+            self.exec.events()
+        }
+        #[doc = "Mirrors `DOMCharacterDataModified` event.\n\nStreams [`DOM.characterDataModified`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-characterDataModified) from now on."]
+        pub fn on_character_data_modified(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventCharacterDataModified> {
+            self.exec.events()
+        }
+        #[doc = "Fired when `Container`'s child node count has changed.\n\nStreams [`DOM.childNodeCountUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-childNodeCountUpdated) from now on."]
+        pub fn on_child_node_count_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventChildNodeCountUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Mirrors `DOMNodeInserted` event.\n\nStreams [`DOM.childNodeInserted`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-childNodeInserted) from now on."]
+        pub fn on_child_node_inserted(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventChildNodeInserted> {
+            self.exec.events()
+        }
+        #[doc = "Mirrors `DOMNodeRemoved` event.\n\nStreams [`DOM.childNodeRemoved`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-childNodeRemoved) from now on."]
+        pub fn on_child_node_removed(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventChildNodeRemoved> {
+            self.exec.events()
+        }
+        #[doc = "Called when distribution is changed.\n\nStreams [`DOM.distributedNodesUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-distributedNodesUpdated) from now on."]
+        pub fn on_distributed_nodes_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventDistributedNodesUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when `Document` has been totally updated. Node ids are no longer valid.\n\nStreams [`DOM.documentUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-documentUpdated) from now on."]
+        pub fn on_document_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventDocumentUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when `Element`'s inline style is modified via a CSS property modification.\n\nStreams [`DOM.inlineStyleInvalidated`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-inlineStyleInvalidated) from now on."]
+        pub fn on_inline_style_invalidated(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventInlineStyleInvalidated> {
+            self.exec.events()
+        }
+        #[doc = "Called when a pseudo element is added to an element.\n\nStreams [`DOM.pseudoElementAdded`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-pseudoElementAdded) from now on."]
+        pub fn on_pseudo_element_added(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventPseudoElementAdded> {
+            self.exec.events()
+        }
+        #[doc = "Called when top layer elements are changed.\n\nStreams [`DOM.topLayerElementsUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-topLayerElementsUpdated) from now on."]
+        pub fn on_top_layer_elements_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventTopLayerElementsUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a node's scrollability state changes.\n\nStreams [`DOM.scrollableFlagUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-scrollableFlagUpdated) from now on."]
+        pub fn on_scrollable_flag_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventScrollableFlagUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a node's ad related state changes.\n\nStreams [`DOM.adRelatedStateUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-adRelatedStateUpdated) from now on."]
+        pub fn on_ad_related_state_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventAdRelatedStateUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a node's starting styles changes.\n\nStreams [`DOM.affectedByStartingStylesFlagUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-affectedByStartingStylesFlagUpdated) from now on."]
+        pub fn on_affected_by_starting_styles_flag_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventAffectedByStartingStylesFlagUpdated>
+        {
+            self.exec.events()
+        }
+        #[doc = "Called when a pseudo element is removed from an element.\n\nStreams [`DOM.pseudoElementRemoved`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-pseudoElementRemoved) from now on."]
+        pub fn on_pseudo_element_removed(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventPseudoElementRemoved> {
+            self.exec.events()
+        }
+        #[doc = "Fired when backend wants to provide client with the missing DOM structure. This happens upon\nmost of the calls requesting node ids.\n\nStreams [`DOM.setChildNodes`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-setChildNodes) from now on."]
+        pub fn on_set_child_nodes(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventSetChildNodes> {
+            self.exec.events()
+        }
+        #[doc = "Called when shadow root is popped from the element.\n\nStreams [`DOM.shadowRootPopped`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-shadowRootPopped) from now on."]
+        pub fn on_shadow_root_popped(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventShadowRootPopped> {
+            self.exec.events()
+        }
+        #[doc = "Called when shadow root is pushed into the element.\n\nStreams [`DOM.shadowRootPushed`](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#event-shadowRootPushed) from now on."]
+        pub fn on_shadow_root_pushed(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom::EventShadowRootPushed> {
+            self.exec.events()
+        }
+    }
+    #[doc = "DOM debugging allows setting breakpoints on particular DOM operations and events. JavaScript\nexecution will stop on these operations as if there was a regular breakpoint set.\n\n[DOMDebugger](https://chromedevtools.github.io/devtools-protocol/tot/DOMDebugger/)"]
+    pub struct DomDebugger<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for DomDebugger<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for DomDebugger<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> DomDebugger<'a, X> {
+        #[doc = "Returns event listeners of the given object.\n\nSends [`DOMDebugger.getEventListeners`](https://chromedevtools.github.io/devtools-protocol/tot/DOMDebugger/#method-getEventListeners)."]
+        pub async fn get_event_listeners(
+            &self,
+            params: super::browser_protocol::dom_debugger::GetEventListenersParams,
+        ) -> Result<super::browser_protocol::dom_debugger::GetEventListenersReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes DOM breakpoint that was set using `setDOMBreakpoint`.\n\nSends [`DOMDebugger.removeDOMBreakpoint`](https://chromedevtools.github.io/devtools-protocol/tot/DOMDebugger/#method-removeDOMBreakpoint)."]
+        pub async fn remove_dom_breakpoint(
+            &self,
+            params: super::browser_protocol::dom_debugger::RemoveDomBreakpointParams,
+        ) -> Result<super::browser_protocol::dom_debugger::RemoveDomBreakpointReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes breakpoint on particular DOM event.\n\nSends [`DOMDebugger.removeEventListenerBreakpoint`](https://chromedevtools.github.io/devtools-protocol/tot/DOMDebugger/#method-removeEventListenerBreakpoint)."]
+        pub async fn remove_event_listener_breakpoint(
+            &self,
+            params: super::browser_protocol::dom_debugger::RemoveEventListenerBreakpointParams,
+        ) -> Result<
+            super::browser_protocol::dom_debugger::RemoveEventListenerBreakpointReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes breakpoint from XMLHttpRequest.\n\nSends [`DOMDebugger.removeXHRBreakpoint`](https://chromedevtools.github.io/devtools-protocol/tot/DOMDebugger/#method-removeXHRBreakpoint)."]
+        pub async fn remove_xhr_breakpoint(
+            &self,
+            params: super::browser_protocol::dom_debugger::RemoveXhrBreakpointParams,
+        ) -> Result<super::browser_protocol::dom_debugger::RemoveXhrBreakpointReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets breakpoint on particular CSP violations.\n\nSends [`DOMDebugger.setBreakOnCSPViolation`](https://chromedevtools.github.io/devtools-protocol/tot/DOMDebugger/#method-setBreakOnCSPViolation)."]
+        pub async fn set_break_on_csp_violation(
+            &self,
+            params: super::browser_protocol::dom_debugger::SetBreakOnCspViolationParams,
+        ) -> Result<super::browser_protocol::dom_debugger::SetBreakOnCspViolationReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets breakpoint on particular operation with DOM.\n\nSends [`DOMDebugger.setDOMBreakpoint`](https://chromedevtools.github.io/devtools-protocol/tot/DOMDebugger/#method-setDOMBreakpoint)."]
+        pub async fn set_dom_breakpoint(
+            &self,
+            params: super::browser_protocol::dom_debugger::SetDomBreakpointParams,
+        ) -> Result<super::browser_protocol::dom_debugger::SetDomBreakpointReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets breakpoint on particular DOM event.\n\nSends [`DOMDebugger.setEventListenerBreakpoint`](https://chromedevtools.github.io/devtools-protocol/tot/DOMDebugger/#method-setEventListenerBreakpoint)."]
+        pub async fn set_event_listener_breakpoint(
+            &self,
+            params: super::browser_protocol::dom_debugger::SetEventListenerBreakpointParams,
+        ) -> Result<
+            super::browser_protocol::dom_debugger::SetEventListenerBreakpointReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets breakpoint on XMLHttpRequest.\n\nSends [`DOMDebugger.setXHRBreakpoint`](https://chromedevtools.github.io/devtools-protocol/tot/DOMDebugger/#method-setXHRBreakpoint)."]
+        pub async fn set_xhr_breakpoint(
+            &self,
+            params: super::browser_protocol::dom_debugger::SetXhrBreakpointParams,
+        ) -> Result<super::browser_protocol::dom_debugger::SetXhrBreakpointReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "This domain facilitates obtaining document snapshots with DOM, layout, and style information.\n\n[DOMSnapshot](https://chromedevtools.github.io/devtools-protocol/tot/DOMSnapshot/)"]
+    pub struct DomSnapshot<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for DomSnapshot<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for DomSnapshot<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> DomSnapshot<'a, X> {
+        #[doc = "Disables DOM snapshot agent for the given page.\n\nSends [`DOMSnapshot.disable`](https://chromedevtools.github.io/devtools-protocol/tot/DOMSnapshot/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::dom_snapshot::DisableParams,
+        ) -> Result<super::browser_protocol::dom_snapshot::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables DOM snapshot agent for the given page.\n\nSends [`DOMSnapshot.enable`](https://chromedevtools.github.io/devtools-protocol/tot/DOMSnapshot/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::dom_snapshot::EnableParams,
+        ) -> Result<super::browser_protocol::dom_snapshot::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns a document snapshot, including the full DOM tree of the root node (including iframes,\ntemplate contents, and imported documents) in a flattened array, as well as layout and\nwhite-listed computed style information for the nodes. Shadow DOM in the returned DOM tree is\nflattened.\n\nSends [`DOMSnapshot.captureSnapshot`](https://chromedevtools.github.io/devtools-protocol/tot/DOMSnapshot/#method-captureSnapshot)."]
+        pub async fn capture_snapshot(
+            &self,
+            params: super::browser_protocol::dom_snapshot::CaptureSnapshotParams,
+        ) -> Result<super::browser_protocol::dom_snapshot::CaptureSnapshotReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "Query and modify DOM storage.\n\n[DOMStorage](https://chromedevtools.github.io/devtools-protocol/tot/DOMStorage/)"]
+    pub struct DomStorage<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for DomStorage<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for DomStorage<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> DomStorage<'a, X> {
+        #[doc = "Sends [`DOMStorage.clear`](https://chromedevtools.github.io/devtools-protocol/tot/DOMStorage/#method-clear)."]
+        pub async fn clear(
+            &self,
+            params: super::browser_protocol::dom_storage::ClearParams,
+        ) -> Result<super::browser_protocol::dom_storage::ClearReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables storage tracking, prevents storage events from being sent to the client.\n\nSends [`DOMStorage.disable`](https://chromedevtools.github.io/devtools-protocol/tot/DOMStorage/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::dom_storage::DisableParams,
+        ) -> Result<super::browser_protocol::dom_storage::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables storage tracking, storage events will now be delivered to the client.\n\nSends [`DOMStorage.enable`](https://chromedevtools.github.io/devtools-protocol/tot/DOMStorage/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::dom_storage::EnableParams,
+        ) -> Result<super::browser_protocol::dom_storage::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`DOMStorage.getDOMStorageItems`](https://chromedevtools.github.io/devtools-protocol/tot/DOMStorage/#method-getDOMStorageItems)."]
+        pub async fn get_dom_storage_items(
+            &self,
+            params: super::browser_protocol::dom_storage::GetDomStorageItemsParams,
+        ) -> Result<super::browser_protocol::dom_storage::GetDomStorageItemsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`DOMStorage.removeDOMStorageItem`](https://chromedevtools.github.io/devtools-protocol/tot/DOMStorage/#method-removeDOMStorageItem)."]
+        pub async fn remove_dom_storage_item(
+            &self,
+            params: super::browser_protocol::dom_storage::RemoveDomStorageItemParams,
+        ) -> Result<super::browser_protocol::dom_storage::RemoveDomStorageItemReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`DOMStorage.setDOMStorageItem`](https://chromedevtools.github.io/devtools-protocol/tot/DOMStorage/#method-setDOMStorageItem)."]
+        pub async fn set_dom_storage_item(
+            &self,
+            params: super::browser_protocol::dom_storage::SetDomStorageItemParams,
+        ) -> Result<super::browser_protocol::dom_storage::SetDomStorageItemReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Streams [`DOMStorage.domStorageItemAdded`](https://chromedevtools.github.io/devtools-protocol/tot/DOMStorage/#event-domStorageItemAdded) from now on."]
+        pub fn on_dom_storage_item_added(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom_storage::EventDomStorageItemAdded> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`DOMStorage.domStorageItemRemoved`](https://chromedevtools.github.io/devtools-protocol/tot/DOMStorage/#event-domStorageItemRemoved) from now on."]
+        pub fn on_dom_storage_item_removed(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom_storage::EventDomStorageItemRemoved> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`DOMStorage.domStorageItemUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/DOMStorage/#event-domStorageItemUpdated) from now on."]
+        pub fn on_dom_storage_item_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom_storage::EventDomStorageItemUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`DOMStorage.domStorageItemsCleared`](https://chromedevtools.github.io/devtools-protocol/tot/DOMStorage/#event-domStorageItemsCleared) from now on."]
+        pub fn on_dom_storage_items_cleared(
+            &self,
+        ) -> X::Events<super::browser_protocol::dom_storage::EventDomStorageItemsCleared> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[DeviceAccess](https://chromedevtools.github.io/devtools-protocol/tot/DeviceAccess/)"]
+    pub struct DeviceAccess<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for DeviceAccess<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for DeviceAccess<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> DeviceAccess<'a, X> {
+        #[doc = "Enable events in this domain.\n\nSends [`DeviceAccess.enable`](https://chromedevtools.github.io/devtools-protocol/tot/DeviceAccess/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::device_access::EnableParams,
+        ) -> Result<super::browser_protocol::device_access::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disable events in this domain.\n\nSends [`DeviceAccess.disable`](https://chromedevtools.github.io/devtools-protocol/tot/DeviceAccess/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::device_access::DisableParams,
+        ) -> Result<super::browser_protocol::device_access::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Select a device in response to a DeviceAccess.deviceRequestPrompted event.\n\nSends [`DeviceAccess.selectPrompt`](https://chromedevtools.github.io/devtools-protocol/tot/DeviceAccess/#method-selectPrompt)."]
+        pub async fn select_prompt(
+            &self,
+            params: super::browser_protocol::device_access::SelectPromptParams,
+        ) -> Result<super::browser_protocol::device_access::SelectPromptReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Cancel a prompt in response to a DeviceAccess.deviceRequestPrompted event.\n\nSends [`DeviceAccess.cancelPrompt`](https://chromedevtools.github.io/devtools-protocol/tot/DeviceAccess/#method-cancelPrompt)."]
+        pub async fn cancel_prompt(
+            &self,
+            params: super::browser_protocol::device_access::CancelPromptParams,
+        ) -> Result<super::browser_protocol::device_access::CancelPromptReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "A device request opened a user prompt to select a device. Respond with the\nselectPrompt or cancelPrompt command.\n\nStreams [`DeviceAccess.deviceRequestPrompted`](https://chromedevtools.github.io/devtools-protocol/tot/DeviceAccess/#event-deviceRequestPrompted) from now on."]
+        pub fn on_device_request_prompted(
+            &self,
+        ) -> X::Events<super::browser_protocol::device_access::EventDeviceRequestPrompted> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[DeviceOrientation](https://chromedevtools.github.io/devtools-protocol/tot/DeviceOrientation/)"]
+    pub struct DeviceOrientation<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for DeviceOrientation<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for DeviceOrientation<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> DeviceOrientation<'a, X> {
+        #[doc = "Clears the overridden Device Orientation.\n\nSends [`DeviceOrientation.clearDeviceOrientationOverride`](https://chromedevtools.github.io/devtools-protocol/tot/DeviceOrientation/#method-clearDeviceOrientationOverride)."]
+        pub async fn clear_device_orientation_override(
+            &self,
+            params : super :: browser_protocol :: device_orientation :: ClearDeviceOrientationOverrideParams,
+        ) -> Result<
+            super::browser_protocol::device_orientation::ClearDeviceOrientationOverrideReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Overrides the Device Orientation.\n\nSends [`DeviceOrientation.setDeviceOrientationOverride`](https://chromedevtools.github.io/devtools-protocol/tot/DeviceOrientation/#method-setDeviceOrientationOverride)."]
+        pub async fn set_device_orientation_override(
+            &self,
+            params: super::browser_protocol::device_orientation::SetDeviceOrientationOverrideParams,
+        ) -> Result<
+            super::browser_protocol::device_orientation::SetDeviceOrientationOverrideReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "This domain allows interacting with the Digital Credentials API for automation.\n\n[DigitalCredentials](https://chromedevtools.github.io/devtools-protocol/tot/DigitalCredentials/)"]
+    pub struct DigitalCredentials<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for DigitalCredentials<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for DigitalCredentials<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> DigitalCredentials<'a, X> {
+        #[doc = "Sets the behavior of the virtual wallet for digital credential requests\nissued from this frame.\n\nSends [`DigitalCredentials.setVirtualWalletBehavior`](https://chromedevtools.github.io/devtools-protocol/tot/DigitalCredentials/#method-setVirtualWalletBehavior)."]
+        pub async fn set_virtual_wallet_behavior(
+            &self,
+            params: super::browser_protocol::digital_credentials::SetVirtualWalletBehaviorParams,
+        ) -> Result<
+            super::browser_protocol::digital_credentials::SetVirtualWalletBehaviorReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "This domain emulates different environments for the page.\n\n[Emulation](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/)"]
+    pub struct Emulation<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Emulation<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Emulation<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Emulation<'a, X> {
+        #[doc = "Clears the overridden device metrics.\n\nSends [`Emulation.clearDeviceMetricsOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-clearDeviceMetricsOverride)."]
+        pub async fn clear_device_metrics_override(
+            &self,
+            params: super::browser_protocol::emulation::ClearDeviceMetricsOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::ClearDeviceMetricsOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears the overridden Geolocation Position and Error.\n\nSends [`Emulation.clearGeolocationOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-clearGeolocationOverride)."]
+        pub async fn clear_geolocation_override(
+            &self,
+            params: super::browser_protocol::emulation::ClearGeolocationOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::ClearGeolocationOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests that page scale factor is reset to initial values.\n\nSends [`Emulation.resetPageScaleFactor`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-resetPageScaleFactor)."]
+        pub async fn reset_page_scale_factor(
+            &self,
+            params: super::browser_protocol::emulation::ResetPageScaleFactorParams,
+        ) -> Result<super::browser_protocol::emulation::ResetPageScaleFactorReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables or disables simulating a focused and active page.\n\nSends [`Emulation.setFocusEmulationEnabled`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setFocusEmulationEnabled)."]
+        pub async fn set_focus_emulation_enabled(
+            &self,
+            params: super::browser_protocol::emulation::SetFocusEmulationEnabledParams,
+        ) -> Result<super::browser_protocol::emulation::SetFocusEmulationEnabledReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Automatically render all web contents using a dark theme.\n\nSends [`Emulation.setAutoDarkModeOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setAutoDarkModeOverride)."]
+        pub async fn set_auto_dark_mode_override(
+            &self,
+            params: super::browser_protocol::emulation::SetAutoDarkModeOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetAutoDarkModeOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables CPU throttling to emulate slow CPUs.\n\nSends [`Emulation.setCPUThrottlingRate`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setCPUThrottlingRate)."]
+        pub async fn set_cpu_throttling_rate(
+            &self,
+            params: super::browser_protocol::emulation::SetCpuThrottlingRateParams,
+        ) -> Result<super::browser_protocol::emulation::SetCpuThrottlingRateReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets or clears an override of the default background color of the frame. This override is used\nif the content does not specify one.\n\nSends [`Emulation.setDefaultBackgroundColorOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setDefaultBackgroundColorOverride)."]
+        pub async fn set_default_background_color_override(
+            &self,
+            params: super::browser_protocol::emulation::SetDefaultBackgroundColorOverrideParams,
+        ) -> Result<
+            super::browser_protocol::emulation::SetDefaultBackgroundColorOverrideReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Overrides the values for env(safe-area-inset-*) and env(safe-area-max-inset-*). Unset values will cause the\nrespective variables to be undefined, even if previously overridden.\n\nSends [`Emulation.setSafeAreaInsetsOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setSafeAreaInsetsOverride)."]
+        pub async fn set_safe_area_insets_override(
+            &self,
+            params: super::browser_protocol::emulation::SetSafeAreaInsetsOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetSafeAreaInsetsOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Overrides virtual keyboard geometry in CSS pixels, relative to the top-level viewport. The\nprovided rect is used for navigator.virtualKeyboard.boundingRect, geometrychange events, and\nenv(keyboard-inset-*) values on the inspected frame. The override applies independently of\nnavigator.virtualKeyboard.overlaysContent so clients can preview overlay geometry without\nmutating page state. Values are rounded to the nearest CSS pixel. Omitting the rect clears the\noverride.\n\nSends [`Emulation.setVirtualKeyboardGeometryOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setVirtualKeyboardGeometryOverride)."]
+        pub async fn set_virtual_keyboard_geometry_override(
+            &self,
+            params: super::browser_protocol::emulation::SetVirtualKeyboardGeometryOverrideParams,
+        ) -> Result<
+            super::browser_protocol::emulation::SetVirtualKeyboardGeometryOverrideReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Overrides the values of device screen dimensions (window.screen.width, window.screen.height,\nwindow.innerWidth, window.innerHeight, and \"device-width\"/\"device-height\"-related CSS media\nquery results).\n\nSends [`Emulation.setDeviceMetricsOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setDeviceMetricsOverride)."]
+        pub async fn set_device_metrics_override(
+            &self,
+            params: super::browser_protocol::emulation::SetDeviceMetricsOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetDeviceMetricsOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Start reporting the given posture value to the Device Posture API.\nThis override can also be set in setDeviceMetricsOverride().\n\nSends [`Emulation.setDevicePostureOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setDevicePostureOverride)."]
+        pub async fn set_device_posture_override(
+            &self,
+            params: super::browser_protocol::emulation::SetDevicePostureOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetDevicePostureOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears a device posture override set with either setDeviceMetricsOverride()\nor setDevicePostureOverride() and starts using posture information from the\nplatform again.\nDoes nothing if no override is set.\n\nSends [`Emulation.clearDevicePostureOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-clearDevicePostureOverride)."]
+        pub async fn clear_device_posture_override(
+            &self,
+            params: super::browser_protocol::emulation::ClearDevicePostureOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::ClearDevicePostureOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Start using the given display features to pupulate the Viewport Segments API.\nThis override can also be set in setDeviceMetricsOverride().\n\nSends [`Emulation.setDisplayFeaturesOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setDisplayFeaturesOverride)."]
+        pub async fn set_display_features_override(
+            &self,
+            params: super::browser_protocol::emulation::SetDisplayFeaturesOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetDisplayFeaturesOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears the display features override set with either setDeviceMetricsOverride()\nor setDisplayFeaturesOverride() and starts using display features from the\nplatform again.\nDoes nothing if no override is set.\n\nSends [`Emulation.clearDisplayFeaturesOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-clearDisplayFeaturesOverride)."]
+        pub async fn clear_display_features_override(
+            &self,
+            params: super::browser_protocol::emulation::ClearDisplayFeaturesOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::ClearDisplayFeaturesOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Emulation.setScrollbarsHidden`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setScrollbarsHidden)."]
+        pub async fn set_scrollbars_hidden(
+            &self,
+            params: super::browser_protocol::emulation::SetScrollbarsHiddenParams,
+        ) -> Result<super::browser_protocol::emulation::SetScrollbarsHiddenReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Emulation.setDocumentCookieDisabled`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setDocumentCookieDisabled)."]
+        pub async fn set_document_cookie_disabled(
+            &self,
+            params: super::browser_protocol::emulation::SetDocumentCookieDisabledParams,
+        ) -> Result<super::browser_protocol::emulation::SetDocumentCookieDisabledReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Emulation.setEmitTouchEventsForMouse`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setEmitTouchEventsForMouse)."]
+        pub async fn set_emit_touch_events_for_mouse(
+            &self,
+            params: super::browser_protocol::emulation::SetEmitTouchEventsForMouseParams,
+        ) -> Result<super::browser_protocol::emulation::SetEmitTouchEventsForMouseReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Emulates the given media type or media feature for CSS media queries.\n\nSends [`Emulation.setEmulatedMedia`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setEmulatedMedia)."]
+        pub async fn set_emulated_media(
+            &self,
+            params: super::browser_protocol::emulation::SetEmulatedMediaParams,
+        ) -> Result<super::browser_protocol::emulation::SetEmulatedMediaReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Emulates the given vision deficiency.\n\nSends [`Emulation.setEmulatedVisionDeficiency`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setEmulatedVisionDeficiency)."]
+        pub async fn set_emulated_vision_deficiency(
+            &self,
+            params: super::browser_protocol::emulation::SetEmulatedVisionDeficiencyParams,
+        ) -> Result<super::browser_protocol::emulation::SetEmulatedVisionDeficiencyReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Emulates the given OS text scale.\n\nSends [`Emulation.setEmulatedOSTextScale`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setEmulatedOSTextScale)."]
+        pub async fn set_emulated_os_text_scale(
+            &self,
+            params: super::browser_protocol::emulation::SetEmulatedOsTextScaleParams,
+        ) -> Result<super::browser_protocol::emulation::SetEmulatedOsTextScaleReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Overrides the Geolocation Position or Error. Omitting latitude, longitude or\naccuracy emulates position unavailable.\n\nSends [`Emulation.setGeolocationOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setGeolocationOverride)."]
+        pub async fn set_geolocation_override(
+            &self,
+            params: super::browser_protocol::emulation::SetGeolocationOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetGeolocationOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Emulation.getOverriddenSensorInformation`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-getOverriddenSensorInformation)."]
+        pub async fn get_overridden_sensor_information(
+            &self,
+            params: super::browser_protocol::emulation::GetOverriddenSensorInformationParams,
+        ) -> Result<
+            super::browser_protocol::emulation::GetOverriddenSensorInformationReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Overrides a platform sensor of a given type. If |enabled| is true, calls to\nSensor.start() will use a virtual sensor as backend rather than fetching\ndata from a real hardware sensor. Otherwise, existing virtual\nsensor-backend Sensor objects will fire an error event and new calls to\nSensor.start() will attempt to use a real sensor instead.\n\nSends [`Emulation.setSensorOverrideEnabled`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setSensorOverrideEnabled)."]
+        pub async fn set_sensor_override_enabled(
+            &self,
+            params: super::browser_protocol::emulation::SetSensorOverrideEnabledParams,
+        ) -> Result<super::browser_protocol::emulation::SetSensorOverrideEnabledReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Updates the sensor readings reported by a sensor type previously overridden\nby setSensorOverrideEnabled.\n\nSends [`Emulation.setSensorOverrideReadings`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setSensorOverrideReadings)."]
+        pub async fn set_sensor_override_readings(
+            &self,
+            params: super::browser_protocol::emulation::SetSensorOverrideReadingsParams,
+        ) -> Result<super::browser_protocol::emulation::SetSensorOverrideReadingsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Overrides a pressure source of a given type, as used by the Compute\nPressure API, so that updates to PressureObserver.observe() are provided\nvia setPressureStateOverride instead of being retrieved from\nplatform-provided telemetry data.\n\nSends [`Emulation.setPressureSourceOverrideEnabled`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setPressureSourceOverrideEnabled)."]
+        pub async fn set_pressure_source_override_enabled(
+            &self,
+            params: super::browser_protocol::emulation::SetPressureSourceOverrideEnabledParams,
+        ) -> Result<
+            super::browser_protocol::emulation::SetPressureSourceOverrideEnabledReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Provides a given pressure state that will be processed and eventually be\ndelivered to PressureObserver users. |source| must have been previously\noverridden by setPressureSourceOverrideEnabled.\n\nSends [`Emulation.setPressureStateOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setPressureStateOverride)."]
+        pub async fn set_pressure_state_override(
+            &self,
+            params: super::browser_protocol::emulation::SetPressureStateOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetPressureStateOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Overrides the Idle state.\n\nSends [`Emulation.setIdleOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setIdleOverride)."]
+        pub async fn set_idle_override(
+            &self,
+            params: super::browser_protocol::emulation::SetIdleOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetIdleOverrideReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears Idle state overrides.\n\nSends [`Emulation.clearIdleOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-clearIdleOverride)."]
+        pub async fn clear_idle_override(
+            &self,
+            params: super::browser_protocol::emulation::ClearIdleOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::ClearIdleOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets a specified page scale factor.\n\nSends [`Emulation.setPageScaleFactor`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setPageScaleFactor)."]
+        pub async fn set_page_scale_factor(
+            &self,
+            params: super::browser_protocol::emulation::SetPageScaleFactorParams,
+        ) -> Result<super::browser_protocol::emulation::SetPageScaleFactorReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Switches script execution in the page.\n\nSends [`Emulation.setScriptExecutionDisabled`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setScriptExecutionDisabled)."]
+        pub async fn set_script_execution_disabled(
+            &self,
+            params: super::browser_protocol::emulation::SetScriptExecutionDisabledParams,
+        ) -> Result<super::browser_protocol::emulation::SetScriptExecutionDisabledReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables touch on platforms which do not support them.\n\nSends [`Emulation.setTouchEmulationEnabled`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setTouchEmulationEnabled)."]
+        pub async fn set_touch_emulation_enabled(
+            &self,
+            params: super::browser_protocol::emulation::SetTouchEmulationEnabledParams,
+        ) -> Result<super::browser_protocol::emulation::SetTouchEmulationEnabledReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Turns on virtual time for all frames (replacing real-time with a synthetic time source) and sets\nthe current virtual time policy.  Note this supersedes any previous time budget.\n\nSends [`Emulation.setVirtualTimePolicy`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setVirtualTimePolicy)."]
+        pub async fn set_virtual_time_policy(
+            &self,
+            params: super::browser_protocol::emulation::SetVirtualTimePolicyParams,
+        ) -> Result<super::browser_protocol::emulation::SetVirtualTimePolicyReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Overrides default host system locale with the specified one.\n\nSends [`Emulation.setLocaleOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setLocaleOverride)."]
+        pub async fn set_locale_override(
+            &self,
+            params: super::browser_protocol::emulation::SetLocaleOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetLocaleOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Overrides default host system timezone with the specified one.\n\nSends [`Emulation.setTimezoneOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setTimezoneOverride)."]
+        pub async fn set_timezone_override(
+            &self,
+            params: super::browser_protocol::emulation::SetTimezoneOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetTimezoneOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Emulation.setDisabledImageTypes`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setDisabledImageTypes)."]
+        pub async fn set_disabled_image_types(
+            &self,
+            params: super::browser_protocol::emulation::SetDisabledImageTypesParams,
+        ) -> Result<super::browser_protocol::emulation::SetDisabledImageTypesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Override the value of navigator.connection.saveData\n\nSends [`Emulation.setDataSaverOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setDataSaverOverride)."]
+        pub async fn set_data_saver_override(
+            &self,
+            params: super::browser_protocol::emulation::SetDataSaverOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetDataSaverOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Emulation.setHardwareConcurrencyOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setHardwareConcurrencyOverride)."]
+        pub async fn set_hardware_concurrency_override(
+            &self,
+            params: super::browser_protocol::emulation::SetHardwareConcurrencyOverrideParams,
+        ) -> Result<
+            super::browser_protocol::emulation::SetHardwareConcurrencyOverrideReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Overrides the value of navigator.cpuPerformance\n\nSends [`Emulation.setCPUPerformanceOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setCPUPerformanceOverride)."]
+        pub async fn set_cpu_performance_override(
+            &self,
+            params: super::browser_protocol::emulation::SetCpuPerformanceOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetCpuPerformanceOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Allows overriding user agent with the given string.\n`userAgentMetadata` must be set for Client Hint headers to be sent.\n\nSends [`Emulation.setUserAgentOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setUserAgentOverride)."]
+        pub async fn set_user_agent_override(
+            &self,
+            params: super::browser_protocol::emulation::SetUserAgentOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetUserAgentOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Allows overriding the automation flag.\n\nSends [`Emulation.setAutomationOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setAutomationOverride)."]
+        pub async fn set_automation_override(
+            &self,
+            params: super::browser_protocol::emulation::SetAutomationOverrideParams,
+        ) -> Result<super::browser_protocol::emulation::SetAutomationOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Allows overriding the difference between the small and large viewport sizes, which determine the\nvalue of the `svh` and `lvh` unit, respectively. Only supported for top-level frames.\n\nSends [`Emulation.setSmallViewportHeightDifferenceOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setSmallViewportHeightDifferenceOverride)."]
+        pub async fn set_small_viewport_height_difference_override(
+            &self,
+            params : super :: browser_protocol :: emulation :: SetSmallViewportHeightDifferenceOverrideParams,
+        ) -> Result<
+            super::browser_protocol::emulation::SetSmallViewportHeightDifferenceOverrideReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns device's screen configuration. In headful mode, the physical screens configuration is returned,\nwhereas in headless mode, a virtual headless screen configuration is provided instead.\n\nSends [`Emulation.getScreenInfos`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-getScreenInfos)."]
+        pub async fn get_screen_infos(
+            &self,
+            params: super::browser_protocol::emulation::GetScreenInfosParams,
+        ) -> Result<super::browser_protocol::emulation::GetScreenInfosReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Add a new screen to the device. Only supported in headless mode.\n\nSends [`Emulation.addScreen`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-addScreen)."]
+        pub async fn add_screen(
+            &self,
+            params: super::browser_protocol::emulation::AddScreenParams,
+        ) -> Result<super::browser_protocol::emulation::AddScreenReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Updates specified screen parameters. Only supported in headless mode.\n\nSends [`Emulation.updateScreen`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-updateScreen)."]
+        pub async fn update_screen(
+            &self,
+            params: super::browser_protocol::emulation::UpdateScreenParams,
+        ) -> Result<super::browser_protocol::emulation::UpdateScreenReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Remove screen from the device. Only supported in headless mode.\n\nSends [`Emulation.removeScreen`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-removeScreen)."]
+        pub async fn remove_screen(
+            &self,
+            params: super::browser_protocol::emulation::RemoveScreenParams,
+        ) -> Result<super::browser_protocol::emulation::RemoveScreenReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set primary screen. Only supported in headless mode.\nNote that this changes the coordinate system origin to the top-left\nof the new primary screen, updating the bounds and work areas\nof all existing screens accordingly.\n\nSends [`Emulation.setPrimaryScreen`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setPrimaryScreen)."]
+        pub async fn set_primary_screen(
+            &self,
+            params: super::browser_protocol::emulation::SetPrimaryScreenParams,
+        ) -> Result<super::browser_protocol::emulation::SetPrimaryScreenReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Notification sent after the virtual time budget for the current VirtualTimePolicy has run out.\n\nStreams [`Emulation.virtualTimeBudgetExpired`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#event-virtualTimeBudgetExpired) from now on."]
+        pub fn on_virtual_time_budget_expired(
+            &self,
+        ) -> X::Events<super::browser_protocol::emulation::EventVirtualTimeBudgetExpired> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a page calls screen.orientation.lock() or screen.orientation.unlock()\nwhile device emulation is enabled. This allows the DevTools frontend to update the\nemulated device orientation accordingly.\n\nStreams [`Emulation.screenOrientationLockChanged`](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#event-screenOrientationLockChanged) from now on."]
+        pub fn on_screen_orientation_lock_changed(
+            &self,
+        ) -> X::Events<super::browser_protocol::emulation::EventScreenOrientationLockChanged>
+        {
+            self.exec.events()
+        }
+    }
+    #[doc = "EventBreakpoints permits setting JavaScript breakpoints on operations and events\noccurring in native code invoked from JavaScript. Once breakpoint is hit, it is\nreported through Debugger domain, similarly to regular breakpoints being hit.\n\n[EventBreakpoints](https://chromedevtools.github.io/devtools-protocol/tot/EventBreakpoints/)"]
+    pub struct EventBreakpoints<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for EventBreakpoints<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for EventBreakpoints<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> EventBreakpoints<'a, X> {
+        #[doc = "Sets breakpoint on particular native event.\n\nSends [`EventBreakpoints.setInstrumentationBreakpoint`](https://chromedevtools.github.io/devtools-protocol/tot/EventBreakpoints/#method-setInstrumentationBreakpoint)."]
+        pub async fn set_instrumentation_breakpoint(
+            &self,
+            params: super::browser_protocol::event_breakpoints::SetInstrumentationBreakpointParams,
+        ) -> Result<
+            super::browser_protocol::event_breakpoints::SetInstrumentationBreakpointReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes breakpoint on particular native event.\n\nSends [`EventBreakpoints.removeInstrumentationBreakpoint`](https://chromedevtools.github.io/devtools-protocol/tot/EventBreakpoints/#method-removeInstrumentationBreakpoint)."]
+        pub async fn remove_instrumentation_breakpoint(
+            &self,
+            params : super :: browser_protocol :: event_breakpoints :: RemoveInstrumentationBreakpointParams,
+        ) -> Result<
+            super::browser_protocol::event_breakpoints::RemoveInstrumentationBreakpointReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes all breakpoints\n\nSends [`EventBreakpoints.disable`](https://chromedevtools.github.io/devtools-protocol/tot/EventBreakpoints/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::event_breakpoints::DisableParams,
+        ) -> Result<super::browser_protocol::event_breakpoints::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "Defines commands and events for browser extensions.\n\n[Extensions](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/)"]
+    pub struct Extensions<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Extensions<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Extensions<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Extensions<'a, X> {
+        #[doc = "Runs an extension default action.\n\nSends [`Extensions.triggerAction`](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/#method-triggerAction)."]
+        pub async fn trigger_action(
+            &self,
+            params: super::browser_protocol::extensions::TriggerActionParams,
+        ) -> Result<super::browser_protocol::extensions::TriggerActionReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Installs an unpacked extension from the filesystem similar to\n--load-extension CLI flags. Returns extension ID once the extension\nhas been installed.\n\nSends [`Extensions.loadUnpacked`](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/#method-loadUnpacked)."]
+        pub async fn load_unpacked(
+            &self,
+            params: super::browser_protocol::extensions::LoadUnpackedParams,
+        ) -> Result<super::browser_protocol::extensions::LoadUnpackedReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Gets a list of all unpacked extensions.\n\nSends [`Extensions.getExtensions`](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/#method-getExtensions)."]
+        pub async fn get_extensions(
+            &self,
+            params: super::browser_protocol::extensions::GetExtensionsParams,
+        ) -> Result<super::browser_protocol::extensions::GetExtensionsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Uninstalls an unpacked extension (others not supported) from the profile.\n\nSends [`Extensions.uninstall`](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/#method-uninstall)."]
+        pub async fn uninstall(
+            &self,
+            params: super::browser_protocol::extensions::UninstallParams,
+        ) -> Result<super::browser_protocol::extensions::UninstallReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Gets data from extension storage in the given `storageArea`. If `keys` is\nspecified, these are used to filter the result.\n\nSends [`Extensions.getStorageItems`](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/#method-getStorageItems)."]
+        pub async fn get_storage_items(
+            &self,
+            params: super::browser_protocol::extensions::GetStorageItemsParams,
+        ) -> Result<super::browser_protocol::extensions::GetStorageItemsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes `keys` from extension storage in the given `storageArea`.\n\nSends [`Extensions.removeStorageItems`](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/#method-removeStorageItems)."]
+        pub async fn remove_storage_items(
+            &self,
+            params: super::browser_protocol::extensions::RemoveStorageItemsParams,
+        ) -> Result<super::browser_protocol::extensions::RemoveStorageItemsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears extension storage in the given `storageArea`.\n\nSends [`Extensions.clearStorageItems`](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/#method-clearStorageItems)."]
+        pub async fn clear_storage_items(
+            &self,
+            params: super::browser_protocol::extensions::ClearStorageItemsParams,
+        ) -> Result<super::browser_protocol::extensions::ClearStorageItemsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets `values` in extension storage in the given `storageArea`. The provided `values`\nwill be merged with existing values in the storage area.\n\nSends [`Extensions.setStorageItems`](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/#method-setStorageItems)."]
+        pub async fn set_storage_items(
+            &self,
+            params: super::browser_protocol::extensions::SetStorageItemsParams,
+        ) -> Result<super::browser_protocol::extensions::SetStorageItemsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "This domain allows interacting with the FedCM dialog.\n\n[FedCm](https://chromedevtools.github.io/devtools-protocol/tot/FedCm/)"]
+    pub struct FedCm<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for FedCm<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for FedCm<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> FedCm<'a, X> {
+        #[doc = "Sends [`FedCm.enable`](https://chromedevtools.github.io/devtools-protocol/tot/FedCm/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::fed_cm::EnableParams,
+        ) -> Result<super::browser_protocol::fed_cm::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`FedCm.disable`](https://chromedevtools.github.io/devtools-protocol/tot/FedCm/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::fed_cm::DisableParams,
+        ) -> Result<super::browser_protocol::fed_cm::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`FedCm.selectAccount`](https://chromedevtools.github.io/devtools-protocol/tot/FedCm/#method-selectAccount)."]
+        pub async fn select_account(
+            &self,
+            params: super::browser_protocol::fed_cm::SelectAccountParams,
+        ) -> Result<super::browser_protocol::fed_cm::SelectAccountReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`FedCm.clickDialogButton`](https://chromedevtools.github.io/devtools-protocol/tot/FedCm/#method-clickDialogButton)."]
+        pub async fn click_dialog_button(
+            &self,
+            params: super::browser_protocol::fed_cm::ClickDialogButtonParams,
+        ) -> Result<super::browser_protocol::fed_cm::ClickDialogButtonReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`FedCm.openUrl`](https://chromedevtools.github.io/devtools-protocol/tot/FedCm/#method-openUrl)."]
+        pub async fn open_url(
+            &self,
+            params: super::browser_protocol::fed_cm::OpenUrlParams,
+        ) -> Result<super::browser_protocol::fed_cm::OpenUrlReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`FedCm.dismissDialog`](https://chromedevtools.github.io/devtools-protocol/tot/FedCm/#method-dismissDialog)."]
+        pub async fn dismiss_dialog(
+            &self,
+            params: super::browser_protocol::fed_cm::DismissDialogParams,
+        ) -> Result<super::browser_protocol::fed_cm::DismissDialogReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Resets the cooldown time, if any, to allow the next FedCM call to show\na dialog even if one was recently dismissed by the user.\n\nSends [`FedCm.resetCooldown`](https://chromedevtools.github.io/devtools-protocol/tot/FedCm/#method-resetCooldown)."]
+        pub async fn reset_cooldown(
+            &self,
+            params: super::browser_protocol::fed_cm::ResetCooldownParams,
+        ) -> Result<super::browser_protocol::fed_cm::ResetCooldownReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Streams [`FedCm.dialogShown`](https://chromedevtools.github.io/devtools-protocol/tot/FedCm/#event-dialogShown) from now on."]
+        pub fn on_dialog_shown(
+            &self,
+        ) -> X::Events<super::browser_protocol::fed_cm::EventDialogShown> {
+            self.exec.events()
+        }
+        #[doc = "Triggered when a dialog is closed, either by user action, JS abort,\nor a command below.\n\nStreams [`FedCm.dialogClosed`](https://chromedevtools.github.io/devtools-protocol/tot/FedCm/#event-dialogClosed) from now on."]
+        pub fn on_dialog_closed(
+            &self,
+        ) -> X::Events<super::browser_protocol::fed_cm::EventDialogClosed> {
+            self.exec.events()
+        }
+    }
+    #[doc = "A domain for letting clients substitute browser's network layer with client code.\n\n[Fetch](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/)"]
+    pub struct Fetch<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Fetch<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Fetch<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Fetch<'a, X> {
+        #[doc = "Disables the fetch domain.\n\nSends [`Fetch.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::fetch::DisableParams,
+        ) -> Result<super::browser_protocol::fetch::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables issuing of requestPaused events. A request will be paused until client\ncalls one of failRequest, fulfillRequest or continueRequest/continueWithAuth.\n\nSends [`Fetch.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::fetch::EnableParams,
+        ) -> Result<super::browser_protocol::fetch::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Causes the request to fail with specified reason.\n\nSends [`Fetch.failRequest`](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/#method-failRequest)."]
+        pub async fn fail_request(
+            &self,
+            params: super::browser_protocol::fetch::FailRequestParams,
+        ) -> Result<super::browser_protocol::fetch::FailRequestReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Provides response to the request.\n\nSends [`Fetch.fulfillRequest`](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/#method-fulfillRequest)."]
+        pub async fn fulfill_request(
+            &self,
+            params: super::browser_protocol::fetch::FulfillRequestParams,
+        ) -> Result<super::browser_protocol::fetch::FulfillRequestReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Continues the request, optionally modifying some of its parameters.\n\nSends [`Fetch.continueRequest`](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/#method-continueRequest)."]
+        pub async fn continue_request(
+            &self,
+            params: super::browser_protocol::fetch::ContinueRequestParams,
+        ) -> Result<super::browser_protocol::fetch::ContinueRequestReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Continues a request supplying authChallengeResponse following authRequired event.\n\nSends [`Fetch.continueWithAuth`](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/#method-continueWithAuth)."]
+        pub async fn continue_with_auth(
+            &self,
+            params: super::browser_protocol::fetch::ContinueWithAuthParams,
+        ) -> Result<super::browser_protocol::fetch::ContinueWithAuthReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Continues loading of the paused response, optionally modifying the\nresponse headers. If either responseCode or headers are modified, all of them\nmust be present.\n\nSends [`Fetch.continueResponse`](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/#method-continueResponse)."]
+        pub async fn continue_response(
+            &self,
+            params: super::browser_protocol::fetch::ContinueResponseParams,
+        ) -> Result<super::browser_protocol::fetch::ContinueResponseReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Causes the body of the response to be received from the server and\nreturned as a single string. May only be issued for a request that\nis paused in the Response stage and is mutually exclusive with\ntakeResponseBodyForInterceptionAsStream. Calling other methods that\naffect the request or disabling fetch domain before body is received\nresults in an undefined behavior.\nNote that the response body is not available for redirects. Requests\npaused in the _redirect received_ state may be differentiated by\n`responseCode` and presence of `location` response header, see\ncomments to `requestPaused` for details.\n\nSends [`Fetch.getResponseBody`](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/#method-getResponseBody)."]
+        pub async fn get_response_body(
+            &self,
+            params: super::browser_protocol::fetch::GetResponseBodyParams,
+        ) -> Result<super::browser_protocol::fetch::GetResponseBodyReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns a handle to the stream representing the response body.\nThe request must be paused in the HeadersReceived stage.\nNote that after this command the request can't be continued\nas is -- client either needs to cancel it or to provide the\nresponse body.\nThe stream only supports sequential read, IO.read will fail if the position\nis specified.\nThis method is mutually exclusive with getResponseBody.\nCalling other methods that affect the request or disabling fetch\ndomain before body is received results in an undefined behavior.\n\nSends [`Fetch.takeResponseBodyAsStream`](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/#method-takeResponseBodyAsStream)."]
+        pub async fn take_response_body_as_stream(
+            &self,
+            params: super::browser_protocol::fetch::TakeResponseBodyAsStreamParams,
+        ) -> Result<super::browser_protocol::fetch::TakeResponseBodyAsStreamReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Issued when the domain is enabled and the request URL matches the\nspecified filter. The request is paused until the client responds\nwith one of continueRequest, failRequest or fulfillRequest.\nThe stage of the request can be determined by presence of responseErrorReason\nand responseStatusCode -- the request is at the response stage if either\nof these fields is present and in the request stage otherwise.\nRedirect responses and subsequent requests are reported similarly to regular\nresponses and requests. Redirect responses may be distinguished by the value\nof `responseStatusCode` (which is one of 301, 302, 303, 307, 308) along with\npresence of the `location` header. Requests resulting from a redirect will\nhave `redirectedRequestId` field set.\n\nStreams [`Fetch.requestPaused`](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/#event-requestPaused) from now on."]
+        pub fn on_request_paused(
+            &self,
+        ) -> X::Events<super::browser_protocol::fetch::EventRequestPaused> {
+            self.exec.events()
+        }
+        #[doc = "Issued when the domain is enabled with handleAuthRequests set to true.\nThe request is paused until client responds with continueWithAuth.\n\nStreams [`Fetch.authRequired`](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/#event-authRequired) from now on."]
+        pub fn on_auth_required(
+            &self,
+        ) -> X::Events<super::browser_protocol::fetch::EventAuthRequired> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[FileSystem](https://chromedevtools.github.io/devtools-protocol/tot/FileSystem/)"]
+    pub struct FileSystem<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for FileSystem<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for FileSystem<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> FileSystem<'a, X> {
+        #[doc = "Sends [`FileSystem.getDirectory`](https://chromedevtools.github.io/devtools-protocol/tot/FileSystem/#method-getDirectory)."]
+        pub async fn get_directory(
+            &self,
+            params: super::browser_protocol::file_system::GetDirectoryParams,
+        ) -> Result<super::browser_protocol::file_system::GetDirectoryReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "This domain provides commands to trigger the \"Find in page\" feature.\n\n[FindInPage](https://chromedevtools.github.io/devtools-protocol/tot/FindInPage/)"]
+    pub struct FindInPage<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for FindInPage<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for FindInPage<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> FindInPage<'a, X> {
+        #[doc = "Forwards `query` to the find-in-page facility, starting a new find session.\nWhere exactly the search starts from is implementation-specific.\n\nSends [`FindInPage.findFirst`](https://chromedevtools.github.io/devtools-protocol/tot/FindInPage/#method-findFirst)."]
+        pub async fn find_first(
+            &self,
+            params: super::browser_protocol::find_in_page::FindFirstParams,
+        ) -> Result<super::browser_protocol::find_in_page::FindFirstReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Moves to the next match for the query passed to the most recent\nfindFirst() call.\n\nSends [`FindInPage.findNext`](https://chromedevtools.github.io/devtools-protocol/tot/FindInPage/#method-findNext)."]
+        pub async fn find_next(
+            &self,
+            params: super::browser_protocol::find_in_page::FindNextParams,
+        ) -> Result<super::browser_protocol::find_in_page::FindNextReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Moves to the previous match for the query passed to the most recent\nfindFirst() call.\n\nSends [`FindInPage.findPrev`](https://chromedevtools.github.io/devtools-protocol/tot/FindInPage/#method-findPrev)."]
+        pub async fn find_prev(
+            &self,
+            params: super::browser_protocol::find_in_page::FindPrevParams,
+        ) -> Result<super::browser_protocol::find_in_page::FindPrevReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Ends the current find session, if any, and clears its highlighting.\n\nSends [`FindInPage.stop`](https://chromedevtools.github.io/devtools-protocol/tot/FindInPage/#method-stop)."]
+        pub async fn stop(
+            &self,
+            params: super::browser_protocol::find_in_page::StopParams,
+        ) -> Result<super::browser_protocol::find_in_page::StopReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "This domain provides experimental commands only supported in headless mode.\n\n[HeadlessExperimental](https://chromedevtools.github.io/devtools-protocol/tot/HeadlessExperimental/)"]
+    pub struct HeadlessExperimental<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for HeadlessExperimental<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for HeadlessExperimental<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> HeadlessExperimental<'a, X> {
+        #[doc = "Sends a BeginFrame to the target and returns when the frame was completed. Optionally captures a\nscreenshot from the resulting frame. Requires that the target was created with enabled\nBeginFrameControl. Designed for use with --run-all-compositor-stages-before-draw, see also\nhttps://goo.gle/chrome-headless-rendering for more background.\n\nSends [`HeadlessExperimental.beginFrame`](https://chromedevtools.github.io/devtools-protocol/tot/HeadlessExperimental/#method-beginFrame)."]
+        pub async fn begin_frame(
+            &self,
+            params: super::browser_protocol::headless_experimental::BeginFrameParams,
+        ) -> Result<super::browser_protocol::headless_experimental::BeginFrameReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "Input/Output operations for streams produced by DevTools.\n\n[IO](https://chromedevtools.github.io/devtools-protocol/tot/IO/)"]
+    pub struct Io<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Io<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Io<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Io<'a, X> {
+        #[doc = "Close the stream, discard any temporary backing storage.\n\nSends [`IO.close`](https://chromedevtools.github.io/devtools-protocol/tot/IO/#method-close)."]
+        pub async fn close(
+            &self,
+            params: super::browser_protocol::io::CloseParams,
+        ) -> Result<super::browser_protocol::io::CloseReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Read a chunk of the stream\n\nSends [`IO.read`](https://chromedevtools.github.io/devtools-protocol/tot/IO/#method-read)."]
+        pub async fn read(
+            &self,
+            params: super::browser_protocol::io::ReadParams,
+        ) -> Result<super::browser_protocol::io::ReadReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "[IndexedDB](https://chromedevtools.github.io/devtools-protocol/tot/IndexedDB/)"]
+    pub struct IndexedDb<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for IndexedDb<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for IndexedDb<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> IndexedDb<'a, X> {
+        #[doc = "Clears all entries from an object store.\n\nSends [`IndexedDB.clearObjectStore`](https://chromedevtools.github.io/devtools-protocol/tot/IndexedDB/#method-clearObjectStore)."]
+        pub async fn clear_object_store(
+            &self,
+            params: super::browser_protocol::indexed_db::ClearObjectStoreParams,
+        ) -> Result<super::browser_protocol::indexed_db::ClearObjectStoreReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Deletes a database.\n\nSends [`IndexedDB.deleteDatabase`](https://chromedevtools.github.io/devtools-protocol/tot/IndexedDB/#method-deleteDatabase)."]
+        pub async fn delete_database(
+            &self,
+            params: super::browser_protocol::indexed_db::DeleteDatabaseParams,
+        ) -> Result<super::browser_protocol::indexed_db::DeleteDatabaseReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Delete a range of entries from an object store\n\nSends [`IndexedDB.deleteObjectStoreEntries`](https://chromedevtools.github.io/devtools-protocol/tot/IndexedDB/#method-deleteObjectStoreEntries)."]
+        pub async fn delete_object_store_entries(
+            &self,
+            params: super::browser_protocol::indexed_db::DeleteObjectStoreEntriesParams,
+        ) -> Result<super::browser_protocol::indexed_db::DeleteObjectStoreEntriesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables events from backend.\n\nSends [`IndexedDB.disable`](https://chromedevtools.github.io/devtools-protocol/tot/IndexedDB/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::indexed_db::DisableParams,
+        ) -> Result<super::browser_protocol::indexed_db::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables events from backend.\n\nSends [`IndexedDB.enable`](https://chromedevtools.github.io/devtools-protocol/tot/IndexedDB/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::indexed_db::EnableParams,
+        ) -> Result<super::browser_protocol::indexed_db::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests data from object store or index.\n\nSends [`IndexedDB.requestData`](https://chromedevtools.github.io/devtools-protocol/tot/IndexedDB/#method-requestData)."]
+        pub async fn request_data(
+            &self,
+            params: super::browser_protocol::indexed_db::RequestDataParams,
+        ) -> Result<super::browser_protocol::indexed_db::RequestDataReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Gets metadata of an object store.\n\nSends [`IndexedDB.getMetadata`](https://chromedevtools.github.io/devtools-protocol/tot/IndexedDB/#method-getMetadata)."]
+        pub async fn get_metadata(
+            &self,
+            params: super::browser_protocol::indexed_db::GetMetadataParams,
+        ) -> Result<super::browser_protocol::indexed_db::GetMetadataReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests database with given name in given frame.\n\nSends [`IndexedDB.requestDatabase`](https://chromedevtools.github.io/devtools-protocol/tot/IndexedDB/#method-requestDatabase)."]
+        pub async fn request_database(
+            &self,
+            params: super::browser_protocol::indexed_db::RequestDatabaseParams,
+        ) -> Result<super::browser_protocol::indexed_db::RequestDatabaseReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests database names for given security origin.\n\nSends [`IndexedDB.requestDatabaseNames`](https://chromedevtools.github.io/devtools-protocol/tot/IndexedDB/#method-requestDatabaseNames)."]
+        pub async fn request_database_names(
+            &self,
+            params: super::browser_protocol::indexed_db::RequestDatabaseNamesParams,
+        ) -> Result<super::browser_protocol::indexed_db::RequestDatabaseNamesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "[Input](https://chromedevtools.github.io/devtools-protocol/tot/Input/)"]
+    pub struct Input<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Input<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Input<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Input<'a, X> {
+        #[doc = "Dispatches a drag event into the page.\n\nSends [`Input.dispatchDragEvent`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-dispatchDragEvent)."]
+        pub async fn dispatch_drag_event(
+            &self,
+            params: super::browser_protocol::input::DispatchDragEventParams,
+        ) -> Result<super::browser_protocol::input::DispatchDragEventReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Dispatches a key event to the page.\n\nSends [`Input.dispatchKeyEvent`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-dispatchKeyEvent)."]
+        pub async fn dispatch_key_event(
+            &self,
+            params: super::browser_protocol::input::DispatchKeyEventParams,
+        ) -> Result<super::browser_protocol::input::DispatchKeyEventReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "This method emulates inserting text that doesn't come from a key press,\nfor example an emoji keyboard or an IME.\n\nSends [`Input.insertText`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-insertText)."]
+        pub async fn insert_text(
+            &self,
+            params: super::browser_protocol::input::InsertTextParams,
+        ) -> Result<super::browser_protocol::input::InsertTextReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "This method sets the current candidate text for IME.\nUse imeCommitComposition to commit the final text.\nUse imeSetComposition with empty string as text to cancel composition.\n\nSends [`Input.imeSetComposition`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-imeSetComposition)."]
+        pub async fn ime_set_composition(
+            &self,
+            params: super::browser_protocol::input::ImeSetCompositionParams,
+        ) -> Result<super::browser_protocol::input::ImeSetCompositionReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Dispatches a mouse event to the page.\n\nSends [`Input.dispatchMouseEvent`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-dispatchMouseEvent)."]
+        pub async fn dispatch_mouse_event(
+            &self,
+            params: super::browser_protocol::input::DispatchMouseEventParams,
+        ) -> Result<super::browser_protocol::input::DispatchMouseEventReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Dispatches a touch event to the page.\n\nSends [`Input.dispatchTouchEvent`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-dispatchTouchEvent)."]
+        pub async fn dispatch_touch_event(
+            &self,
+            params: super::browser_protocol::input::DispatchTouchEventParams,
+        ) -> Result<super::browser_protocol::input::DispatchTouchEventReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Cancels any active dragging in the page.\n\nSends [`Input.cancelDragging`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-cancelDragging)."]
+        pub async fn cancel_dragging(
+            &self,
+            params: super::browser_protocol::input::CancelDraggingParams,
+        ) -> Result<super::browser_protocol::input::CancelDraggingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Emulates touch event from the mouse event parameters.\n\nSends [`Input.emulateTouchFromMouseEvent`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-emulateTouchFromMouseEvent)."]
+        pub async fn emulate_touch_from_mouse_event(
+            &self,
+            params: super::browser_protocol::input::EmulateTouchFromMouseEventParams,
+        ) -> Result<super::browser_protocol::input::EmulateTouchFromMouseEventReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Ignores input events (useful while auditing page).\n\nSends [`Input.setIgnoreInputEvents`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-setIgnoreInputEvents)."]
+        pub async fn set_ignore_input_events(
+            &self,
+            params: super::browser_protocol::input::SetIgnoreInputEventsParams,
+        ) -> Result<super::browser_protocol::input::SetIgnoreInputEventsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Prevents default drag and drop behavior and instead emits `Input.dragIntercepted` events.\nDrag and drop behavior can be directly controlled via `Input.dispatchDragEvent`.\n\nSends [`Input.setInterceptDrags`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-setInterceptDrags)."]
+        pub async fn set_intercept_drags(
+            &self,
+            params: super::browser_protocol::input::SetInterceptDragsParams,
+        ) -> Result<super::browser_protocol::input::SetInterceptDragsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Synthesizes a pinch gesture over a time period by issuing appropriate touch events.\n\nSends [`Input.synthesizePinchGesture`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-synthesizePinchGesture)."]
+        pub async fn synthesize_pinch_gesture(
+            &self,
+            params: super::browser_protocol::input::SynthesizePinchGestureParams,
+        ) -> Result<super::browser_protocol::input::SynthesizePinchGestureReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Synthesizes a scroll gesture over a time period by issuing appropriate touch events.\n\nSends [`Input.synthesizeScrollGesture`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-synthesizeScrollGesture)."]
+        pub async fn synthesize_scroll_gesture(
+            &self,
+            params: super::browser_protocol::input::SynthesizeScrollGestureParams,
+        ) -> Result<super::browser_protocol::input::SynthesizeScrollGestureReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Synthesizes a tap gesture over a time period by issuing appropriate touch events.\n\nSends [`Input.synthesizeTapGesture`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-synthesizeTapGesture)."]
+        pub async fn synthesize_tap_gesture(
+            &self,
+            params: super::browser_protocol::input::SynthesizeTapGestureParams,
+        ) -> Result<super::browser_protocol::input::SynthesizeTapGestureReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Emitted only when `Input.setInterceptDrags` is enabled. Use this data with `Input.dispatchDragEvent` to\nrestore normal drag and drop behavior.\n\nStreams [`Input.dragIntercepted`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#event-dragIntercepted) from now on."]
+        pub fn on_drag_intercepted(
+            &self,
+        ) -> X::Events<super::browser_protocol::input::EventDragIntercepted> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[Inspector](https://chromedevtools.github.io/devtools-protocol/tot/Inspector/)"]
+    pub struct Inspector<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Inspector<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Inspector<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Inspector<'a, X> {
+        #[doc = "Disables inspector domain notifications.\n\nSends [`Inspector.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Inspector/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::inspector::DisableParams,
+        ) -> Result<super::browser_protocol::inspector::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables inspector domain notifications.\n\nSends [`Inspector.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Inspector/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::inspector::EnableParams,
+        ) -> Result<super::browser_protocol::inspector::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fired when remote debugging connection is about to be terminated. Contains detach reason.\n\nStreams [`Inspector.detached`](https://chromedevtools.github.io/devtools-protocol/tot/Inspector/#event-detached) from now on."]
+        pub fn on_detached(&self) -> X::Events<super::browser_protocol::inspector::EventDetached> {
+            self.exec.events()
+        }
+        #[doc = "Fired when debugging target has crashed\n\nStreams [`Inspector.targetCrashed`](https://chromedevtools.github.io/devtools-protocol/tot/Inspector/#event-targetCrashed) from now on."]
+        pub fn on_target_crashed(
+            &self,
+        ) -> X::Events<super::browser_protocol::inspector::EventTargetCrashed> {
+            self.exec.events()
+        }
+        #[doc = "Fired when debugging target has reloaded after crash\n\nStreams [`Inspector.targetReloadedAfterCrash`](https://chromedevtools.github.io/devtools-protocol/tot/Inspector/#event-targetReloadedAfterCrash) from now on."]
+        pub fn on_target_reloaded_after_crash(
+            &self,
+        ) -> X::Events<super::browser_protocol::inspector::EventTargetReloadedAfterCrash> {
+            self.exec.events()
+        }
+        #[doc = "Fired on worker targets when main worker script and any imported scripts have been evaluated.\n\nStreams [`Inspector.workerScriptLoaded`](https://chromedevtools.github.io/devtools-protocol/tot/Inspector/#event-workerScriptLoaded) from now on."]
+        pub fn on_worker_script_loaded(
+            &self,
+        ) -> X::Events<super::browser_protocol::inspector::EventWorkerScriptLoaded> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[LayerTree](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/)"]
+    pub struct LayerTree<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for LayerTree<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for LayerTree<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> LayerTree<'a, X> {
+        #[doc = "Provides the reasons why the given layer was composited.\n\nSends [`LayerTree.compositingReasons`](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/#method-compositingReasons)."]
+        pub async fn compositing_reasons(
+            &self,
+            params: super::browser_protocol::layer_tree::CompositingReasonsParams,
+        ) -> Result<super::browser_protocol::layer_tree::CompositingReasonsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables compositing tree inspection.\n\nSends [`LayerTree.disable`](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::layer_tree::DisableParams,
+        ) -> Result<super::browser_protocol::layer_tree::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables compositing tree inspection.\n\nSends [`LayerTree.enable`](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::layer_tree::EnableParams,
+        ) -> Result<super::browser_protocol::layer_tree::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the snapshot identifier.\n\nSends [`LayerTree.loadSnapshot`](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/#method-loadSnapshot)."]
+        pub async fn load_snapshot(
+            &self,
+            params: super::browser_protocol::layer_tree::LoadSnapshotParams,
+        ) -> Result<super::browser_protocol::layer_tree::LoadSnapshotReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the layer snapshot identifier.\n\nSends [`LayerTree.makeSnapshot`](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/#method-makeSnapshot)."]
+        pub async fn make_snapshot(
+            &self,
+            params: super::browser_protocol::layer_tree::MakeSnapshotParams,
+        ) -> Result<super::browser_protocol::layer_tree::MakeSnapshotReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`LayerTree.profileSnapshot`](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/#method-profileSnapshot)."]
+        pub async fn profile_snapshot(
+            &self,
+            params: super::browser_protocol::layer_tree::ProfileSnapshotParams,
+        ) -> Result<super::browser_protocol::layer_tree::ProfileSnapshotReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Releases layer snapshot captured by the back-end.\n\nSends [`LayerTree.releaseSnapshot`](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/#method-releaseSnapshot)."]
+        pub async fn release_snapshot(
+            &self,
+            params: super::browser_protocol::layer_tree::ReleaseSnapshotParams,
+        ) -> Result<super::browser_protocol::layer_tree::ReleaseSnapshotReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Replays the layer snapshot and returns the resulting bitmap.\n\nSends [`LayerTree.replaySnapshot`](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/#method-replaySnapshot)."]
+        pub async fn replay_snapshot(
+            &self,
+            params: super::browser_protocol::layer_tree::ReplaySnapshotParams,
+        ) -> Result<super::browser_protocol::layer_tree::ReplaySnapshotReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Replays the layer snapshot and returns canvas log.\n\nSends [`LayerTree.snapshotCommandLog`](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/#method-snapshotCommandLog)."]
+        pub async fn snapshot_command_log(
+            &self,
+            params: super::browser_protocol::layer_tree::SnapshotCommandLogParams,
+        ) -> Result<super::browser_protocol::layer_tree::SnapshotCommandLogReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Streams [`LayerTree.layerPainted`](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/#event-layerPainted) from now on."]
+        pub fn on_layer_painted(
+            &self,
+        ) -> X::Events<super::browser_protocol::layer_tree::EventLayerPainted> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`LayerTree.layerTreeDidChange`](https://chromedevtools.github.io/devtools-protocol/tot/LayerTree/#event-layerTreeDidChange) from now on."]
+        pub fn on_layer_tree_did_change(
+            &self,
+        ) -> X::Events<super::browser_protocol::layer_tree::EventLayerTreeDidChange> {
+            self.exec.events()
+        }
+    }
+    #[doc = "Provides access to log entries.\n\n[Log](https://chromedevtools.github.io/devtools-protocol/tot/Log/)"]
+    pub struct Log<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Log<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Log<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Log<'a, X> {
+        #[doc = "Clears the log.\n\nSends [`Log.clear`](https://chromedevtools.github.io/devtools-protocol/tot/Log/#method-clear)."]
+        pub async fn clear(
+            &self,
+            params: super::browser_protocol::log::ClearParams,
+        ) -> Result<super::browser_protocol::log::ClearReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables log domain, prevents further log entries from being reported to the client.\n\nSends [`Log.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Log/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::log::DisableParams,
+        ) -> Result<super::browser_protocol::log::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables log domain, sends the entries collected so far to the client by means of the\n`entryAdded` notification.\n\nSends [`Log.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Log/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::log::EnableParams,
+        ) -> Result<super::browser_protocol::log::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "start violation reporting.\n\nSends [`Log.startViolationsReport`](https://chromedevtools.github.io/devtools-protocol/tot/Log/#method-startViolationsReport)."]
+        pub async fn start_violations_report(
+            &self,
+            params: super::browser_protocol::log::StartViolationsReportParams,
+        ) -> Result<super::browser_protocol::log::StartViolationsReportReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Stop violation reporting.\n\nSends [`Log.stopViolationsReport`](https://chromedevtools.github.io/devtools-protocol/tot/Log/#method-stopViolationsReport)."]
+        pub async fn stop_violations_report(
+            &self,
+            params: super::browser_protocol::log::StopViolationsReportParams,
+        ) -> Result<super::browser_protocol::log::StopViolationsReportReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Issued when new message was logged.\n\nStreams [`Log.entryAdded`](https://chromedevtools.github.io/devtools-protocol/tot/Log/#event-entryAdded) from now on."]
+        pub fn on_entry_added(&self) -> X::Events<super::browser_protocol::log::EventEntryAdded> {
+            self.exec.events()
+        }
+    }
+    #[doc = "This domain allows detailed inspection of media elements.\n\n[Media](https://chromedevtools.github.io/devtools-protocol/tot/Media/)"]
+    pub struct Media<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Media<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Media<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Media<'a, X> {
+        #[doc = "Enables the Media domain\n\nSends [`Media.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Media/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::media::EnableParams,
+        ) -> Result<super::browser_protocol::media::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables the Media domain.\n\nSends [`Media.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Media/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::media::DisableParams,
+        ) -> Result<super::browser_protocol::media::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "This can be called multiple times, and can be used to set / override /\nremove player properties. A null propValue indicates removal.\n\nStreams [`Media.playerPropertiesChanged`](https://chromedevtools.github.io/devtools-protocol/tot/Media/#event-playerPropertiesChanged) from now on."]
+        pub fn on_player_properties_changed(
+            &self,
+        ) -> X::Events<super::browser_protocol::media::EventPlayerPropertiesChanged> {
+            self.exec.events()
+        }
+        #[doc = "Send events as a list, allowing them to be batched on the browser for less\ncongestion. If batched, events must ALWAYS be in chronological order.\n\nStreams [`Media.playerEventsAdded`](https://chromedevtools.github.io/devtools-protocol/tot/Media/#event-playerEventsAdded) from now on."]
+        pub fn on_player_events_added(
+            &self,
+        ) -> X::Events<super::browser_protocol::media::EventPlayerEventsAdded> {
+            self.exec.events()
+        }
+        #[doc = "Send a list of any messages that need to be delivered.\n\nStreams [`Media.playerMessagesLogged`](https://chromedevtools.github.io/devtools-protocol/tot/Media/#event-playerMessagesLogged) from now on."]
+        pub fn on_player_messages_logged(
+            &self,
+        ) -> X::Events<super::browser_protocol::media::EventPlayerMessagesLogged> {
+            self.exec.events()
+        }
+        #[doc = "Send a list of any errors that need to be delivered.\n\nStreams [`Media.playerErrorsRaised`](https://chromedevtools.github.io/devtools-protocol/tot/Media/#event-playerErrorsRaised) from now on."]
+        pub fn on_player_errors_raised(
+            &self,
+        ) -> X::Events<super::browser_protocol::media::EventPlayerErrorsRaised> {
+            self.exec.events()
+        }
+        #[doc = "Called whenever a player is created, or when a new agent joins and receives\na list of active players. If an agent is restored, it will receive one\nevent for each active player.\n\nStreams [`Media.playerCreated`](https://chromedevtools.github.io/devtools-protocol/tot/Media/#event-playerCreated) from now on."]
+        pub fn on_player_created(
+            &self,
+        ) -> X::Events<super::browser_protocol::media::EventPlayerCreated> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[Memory](https://chromedevtools.github.io/devtools-protocol/tot/Memory/)"]
+    pub struct Memory<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Memory<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Memory<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Memory<'a, X> {
+        #[doc = "Retruns current DOM object counters.\n\nSends [`Memory.getDOMCounters`](https://chromedevtools.github.io/devtools-protocol/tot/Memory/#method-getDOMCounters)."]
+        pub async fn get_dom_counters(
+            &self,
+            params: super::browser_protocol::memory::GetDomCountersParams,
+        ) -> Result<super::browser_protocol::memory::GetDomCountersReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Retruns DOM object counters after preparing renderer for leak detection.\n\nSends [`Memory.getDOMCountersForLeakDetection`](https://chromedevtools.github.io/devtools-protocol/tot/Memory/#method-getDOMCountersForLeakDetection)."]
+        pub async fn get_dom_counters_for_leak_detection(
+            &self,
+            params: super::browser_protocol::memory::GetDomCountersForLeakDetectionParams,
+        ) -> Result<super::browser_protocol::memory::GetDomCountersForLeakDetectionReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Prepares for leak detection by terminating workers, stopping spellcheckers,\ndropping non-essential internal caches, running garbage collections, etc.\n\nSends [`Memory.prepareForLeakDetection`](https://chromedevtools.github.io/devtools-protocol/tot/Memory/#method-prepareForLeakDetection)."]
+        pub async fn prepare_for_leak_detection(
+            &self,
+            params: super::browser_protocol::memory::PrepareForLeakDetectionParams,
+        ) -> Result<super::browser_protocol::memory::PrepareForLeakDetectionReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Simulate OomIntervention by purging V8 memory.\n\nSends [`Memory.forciblyPurgeJavaScriptMemory`](https://chromedevtools.github.io/devtools-protocol/tot/Memory/#method-forciblyPurgeJavaScriptMemory)."]
+        pub async fn forcibly_purge_java_script_memory(
+            &self,
+            params: super::browser_protocol::memory::ForciblyPurgeJavaScriptMemoryParams,
+        ) -> Result<super::browser_protocol::memory::ForciblyPurgeJavaScriptMemoryReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enable/disable suppressing memory pressure notifications in all processes.\n\nSends [`Memory.setPressureNotificationsSuppressed`](https://chromedevtools.github.io/devtools-protocol/tot/Memory/#method-setPressureNotificationsSuppressed)."]
+        pub async fn set_pressure_notifications_suppressed(
+            &self,
+            params: super::browser_protocol::memory::SetPressureNotificationsSuppressedParams,
+        ) -> Result<
+            super::browser_protocol::memory::SetPressureNotificationsSuppressedReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Simulate a memory pressure notification in all processes.\n\nSends [`Memory.simulatePressureNotification`](https://chromedevtools.github.io/devtools-protocol/tot/Memory/#method-simulatePressureNotification)."]
+        pub async fn simulate_pressure_notification(
+            &self,
+            params: super::browser_protocol::memory::SimulatePressureNotificationParams,
+        ) -> Result<super::browser_protocol::memory::SimulatePressureNotificationReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Start collecting native memory profile.\n\nSends [`Memory.startSampling`](https://chromedevtools.github.io/devtools-protocol/tot/Memory/#method-startSampling)."]
+        pub async fn start_sampling(
+            &self,
+            params: super::browser_protocol::memory::StartSamplingParams,
+        ) -> Result<super::browser_protocol::memory::StartSamplingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Stop collecting native memory profile.\n\nSends [`Memory.stopSampling`](https://chromedevtools.github.io/devtools-protocol/tot/Memory/#method-stopSampling)."]
+        pub async fn stop_sampling(
+            &self,
+            params: super::browser_protocol::memory::StopSamplingParams,
+        ) -> Result<super::browser_protocol::memory::StopSamplingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Retrieve native memory allocations profile\ncollected since renderer process startup.\n\nSends [`Memory.getAllTimeSamplingProfile`](https://chromedevtools.github.io/devtools-protocol/tot/Memory/#method-getAllTimeSamplingProfile)."]
+        pub async fn get_all_time_sampling_profile(
+            &self,
+            params: super::browser_protocol::memory::GetAllTimeSamplingProfileParams,
+        ) -> Result<super::browser_protocol::memory::GetAllTimeSamplingProfileReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Retrieve native memory allocations profile\ncollected since browser process startup.\n\nSends [`Memory.getBrowserSamplingProfile`](https://chromedevtools.github.io/devtools-protocol/tot/Memory/#method-getBrowserSamplingProfile)."]
+        pub async fn get_browser_sampling_profile(
+            &self,
+            params: super::browser_protocol::memory::GetBrowserSamplingProfileParams,
+        ) -> Result<super::browser_protocol::memory::GetBrowserSamplingProfileReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Retrieve native memory allocations profile collected since last\n`startSampling` call.\n\nSends [`Memory.getSamplingProfile`](https://chromedevtools.github.io/devtools-protocol/tot/Memory/#method-getSamplingProfile)."]
+        pub async fn get_sampling_profile(
+            &self,
+            params: super::browser_protocol::memory::GetSamplingProfileParams,
+        ) -> Result<super::browser_protocol::memory::GetSamplingProfileReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "Network domain allows tracking network activities of the page. It exposes information about http,\nfile, data and other requests and responses, their headers, bodies, timing, etc.\n\n[Network](https://chromedevtools.github.io/devtools-protocol/tot/Network/)"]
+    pub struct Network<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Network<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Network<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Network<'a, X> {
+        #[doc = "Clears browser cache.\n\nSends [`Network.clearBrowserCache`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-clearBrowserCache)."]
+        pub async fn clear_browser_cache(
+            &self,
+            params: super::browser_protocol::network::ClearBrowserCacheParams,
+        ) -> Result<super::browser_protocol::network::ClearBrowserCacheReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears browser cookies.\n\nSends [`Network.clearBrowserCookies`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-clearBrowserCookies)."]
+        pub async fn clear_browser_cookies(
+            &self,
+            params: super::browser_protocol::network::ClearBrowserCookiesParams,
+        ) -> Result<super::browser_protocol::network::ClearBrowserCookiesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Deletes browser cookies with matching name and url or domain/path/partitionKey pair.\n\nSends [`Network.deleteCookies`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-deleteCookies)."]
+        pub async fn delete_cookies(
+            &self,
+            params: super::browser_protocol::network::DeleteCookiesParams,
+        ) -> Result<super::browser_protocol::network::DeleteCookiesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables network tracking, prevents network events from being sent to the client.\n\nSends [`Network.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::network::DisableParams,
+        ) -> Result<super::browser_protocol::network::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Activates emulation of network conditions for individual requests using URL match patterns. Unlike the deprecated\nNetwork.emulateNetworkConditions this method does not affect `navigator` state. Use Network.overrideNetworkState to\nexplicitly modify `navigator` behavior.\n\nSends [`Network.emulateNetworkConditionsByRule`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-emulateNetworkConditionsByRule)."]
+        pub async fn emulate_network_conditions_by_rule(
+            &self,
+            params: super::browser_protocol::network::EmulateNetworkConditionsByRuleParams,
+        ) -> Result<super::browser_protocol::network::EmulateNetworkConditionsByRuleReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Override the state of navigator.onLine and navigator.connection.\n\nSends [`Network.overrideNetworkState`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-overrideNetworkState)."]
+        pub async fn override_network_state(
+            &self,
+            params: super::browser_protocol::network::OverrideNetworkStateParams,
+        ) -> Result<super::browser_protocol::network::OverrideNetworkStateReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables network tracking, network events will now be delivered to the client.\n\nSends [`Network.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::network::EnableParams,
+        ) -> Result<super::browser_protocol::network::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Configures storing response bodies outside of renderer, so that these survive\na cross-process navigation.\nIf maxTotalBufferSize is not set, durable messages are disabled.\n\nSends [`Network.configureDurableMessages`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-configureDurableMessages)."]
+        pub async fn configure_durable_messages(
+            &self,
+            params: super::browser_protocol::network::ConfigureDurableMessagesParams,
+        ) -> Result<super::browser_protocol::network::ConfigureDurableMessagesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the DER-encoded certificate.\n\nSends [`Network.getCertificate`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-getCertificate)."]
+        pub async fn get_certificate(
+            &self,
+            params: super::browser_protocol::network::GetCertificateParams,
+        ) -> Result<super::browser_protocol::network::GetCertificateReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns all browser cookies for the current URL. Depending on the backend support, will return\ndetailed cookie information in the `cookies` field.\n\nSends [`Network.getCookies`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-getCookies)."]
+        pub async fn get_cookies(
+            &self,
+            params: super::browser_protocol::network::GetCookiesParams,
+        ) -> Result<super::browser_protocol::network::GetCookiesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns content served for the given request.\n\nSends [`Network.getResponseBody`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-getResponseBody)."]
+        pub async fn get_response_body(
+            &self,
+            params: super::browser_protocol::network::GetResponseBodyParams,
+        ) -> Result<super::browser_protocol::network::GetResponseBodyReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns post data sent with the request. Returns an error when no data was sent with the request.\n\nSends [`Network.getRequestPostData`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-getRequestPostData)."]
+        pub async fn get_request_post_data(
+            &self,
+            params: super::browser_protocol::network::GetRequestPostDataParams,
+        ) -> Result<super::browser_protocol::network::GetRequestPostDataReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "This method sends a new XMLHttpRequest which is identical to the original one. The following\nparameters should be identical: method, url, async, request body, extra headers, withCredentials\nattribute, user, password.\n\nSends [`Network.replayXHR`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-replayXHR)."]
+        pub async fn replay_xhr(
+            &self,
+            params: super::browser_protocol::network::ReplayXhrParams,
+        ) -> Result<super::browser_protocol::network::ReplayXhrReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Searches for given string in response content.\n\nSends [`Network.searchInResponseBody`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-searchInResponseBody)."]
+        pub async fn search_in_response_body(
+            &self,
+            params: super::browser_protocol::network::SearchInResponseBodyParams,
+        ) -> Result<super::browser_protocol::network::SearchInResponseBodyReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Blocks URLs from loading.\n\nSends [`Network.setBlockedURLs`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-setBlockedURLs)."]
+        pub async fn set_blocked_ur_ls(
+            &self,
+            params: super::browser_protocol::network::SetBlockedUrLsParams,
+        ) -> Result<super::browser_protocol::network::SetBlockedUrLsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Toggles ignoring of service worker for each request.\n\nSends [`Network.setBypassServiceWorker`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-setBypassServiceWorker)."]
+        pub async fn set_bypass_service_worker(
+            &self,
+            params: super::browser_protocol::network::SetBypassServiceWorkerParams,
+        ) -> Result<super::browser_protocol::network::SetBypassServiceWorkerReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Toggles ignoring cache for each request. If `true`, cache will not be used.\n\nSends [`Network.setCacheDisabled`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-setCacheDisabled)."]
+        pub async fn set_cache_disabled(
+            &self,
+            params: super::browser_protocol::network::SetCacheDisabledParams,
+        ) -> Result<super::browser_protocol::network::SetCacheDisabledReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets a cookie with the given cookie data; may overwrite equivalent cookies if they exist.\n\nSends [`Network.setCookie`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-setCookie)."]
+        pub async fn set_cookie(
+            &self,
+            params: super::browser_protocol::network::SetCookieParams,
+        ) -> Result<super::browser_protocol::network::SetCookieReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets given cookies.\n\nSends [`Network.setCookies`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-setCookies)."]
+        pub async fn set_cookies(
+            &self,
+            params: super::browser_protocol::network::SetCookiesParams,
+        ) -> Result<super::browser_protocol::network::SetCookiesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Specifies whether to always send extra HTTP headers with the requests from this page.\n\nSends [`Network.setExtraHTTPHeaders`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-setExtraHTTPHeaders)."]
+        pub async fn set_extra_http_headers(
+            &self,
+            params: super::browser_protocol::network::SetExtraHttpHeadersParams,
+        ) -> Result<super::browser_protocol::network::SetExtraHttpHeadersReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Specifies whether to attach a page script stack id in requests\n\nSends [`Network.setAttachDebugStack`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-setAttachDebugStack)."]
+        pub async fn set_attach_debug_stack(
+            &self,
+            params: super::browser_protocol::network::SetAttachDebugStackParams,
+        ) -> Result<super::browser_protocol::network::SetAttachDebugStackReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Allows overriding user agent with the given string.\n\nSends [`Network.setUserAgentOverride`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-setUserAgentOverride)."]
+        pub async fn set_user_agent_override(
+            &self,
+            params: super::browser_protocol::network::SetUserAgentOverrideParams,
+        ) -> Result<super::browser_protocol::network::SetUserAgentOverrideReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables streaming of the response for the given requestId.\nIf enabled, the dataReceived event contains the data that was received during streaming.\n\nSends [`Network.streamResourceContent`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-streamResourceContent)."]
+        pub async fn stream_resource_content(
+            &self,
+            params: super::browser_protocol::network::StreamResourceContentParams,
+        ) -> Result<super::browser_protocol::network::StreamResourceContentReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns information about the COEP/COOP isolation status.\n\nSends [`Network.getSecurityIsolationStatus`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-getSecurityIsolationStatus)."]
+        pub async fn get_security_isolation_status(
+            &self,
+            params: super::browser_protocol::network::GetSecurityIsolationStatusParams,
+        ) -> Result<super::browser_protocol::network::GetSecurityIsolationStatusReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables tracking for the Reporting API, events generated by the Reporting API will now be delivered to the client.\nEnabling triggers 'reportingApiReportAdded' for all existing reports.\n\nSends [`Network.enableReportingApi`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-enableReportingApi)."]
+        pub async fn enable_reporting_api(
+            &self,
+            params: super::browser_protocol::network::EnableReportingApiParams,
+        ) -> Result<super::browser_protocol::network::EnableReportingApiReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets up tracking device bound sessions and fetching of initial set of sessions.\n\nSends [`Network.enableDeviceBoundSessions`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-enableDeviceBoundSessions)."]
+        pub async fn enable_device_bound_sessions(
+            &self,
+            params: super::browser_protocol::network::EnableDeviceBoundSessionsParams,
+        ) -> Result<super::browser_protocol::network::EnableDeviceBoundSessionsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Deletes a device bound session.\n\nSends [`Network.deleteDeviceBoundSession`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-deleteDeviceBoundSession)."]
+        pub async fn delete_device_bound_session(
+            &self,
+            params: super::browser_protocol::network::DeleteDeviceBoundSessionParams,
+        ) -> Result<super::browser_protocol::network::DeleteDeviceBoundSessionReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fetches the schemeful site for a specific origin.\n\nSends [`Network.fetchSchemefulSite`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-fetchSchemefulSite)."]
+        pub async fn fetch_schemeful_site(
+            &self,
+            params: super::browser_protocol::network::FetchSchemefulSiteParams,
+        ) -> Result<super::browser_protocol::network::FetchSchemefulSiteReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fetches the resource and returns the content.\n\nSends [`Network.loadNetworkResource`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-loadNetworkResource)."]
+        pub async fn load_network_resource(
+            &self,
+            params: super::browser_protocol::network::LoadNetworkResourceParams,
+        ) -> Result<super::browser_protocol::network::LoadNetworkResourceReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets Controls for third-party cookie access\nPage reload is required before the new cookie behavior will be observed\n\nSends [`Network.setCookieControls`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-setCookieControls)."]
+        pub async fn set_cookie_controls(
+            &self,
+            params: super::browser_protocol::network::SetCookieControlsParams,
+        ) -> Result<super::browser_protocol::network::SetCookieControlsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fired when data chunk was received over the network.\n\nStreams [`Network.dataReceived`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-dataReceived) from now on."]
+        pub fn on_data_received(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDataReceived> {
+            self.exec.events()
+        }
+        #[doc = "Fired when EventSource message is received.\n\nStreams [`Network.eventSourceMessageReceived`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-eventSourceMessageReceived) from now on."]
+        pub fn on_event_source_message_received(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventEventSourceMessageReceived> {
+            self.exec.events()
+        }
+        #[doc = "Fired when HTTP request has failed to load.\n\nStreams [`Network.loadingFailed`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-loadingFailed) from now on."]
+        pub fn on_loading_failed(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventLoadingFailed> {
+            self.exec.events()
+        }
+        #[doc = "Fired when HTTP request has finished loading.\n\nStreams [`Network.loadingFinished`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-loadingFinished) from now on."]
+        pub fn on_loading_finished(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventLoadingFinished> {
+            self.exec.events()
+        }
+        #[doc = "Fired if request ended up loading from cache.\n\nStreams [`Network.requestServedFromCache`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-requestServedFromCache) from now on."]
+        pub fn on_request_served_from_cache(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventRequestServedFromCache> {
+            self.exec.events()
+        }
+        #[doc = "Fired when page is about to send HTTP request.\n\nStreams [`Network.requestWillBeSent`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-requestWillBeSent) from now on."]
+        pub fn on_request_will_be_sent(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventRequestWillBeSent> {
+            self.exec.events()
+        }
+        #[doc = "Fired when resource loading priority is changed\n\nStreams [`Network.resourceChangedPriority`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-resourceChangedPriority) from now on."]
+        pub fn on_resource_changed_priority(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventResourceChangedPriority> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a signed exchange was received over the network\n\nStreams [`Network.signedExchangeReceived`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-signedExchangeReceived) from now on."]
+        pub fn on_signed_exchange_received(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventSignedExchangeReceived> {
+            self.exec.events()
+        }
+        #[doc = "Fired when HTTP response is available.\n\nStreams [`Network.responseReceived`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-responseReceived) from now on."]
+        pub fn on_response_received(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventResponseReceived> {
+            self.exec.events()
+        }
+        #[doc = "Fired when WebSocket is closed.\n\nStreams [`Network.webSocketClosed`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-webSocketClosed) from now on."]
+        pub fn on_web_socket_closed(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventWebSocketClosed> {
+            self.exec.events()
+        }
+        #[doc = "Fired upon WebSocket creation.\n\nStreams [`Network.webSocketCreated`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-webSocketCreated) from now on."]
+        pub fn on_web_socket_created(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventWebSocketCreated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when WebSocket message error occurs.\n\nStreams [`Network.webSocketFrameError`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-webSocketFrameError) from now on."]
+        pub fn on_web_socket_frame_error(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventWebSocketFrameError> {
+            self.exec.events()
+        }
+        #[doc = "Fired when WebSocket message is received.\n\nStreams [`Network.webSocketFrameReceived`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-webSocketFrameReceived) from now on."]
+        pub fn on_web_socket_frame_received(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventWebSocketFrameReceived> {
+            self.exec.events()
+        }
+        #[doc = "Fired when WebSocket message is sent.\n\nStreams [`Network.webSocketFrameSent`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-webSocketFrameSent) from now on."]
+        pub fn on_web_socket_frame_sent(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventWebSocketFrameSent> {
+            self.exec.events()
+        }
+        #[doc = "Fired when WebSocket handshake response becomes available.\n\nStreams [`Network.webSocketHandshakeResponseReceived`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-webSocketHandshakeResponseReceived) from now on."]
+        pub fn on_web_socket_handshake_response_received(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventWebSocketHandshakeResponseReceived>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when WebSocket is about to initiate handshake.\n\nStreams [`Network.webSocketWillSendHandshakeRequest`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-webSocketWillSendHandshakeRequest) from now on."]
+        pub fn on_web_socket_will_send_handshake_request(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventWebSocketWillSendHandshakeRequest>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired upon WebTransport creation.\n\nStreams [`Network.webTransportCreated`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-webTransportCreated) from now on."]
+        pub fn on_web_transport_created(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventWebTransportCreated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when WebTransport handshake is finished.\n\nStreams [`Network.webTransportConnectionEstablished`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-webTransportConnectionEstablished) from now on."]
+        pub fn on_web_transport_connection_established(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventWebTransportConnectionEstablished>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when WebTransport is disposed.\n\nStreams [`Network.webTransportClosed`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-webTransportClosed) from now on."]
+        pub fn on_web_transport_closed(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventWebTransportClosed> {
+            self.exec.events()
+        }
+        #[doc = "Fired upon direct_socket.TCPSocket creation.\n\nStreams [`Network.directTCPSocketCreated`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directTCPSocketCreated) from now on."]
+        pub fn on_direct_tcp_socket_created(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectTcpSocketCreated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when direct_socket.TCPSocket connection is opened.\n\nStreams [`Network.directTCPSocketOpened`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directTCPSocketOpened) from now on."]
+        pub fn on_direct_tcp_socket_opened(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectTcpSocketOpened> {
+            self.exec.events()
+        }
+        #[doc = "Fired when direct_socket.TCPSocket is aborted.\n\nStreams [`Network.directTCPSocketAborted`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directTCPSocketAborted) from now on."]
+        pub fn on_direct_tcp_socket_aborted(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectTcpSocketAborted> {
+            self.exec.events()
+        }
+        #[doc = "Fired when direct_socket.TCPSocket is closed.\n\nStreams [`Network.directTCPSocketClosed`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directTCPSocketClosed) from now on."]
+        pub fn on_direct_tcp_socket_closed(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectTcpSocketClosed> {
+            self.exec.events()
+        }
+        #[doc = "Fired when data is sent to tcp direct socket stream.\n\nStreams [`Network.directTCPSocketChunkSent`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directTCPSocketChunkSent) from now on."]
+        pub fn on_direct_tcp_socket_chunk_sent(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectTcpSocketChunkSent> {
+            self.exec.events()
+        }
+        #[doc = "Fired when data is received from tcp direct socket stream.\n\nStreams [`Network.directTCPSocketChunkReceived`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directTCPSocketChunkReceived) from now on."]
+        pub fn on_direct_tcp_socket_chunk_received(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectTcpSocketChunkReceived>
+        {
+            self.exec.events()
+        }
+        #[doc = "Streams [`Network.directUDPSocketJoinedMulticastGroup`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directUDPSocketJoinedMulticastGroup) from now on."]
+        pub fn on_direct_udp_socket_joined_multicast_group(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectUdpSocketJoinedMulticastGroup>
+        {
+            self.exec.events()
+        }
+        #[doc = "Streams [`Network.directUDPSocketLeftMulticastGroup`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directUDPSocketLeftMulticastGroup) from now on."]
+        pub fn on_direct_udp_socket_left_multicast_group(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectUdpSocketLeftMulticastGroup>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired upon direct_socket.UDPSocket creation.\n\nStreams [`Network.directUDPSocketCreated`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directUDPSocketCreated) from now on."]
+        pub fn on_direct_udp_socket_created(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectUdpSocketCreated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when direct_socket.UDPSocket connection is opened.\n\nStreams [`Network.directUDPSocketOpened`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directUDPSocketOpened) from now on."]
+        pub fn on_direct_udp_socket_opened(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectUdpSocketOpened> {
+            self.exec.events()
+        }
+        #[doc = "Fired when direct_socket.UDPSocket is aborted.\n\nStreams [`Network.directUDPSocketAborted`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directUDPSocketAborted) from now on."]
+        pub fn on_direct_udp_socket_aborted(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectUdpSocketAborted> {
+            self.exec.events()
+        }
+        #[doc = "Fired when direct_socket.UDPSocket is closed.\n\nStreams [`Network.directUDPSocketClosed`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directUDPSocketClosed) from now on."]
+        pub fn on_direct_udp_socket_closed(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectUdpSocketClosed> {
+            self.exec.events()
+        }
+        #[doc = "Fired when message is sent to udp direct socket stream.\n\nStreams [`Network.directUDPSocketChunkSent`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directUDPSocketChunkSent) from now on."]
+        pub fn on_direct_udp_socket_chunk_sent(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectUdpSocketChunkSent> {
+            self.exec.events()
+        }
+        #[doc = "Fired when message is received from udp direct socket stream.\n\nStreams [`Network.directUDPSocketChunkReceived`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-directUDPSocketChunkReceived) from now on."]
+        pub fn on_direct_udp_socket_chunk_received(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDirectUdpSocketChunkReceived>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when additional information about a requestWillBeSent event is available from the\nnetwork stack. Not every requestWillBeSent event will have an additional\nrequestWillBeSentExtraInfo fired for it, and there is no guarantee whether requestWillBeSent\nor requestWillBeSentExtraInfo will be fired first for the same request.\n\nStreams [`Network.requestWillBeSentExtraInfo`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-requestWillBeSentExtraInfo) from now on."]
+        pub fn on_request_will_be_sent_extra_info(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventRequestWillBeSentExtraInfo> {
+            self.exec.events()
+        }
+        #[doc = "Fired when additional information about a responseReceived event is available from the network\nstack. Not every responseReceived event will have an additional responseReceivedExtraInfo for\nit, and responseReceivedExtraInfo may be fired before or after responseReceived.\n\nStreams [`Network.responseReceivedExtraInfo`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-responseReceivedExtraInfo) from now on."]
+        pub fn on_response_received_extra_info(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventResponseReceivedExtraInfo> {
+            self.exec.events()
+        }
+        #[doc = "Fired when 103 Early Hints headers is received in addition to the common response.\nNot every responseReceived event will have an responseReceivedEarlyHints fired.\nOnly one responseReceivedEarlyHints may be fired for eached responseReceived event.\n\nStreams [`Network.responseReceivedEarlyHints`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-responseReceivedEarlyHints) from now on."]
+        pub fn on_response_received_early_hints(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventResponseReceivedEarlyHints> {
+            self.exec.events()
+        }
+        #[doc = "Fired exactly once for each Trust Token operation. Depending on\nthe type of the operation and whether the operation succeeded or\nfailed, the event is fired before the corresponding request was sent\nor after the response was received.\n\nStreams [`Network.trustTokenOperationDone`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-trustTokenOperationDone) from now on."]
+        pub fn on_trust_token_operation_done(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventTrustTokenOperationDone> {
+            self.exec.events()
+        }
+        #[doc = "Fired once security policy has been updated.\n\nStreams [`Network.policyUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-policyUpdated) from now on."]
+        pub fn on_policy_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventPolicyUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Is sent whenever a new report is added.\nAnd after 'enableReportingApi' for all existing reports.\n\nStreams [`Network.reportingApiReportAdded`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-reportingApiReportAdded) from now on."]
+        pub fn on_reporting_api_report_added(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventReportingApiReportAdded> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`Network.reportingApiReportUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-reportingApiReportUpdated) from now on."]
+        pub fn on_reporting_api_report_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventReportingApiReportUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`Network.reportingApiEndpointsChangedForOrigin`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-reportingApiEndpointsChangedForOrigin) from now on."]
+        pub fn on_reporting_api_endpoints_changed_for_origin(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventReportingApiEndpointsChangedForOrigin>
+        {
+            self.exec.events()
+        }
+        #[doc = "Triggered when the initial set of device bound sessions is added.\n\nStreams [`Network.deviceBoundSessionsAdded`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-deviceBoundSessionsAdded) from now on."]
+        pub fn on_device_bound_sessions_added(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDeviceBoundSessionsAdded> {
+            self.exec.events()
+        }
+        #[doc = "Triggered when a device bound session event occurs.\n\nStreams [`Network.deviceBoundSessionEventOccurred`](https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-deviceBoundSessionEventOccurred) from now on."]
+        pub fn on_device_bound_session_event_occurred(
+            &self,
+        ) -> X::Events<super::browser_protocol::network::EventDeviceBoundSessionEventOccurred>
+        {
+            self.exec.events()
+        }
+    }
+    #[doc = "This domain provides various functionality related to drawing atop the inspected page.\n\n[Overlay](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/)"]
+    pub struct Overlay<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Overlay<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Overlay<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Overlay<'a, X> {
+        #[doc = "Disables domain notifications.\n\nSends [`Overlay.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::overlay::DisableParams,
+        ) -> Result<super::browser_protocol::overlay::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables domain notifications.\n\nSends [`Overlay.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::overlay::EnableParams,
+        ) -> Result<super::browser_protocol::overlay::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "For testing.\n\nSends [`Overlay.getHighlightObjectForTest`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-getHighlightObjectForTest)."]
+        pub async fn get_highlight_object_for_test(
+            &self,
+            params: super::browser_protocol::overlay::GetHighlightObjectForTestParams,
+        ) -> Result<super::browser_protocol::overlay::GetHighlightObjectForTestReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "For Persistent Grid testing.\n\nSends [`Overlay.getGridHighlightObjectsForTest`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-getGridHighlightObjectsForTest)."]
+        pub async fn get_grid_highlight_objects_for_test(
+            &self,
+            params: super::browser_protocol::overlay::GetGridHighlightObjectsForTestParams,
+        ) -> Result<super::browser_protocol::overlay::GetGridHighlightObjectsForTestReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "For Source Order Viewer testing.\n\nSends [`Overlay.getSourceOrderHighlightObjectForTest`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-getSourceOrderHighlightObjectForTest)."]
+        pub async fn get_source_order_highlight_object_for_test(
+            &self,
+            params: super::browser_protocol::overlay::GetSourceOrderHighlightObjectForTestParams,
+        ) -> Result<
+            super::browser_protocol::overlay::GetSourceOrderHighlightObjectForTestReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Hides any highlight.\n\nSends [`Overlay.hideHighlight`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-hideHighlight)."]
+        pub async fn hide_highlight(
+            &self,
+            params: super::browser_protocol::overlay::HideHighlightParams,
+        ) -> Result<super::browser_protocol::overlay::HideHighlightReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Highlights DOM node with given id or with the given JavaScript object wrapper. Either nodeId or\nobjectId must be specified.\n\nSends [`Overlay.highlightNode`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-highlightNode)."]
+        pub async fn highlight_node(
+            &self,
+            params: super::browser_protocol::overlay::HighlightNodeParams,
+        ) -> Result<super::browser_protocol::overlay::HighlightNodeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Highlights given quad. Coordinates are absolute with respect to the main frame viewport.\n\nSends [`Overlay.highlightQuad`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-highlightQuad)."]
+        pub async fn highlight_quad(
+            &self,
+            params: super::browser_protocol::overlay::HighlightQuadParams,
+        ) -> Result<super::browser_protocol::overlay::HighlightQuadReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Highlights given rectangle. Coordinates are absolute with respect to the main frame viewport.\nIssue: the method does not handle device pixel ratio (DPR) correctly.\nThe coordinates currently have to be adjusted by the client\nif DPR is not 1 (see crbug.com/437807128).\n\nSends [`Overlay.highlightRect`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-highlightRect)."]
+        pub async fn highlight_rect(
+            &self,
+            params: super::browser_protocol::overlay::HighlightRectParams,
+        ) -> Result<super::browser_protocol::overlay::HighlightRectReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Highlights the source order of the children of the DOM node with given id or with the given\nJavaScript object wrapper. Either nodeId or objectId must be specified.\n\nSends [`Overlay.highlightSourceOrder`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-highlightSourceOrder)."]
+        pub async fn highlight_source_order(
+            &self,
+            params: super::browser_protocol::overlay::HighlightSourceOrderParams,
+        ) -> Result<super::browser_protocol::overlay::HighlightSourceOrderReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enters the 'inspect' mode. In this mode, elements that user is hovering over are highlighted.\nBackend then generates 'inspectNodeRequested' event upon element selection.\n\nSends [`Overlay.setInspectMode`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setInspectMode)."]
+        pub async fn set_inspect_mode(
+            &self,
+            params: super::browser_protocol::overlay::SetInspectModeParams,
+        ) -> Result<super::browser_protocol::overlay::SetInspectModeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Highlights owner element of all frames detected to be ads.\n\nSends [`Overlay.setShowAdHighlights`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowAdHighlights)."]
+        pub async fn set_show_ad_highlights(
+            &self,
+            params: super::browser_protocol::overlay::SetShowAdHighlightsParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowAdHighlightsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Overlay.setPausedInDebuggerMessage`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setPausedInDebuggerMessage)."]
+        pub async fn set_paused_in_debugger_message(
+            &self,
+            params: super::browser_protocol::overlay::SetPausedInDebuggerMessageParams,
+        ) -> Result<super::browser_protocol::overlay::SetPausedInDebuggerMessageReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests that backend shows debug borders on layers\n\nSends [`Overlay.setShowDebugBorders`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowDebugBorders)."]
+        pub async fn set_show_debug_borders(
+            &self,
+            params: super::browser_protocol::overlay::SetShowDebugBordersParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowDebugBordersReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests that backend shows the FPS counter\n\nSends [`Overlay.setShowFPSCounter`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowFPSCounter)."]
+        pub async fn set_show_fps_counter(
+            &self,
+            params: super::browser_protocol::overlay::SetShowFpsCounterParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowFpsCounterReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Highlight multiple elements with the CSS Grid overlay.\n\nSends [`Overlay.setShowGridOverlays`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowGridOverlays)."]
+        pub async fn set_show_grid_overlays(
+            &self,
+            params: super::browser_protocol::overlay::SetShowGridOverlaysParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowGridOverlaysReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Overlay.setShowFlexOverlays`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowFlexOverlays)."]
+        pub async fn set_show_flex_overlays(
+            &self,
+            params: super::browser_protocol::overlay::SetShowFlexOverlaysParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowFlexOverlaysReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Overlay.setShowScrollSnapOverlays`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowScrollSnapOverlays)."]
+        pub async fn set_show_scroll_snap_overlays(
+            &self,
+            params: super::browser_protocol::overlay::SetShowScrollSnapOverlaysParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowScrollSnapOverlaysReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Overlay.setShowContainerQueryOverlays`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowContainerQueryOverlays)."]
+        pub async fn set_show_container_query_overlays(
+            &self,
+            params: super::browser_protocol::overlay::SetShowContainerQueryOverlaysParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowContainerQueryOverlaysReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Overlay.setShowInspectedElementAnchor`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowInspectedElementAnchor)."]
+        pub async fn set_show_inspected_element_anchor(
+            &self,
+            params: super::browser_protocol::overlay::SetShowInspectedElementAnchorParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowInspectedElementAnchorReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests that backend shows paint rectangles\n\nSends [`Overlay.setShowPaintRects`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowPaintRects)."]
+        pub async fn set_show_paint_rects(
+            &self,
+            params: super::browser_protocol::overlay::SetShowPaintRectsParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowPaintRectsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests that backend shows layout shift regions\n\nSends [`Overlay.setShowLayoutShiftRegions`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowLayoutShiftRegions)."]
+        pub async fn set_show_layout_shift_regions(
+            &self,
+            params: super::browser_protocol::overlay::SetShowLayoutShiftRegionsParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowLayoutShiftRegionsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests that backend shows scroll bottleneck rects\n\nSends [`Overlay.setShowScrollBottleneckRects`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowScrollBottleneckRects)."]
+        pub async fn set_show_scroll_bottleneck_rects(
+            &self,
+            params: super::browser_protocol::overlay::SetShowScrollBottleneckRectsParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowScrollBottleneckRectsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Paints viewport size upon main frame resize.\n\nSends [`Overlay.setShowViewportSizeOnResize`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowViewportSizeOnResize)."]
+        pub async fn set_show_viewport_size_on_resize(
+            &self,
+            params: super::browser_protocol::overlay::SetShowViewportSizeOnResizeParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowViewportSizeOnResizeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Add a dual screen device hinge\n\nSends [`Overlay.setShowHinge`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowHinge)."]
+        pub async fn set_show_hinge(
+            &self,
+            params: super::browser_protocol::overlay::SetShowHingeParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowHingeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Add a display cutout overlay.\n\nSends [`Overlay.setShowDisplayCutout`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowDisplayCutout)."]
+        pub async fn set_show_display_cutout(
+            &self,
+            params: super::browser_protocol::overlay::SetShowDisplayCutoutParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowDisplayCutoutReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Show elements in isolation mode with overlays.\n\nSends [`Overlay.setShowIsolatedElements`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowIsolatedElements)."]
+        pub async fn set_show_isolated_elements(
+            &self,
+            params: super::browser_protocol::overlay::SetShowIsolatedElementsParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowIsolatedElementsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Show Window Controls Overlay for PWA\n\nSends [`Overlay.setShowWindowControlsOverlay`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#method-setShowWindowControlsOverlay)."]
+        pub async fn set_show_window_controls_overlay(
+            &self,
+            params: super::browser_protocol::overlay::SetShowWindowControlsOverlayParams,
+        ) -> Result<super::browser_protocol::overlay::SetShowWindowControlsOverlayReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fired when the node should be inspected. This happens after call to `setInspectMode` or when\nuser manually inspects an element.\n\nStreams [`Overlay.inspectNodeRequested`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#event-inspectNodeRequested) from now on."]
+        pub fn on_inspect_node_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::overlay::EventInspectNodeRequested> {
+            self.exec.events()
+        }
+        #[doc = "Fired when the node should be highlighted. This happens after call to `setInspectMode`.\n\nStreams [`Overlay.nodeHighlightRequested`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#event-nodeHighlightRequested) from now on."]
+        pub fn on_node_highlight_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::overlay::EventNodeHighlightRequested> {
+            self.exec.events()
+        }
+        #[doc = "Fired when user asks to capture screenshot of some area on the page.\n\nStreams [`Overlay.screenshotRequested`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#event-screenshotRequested) from now on."]
+        pub fn on_screenshot_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::overlay::EventScreenshotRequested> {
+            self.exec.events()
+        }
+        #[doc = "Fired when user asks to show the Inspect panel.\n\nStreams [`Overlay.inspectPanelShowRequested`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#event-inspectPanelShowRequested) from now on."]
+        pub fn on_inspect_panel_show_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::overlay::EventInspectPanelShowRequested> {
+            self.exec.events()
+        }
+        #[doc = "Fired when user asks to restore the Inspected Element floating window.\n\nStreams [`Overlay.inspectedElementWindowRestored`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#event-inspectedElementWindowRestored) from now on."]
+        pub fn on_inspected_element_window_restored(
+            &self,
+        ) -> X::Events<super::browser_protocol::overlay::EventInspectedElementWindowRestored>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when user cancels the inspect mode.\n\nStreams [`Overlay.inspectModeCanceled`](https://chromedevtools.github.io/devtools-protocol/tot/Overlay/#event-inspectModeCanceled) from now on."]
+        pub fn on_inspect_mode_canceled(
+            &self,
+        ) -> X::Events<super::browser_protocol::overlay::EventInspectModeCanceled> {
+            self.exec.events()
+        }
+    }
+    #[doc = "This domain allows interacting with the browser to control PWAs.\n\n[PWA](https://chromedevtools.github.io/devtools-protocol/tot/PWA/)"]
+    pub struct Pwa<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Pwa<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Pwa<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Pwa<'a, X> {
+        #[doc = "Returns the following OS state for the given manifest id.\n\nSends [`PWA.getOsAppState`](https://chromedevtools.github.io/devtools-protocol/tot/PWA/#method-getOsAppState)."]
+        pub async fn get_os_app_state(
+            &self,
+            params: super::browser_protocol::pwa::GetOsAppStateParams,
+        ) -> Result<super::browser_protocol::pwa::GetOsAppStateReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Installs the given manifest identity, optionally using the given installUrlOrBundleUrl\n\nIWA-specific install description:\nmanifestId corresponds to isolated-app:// + web_package::SignedWebBundleId\n\nFile installation mode:\nThe installUrlOrBundleUrl can be either file:// or http(s):// pointing\nto a signed web bundle (.swbn). In this case SignedWebBundleId must correspond to\nThe .swbn file's signing key.\n\nDev proxy installation mode:\ninstallUrlOrBundleUrl must be http(s):// that serves dev mode IWA.\nweb_package::SignedWebBundleId must be of type dev proxy.\n\nThe advantage of dev proxy mode is that all changes to IWA\nautomatically will be reflected in the running app without\nreinstallation.\n\nTo generate bundle id for proxy mode:\n1. Generate 32 random bytes.\n2. Add a specific suffix at the end following the documentation\nhttps://github.com/WICG/isolated-web-apps/blob/main/Scheme.md#suffix\n3. Encode the entire sequence using Base32 without padding.\n\nIf Chrome is not in IWA dev\nmode, the installation will fail, regardless of the state of the allowlist.\n\nSends [`PWA.install`](https://chromedevtools.github.io/devtools-protocol/tot/PWA/#method-install)."]
+        pub async fn install(
+            &self,
+            params: super::browser_protocol::pwa::InstallParams,
+        ) -> Result<super::browser_protocol::pwa::InstallReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Uninstalls the given manifest_id and closes any opened app windows.\n\nSends [`PWA.uninstall`](https://chromedevtools.github.io/devtools-protocol/tot/PWA/#method-uninstall)."]
+        pub async fn uninstall(
+            &self,
+            params: super::browser_protocol::pwa::UninstallParams,
+        ) -> Result<super::browser_protocol::pwa::UninstallReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Launches the installed web app, or an url in the same web app instead of the\ndefault start url if it is provided. Returns a page Target.TargetID which\ncan be used to attach to via Target.attachToTarget or similar APIs.\n\nSends [`PWA.launch`](https://chromedevtools.github.io/devtools-protocol/tot/PWA/#method-launch)."]
+        pub async fn launch(
+            &self,
+            params: super::browser_protocol::pwa::LaunchParams,
+        ) -> Result<super::browser_protocol::pwa::LaunchReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Opens one or more local files from an installed web app identified by its\nmanifestId. The web app needs to have file handlers registered to process\nthe files. The API returns one or more page Target.TargetIDs which can be\nused to attach to via Target.attachToTarget or similar APIs.\nIf some files in the parameters cannot be handled by the web app, they will\nbe ignored. If none of the files can be handled, this API returns an error.\nIf no files are provided as the parameter, this API also returns an error.\n\nAccording to the definition of the file handlers in the manifest file, one\nTarget.TargetID may represent a page handling one or more files. The order\nof the returned Target.TargetIDs is not guaranteed.\n\nTODO(crbug.com/339454034): Check the existences of the input files.\n\nSends [`PWA.launchFilesInApp`](https://chromedevtools.github.io/devtools-protocol/tot/PWA/#method-launchFilesInApp)."]
+        pub async fn launch_files_in_app(
+            &self,
+            params: super::browser_protocol::pwa::LaunchFilesInAppParams,
+        ) -> Result<super::browser_protocol::pwa::LaunchFilesInAppReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Opens the current page in its web app identified by the manifest id, needs\nto be called on a page target. This function returns immediately without\nwaiting for the app to finish loading.\n\nSends [`PWA.openCurrentPageInApp`](https://chromedevtools.github.io/devtools-protocol/tot/PWA/#method-openCurrentPageInApp)."]
+        pub async fn open_current_page_in_app(
+            &self,
+            params: super::browser_protocol::pwa::OpenCurrentPageInAppParams,
+        ) -> Result<super::browser_protocol::pwa::OpenCurrentPageInAppReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Changes user settings of the web app identified by its manifestId. If the\napp was not installed, this command returns an error. Unset parameters will\nbe ignored; unrecognized values will cause an error.\n\nUnlike the ones defined in the manifest files of the web apps, these\nsettings are provided by the browser and controlled by the users, they\nimpact the way the browser handling the web apps.\n\nSee the comment of each parameter.\n\nSends [`PWA.changeAppUserSettings`](https://chromedevtools.github.io/devtools-protocol/tot/PWA/#method-changeAppUserSettings)."]
+        pub async fn change_app_user_settings(
+            &self,
+            params: super::browser_protocol::pwa::ChangeAppUserSettingsParams,
+        ) -> Result<super::browser_protocol::pwa::ChangeAppUserSettingsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "Actions and events related to the inspected page belong to the page domain.\n\n[Page](https://chromedevtools.github.io/devtools-protocol/tot/Page/)"]
+    pub struct Page<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Page<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Page<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Page<'a, X> {
+        #[doc = "Evaluates given script in every frame upon creation (before loading frame's scripts).\n\nSends [`Page.addScriptToEvaluateOnNewDocument`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-addScriptToEvaluateOnNewDocument)."]
+        pub async fn add_script_to_evaluate_on_new_document(
+            &self,
+            params: super::browser_protocol::page::AddScriptToEvaluateOnNewDocumentParams,
+        ) -> Result<super::browser_protocol::page::AddScriptToEvaluateOnNewDocumentReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Brings page to front (activates tab).\n\nSends [`Page.bringToFront`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-bringToFront)."]
+        pub async fn bring_to_front(
+            &self,
+            params: super::browser_protocol::page::BringToFrontParams,
+        ) -> Result<super::browser_protocol::page::BringToFrontReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Capture page screenshot.\n\nSends [`Page.captureScreenshot`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-captureScreenshot)."]
+        pub async fn capture_screenshot(
+            &self,
+            params: super::browser_protocol::page::CaptureScreenshotParams,
+        ) -> Result<super::browser_protocol::page::CaptureScreenshotReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns a snapshot of the page as a string. For MHTML format, the serialization includes\niframes, shadow DOM, external resources, and element-inline styles.\n\nSends [`Page.captureSnapshot`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-captureSnapshot)."]
+        pub async fn capture_snapshot(
+            &self,
+            params: super::browser_protocol::page::CaptureSnapshotParams,
+        ) -> Result<super::browser_protocol::page::CaptureSnapshotReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Creates an isolated world for the given frame.\n\nSends [`Page.createIsolatedWorld`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-createIsolatedWorld)."]
+        pub async fn create_isolated_world(
+            &self,
+            params: super::browser_protocol::page::CreateIsolatedWorldParams,
+        ) -> Result<super::browser_protocol::page::CreateIsolatedWorldReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables page domain notifications.\n\nSends [`Page.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::page::DisableParams,
+        ) -> Result<super::browser_protocol::page::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables page domain notifications.\n\nSends [`Page.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::page::EnableParams,
+        ) -> Result<super::browser_protocol::page::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Gets the processed manifest for this current document.\nThis API always waits for the manifest to be loaded.\nIf manifestId is provided, and it does not match the manifest of the\ncurrent document, this API errors out.\nIf there is not a loaded page, this API errors out immediately.\n\nSends [`Page.getAppManifest`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getAppManifest)."]
+        pub async fn get_app_manifest(
+            &self,
+            params: super::browser_protocol::page::GetAppManifestParams,
+        ) -> Result<super::browser_protocol::page::GetAppManifestReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Page.getInstallabilityErrors`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getInstallabilityErrors)."]
+        pub async fn get_installability_errors(
+            &self,
+            params: super::browser_protocol::page::GetInstallabilityErrorsParams,
+        ) -> Result<super::browser_protocol::page::GetInstallabilityErrorsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the unique (PWA) app id, along with IWA bundle ID and parent app info.\nOnly returns values if the feature flag 'WebAppEnableManifestId' is enabled\n\nSends [`Page.getAppId`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getAppId)."]
+        pub async fn get_app_id(
+            &self,
+            params: super::browser_protocol::page::GetAppIdParams,
+        ) -> Result<super::browser_protocol::page::GetAppIdReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the list of installed child Sub-Apps for the inspected parent app.\n\nSends [`Page.getSubApps`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getSubApps)."]
+        pub async fn get_sub_apps(
+            &self,
+            params: super::browser_protocol::page::GetSubAppsParams,
+        ) -> Result<super::browser_protocol::page::GetSubAppsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the list of sibling Sub-Apps sharing the same parent app if the inspected context is a Sub-App.\n\nSends [`Page.getSiblingSubApps`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getSiblingSubApps)."]
+        pub async fn get_sibling_sub_apps(
+            &self,
+            params: super::browser_protocol::page::GetSiblingSubAppsParams,
+        ) -> Result<super::browser_protocol::page::GetSiblingSubAppsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Page.getAdScriptAncestry`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getAdScriptAncestry)."]
+        pub async fn get_ad_script_ancestry(
+            &self,
+            params: super::browser_protocol::page::GetAdScriptAncestryParams,
+        ) -> Result<super::browser_protocol::page::GetAdScriptAncestryReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the words that the frame's document added to its spell check custom\ndictionary with `document.spellCheckCustomDictionary.addWords()`, sorted.\nPage script cannot read the dictionary back; this lets developers inspect\nit.\n\nSends [`Page.getSpellCheckCustomDictionary`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getSpellCheckCustomDictionary)."]
+        pub async fn get_spell_check_custom_dictionary(
+            &self,
+            params: super::browser_protocol::page::GetSpellCheckCustomDictionaryParams,
+        ) -> Result<super::browser_protocol::page::GetSpellCheckCustomDictionaryReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns present frame tree structure.\n\nSends [`Page.getFrameTree`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getFrameTree)."]
+        pub async fn get_frame_tree(
+            &self,
+            params: super::browser_protocol::page::GetFrameTreeParams,
+        ) -> Result<super::browser_protocol::page::GetFrameTreeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns metrics relating to the layouting of the page, such as viewport bounds/scale.\n\nSends [`Page.getLayoutMetrics`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getLayoutMetrics)."]
+        pub async fn get_layout_metrics(
+            &self,
+            params: super::browser_protocol::page::GetLayoutMetricsParams,
+        ) -> Result<super::browser_protocol::page::GetLayoutMetricsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns navigation history for the current page.\n\nSends [`Page.getNavigationHistory`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getNavigationHistory)."]
+        pub async fn get_navigation_history(
+            &self,
+            params: super::browser_protocol::page::GetNavigationHistoryParams,
+        ) -> Result<super::browser_protocol::page::GetNavigationHistoryReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Resets navigation history for the current page.\n\nSends [`Page.resetNavigationHistory`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-resetNavigationHistory)."]
+        pub async fn reset_navigation_history(
+            &self,
+            params: super::browser_protocol::page::ResetNavigationHistoryParams,
+        ) -> Result<super::browser_protocol::page::ResetNavigationHistoryReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns content of the given resource.\n\nSends [`Page.getResourceContent`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getResourceContent)."]
+        pub async fn get_resource_content(
+            &self,
+            params: super::browser_protocol::page::GetResourceContentParams,
+        ) -> Result<super::browser_protocol::page::GetResourceContentReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns present frame / resource tree structure.\n\nSends [`Page.getResourceTree`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getResourceTree)."]
+        pub async fn get_resource_tree(
+            &self,
+            params: super::browser_protocol::page::GetResourceTreeParams,
+        ) -> Result<super::browser_protocol::page::GetResourceTreeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Accepts or dismisses a JavaScript initiated dialog (alert, confirm, prompt, or onbeforeunload).\n\nSends [`Page.handleJavaScriptDialog`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-handleJavaScriptDialog)."]
+        pub async fn handle_java_script_dialog(
+            &self,
+            params: super::browser_protocol::page::HandleJavaScriptDialogParams,
+        ) -> Result<super::browser_protocol::page::HandleJavaScriptDialogReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Navigates current page to the given URL.\n\nSends [`Page.navigate`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-navigate)."]
+        pub async fn navigate(
+            &self,
+            params: super::browser_protocol::page::NavigateParams,
+        ) -> Result<super::browser_protocol::page::NavigateReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Navigates current page to the given history entry.\n\nSends [`Page.navigateToHistoryEntry`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-navigateToHistoryEntry)."]
+        pub async fn navigate_to_history_entry(
+            &self,
+            params: super::browser_protocol::page::NavigateToHistoryEntryParams,
+        ) -> Result<super::browser_protocol::page::NavigateToHistoryEntryReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Print page as PDF.\n\nSends [`Page.printToPDF`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-printToPDF)."]
+        pub async fn print_to_pdf(
+            &self,
+            params: super::browser_protocol::page::PrintToPdfParams,
+        ) -> Result<super::browser_protocol::page::PrintToPdfReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reloads given page optionally ignoring the cache.\n\nSends [`Page.reload`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-reload)."]
+        pub async fn reload(
+            &self,
+            params: super::browser_protocol::page::ReloadParams,
+        ) -> Result<super::browser_protocol::page::ReloadReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes given script from the list.\n\nSends [`Page.removeScriptToEvaluateOnNewDocument`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-removeScriptToEvaluateOnNewDocument)."]
+        pub async fn remove_script_to_evaluate_on_new_document(
+            &self,
+            params: super::browser_protocol::page::RemoveScriptToEvaluateOnNewDocumentParams,
+        ) -> Result<
+            super::browser_protocol::page::RemoveScriptToEvaluateOnNewDocumentReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Acknowledges that a screencast frame has been received by the frontend.\n\nSends [`Page.screencastFrameAck`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-screencastFrameAck)."]
+        pub async fn screencast_frame_ack(
+            &self,
+            params: super::browser_protocol::page::ScreencastFrameAckParams,
+        ) -> Result<super::browser_protocol::page::ScreencastFrameAckReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Searches for given string in resource content.\n\nSends [`Page.searchInResource`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-searchInResource)."]
+        pub async fn search_in_resource(
+            &self,
+            params: super::browser_protocol::page::SearchInResourceParams,
+        ) -> Result<super::browser_protocol::page::SearchInResourceReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enable Chrome's experimental ad filter on all sites.\n\nSends [`Page.setAdBlockingEnabled`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setAdBlockingEnabled)."]
+        pub async fn set_ad_blocking_enabled(
+            &self,
+            params: super::browser_protocol::page::SetAdBlockingEnabledParams,
+        ) -> Result<super::browser_protocol::page::SetAdBlockingEnabledReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enable page Content Security Policy by-passing.\n\nSends [`Page.setBypassCSP`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setBypassCSP)."]
+        pub async fn set_bypass_csp(
+            &self,
+            params: super::browser_protocol::page::SetBypassCspParams,
+        ) -> Result<super::browser_protocol::page::SetBypassCspReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Get Permissions Policy state on given frame.\n\nSends [`Page.getPermissionsPolicyState`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getPermissionsPolicyState)."]
+        pub async fn get_permissions_policy_state(
+            &self,
+            params: super::browser_protocol::page::GetPermissionsPolicyStateParams,
+        ) -> Result<super::browser_protocol::page::GetPermissionsPolicyStateReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Get Origin Trials on given frame.\n\nSends [`Page.getOriginTrials`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getOriginTrials)."]
+        pub async fn get_origin_trials(
+            &self,
+            params: super::browser_protocol::page::GetOriginTrialsParams,
+        ) -> Result<super::browser_protocol::page::GetOriginTrialsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set generic font families.\n\nSends [`Page.setFontFamilies`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setFontFamilies)."]
+        pub async fn set_font_families(
+            &self,
+            params: super::browser_protocol::page::SetFontFamiliesParams,
+        ) -> Result<super::browser_protocol::page::SetFontFamiliesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set default font sizes.\n\nSends [`Page.setFontSizes`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setFontSizes)."]
+        pub async fn set_font_sizes(
+            &self,
+            params: super::browser_protocol::page::SetFontSizesParams,
+        ) -> Result<super::browser_protocol::page::SetFontSizesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets given markup as the document's HTML.\n\nSends [`Page.setDocumentContent`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setDocumentContent)."]
+        pub async fn set_document_content(
+            &self,
+            params: super::browser_protocol::page::SetDocumentContentParams,
+        ) -> Result<super::browser_protocol::page::SetDocumentContentReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Controls whether page will emit lifecycle events.\n\nSends [`Page.setLifecycleEventsEnabled`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setLifecycleEventsEnabled)."]
+        pub async fn set_lifecycle_events_enabled(
+            &self,
+            params: super::browser_protocol::page::SetLifecycleEventsEnabledParams,
+        ) -> Result<super::browser_protocol::page::SetLifecycleEventsEnabledReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Starts sending each frame using the `screencastFrame` event.\n\nSends [`Page.startScreencast`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-startScreencast)."]
+        pub async fn start_screencast(
+            &self,
+            params: super::browser_protocol::page::StartScreencastParams,
+        ) -> Result<super::browser_protocol::page::StartScreencastReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Starts screencast video recording.\n\nSends [`Page.startScreenRecording`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-startScreenRecording)."]
+        pub async fn start_screen_recording(
+            &self,
+            params: super::browser_protocol::page::StartScreenRecordingParams,
+        ) -> Result<super::browser_protocol::page::StartScreenRecordingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Stops screencast video recording.\n\nSends [`Page.stopScreenRecording`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-stopScreenRecording)."]
+        pub async fn stop_screen_recording(
+            &self,
+            params: super::browser_protocol::page::StopScreenRecordingParams,
+        ) -> Result<super::browser_protocol::page::StopScreenRecordingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Force the page stop all navigations and pending resource fetches.\n\nSends [`Page.stopLoading`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-stopLoading)."]
+        pub async fn stop_loading(
+            &self,
+            params: super::browser_protocol::page::StopLoadingParams,
+        ) -> Result<super::browser_protocol::page::StopLoadingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Crashes renderer on the IO thread, generates minidumps.\n\nSends [`Page.crash`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-crash)."]
+        pub async fn crash(
+            &self,
+            params: super::browser_protocol::page::CrashParams,
+        ) -> Result<super::browser_protocol::page::CrashReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Tries to close page, running its beforeunload hooks, if any.\n\nSends [`Page.close`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-close)."]
+        pub async fn close(
+            &self,
+            params: super::browser_protocol::page::CloseParams,
+        ) -> Result<super::browser_protocol::page::CloseReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Tries to update the web lifecycle state of the page.\nIt will transition the page to the given state according to:\nhttps://github.com/WICG/web-lifecycle/\n\nSends [`Page.setWebLifecycleState`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setWebLifecycleState)."]
+        pub async fn set_web_lifecycle_state(
+            &self,
+            params: super::browser_protocol::page::SetWebLifecycleStateParams,
+        ) -> Result<super::browser_protocol::page::SetWebLifecycleStateReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Stops sending each frame in the `screencastFrame`.\n\nSends [`Page.stopScreencast`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-stopScreencast)."]
+        pub async fn stop_screencast(
+            &self,
+            params: super::browser_protocol::page::StopScreencastParams,
+        ) -> Result<super::browser_protocol::page::StopScreencastReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Requests backend to produce compilation cache for the specified scripts.\n`scripts` are appended to the list of scripts for which the cache\nwould be produced. The list may be reset during page navigation.\nWhen script with a matching URL is encountered, the cache is optionally\nproduced upon backend discretion, based on internal heuristics.\nSee also: `Page.compilationCacheProduced`.\n\nSends [`Page.produceCompilationCache`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-produceCompilationCache)."]
+        pub async fn produce_compilation_cache(
+            &self,
+            params: super::browser_protocol::page::ProduceCompilationCacheParams,
+        ) -> Result<super::browser_protocol::page::ProduceCompilationCacheReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Seeds compilation cache for given url. Compilation cache does not survive\ncross-process navigation.\n\nSends [`Page.addCompilationCache`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-addCompilationCache)."]
+        pub async fn add_compilation_cache(
+            &self,
+            params: super::browser_protocol::page::AddCompilationCacheParams,
+        ) -> Result<super::browser_protocol::page::AddCompilationCacheReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears seeded compilation cache.\n\nSends [`Page.clearCompilationCache`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-clearCompilationCache)."]
+        pub async fn clear_compilation_cache(
+            &self,
+            params: super::browser_protocol::page::ClearCompilationCacheParams,
+        ) -> Result<super::browser_protocol::page::ClearCompilationCacheReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets the Secure Payment Confirmation transaction mode.\nhttps://w3c.github.io/secure-payment-confirmation/#sctn-automation-set-spc-transaction-mode\n\nSends [`Page.setSPCTransactionMode`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setSPCTransactionMode)."]
+        pub async fn set_spc_transaction_mode(
+            &self,
+            params: super::browser_protocol::page::SetSpcTransactionModeParams,
+        ) -> Result<super::browser_protocol::page::SetSpcTransactionModeReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Extensions for Custom Handlers API:\nhttps://html.spec.whatwg.org/multipage/system-state.html#rph-automation\n\nSends [`Page.setRPHRegistrationMode`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setRPHRegistrationMode)."]
+        pub async fn set_rph_registration_mode(
+            &self,
+            params: super::browser_protocol::page::SetRphRegistrationModeParams,
+        ) -> Result<super::browser_protocol::page::SetRphRegistrationModeReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Generates a report for testing.\n\nSends [`Page.generateTestReport`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-generateTestReport)."]
+        pub async fn generate_test_report(
+            &self,
+            params: super::browser_protocol::page::GenerateTestReportParams,
+        ) -> Result<super::browser_protocol::page::GenerateTestReportReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Pauses page execution. Can be resumed using generic Runtime.runIfWaitingForDebugger.\n\nSends [`Page.waitForDebugger`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-waitForDebugger)."]
+        pub async fn wait_for_debugger(
+            &self,
+            params: super::browser_protocol::page::WaitForDebuggerParams,
+        ) -> Result<super::browser_protocol::page::WaitForDebuggerReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Intercept file chooser requests and transfer control to protocol clients.\nWhen file chooser interception is enabled, native file chooser dialog is not shown.\nInstead, a protocol event `Page.fileChooserOpened` is emitted.\n\nSends [`Page.setInterceptFileChooserDialog`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setInterceptFileChooserDialog)."]
+        pub async fn set_intercept_file_chooser_dialog(
+            &self,
+            params: super::browser_protocol::page::SetInterceptFileChooserDialogParams,
+        ) -> Result<super::browser_protocol::page::SetInterceptFileChooserDialogReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enable/disable prerendering manually.\n\nThis command is a short-term solution for https://crbug.com/1440085.\nSee https://docs.google.com/document/d/12HVmFxYj5Jc-eJr5OmWsa2bqTJsbgGLKI6ZIyx0_wpA\nfor more details.\n\nTODO(https://crbug.com/1440085): Remove this once Puppeteer supports tab targets.\n\nSends [`Page.setPrerenderingAllowed`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setPrerenderingAllowed)."]
+        pub async fn set_prerendering_allowed(
+            &self,
+            params: super::browser_protocol::page::SetPrerenderingAllowedParams,
+        ) -> Result<super::browser_protocol::page::SetPrerenderingAllowedReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Get the annotated page content for the main frame.\nThis is an experimental command that is subject to change.\n\nSends [`Page.getAnnotatedPageContent`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-getAnnotatedPageContent)."]
+        pub async fn get_annotated_page_content(
+            &self,
+            params: super::browser_protocol::page::GetAnnotatedPageContentParams,
+        ) -> Result<super::browser_protocol::page::GetAnnotatedPageContentReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Configures input visualization on the page.\n\nSends [`Page.setInputVisualization`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setInputVisualization)."]
+        pub async fn set_input_visualization(
+            &self,
+            params: super::browser_protocol::page::SetInputVisualizationParams,
+        ) -> Result<super::browser_protocol::page::SetInputVisualizationReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Streams [`Page.domContentEventFired`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-domContentEventFired) from now on."]
+        pub fn on_dom_content_event_fired(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventDomContentEventFired> {
+            self.exec.events()
+        }
+        #[doc = "Emitted only when `page.interceptFileChooser` is enabled.\n\nStreams [`Page.fileChooserOpened`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-fileChooserOpened) from now on."]
+        pub fn on_file_chooser_opened(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventFileChooserOpened> {
+            self.exec.events()
+        }
+        #[doc = "Fired when frame has been attached to its parent.\n\nStreams [`Page.frameAttached`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-frameAttached) from now on."]
+        pub fn on_frame_attached(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventFrameAttached> {
+            self.exec.events()
+        }
+        #[doc = "Fired when frame has been detached from its parent.\n\nStreams [`Page.frameDetached`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-frameDetached) from now on."]
+        pub fn on_frame_detached(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventFrameDetached> {
+            self.exec.events()
+        }
+        #[doc = "Fired before frame subtree is detached. Emitted before any frame of the\nsubtree is actually detached.\n\nStreams [`Page.frameSubtreeWillBeDetached`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-frameSubtreeWillBeDetached) from now on."]
+        pub fn on_frame_subtree_will_be_detached(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventFrameSubtreeWillBeDetached> {
+            self.exec.events()
+        }
+        #[doc = "Fired once navigation of the frame has completed. Frame is now associated with the new loader.\n\nStreams [`Page.frameNavigated`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-frameNavigated) from now on."]
+        pub fn on_frame_navigated(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventFrameNavigated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when opening document to write to.\n\nStreams [`Page.documentOpened`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-documentOpened) from now on."]
+        pub fn on_document_opened(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventDocumentOpened> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`Page.frameResized`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-frameResized) from now on."]
+        pub fn on_frame_resized(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventFrameResized> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a navigation starts. This event is fired for both\nrenderer-initiated and browser-initiated navigations. For renderer-initiated\nnavigations, the event is fired after `frameRequestedNavigation`.\nNavigation may still be cancelled after the event is issued. Multiple events\ncan be fired for a single navigation, for example, when a same-document\nnavigation becomes a cross-document navigation (such as in the case of a\nframeset).\n\nStreams [`Page.frameStartedNavigating`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-frameStartedNavigating) from now on."]
+        pub fn on_frame_started_navigating(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventFrameStartedNavigating> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a renderer-initiated navigation is requested.\nNavigation may still be cancelled after the event is issued.\n\nStreams [`Page.frameRequestedNavigation`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-frameRequestedNavigation) from now on."]
+        pub fn on_frame_requested_navigation(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventFrameRequestedNavigation> {
+            self.exec.events()
+        }
+        #[doc = "Fired when frame has started loading.\n\nStreams [`Page.frameStartedLoading`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-frameStartedLoading) from now on."]
+        pub fn on_frame_started_loading(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventFrameStartedLoading> {
+            self.exec.events()
+        }
+        #[doc = "Fired when frame has stopped loading.\n\nStreams [`Page.frameStoppedLoading`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-frameStoppedLoading) from now on."]
+        pub fn on_frame_stopped_loading(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventFrameStoppedLoading> {
+            self.exec.events()
+        }
+        #[doc = "Fired when interstitial page was hidden\n\nStreams [`Page.interstitialHidden`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-interstitialHidden) from now on."]
+        pub fn on_interstitial_hidden(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventInterstitialHidden> {
+            self.exec.events()
+        }
+        #[doc = "Fired when interstitial page was shown\n\nStreams [`Page.interstitialShown`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-interstitialShown) from now on."]
+        pub fn on_interstitial_shown(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventInterstitialShown> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a JavaScript initiated dialog (alert, confirm, prompt, or onbeforeunload) has been\nclosed.\n\nStreams [`Page.javascriptDialogClosed`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-javascriptDialogClosed) from now on."]
+        pub fn on_javascript_dialog_closed(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventJavascriptDialogClosed> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a JavaScript initiated dialog (alert, confirm, prompt, or onbeforeunload) is about to\nopen.\n\nStreams [`Page.javascriptDialogOpening`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-javascriptDialogOpening) from now on."]
+        pub fn on_javascript_dialog_opening(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventJavascriptDialogOpening> {
+            self.exec.events()
+        }
+        #[doc = "Fired for lifecycle events (navigation, load, paint, etc) in the current\ntarget (including local frames).\n\nStreams [`Page.lifecycleEvent`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-lifecycleEvent) from now on."]
+        pub fn on_lifecycle_event(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventLifecycleEvent> {
+            self.exec.events()
+        }
+        #[doc = "Fired for failed bfcache history navigations if BackForwardCache feature is enabled. Do\nnot assume any ordering with the Page.frameNavigated event. This event is fired only for\nmain-frame history navigation where the document changes (non-same-document navigations),\nwhen bfcache navigation fails.\n\nStreams [`Page.backForwardCacheNotUsed`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-backForwardCacheNotUsed) from now on."]
+        pub fn on_back_forward_cache_not_used(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventBackForwardCacheNotUsed> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`Page.loadEventFired`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-loadEventFired) from now on."]
+        pub fn on_load_event_fired(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventLoadEventFired> {
+            self.exec.events()
+        }
+        #[doc = "Fired when same-document navigation happens, e.g. due to history API usage or anchor navigation.\n\nStreams [`Page.navigatedWithinDocument`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-navigatedWithinDocument) from now on."]
+        pub fn on_navigated_within_document(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventNavigatedWithinDocument> {
+            self.exec.events()
+        }
+        #[doc = "Compressed image data requested by the `startScreencast`.\n\nStreams [`Page.screencastFrame`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-screencastFrame) from now on."]
+        pub fn on_screencast_frame(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventScreencastFrame> {
+            self.exec.events()
+        }
+        #[doc = "Fired when the page with currently enabled screencast was shown or hidden `.\n\nStreams [`Page.screencastVisibilityChanged`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-screencastVisibilityChanged) from now on."]
+        pub fn on_screencast_visibility_changed(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventScreencastVisibilityChanged> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a new window is going to be opened, via window.open(), link click, form submission,\netc.\n\nStreams [`Page.windowOpen`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-windowOpen) from now on."]
+        pub fn on_window_open(&self) -> X::Events<super::browser_protocol::page::EventWindowOpen> {
+            self.exec.events()
+        }
+        #[doc = "Issued for every compilation cache generated.\n\nStreams [`Page.compilationCacheProduced`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-compilationCacheProduced) from now on."]
+        pub fn on_compilation_cache_produced(
+            &self,
+        ) -> X::Events<super::browser_protocol::page::EventCompilationCacheProduced> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[Performance](https://chromedevtools.github.io/devtools-protocol/tot/Performance/)"]
+    pub struct Performance<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Performance<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Performance<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Performance<'a, X> {
+        #[doc = "Disable collecting and reporting metrics.\n\nSends [`Performance.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Performance/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::performance::DisableParams,
+        ) -> Result<super::browser_protocol::performance::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enable collecting and reporting metrics.\n\nSends [`Performance.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Performance/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::performance::EnableParams,
+        ) -> Result<super::browser_protocol::performance::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Retrieve current values of run-time metrics.\n\nSends [`Performance.getMetrics`](https://chromedevtools.github.io/devtools-protocol/tot/Performance/#method-getMetrics)."]
+        pub async fn get_metrics(
+            &self,
+            params: super::browser_protocol::performance::GetMetricsParams,
+        ) -> Result<super::browser_protocol::performance::GetMetricsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Current values of the metrics.\n\nStreams [`Performance.metrics`](https://chromedevtools.github.io/devtools-protocol/tot/Performance/#event-metrics) from now on."]
+        pub fn on_metrics(&self) -> X::Events<super::browser_protocol::performance::EventMetrics> {
+            self.exec.events()
+        }
+    }
+    #[doc = "Reporting of performance timeline events, as specified in\nhttps://w3c.github.io/performance-timeline/#dom-performanceobserver.\n\n[PerformanceTimeline](https://chromedevtools.github.io/devtools-protocol/tot/PerformanceTimeline/)"]
+    pub struct PerformanceTimeline<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for PerformanceTimeline<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for PerformanceTimeline<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> PerformanceTimeline<'a, X> {
+        #[doc = "Previously buffered events would be reported before method returns.\nSee also: timelineEventAdded\n\nSends [`PerformanceTimeline.enable`](https://chromedevtools.github.io/devtools-protocol/tot/PerformanceTimeline/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::performance_timeline::EnableParams,
+        ) -> Result<super::browser_protocol::performance_timeline::EnableReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sent when a performance timeline event is added. See reportPerformanceTimeline method.\n\nStreams [`PerformanceTimeline.timelineEventAdded`](https://chromedevtools.github.io/devtools-protocol/tot/PerformanceTimeline/#event-timelineEventAdded) from now on."]
+        pub fn on_timeline_event_added(
+            &self,
+        ) -> X::Events<super::browser_protocol::performance_timeline::EventTimelineEventAdded>
+        {
+            self.exec.events()
+        }
+    }
+    #[doc = "[Preload](https://chromedevtools.github.io/devtools-protocol/tot/Preload/)"]
+    pub struct Preload<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Preload<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Preload<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Preload<'a, X> {
+        #[doc = "Sends [`Preload.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Preload/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::preload::EnableParams,
+        ) -> Result<super::browser_protocol::preload::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`Preload.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Preload/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::preload::DisableParams,
+        ) -> Result<super::browser_protocol::preload::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Upsert. Currently, it is only emitted when a rule set added.\n\nStreams [`Preload.ruleSetUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Preload/#event-ruleSetUpdated) from now on."]
+        pub fn on_rule_set_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::preload::EventRuleSetUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`Preload.ruleSetRemoved`](https://chromedevtools.github.io/devtools-protocol/tot/Preload/#event-ruleSetRemoved) from now on."]
+        pub fn on_rule_set_removed(
+            &self,
+        ) -> X::Events<super::browser_protocol::preload::EventRuleSetRemoved> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a preload enabled state is updated.\n\nStreams [`Preload.preloadEnabledStateUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Preload/#event-preloadEnabledStateUpdated) from now on."]
+        pub fn on_preload_enabled_state_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::preload::EventPreloadEnabledStateUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a prefetch attempt is updated.\n\nStreams [`Preload.prefetchStatusUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Preload/#event-prefetchStatusUpdated) from now on."]
+        pub fn on_prefetch_status_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::preload::EventPrefetchStatusUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Fired when a prerender attempt is updated.\n\nStreams [`Preload.prerenderStatusUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Preload/#event-prerenderStatusUpdated) from now on."]
+        pub fn on_prerender_status_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::preload::EventPrerenderStatusUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Send a list of sources for all preloading attempts in a document.\n\nStreams [`Preload.preloadingAttemptSourcesUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Preload/#event-preloadingAttemptSourcesUpdated) from now on."]
+        pub fn on_preloading_attempt_sources_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::preload::EventPreloadingAttemptSourcesUpdated>
+        {
+            self.exec.events()
+        }
+    }
+    #[doc = "[Security](https://chromedevtools.github.io/devtools-protocol/tot/Security/)"]
+    pub struct Security<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Security<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Security<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Security<'a, X> {
+        #[doc = "Disables tracking security state changes.\n\nSends [`Security.disable`](https://chromedevtools.github.io/devtools-protocol/tot/Security/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::security::DisableParams,
+        ) -> Result<super::browser_protocol::security::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables tracking security state changes.\n\nSends [`Security.enable`](https://chromedevtools.github.io/devtools-protocol/tot/Security/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::security::EnableParams,
+        ) -> Result<super::browser_protocol::security::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enable/disable whether all certificate errors should be ignored.\n\nSends [`Security.setIgnoreCertificateErrors`](https://chromedevtools.github.io/devtools-protocol/tot/Security/#method-setIgnoreCertificateErrors)."]
+        pub async fn set_ignore_certificate_errors(
+            &self,
+            params: super::browser_protocol::security::SetIgnoreCertificateErrorsParams,
+        ) -> Result<super::browser_protocol::security::SetIgnoreCertificateErrorsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "The security state of the page changed.\n\nStreams [`Security.visibleSecurityStateChanged`](https://chromedevtools.github.io/devtools-protocol/tot/Security/#event-visibleSecurityStateChanged) from now on."]
+        pub fn on_visible_security_state_changed(
+            &self,
+        ) -> X::Events<super::browser_protocol::security::EventVisibleSecurityStateChanged>
+        {
+            self.exec.events()
+        }
+    }
+    #[doc = "[ServiceWorker](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/)"]
+    pub struct ServiceWorker<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for ServiceWorker<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for ServiceWorker<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> ServiceWorker<'a, X> {
+        #[doc = "Sends [`ServiceWorker.deliverPushMessage`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-deliverPushMessage)."]
+        pub async fn deliver_push_message(
+            &self,
+            params: super::browser_protocol::service_worker::DeliverPushMessageParams,
+        ) -> Result<super::browser_protocol::service_worker::DeliverPushMessageReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`ServiceWorker.disable`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::service_worker::DisableParams,
+        ) -> Result<super::browser_protocol::service_worker::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`ServiceWorker.dispatchSyncEvent`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-dispatchSyncEvent)."]
+        pub async fn dispatch_sync_event(
+            &self,
+            params: super::browser_protocol::service_worker::DispatchSyncEventParams,
+        ) -> Result<super::browser_protocol::service_worker::DispatchSyncEventReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`ServiceWorker.dispatchPeriodicSyncEvent`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-dispatchPeriodicSyncEvent)."]
+        pub async fn dispatch_periodic_sync_event(
+            &self,
+            params: super::browser_protocol::service_worker::DispatchPeriodicSyncEventParams,
+        ) -> Result<
+            super::browser_protocol::service_worker::DispatchPeriodicSyncEventReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`ServiceWorker.enable`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::service_worker::EnableParams,
+        ) -> Result<super::browser_protocol::service_worker::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`ServiceWorker.setForceUpdateOnPageLoad`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-setForceUpdateOnPageLoad)."]
+        pub async fn set_force_update_on_page_load(
+            &self,
+            params: super::browser_protocol::service_worker::SetForceUpdateOnPageLoadParams,
+        ) -> Result<
+            super::browser_protocol::service_worker::SetForceUpdateOnPageLoadReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`ServiceWorker.skipWaiting`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-skipWaiting)."]
+        pub async fn skip_waiting(
+            &self,
+            params: super::browser_protocol::service_worker::SkipWaitingParams,
+        ) -> Result<super::browser_protocol::service_worker::SkipWaitingReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`ServiceWorker.startWorker`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-startWorker)."]
+        pub async fn start_worker(
+            &self,
+            params: super::browser_protocol::service_worker::StartWorkerParams,
+        ) -> Result<super::browser_protocol::service_worker::StartWorkerReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`ServiceWorker.stopAllWorkers`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-stopAllWorkers)."]
+        pub async fn stop_all_workers(
+            &self,
+            params: super::browser_protocol::service_worker::StopAllWorkersParams,
+        ) -> Result<super::browser_protocol::service_worker::StopAllWorkersReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`ServiceWorker.stopWorker`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-stopWorker)."]
+        pub async fn stop_worker(
+            &self,
+            params: super::browser_protocol::service_worker::StopWorkerParams,
+        ) -> Result<super::browser_protocol::service_worker::StopWorkerReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`ServiceWorker.unregister`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-unregister)."]
+        pub async fn unregister(
+            &self,
+            params: super::browser_protocol::service_worker::UnregisterParams,
+        ) -> Result<super::browser_protocol::service_worker::UnregisterReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sends [`ServiceWorker.updateRegistration`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#method-updateRegistration)."]
+        pub async fn update_registration(
+            &self,
+            params: super::browser_protocol::service_worker::UpdateRegistrationParams,
+        ) -> Result<super::browser_protocol::service_worker::UpdateRegistrationReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Streams [`ServiceWorker.workerErrorReported`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#event-workerErrorReported) from now on."]
+        pub fn on_worker_error_reported(
+            &self,
+        ) -> X::Events<super::browser_protocol::service_worker::EventWorkerErrorReported> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`ServiceWorker.workerRegistrationUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#event-workerRegistrationUpdated) from now on."]
+        pub fn on_worker_registration_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::service_worker::EventWorkerRegistrationUpdated>
+        {
+            self.exec.events()
+        }
+        #[doc = "Streams [`ServiceWorker.workerVersionUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/ServiceWorker/#event-workerVersionUpdated) from now on."]
+        pub fn on_worker_version_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::service_worker::EventWorkerVersionUpdated> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[SmartCardEmulation](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/)"]
+    pub struct SmartCardEmulation<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for SmartCardEmulation<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for SmartCardEmulation<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> SmartCardEmulation<'a, X> {
+        #[doc = "Enables the |SmartCardEmulation| domain.\n\nSends [`SmartCardEmulation.enable`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::smart_card_emulation::EnableParams,
+        ) -> Result<super::browser_protocol::smart_card_emulation::EnableReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables the |SmartCardEmulation| domain.\n\nSends [`SmartCardEmulation.disable`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::smart_card_emulation::DisableParams,
+        ) -> Result<super::browser_protocol::smart_card_emulation::DisableReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reports the successful result of a |SCardEstablishContext| call.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gaa1b8970169fd4883a6dc4a8f43f19b67\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardestablishcontext\n\nSends [`SmartCardEmulation.reportEstablishContextResult`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-reportEstablishContextResult)."]
+        pub async fn report_establish_context_result(
+            &self,
+            params : super :: browser_protocol :: smart_card_emulation :: ReportEstablishContextResultParams,
+        ) -> Result<
+            super::browser_protocol::smart_card_emulation::ReportEstablishContextResultReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reports the successful result of a |SCardReleaseContext| call.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga6aabcba7744c5c9419fdd6404f73a934\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardreleasecontext\n\nSends [`SmartCardEmulation.reportReleaseContextResult`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-reportReleaseContextResult)."]
+        pub async fn report_release_context_result(
+            &self,
+            params: super::browser_protocol::smart_card_emulation::ReportReleaseContextResultParams,
+        ) -> Result<
+            super::browser_protocol::smart_card_emulation::ReportReleaseContextResultReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reports the successful result of a |SCardListReaders| call.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga93b07815789b3cf2629d439ecf20f0d9\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardlistreadersa\n\nSends [`SmartCardEmulation.reportListReadersResult`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-reportListReadersResult)."]
+        pub async fn report_list_readers_result(
+            &self,
+            params: super::browser_protocol::smart_card_emulation::ReportListReadersResultParams,
+        ) -> Result<
+            super::browser_protocol::smart_card_emulation::ReportListReadersResultReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reports the successful result of a |SCardGetStatusChange| call.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga33247d5d1257d59e55647c3bb717db24\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardgetstatuschangea\n\nSends [`SmartCardEmulation.reportGetStatusChangeResult`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-reportGetStatusChangeResult)."]
+        pub async fn report_get_status_change_result(
+            &self,
+            params : super :: browser_protocol :: smart_card_emulation :: ReportGetStatusChangeResultParams,
+        ) -> Result<
+            super::browser_protocol::smart_card_emulation::ReportGetStatusChangeResultReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reports the result of a |SCardBeginTransaction| call.\nOn success, this creates a new transaction object.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gaddb835dce01a0da1d6ca02d33ee7d861\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardbegintransaction\n\nSends [`SmartCardEmulation.reportBeginTransactionResult`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-reportBeginTransactionResult)."]
+        pub async fn report_begin_transaction_result(
+            &self,
+            params : super :: browser_protocol :: smart_card_emulation :: ReportBeginTransactionResultParams,
+        ) -> Result<
+            super::browser_protocol::smart_card_emulation::ReportBeginTransactionResultReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reports the successful result of a call that returns only a result code.\nUsed for: |SCardCancel|, |SCardDisconnect|, |SCardSetAttrib|, |SCardEndTransaction|.\n\nThis maps to:\n1. SCardCancel\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gaacbbc0c6d6c0cbbeb4f4debf6fbeeee6\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardcancel\n\n2. SCardDisconnect\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga4be198045c73ec0deb79e66c0ca1738a\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scarddisconnect\n\n3. SCardSetAttrib\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga060f0038a4ddfd5dd2b8fadf3c3a2e4f\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardsetattrib\n\n4. SCardEndTransaction\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gae8742473b404363e5c587f570d7e2f3b\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardendtransaction\n\nSends [`SmartCardEmulation.reportPlainResult`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-reportPlainResult)."]
+        pub async fn report_plain_result(
+            &self,
+            params: super::browser_protocol::smart_card_emulation::ReportPlainResultParams,
+        ) -> Result<super::browser_protocol::smart_card_emulation::ReportPlainResultReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reports the successful result of a |SCardConnect| call.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga4e515829752e0a8dbc4d630696a8d6a5\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardconnecta\n\nSends [`SmartCardEmulation.reportConnectResult`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-reportConnectResult)."]
+        pub async fn report_connect_result(
+            &self,
+            params: super::browser_protocol::smart_card_emulation::ReportConnectResultParams,
+        ) -> Result<
+            super::browser_protocol::smart_card_emulation::ReportConnectResultReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reports the successful result of a call that sends back data on success.\nUsed for |SCardTransmit|, |SCardControl|, and |SCardGetAttrib|.\n\nThis maps to:\n1. SCardTransmit\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga9a2d77242a271310269065e64633ab99\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardtransmit\n\n2. SCardControl\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gac3454d4657110fd7f753b2d3d8f4e32f\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardcontrol\n\n3. SCardGetAttrib\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gaacfec51917255b7a25b94c5104961602\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardgetattrib\n\nSends [`SmartCardEmulation.reportDataResult`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-reportDataResult)."]
+        pub async fn report_data_result(
+            &self,
+            params: super::browser_protocol::smart_card_emulation::ReportDataResultParams,
+        ) -> Result<super::browser_protocol::smart_card_emulation::ReportDataResultReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reports the successful result of a |SCardStatus| call.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gae49c3c894ad7ac12a5b896bde70d0382\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardstatusa\n\nSends [`SmartCardEmulation.reportStatusResult`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-reportStatusResult)."]
+        pub async fn report_status_result(
+            &self,
+            params: super::browser_protocol::smart_card_emulation::ReportStatusResultParams,
+        ) -> Result<
+            super::browser_protocol::smart_card_emulation::ReportStatusResultReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Reports an error result for the given request.\n\nSends [`SmartCardEmulation.reportError`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#method-reportError)."]
+        pub async fn report_error(
+            &self,
+            params: super::browser_protocol::smart_card_emulation::ReportErrorParams,
+        ) -> Result<super::browser_protocol::smart_card_emulation::ReportErrorReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fired when |SCardEstablishContext| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gaa1b8970169fd4883a6dc4a8f43f19b67\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardestablishcontext\n\nStreams [`SmartCardEmulation.establishContextRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-establishContextRequested) from now on."]
+        pub fn on_establish_context_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventEstablishContextRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardReleaseContext| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga6aabcba7744c5c9419fdd6404f73a934\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardreleasecontext\n\nStreams [`SmartCardEmulation.releaseContextRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-releaseContextRequested) from now on."]
+        pub fn on_release_context_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventReleaseContextRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardListReaders| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga93b07815789b3cf2629d439ecf20f0d9\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardlistreadersa\n\nStreams [`SmartCardEmulation.listReadersRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-listReadersRequested) from now on."]
+        pub fn on_list_readers_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventListReadersRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardGetStatusChange| is called. Timeout is specified in milliseconds.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga33247d5d1257d59e55647c3bb717db24\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardgetstatuschangea\n\nStreams [`SmartCardEmulation.getStatusChangeRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-getStatusChangeRequested) from now on."]
+        pub fn on_get_status_change_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventGetStatusChangeRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardCancel| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gaacbbc0c6d6c0cbbeb4f4debf6fbeeee6\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardcancel\n\nStreams [`SmartCardEmulation.cancelRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-cancelRequested) from now on."]
+        pub fn on_cancel_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventCancelRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardConnect| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga4e515829752e0a8dbc4d630696a8d6a5\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardconnecta\n\nStreams [`SmartCardEmulation.connectRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-connectRequested) from now on."]
+        pub fn on_connect_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventConnectRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardDisconnect| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga4be198045c73ec0deb79e66c0ca1738a\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scarddisconnect\n\nStreams [`SmartCardEmulation.disconnectRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-disconnectRequested) from now on."]
+        pub fn on_disconnect_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventDisconnectRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardTransmit| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga9a2d77242a271310269065e64633ab99\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardtransmit\n\nStreams [`SmartCardEmulation.transmitRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-transmitRequested) from now on."]
+        pub fn on_transmit_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventTransmitRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardControl| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gac3454d4657110fd7f753b2d3d8f4e32f\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardcontrol\n\nStreams [`SmartCardEmulation.controlRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-controlRequested) from now on."]
+        pub fn on_control_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventControlRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardGetAttrib| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gaacfec51917255b7a25b94c5104961602\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardgetattrib\n\nStreams [`SmartCardEmulation.getAttribRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-getAttribRequested) from now on."]
+        pub fn on_get_attrib_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventGetAttribRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardSetAttrib| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#ga060f0038a4ddfd5dd2b8fadf3c3a2e4f\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardsetattrib\n\nStreams [`SmartCardEmulation.setAttribRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-setAttribRequested) from now on."]
+        pub fn on_set_attrib_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventSetAttribRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardStatus| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gae49c3c894ad7ac12a5b896bde70d0382\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardstatusa\n\nStreams [`SmartCardEmulation.statusRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-statusRequested) from now on."]
+        pub fn on_status_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventStatusRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardBeginTransaction| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gaddb835dce01a0da1d6ca02d33ee7d861\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardbegintransaction\n\nStreams [`SmartCardEmulation.beginTransactionRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-beginTransactionRequested) from now on."]
+        pub fn on_begin_transaction_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventBeginTransactionRequested>
+        {
+            self.exec.events()
+        }
+        #[doc = "Fired when |SCardEndTransaction| is called.\n\nThis maps to:\nPC/SC Lite: https://pcsclite.apdu.fr/api/group__API.html#gae8742473b404363e5c587f570d7e2f3b\nMicrosoft: https://learn.microsoft.com/en-us/windows/win32/api/winscard/nf-winscard-scardendtransaction\n\nStreams [`SmartCardEmulation.endTransactionRequested`](https://chromedevtools.github.io/devtools-protocol/tot/SmartCardEmulation/#event-endTransactionRequested) from now on."]
+        pub fn on_end_transaction_requested(
+            &self,
+        ) -> X::Events<super::browser_protocol::smart_card_emulation::EventEndTransactionRequested>
+        {
+            self.exec.events()
+        }
+    }
+    #[doc = "[Storage](https://chromedevtools.github.io/devtools-protocol/tot/Storage/)"]
+    pub struct Storage<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Storage<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Storage<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Storage<'a, X> {
+        #[doc = "Returns storage key for the given frame. If no frame ID is provided,\nthe storage key of the target executing this command is returned.\n\nSends [`Storage.getStorageKey`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-getStorageKey)."]
+        pub async fn get_storage_key(
+            &self,
+            params: super::browser_protocol::storage::GetStorageKeyParams,
+        ) -> Result<super::browser_protocol::storage::GetStorageKeyReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears storage for origin.\n\nSends [`Storage.clearDataForOrigin`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-clearDataForOrigin)."]
+        pub async fn clear_data_for_origin(
+            &self,
+            params: super::browser_protocol::storage::ClearDataForOriginParams,
+        ) -> Result<super::browser_protocol::storage::ClearDataForOriginReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears storage for storage key.\n\nSends [`Storage.clearDataForStorageKey`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-clearDataForStorageKey)."]
+        pub async fn clear_data_for_storage_key(
+            &self,
+            params: super::browser_protocol::storage::ClearDataForStorageKeyParams,
+        ) -> Result<super::browser_protocol::storage::ClearDataForStorageKeyReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns all browser cookies.\n\nSends [`Storage.getCookies`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-getCookies)."]
+        pub async fn get_cookies(
+            &self,
+            params: super::browser_protocol::storage::GetCookiesParams,
+        ) -> Result<super::browser_protocol::storage::GetCookiesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets given cookies.\n\nSends [`Storage.setCookies`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-setCookies)."]
+        pub async fn set_cookies(
+            &self,
+            params: super::browser_protocol::storage::SetCookiesParams,
+        ) -> Result<super::browser_protocol::storage::SetCookiesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears cookies.\n\nSends [`Storage.clearCookies`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-clearCookies)."]
+        pub async fn clear_cookies(
+            &self,
+            params: super::browser_protocol::storage::ClearCookiesParams,
+        ) -> Result<super::browser_protocol::storage::ClearCookiesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns usage and quota in bytes.\n\nSends [`Storage.getUsageAndQuota`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-getUsageAndQuota)."]
+        pub async fn get_usage_and_quota(
+            &self,
+            params: super::browser_protocol::storage::GetUsageAndQuotaParams,
+        ) -> Result<super::browser_protocol::storage::GetUsageAndQuotaReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Override quota for the specified origin\n\nSends [`Storage.overrideQuotaForOrigin`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-overrideQuotaForOrigin)."]
+        pub async fn override_quota_for_origin(
+            &self,
+            params: super::browser_protocol::storage::OverrideQuotaForOriginParams,
+        ) -> Result<super::browser_protocol::storage::OverrideQuotaForOriginReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Registers origin to be notified when an update occurs to its cache storage list.\n\nSends [`Storage.trackCacheStorageForOrigin`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-trackCacheStorageForOrigin)."]
+        pub async fn track_cache_storage_for_origin(
+            &self,
+            params: super::browser_protocol::storage::TrackCacheStorageForOriginParams,
+        ) -> Result<super::browser_protocol::storage::TrackCacheStorageForOriginReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Registers storage key to be notified when an update occurs to its cache storage list.\n\nSends [`Storage.trackCacheStorageForStorageKey`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-trackCacheStorageForStorageKey)."]
+        pub async fn track_cache_storage_for_storage_key(
+            &self,
+            params: super::browser_protocol::storage::TrackCacheStorageForStorageKeyParams,
+        ) -> Result<super::browser_protocol::storage::TrackCacheStorageForStorageKeyReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Registers origin to be notified when an update occurs to its IndexedDB.\n\nSends [`Storage.trackIndexedDBForOrigin`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-trackIndexedDBForOrigin)."]
+        pub async fn track_indexed_db_for_origin(
+            &self,
+            params: super::browser_protocol::storage::TrackIndexedDbForOriginParams,
+        ) -> Result<super::browser_protocol::storage::TrackIndexedDbForOriginReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Registers storage key to be notified when an update occurs to its IndexedDB.\n\nSends [`Storage.trackIndexedDBForStorageKey`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-trackIndexedDBForStorageKey)."]
+        pub async fn track_indexed_db_for_storage_key(
+            &self,
+            params: super::browser_protocol::storage::TrackIndexedDbForStorageKeyParams,
+        ) -> Result<super::browser_protocol::storage::TrackIndexedDbForStorageKeyReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Unregisters origin from receiving notifications for cache storage.\n\nSends [`Storage.untrackCacheStorageForOrigin`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-untrackCacheStorageForOrigin)."]
+        pub async fn untrack_cache_storage_for_origin(
+            &self,
+            params: super::browser_protocol::storage::UntrackCacheStorageForOriginParams,
+        ) -> Result<super::browser_protocol::storage::UntrackCacheStorageForOriginReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Unregisters storage key from receiving notifications for cache storage.\n\nSends [`Storage.untrackCacheStorageForStorageKey`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-untrackCacheStorageForStorageKey)."]
+        pub async fn untrack_cache_storage_for_storage_key(
+            &self,
+            params: super::browser_protocol::storage::UntrackCacheStorageForStorageKeyParams,
+        ) -> Result<
+            super::browser_protocol::storage::UntrackCacheStorageForStorageKeyReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Unregisters origin from receiving notifications for IndexedDB.\n\nSends [`Storage.untrackIndexedDBForOrigin`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-untrackIndexedDBForOrigin)."]
+        pub async fn untrack_indexed_db_for_origin(
+            &self,
+            params: super::browser_protocol::storage::UntrackIndexedDbForOriginParams,
+        ) -> Result<super::browser_protocol::storage::UntrackIndexedDbForOriginReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Unregisters storage key from receiving notifications for IndexedDB.\n\nSends [`Storage.untrackIndexedDBForStorageKey`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-untrackIndexedDBForStorageKey)."]
+        pub async fn untrack_indexed_db_for_storage_key(
+            &self,
+            params: super::browser_protocol::storage::UntrackIndexedDbForStorageKeyParams,
+        ) -> Result<super::browser_protocol::storage::UntrackIndexedDbForStorageKeyReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the number of stored Trust Tokens per issuer for the\ncurrent browsing context.\n\nSends [`Storage.getTrustTokens`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-getTrustTokens)."]
+        pub async fn get_trust_tokens(
+            &self,
+            params: super::browser_protocol::storage::GetTrustTokensParams,
+        ) -> Result<super::browser_protocol::storage::GetTrustTokensReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes all Trust Tokens issued by the provided issuerOrigin.\nLeaves other stored data, including the issuer's Redemption Records, intact.\n\nSends [`Storage.clearTrustTokens`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-clearTrustTokens)."]
+        pub async fn clear_trust_tokens(
+            &self,
+            params: super::browser_protocol::storage::ClearTrustTokensParams,
+        ) -> Result<super::browser_protocol::storage::ClearTrustTokensReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns all stored Private Verification Tokens for the current browsing\ncontext.\n\nSends [`Storage.getPrivateVerificationTokens`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-getPrivateVerificationTokens)."]
+        pub async fn get_private_verification_tokens(
+            &self,
+            params: super::browser_protocol::storage::GetPrivateVerificationTokensParams,
+        ) -> Result<super::browser_protocol::storage::GetPrivateVerificationTokensReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns the configured Private Verification Tokens issuers and their redeemer\norigins.\n\nSends [`Storage.getPrivateVerificationTokensIssuerConfigs`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-getPrivateVerificationTokensIssuerConfigs)."]
+        pub async fn get_private_verification_tokens_issuer_configs(
+            &self,
+            params : super :: browser_protocol :: storage :: GetPrivateVerificationTokensIssuerConfigsParams,
+        ) -> Result<
+            super::browser_protocol::storage::GetPrivateVerificationTokensIssuerConfigsReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes all Private Verification Tokens issued by the provided issuerOrigin.\n\nSends [`Storage.clearPrivateVerificationTokens`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-clearPrivateVerificationTokens)."]
+        pub async fn clear_private_verification_tokens(
+            &self,
+            params: super::browser_protocol::storage::ClearPrivateVerificationTokensParams,
+        ) -> Result<super::browser_protocol::storage::ClearPrivateVerificationTokensReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes a specific Private Verification Token by its ID.\n\nSends [`Storage.deletePrivateVerificationToken`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-deletePrivateVerificationToken)."]
+        pub async fn delete_private_verification_token(
+            &self,
+            params: super::browser_protocol::storage::DeletePrivateVerificationTokenParams,
+        ) -> Result<super::browser_protocol::storage::DeletePrivateVerificationTokenReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set tracking for Private Verification Tokens.\n\nSends [`Storage.setPrivateVerificationTokensTracking`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-setPrivateVerificationTokensTracking)."]
+        pub async fn set_private_verification_tokens_tracking(
+            &self,
+            params: super::browser_protocol::storage::SetPrivateVerificationTokensTrackingParams,
+        ) -> Result<
+            super::browser_protocol::storage::SetPrivateVerificationTokensTrackingReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Set tracking for a storage key's buckets.\n\nSends [`Storage.setStorageBucketTracking`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-setStorageBucketTracking)."]
+        pub async fn set_storage_bucket_tracking(
+            &self,
+            params: super::browser_protocol::storage::SetStorageBucketTrackingParams,
+        ) -> Result<super::browser_protocol::storage::SetStorageBucketTrackingReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Deletes the Storage Bucket with the given storage key and bucket name.\n\nSends [`Storage.deleteStorageBucket`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-deleteStorageBucket)."]
+        pub async fn delete_storage_bucket(
+            &self,
+            params: super::browser_protocol::storage::DeleteStorageBucketParams,
+        ) -> Result<super::browser_protocol::storage::DeleteStorageBucketReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Deletes state for sites identified as potential bounce trackers, immediately.\n\nSends [`Storage.runBounceTrackingMitigations`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-runBounceTrackingMitigations)."]
+        pub async fn run_bounce_tracking_mitigations(
+            &self,
+            params: super::browser_protocol::storage::RunBounceTrackingMitigationsParams,
+        ) -> Result<super::browser_protocol::storage::RunBounceTrackingMitigationsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "A cache's contents have been modified.\n\nStreams [`Storage.cacheStorageContentUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#event-cacheStorageContentUpdated) from now on."]
+        pub fn on_cache_storage_content_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::storage::EventCacheStorageContentUpdated> {
+            self.exec.events()
+        }
+        #[doc = "A cache has been added/deleted.\n\nStreams [`Storage.cacheStorageListUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#event-cacheStorageListUpdated) from now on."]
+        pub fn on_cache_storage_list_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::storage::EventCacheStorageListUpdated> {
+            self.exec.events()
+        }
+        #[doc = "The origin's IndexedDB object store has been modified.\n\nStreams [`Storage.indexedDBContentUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#event-indexedDBContentUpdated) from now on."]
+        pub fn on_indexed_db_content_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::storage::EventIndexedDbContentUpdated> {
+            self.exec.events()
+        }
+        #[doc = "The origin's IndexedDB database list has been modified.\n\nStreams [`Storage.indexedDBListUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#event-indexedDBListUpdated) from now on."]
+        pub fn on_indexed_db_list_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::storage::EventIndexedDbListUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Streams [`Storage.storageBucketCreatedOrUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#event-storageBucketCreatedOrUpdated) from now on."]
+        pub fn on_storage_bucket_created_or_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::storage::EventStorageBucketCreatedOrUpdated>
+        {
+            self.exec.events()
+        }
+        #[doc = "Streams [`Storage.storageBucketDeleted`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#event-storageBucketDeleted) from now on."]
+        pub fn on_storage_bucket_deleted(
+            &self,
+        ) -> X::Events<super::browser_protocol::storage::EventStorageBucketDeleted> {
+            self.exec.events()
+        }
+        #[doc = "Private Verification Tokens have been stored or deleted.\n\nStreams [`Storage.privateVerificationTokensUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/Storage/#event-privateVerificationTokensUpdated) from now on."]
+        pub fn on_private_verification_tokens_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::storage::EventPrivateVerificationTokensUpdated>
+        {
+            self.exec.events()
+        }
+    }
+    #[doc = "The SystemInfo domain defines methods and events for querying low-level system information.\n\n[SystemInfo](https://chromedevtools.github.io/devtools-protocol/tot/SystemInfo/)"]
+    pub struct SystemInfo<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for SystemInfo<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for SystemInfo<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> SystemInfo<'a, X> {
+        #[doc = "Returns information about the system.\n\nSends [`SystemInfo.getInfo`](https://chromedevtools.github.io/devtools-protocol/tot/SystemInfo/#method-getInfo)."]
+        pub async fn get_info(
+            &self,
+            params: super::browser_protocol::system_info::GetInfoParams,
+        ) -> Result<super::browser_protocol::system_info::GetInfoReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns information about the feature state.\n\nSends [`SystemInfo.getFeatureState`](https://chromedevtools.github.io/devtools-protocol/tot/SystemInfo/#method-getFeatureState)."]
+        pub async fn get_feature_state(
+            &self,
+            params: super::browser_protocol::system_info::GetFeatureStateParams,
+        ) -> Result<super::browser_protocol::system_info::GetFeatureStateReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns information about all running processes.\n\nSends [`SystemInfo.getProcessInfo`](https://chromedevtools.github.io/devtools-protocol/tot/SystemInfo/#method-getProcessInfo)."]
+        pub async fn get_process_info(
+            &self,
+            params: super::browser_protocol::system_info::GetProcessInfoParams,
+        ) -> Result<super::browser_protocol::system_info::GetProcessInfoReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+    }
+    #[doc = "Supports additional targets discovery and allows to attach to them.\n\n[Target](https://chromedevtools.github.io/devtools-protocol/tot/Target/)"]
+    pub struct Target<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Target<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Target<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Target<'a, X> {
+        #[doc = "Activates (focuses) the target.\n\nSends [`Target.activateTarget`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-activateTarget)."]
+        pub async fn activate_target(
+            &self,
+            params: super::browser_protocol::target::ActivateTargetParams,
+        ) -> Result<super::browser_protocol::target::ActivateTargetReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Attaches to the target with given id.\n\nSends [`Target.attachToTarget`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-attachToTarget)."]
+        pub async fn attach_to_target(
+            &self,
+            params: super::browser_protocol::target::AttachToTargetParams,
+        ) -> Result<super::browser_protocol::target::AttachToTargetReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Attaches to the browser target, only uses flat sessionId mode.\n\nSends [`Target.attachToBrowserTarget`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-attachToBrowserTarget)."]
+        pub async fn attach_to_browser_target(
+            &self,
+            params: super::browser_protocol::target::AttachToBrowserTargetParams,
+        ) -> Result<super::browser_protocol::target::AttachToBrowserTargetReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Closes the target. If the target is a page that gets closed too.\n\nSends [`Target.closeTarget`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-closeTarget)."]
+        pub async fn close_target(
+            &self,
+            params: super::browser_protocol::target::CloseTargetParams,
+        ) -> Result<super::browser_protocol::target::CloseTargetReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Inject object to the target's main frame that provides a communication\nchannel with browser target.\n\nInjected object will be available as `window[bindingName]`.\n\nThe object has the following API:\n- `binding.send(json)` - a method to send messages over the remote debugging protocol\n- `binding.onmessage = json => handleMessage(json)` - a callback that will be called for the protocol notifications and command responses.\n\nSends [`Target.exposeDevToolsProtocol`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-exposeDevToolsProtocol)."]
+        pub async fn expose_dev_tools_protocol(
+            &self,
+            params: super::browser_protocol::target::ExposeDevToolsProtocolParams,
+        ) -> Result<super::browser_protocol::target::ExposeDevToolsProtocolReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Creates a new empty BrowserContext. Similar to an incognito profile but you can have more than\none.\n\nSends [`Target.createBrowserContext`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-createBrowserContext)."]
+        pub async fn create_browser_context(
+            &self,
+            params: super::browser_protocol::target::CreateBrowserContextParams,
+        ) -> Result<super::browser_protocol::target::CreateBrowserContextReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns all browser contexts created with `Target.createBrowserContext` method.\n\nSends [`Target.getBrowserContexts`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-getBrowserContexts)."]
+        pub async fn get_browser_contexts(
+            &self,
+            params: super::browser_protocol::target::GetBrowserContextsParams,
+        ) -> Result<super::browser_protocol::target::GetBrowserContextsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Creates a new page.\n\nSends [`Target.createTarget`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-createTarget)."]
+        pub async fn create_target(
+            &self,
+            params: super::browser_protocol::target::CreateTargetParams,
+        ) -> Result<super::browser_protocol::target::CreateTargetReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Detaches session with given id.\n\nSends [`Target.detachFromTarget`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-detachFromTarget)."]
+        pub async fn detach_from_target(
+            &self,
+            params: super::browser_protocol::target::DetachFromTargetParams,
+        ) -> Result<super::browser_protocol::target::DetachFromTargetReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Deletes a BrowserContext. All the belonging pages will be closed without calling their\nbeforeunload hooks.\n\nSends [`Target.disposeBrowserContext`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-disposeBrowserContext)."]
+        pub async fn dispose_browser_context(
+            &self,
+            params: super::browser_protocol::target::DisposeBrowserContextParams,
+        ) -> Result<super::browser_protocol::target::DisposeBrowserContextReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns information about a target.\n\nSends [`Target.getTargetInfo`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-getTargetInfo)."]
+        pub async fn get_target_info(
+            &self,
+            params: super::browser_protocol::target::GetTargetInfoParams,
+        ) -> Result<super::browser_protocol::target::GetTargetInfoReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Retrieves a list of available targets.\n\nSends [`Target.getTargets`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-getTargets)."]
+        pub async fn get_targets(
+            &self,
+            params: super::browser_protocol::target::GetTargetsParams,
+        ) -> Result<super::browser_protocol::target::GetTargetsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Controls whether to automatically attach to new targets which are considered\nto be directly related to this one (for example, iframes or workers).\nWhen turned on, attaches to all existing related targets as well. When turned off,\nautomatically detaches from all currently attached targets.\nThis also clears all targets added by `autoAttachRelated` from the list of targets to watch\nfor creation of related targets.\nYou might want to call this recursively for auto-attached targets to attach\nto all available targets.\n\nSends [`Target.setAutoAttach`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-setAutoAttach)."]
+        pub async fn set_auto_attach(
+            &self,
+            params: super::browser_protocol::target::SetAutoAttachParams,
+        ) -> Result<super::browser_protocol::target::SetAutoAttachReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Adds the specified target to the list of targets that will be monitored for any related target\ncreation (such as child frames, child workers and new versions of service worker) and reported\nthrough `attachedToTarget`. The specified target is also auto-attached.\nThis cancels the effect of any previous `setAutoAttach` and is also cancelled by subsequent\n`setAutoAttach`. Only available at the Browser target.\n\nSends [`Target.autoAttachRelated`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-autoAttachRelated)."]
+        pub async fn auto_attach_related(
+            &self,
+            params: super::browser_protocol::target::AutoAttachRelatedParams,
+        ) -> Result<super::browser_protocol::target::AutoAttachRelatedReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Controls whether to discover available targets and notify via\n`targetCreated/targetInfoChanged/targetDestroyed` events.\n\nSends [`Target.setDiscoverTargets`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-setDiscoverTargets)."]
+        pub async fn set_discover_targets(
+            &self,
+            params: super::browser_protocol::target::SetDiscoverTargetsParams,
+        ) -> Result<super::browser_protocol::target::SetDiscoverTargetsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Enables target discovery for the specified locations, when `setDiscoverTargets` was set to\n`true`.\n\nSends [`Target.setRemoteLocations`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-setRemoteLocations)."]
+        pub async fn set_remote_locations(
+            &self,
+            params: super::browser_protocol::target::SetRemoteLocationsParams,
+        ) -> Result<super::browser_protocol::target::SetRemoteLocationsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Gets the targetId of the DevTools page target opened for the given target\n(if any).\n\nSends [`Target.getDevToolsTarget`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-getDevToolsTarget)."]
+        pub async fn get_dev_tools_target(
+            &self,
+            params: super::browser_protocol::target::GetDevToolsTargetParams,
+        ) -> Result<super::browser_protocol::target::GetDevToolsTargetReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Opens a DevTools window for the target.\n\nSends [`Target.openDevTools`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-openDevTools)."]
+        pub async fn open_dev_tools(
+            &self,
+            params: super::browser_protocol::target::OpenDevToolsParams,
+        ) -> Result<super::browser_protocol::target::OpenDevToolsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Issued when attached to target because of auto-attach or `attachToTarget` command.\n\nStreams [`Target.attachedToTarget`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#event-attachedToTarget) from now on."]
+        pub fn on_attached_to_target(
+            &self,
+        ) -> X::Events<super::browser_protocol::target::EventAttachedToTarget> {
+            self.exec.events()
+        }
+        #[doc = "Issued when detached from target for any reason (including `detachFromTarget` command). Can be\nissued multiple times per target if multiple sessions have been attached to it.\n\nStreams [`Target.detachedFromTarget`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#event-detachedFromTarget) from now on."]
+        pub fn on_detached_from_target(
+            &self,
+        ) -> X::Events<super::browser_protocol::target::EventDetachedFromTarget> {
+            self.exec.events()
+        }
+        #[doc = "Notifies about a new protocol message received from the session (as reported in\n`attachedToTarget` event).\n\nStreams [`Target.receivedMessageFromTarget`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#event-receivedMessageFromTarget) from now on."]
+        pub fn on_received_message_from_target(
+            &self,
+        ) -> X::Events<super::browser_protocol::target::EventReceivedMessageFromTarget> {
+            self.exec.events()
+        }
+        #[doc = "Issued when a possible inspection target is created.\n\nStreams [`Target.targetCreated`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#event-targetCreated) from now on."]
+        pub fn on_target_created(
+            &self,
+        ) -> X::Events<super::browser_protocol::target::EventTargetCreated> {
+            self.exec.events()
+        }
+        #[doc = "Issued when a target is destroyed.\n\nStreams [`Target.targetDestroyed`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#event-targetDestroyed) from now on."]
+        pub fn on_target_destroyed(
+            &self,
+        ) -> X::Events<super::browser_protocol::target::EventTargetDestroyed> {
+            self.exec.events()
+        }
+        #[doc = "Issued when a target has crashed.\n\nStreams [`Target.targetCrashed`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#event-targetCrashed) from now on."]
+        pub fn on_target_crashed(
+            &self,
+        ) -> X::Events<super::browser_protocol::target::EventTargetCrashed> {
+            self.exec.events()
+        }
+        #[doc = "Issued when some information about a target has changed. This only happens between\n`targetCreated` and `targetDestroyed`.\n\nStreams [`Target.targetInfoChanged`](https://chromedevtools.github.io/devtools-protocol/tot/Target/#event-targetInfoChanged) from now on."]
+        pub fn on_target_info_changed(
+            &self,
+        ) -> X::Events<super::browser_protocol::target::EventTargetInfoChanged> {
+            self.exec.events()
+        }
+    }
+    #[doc = "The Tethering domain defines methods and events for browser port binding.\n\n[Tethering](https://chromedevtools.github.io/devtools-protocol/tot/Tethering/)"]
+    pub struct Tethering<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Tethering<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Tethering<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Tethering<'a, X> {
+        #[doc = "Request browser port binding.\n\nSends [`Tethering.bind`](https://chromedevtools.github.io/devtools-protocol/tot/Tethering/#method-bind)."]
+        pub async fn bind(
+            &self,
+            params: super::browser_protocol::tethering::BindParams,
+        ) -> Result<super::browser_protocol::tethering::BindReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Request browser port unbinding.\n\nSends [`Tethering.unbind`](https://chromedevtools.github.io/devtools-protocol/tot/Tethering/#method-unbind)."]
+        pub async fn unbind(
+            &self,
+            params: super::browser_protocol::tethering::UnbindParams,
+        ) -> Result<super::browser_protocol::tethering::UnbindReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Informs that port was successfully bound and got a specified connection id.\n\nStreams [`Tethering.accepted`](https://chromedevtools.github.io/devtools-protocol/tot/Tethering/#event-accepted) from now on."]
+        pub fn on_accepted(&self) -> X::Events<super::browser_protocol::tethering::EventAccepted> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[Tracing](https://chromedevtools.github.io/devtools-protocol/tot/Tracing/)"]
+    pub struct Tracing<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for Tracing<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for Tracing<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> Tracing<'a, X> {
+        #[doc = "Stop trace events collection.\n\nSends [`Tracing.end`](https://chromedevtools.github.io/devtools-protocol/tot/Tracing/#method-end)."]
+        pub async fn end(
+            &self,
+            params: super::browser_protocol::tracing::EndParams,
+        ) -> Result<super::browser_protocol::tracing::EndReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Gets supported tracing categories.\n\nSends [`Tracing.getCategories`](https://chromedevtools.github.io/devtools-protocol/tot/Tracing/#method-getCategories)."]
+        pub async fn get_categories(
+            &self,
+            params: super::browser_protocol::tracing::GetCategoriesParams,
+        ) -> Result<super::browser_protocol::tracing::GetCategoriesReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Return a descriptor for all available tracing categories.\n\nSends [`Tracing.getTrackEventDescriptor`](https://chromedevtools.github.io/devtools-protocol/tot/Tracing/#method-getTrackEventDescriptor)."]
+        pub async fn get_track_event_descriptor(
+            &self,
+            params: super::browser_protocol::tracing::GetTrackEventDescriptorParams,
+        ) -> Result<super::browser_protocol::tracing::GetTrackEventDescriptorReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Record a clock sync marker in the trace.\n\nSends [`Tracing.recordClockSyncMarker`](https://chromedevtools.github.io/devtools-protocol/tot/Tracing/#method-recordClockSyncMarker)."]
+        pub async fn record_clock_sync_marker(
+            &self,
+            params: super::browser_protocol::tracing::RecordClockSyncMarkerParams,
+        ) -> Result<super::browser_protocol::tracing::RecordClockSyncMarkerReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Request a global memory dump.\n\nSends [`Tracing.requestMemoryDump`](https://chromedevtools.github.io/devtools-protocol/tot/Tracing/#method-requestMemoryDump)."]
+        pub async fn request_memory_dump(
+            &self,
+            params: super::browser_protocol::tracing::RequestMemoryDumpParams,
+        ) -> Result<super::browser_protocol::tracing::RequestMemoryDumpReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Start trace events collection.\n\nSends [`Tracing.start`](https://chromedevtools.github.io/devtools-protocol/tot/Tracing/#method-start)."]
+        pub async fn start(
+            &self,
+            params: super::browser_protocol::tracing::StartParams,
+        ) -> Result<super::browser_protocol::tracing::StartReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Streams [`Tracing.bufferUsage`](https://chromedevtools.github.io/devtools-protocol/tot/Tracing/#event-bufferUsage) from now on."]
+        pub fn on_buffer_usage(
+            &self,
+        ) -> X::Events<super::browser_protocol::tracing::EventBufferUsage> {
+            self.exec.events()
+        }
+        #[doc = "Contains a bucket of collected trace events. When tracing is stopped collected events will be\nsent as a sequence of dataCollected events followed by tracingComplete event.\n\nStreams [`Tracing.dataCollected`](https://chromedevtools.github.io/devtools-protocol/tot/Tracing/#event-dataCollected) from now on."]
+        pub fn on_data_collected(
+            &self,
+        ) -> X::Events<super::browser_protocol::tracing::EventDataCollected> {
+            self.exec.events()
+        }
+        #[doc = "Signals that tracing is stopped and there is no trace buffers pending flush, all data were\ndelivered via dataCollected events.\n\nStreams [`Tracing.tracingComplete`](https://chromedevtools.github.io/devtools-protocol/tot/Tracing/#event-tracingComplete) from now on."]
+        pub fn on_tracing_complete(
+            &self,
+        ) -> X::Events<super::browser_protocol::tracing::EventTracingComplete> {
+            self.exec.events()
+        }
+    }
+    #[doc = "This domain allows inspection of Web Audio API.\nhttps://webaudio.github.io/web-audio-api/\n\n[WebAudio](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/)"]
+    pub struct WebAudio<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for WebAudio<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for WebAudio<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> WebAudio<'a, X> {
+        #[doc = "Enables the WebAudio domain and starts sending context lifetime events.\n\nSends [`WebAudio.enable`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::web_audio::EnableParams,
+        ) -> Result<super::browser_protocol::web_audio::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables the WebAudio domain.\n\nSends [`WebAudio.disable`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::web_audio::DisableParams,
+        ) -> Result<super::browser_protocol::web_audio::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Fetch the realtime data from the registered contexts.\n\nSends [`WebAudio.getRealtimeData`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#method-getRealtimeData)."]
+        pub async fn get_realtime_data(
+            &self,
+            params: super::browser_protocol::web_audio::GetRealtimeDataParams,
+        ) -> Result<super::browser_protocol::web_audio::GetRealtimeDataReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Notifies that a new BaseAudioContext has been created.\n\nStreams [`WebAudio.contextCreated`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-contextCreated) from now on."]
+        pub fn on_context_created(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventContextCreated> {
+            self.exec.events()
+        }
+        #[doc = "Notifies that an existing BaseAudioContext will be destroyed.\n\nStreams [`WebAudio.contextWillBeDestroyed`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-contextWillBeDestroyed) from now on."]
+        pub fn on_context_will_be_destroyed(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventContextWillBeDestroyed> {
+            self.exec.events()
+        }
+        #[doc = "Notifies that existing BaseAudioContext has changed some properties (id stays the same)..\n\nStreams [`WebAudio.contextChanged`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-contextChanged) from now on."]
+        pub fn on_context_changed(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventContextChanged> {
+            self.exec.events()
+        }
+        #[doc = "Notifies that the construction of an AudioListener has finished.\n\nStreams [`WebAudio.audioListenerCreated`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-audioListenerCreated) from now on."]
+        pub fn on_audio_listener_created(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventAudioListenerCreated> {
+            self.exec.events()
+        }
+        #[doc = "Notifies that a new AudioListener has been created.\n\nStreams [`WebAudio.audioListenerWillBeDestroyed`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-audioListenerWillBeDestroyed) from now on."]
+        pub fn on_audio_listener_will_be_destroyed(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventAudioListenerWillBeDestroyed>
+        {
+            self.exec.events()
+        }
+        #[doc = "Notifies that a new AudioNode has been created.\n\nStreams [`WebAudio.audioNodeCreated`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-audioNodeCreated) from now on."]
+        pub fn on_audio_node_created(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventAudioNodeCreated> {
+            self.exec.events()
+        }
+        #[doc = "Notifies that an existing AudioNode has been destroyed.\n\nStreams [`WebAudio.audioNodeWillBeDestroyed`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-audioNodeWillBeDestroyed) from now on."]
+        pub fn on_audio_node_will_be_destroyed(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventAudioNodeWillBeDestroyed> {
+            self.exec.events()
+        }
+        #[doc = "Notifies that a new AudioParam has been created.\n\nStreams [`WebAudio.audioParamCreated`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-audioParamCreated) from now on."]
+        pub fn on_audio_param_created(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventAudioParamCreated> {
+            self.exec.events()
+        }
+        #[doc = "Notifies that an existing AudioParam has been destroyed.\n\nStreams [`WebAudio.audioParamWillBeDestroyed`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-audioParamWillBeDestroyed) from now on."]
+        pub fn on_audio_param_will_be_destroyed(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventAudioParamWillBeDestroyed> {
+            self.exec.events()
+        }
+        #[doc = "Notifies that two AudioNodes are connected.\n\nStreams [`WebAudio.nodesConnected`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-nodesConnected) from now on."]
+        pub fn on_nodes_connected(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventNodesConnected> {
+            self.exec.events()
+        }
+        #[doc = "Notifies that AudioNodes are disconnected. The destination can be null, and it means all the outgoing connections from the source are disconnected.\n\nStreams [`WebAudio.nodesDisconnected`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-nodesDisconnected) from now on."]
+        pub fn on_nodes_disconnected(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventNodesDisconnected> {
+            self.exec.events()
+        }
+        #[doc = "Notifies that an AudioNode is connected to an AudioParam.\n\nStreams [`WebAudio.nodeParamConnected`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-nodeParamConnected) from now on."]
+        pub fn on_node_param_connected(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventNodeParamConnected> {
+            self.exec.events()
+        }
+        #[doc = "Notifies that an AudioNode is disconnected to an AudioParam.\n\nStreams [`WebAudio.nodeParamDisconnected`](https://chromedevtools.github.io/devtools-protocol/tot/WebAudio/#event-nodeParamDisconnected) from now on."]
+        pub fn on_node_param_disconnected(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_audio::EventNodeParamDisconnected> {
+            self.exec.events()
+        }
+    }
+    #[doc = "This domain allows configuring virtual authenticators to test the WebAuthn\nAPI.\n\n[WebAuthn](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/)"]
+    pub struct WebAuthn<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for WebAuthn<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for WebAuthn<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> WebAuthn<'a, X> {
+        #[doc = "Enable the WebAuthn domain and start intercepting credential storage and\nretrieval with a virtual authenticator.\n\nSends [`WebAuthn.enable`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::web_authn::EnableParams,
+        ) -> Result<super::browser_protocol::web_authn::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disable the WebAuthn domain.\n\nSends [`WebAuthn.disable`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::web_authn::DisableParams,
+        ) -> Result<super::browser_protocol::web_authn::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Creates and adds a virtual authenticator.\n\nSends [`WebAuthn.addVirtualAuthenticator`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-addVirtualAuthenticator)."]
+        pub async fn add_virtual_authenticator(
+            &self,
+            params: super::browser_protocol::web_authn::AddVirtualAuthenticatorParams,
+        ) -> Result<super::browser_protocol::web_authn::AddVirtualAuthenticatorReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Resets parameters isBogusSignature, isBadUV, isBadUP to false if they are not present.\n\nSends [`WebAuthn.setResponseOverrideBits`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-setResponseOverrideBits)."]
+        pub async fn set_response_override_bits(
+            &self,
+            params: super::browser_protocol::web_authn::SetResponseOverrideBitsParams,
+        ) -> Result<super::browser_protocol::web_authn::SetResponseOverrideBitsReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes the given authenticator.\n\nSends [`WebAuthn.removeVirtualAuthenticator`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-removeVirtualAuthenticator)."]
+        pub async fn remove_virtual_authenticator(
+            &self,
+            params: super::browser_protocol::web_authn::RemoveVirtualAuthenticatorParams,
+        ) -> Result<super::browser_protocol::web_authn::RemoveVirtualAuthenticatorReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Adds the credential to the specified authenticator.\n\nSends [`WebAuthn.addCredential`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-addCredential)."]
+        pub async fn add_credential(
+            &self,
+            params: super::browser_protocol::web_authn::AddCredentialParams,
+        ) -> Result<super::browser_protocol::web_authn::AddCredentialReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns a single credential stored in the given virtual authenticator that\nmatches the credential ID.\n\nSends [`WebAuthn.getCredential`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-getCredential)."]
+        pub async fn get_credential(
+            &self,
+            params: super::browser_protocol::web_authn::GetCredentialParams,
+        ) -> Result<super::browser_protocol::web_authn::GetCredentialReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Returns all the credentials stored in the given virtual authenticator.\n\nSends [`WebAuthn.getCredentials`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-getCredentials)."]
+        pub async fn get_credentials(
+            &self,
+            params: super::browser_protocol::web_authn::GetCredentialsParams,
+        ) -> Result<super::browser_protocol::web_authn::GetCredentialsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Removes a credential from the authenticator.\n\nSends [`WebAuthn.removeCredential`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-removeCredential)."]
+        pub async fn remove_credential(
+            &self,
+            params: super::browser_protocol::web_authn::RemoveCredentialParams,
+        ) -> Result<super::browser_protocol::web_authn::RemoveCredentialReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Clears all the credentials from the specified device.\n\nSends [`WebAuthn.clearCredentials`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-clearCredentials)."]
+        pub async fn clear_credentials(
+            &self,
+            params: super::browser_protocol::web_authn::ClearCredentialsParams,
+        ) -> Result<super::browser_protocol::web_authn::ClearCredentialsReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets whether User Verification succeeds or fails for an authenticator.\nThe default is true.\n\nSends [`WebAuthn.setUserVerified`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-setUserVerified)."]
+        pub async fn set_user_verified(
+            &self,
+            params: super::browser_protocol::web_authn::SetUserVerifiedParams,
+        ) -> Result<super::browser_protocol::web_authn::SetUserVerifiedReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Sets whether tests of user presence will succeed immediately (if true) or fail to resolve (if false) for an authenticator.\nThe default is true.\n\nSends [`WebAuthn.setAutomaticPresenceSimulation`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-setAutomaticPresenceSimulation)."]
+        pub async fn set_automatic_presence_simulation(
+            &self,
+            params: super::browser_protocol::web_authn::SetAutomaticPresenceSimulationParams,
+        ) -> Result<
+            super::browser_protocol::web_authn::SetAutomaticPresenceSimulationReturns,
+            X::Error,
+        > {
+            self.exec.execute(params).await
+        }
+        #[doc = "Allows setting credential properties.\nhttps://w3c.github.io/webauthn/#sctn-automation-set-credential-properties\n\nSends [`WebAuthn.setCredentialProperties`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#method-setCredentialProperties)."]
+        pub async fn set_credential_properties(
+            &self,
+            params: super::browser_protocol::web_authn::SetCredentialPropertiesParams,
+        ) -> Result<super::browser_protocol::web_authn::SetCredentialPropertiesReturns, X::Error>
+        {
+            self.exec.execute(params).await
+        }
+        #[doc = "Triggered when a credential is added to an authenticator.\n\nStreams [`WebAuthn.credentialAdded`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#event-credentialAdded) from now on."]
+        pub fn on_credential_added(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_authn::EventCredentialAdded> {
+            self.exec.events()
+        }
+        #[doc = "Triggered when a credential is deleted, e.g. through\nPublicKeyCredential.signalUnknownCredential().\n\nStreams [`WebAuthn.credentialDeleted`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#event-credentialDeleted) from now on."]
+        pub fn on_credential_deleted(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_authn::EventCredentialDeleted> {
+            self.exec.events()
+        }
+        #[doc = "Triggered when a credential is updated, e.g. through\nPublicKeyCredential.signalCurrentUserDetails().\n\nStreams [`WebAuthn.credentialUpdated`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#event-credentialUpdated) from now on."]
+        pub fn on_credential_updated(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_authn::EventCredentialUpdated> {
+            self.exec.events()
+        }
+        #[doc = "Triggered when a credential is used in a webauthn assertion.\n\nStreams [`WebAuthn.credentialAsserted`](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/#event-credentialAsserted) from now on."]
+        pub fn on_credential_asserted(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_authn::EventCredentialAsserted> {
+            self.exec.events()
+        }
+    }
+    #[doc = "[WebMCP](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/)"]
+    pub struct WebMcp<'a, X: ?Sized> {
+        exec: &'a X,
+    }
+    impl<X: ?Sized> Clone for WebMcp<'_, X> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+    impl<X: ?Sized> Copy for WebMcp<'_, X> {}
+    impl<'a, X: CommandExecutor + ?Sized> WebMcp<'a, X> {
+        #[doc = "Enables the WebMCP domain, allowing events to be sent. Enabling the domain will trigger a toolsAdded event for\nall currently registered tools.\n\nSends [`WebMCP.enable`](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/#method-enable)."]
+        pub async fn enable(
+            &self,
+            params: super::browser_protocol::web_mcp::EnableParams,
+        ) -> Result<super::browser_protocol::web_mcp::EnableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Disables the WebMCP domain.\n\nSends [`WebMCP.disable`](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/#method-disable)."]
+        pub async fn disable(
+            &self,
+            params: super::browser_protocol::web_mcp::DisableParams,
+        ) -> Result<super::browser_protocol::web_mcp::DisableReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Invokes a registered tool. Exactly one of `toolId` and `toolName` must be specified; the command fails if both or\nneither are.\n\nSends [`WebMCP.invokeTool`](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/#method-invokeTool)."]
+        pub async fn invoke_tool(
+            &self,
+            params: super::browser_protocol::web_mcp::InvokeToolParams,
+        ) -> Result<super::browser_protocol::web_mcp::InvokeToolReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Cancels a pending tool invocation.\n\nSends [`WebMCP.cancelInvocation`](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/#method-cancelInvocation)."]
+        pub async fn cancel_invocation(
+            &self,
+            params: super::browser_protocol::web_mcp::CancelInvocationParams,
+        ) -> Result<super::browser_protocol::web_mcp::CancelInvocationReturns, X::Error> {
+            self.exec.execute(params).await
+        }
+        #[doc = "Event fired when new tools are added.\n\nStreams [`WebMCP.toolsAdded`](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/#event-toolsAdded) from now on."]
+        pub fn on_tools_added(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_mcp::EventToolsAdded> {
+            self.exec.events()
+        }
+        #[doc = "Event fired when tools are removed.\n\nStreams [`WebMCP.toolsRemoved`](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/#event-toolsRemoved) from now on."]
+        pub fn on_tools_removed(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_mcp::EventToolsRemoved> {
+            self.exec.events()
+        }
+        #[doc = "Event fired when a tool invocation starts.\n\nStreams [`WebMCP.toolInvoked`](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/#event-toolInvoked) from now on."]
+        pub fn on_tool_invoked(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_mcp::EventToolInvoked> {
+            self.exec.events()
+        }
+        #[doc = "Event fired when a tool invocation completes or fails.\n\nStreams [`WebMCP.toolResponded`](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/#event-toolResponded) from now on."]
+        pub fn on_tool_responded(
+            &self,
+        ) -> X::Events<super::browser_protocol::web_mcp::EventToolResponded> {
+            self.exec.events()
         }
     }
 }

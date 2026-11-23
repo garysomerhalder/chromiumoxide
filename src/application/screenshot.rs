@@ -15,7 +15,7 @@ use crate::domain::error::{Error, Result};
 use crate::domain::frame::World;
 use crate::domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale, Size, VisualViewport,
-    capture, plan_page, validate,
+    capture, ideal_viewport, plan_page, validate,
 };
 
 const PREPARE: &str = include_str!("scripts/prepare_screenshot.js");
@@ -28,8 +28,7 @@ const DEFAULT_MASK_COLOR: &str = "#F0F";
 
 const MASK: &str = "(i, selector, color) => { i.addMaskedElements(i.querySelectorAll(i.parseSelector(selector), i.document), color); }";
 
-const VIEWPORT_SIZE: &str =
-    "function() { return { width: window.innerWidth, height: window.innerHeight }; }";
+const VIEWPORT_SIZE: &str = "function() { return { width: window.innerWidth, height: window.innerHeight, scale: window.visualViewport ? window.visualViewport.scale : 1 }; }";
 
 /// Playwright's `_fullPageSize`.
 const FULL_PAGE_SIZE: &str = "function() {
@@ -137,10 +136,13 @@ impl Page {
                         "reading the viewport",
                     )
                     .await?;
-                Size {
-                    width: num(&v, "width"),
-                    height: num(&v, "height"),
-                }
+                ideal_viewport(
+                    Size {
+                        width: num(&v, "width"),
+                        height: num(&v, "height"),
+                    },
+                    num(&v, "scale"),
+                )
             }
         };
         let prepare = format!(

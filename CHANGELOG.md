@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.0] (in progress)
 
+### Milestone 12: every CDP domain
+
+- `page.protocol()` and `browser.protocol()`: a typed client for every
+  protocol domain, generated from the PDL (`chromiumoxide_cdp::cdp::domains`).
+  One async method per command (`protocol().performance().get_metrics(..)`)
+  and one typed stream per event (`protocol().network().on_request_will_be_sent()`),
+  with the protocol's descriptions as docs: 57 domains, 634 commands, 224
+  events. Deprecated items keep their raw types only.
+- `chromiumoxide_types::CommandExecutor`: the trait the clients run on, for
+  other sessions too.
+- A coverage check fails when a command or event has no typed method or a
+  domain has no integration test; `tests/integration/cdp_domains.rs` has one
+  real-Chromium test per domain.
+- `LaunchOptions::ignored_default_args`: Playwright's
+  `ignoreDefaultArgs: [...]`, dropping single default switches (e.g.
+  `--disable-extensions`); the default set is unchanged.
+- Fixed: on Chrome for Android, a page without `<meta name=viewport>`
+  (zoomed out to fit the screen) was screenshotted tiled 3x3; with no
+  viewport option, screenshots now measure the ideal viewport. Desktop
+  screenshots are unchanged. Found on a real emulator, where
+  `examples/android_device.rs` now passes end to end.
+- Fixed: required arrays were left out of the message when empty (the
+  generator skipped them), so Chromium rejected calls such as
+  `DOMSnapshot.captureSnapshot` with no computed styles or
+  `Network.setCookies([])` as "Invalid parameters".
+
 ### Milestone 11: Android
 
 - `Android::devices(AndroidDevicesOptions)` and `AndroidDevice` (Playwright's

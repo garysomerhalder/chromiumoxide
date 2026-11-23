@@ -260,6 +260,7 @@ fn render_with_playwright(
         headless: true,
         args: vec![],
         ignore_default_args: false,
+        ignored_default_args: vec![],
         user_data_dir: out.join("playwright-profile"),
         proxy: None,
         chromium_sandbox: false,

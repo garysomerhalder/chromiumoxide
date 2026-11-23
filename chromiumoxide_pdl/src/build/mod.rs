@@ -1,4 +1,5 @@
 mod builder;
+mod domains;
 mod event;
 pub mod generator;
 mod types;

@@ -237,6 +237,13 @@ impl Generator {
 
         let mod_name = self.target_mod.as_deref().unwrap_or("cdp");
         let events = self.generate_event_enums(&protocols);
+        let domain_clients = super::domains::generate(
+            &protocols,
+            &self.protocol_mods,
+            &super::domains::Filter {
+                experimental: self.with_experimental,
+            },
+        );
         let imports = self.serde_support.generate_serde_import_deserialize();
         let stream = quote! {
             /// This file is generated and should not be edited directly.
@@ -365,6 +372,8 @@ impl Generator {
                 #events
             }
             #modules
+
+            #domain_clients
 
             pub mod de {
                 use serde::{de, Deserialize, Deserializer};
@@ -1106,20 +1115,6 @@ impl SerdeSupport {
             SerdeSupport::Feature(feature) => {
                 quote! {
                      #[cfg_attr(feature = #feature, serde(skip_serializing_if = "Option::is_none"))]
-                }
-            }
-        }
-    }
-
-    pub(crate) fn generate_vec_field_attr(&self) -> TokenStream {
-        match self {
-            SerdeSupport::None => TokenStream::default(),
-            SerdeSupport::Default => quote! {
-                 #[serde(skip_serializing_if = "Vec::is_empty")]
-            },
-            SerdeSupport::Feature(feature) => {
-                quote! {
-                     #[cfg_attr(feature = #feature, serde(skip_serializing_if = "Vec::is_empty"))]
                 }
             }
         }
