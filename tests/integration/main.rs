@@ -5,6 +5,7 @@ mod android;
 mod aria;
 mod assertions;
 mod backlog;
+mod cdp_domains;
 mod client_certs;
 mod clock;
 mod context;

@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| Status | proposed |
+| Status | active |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
-| Started | — |
+| Started | 2026-11-23 |
 | Finished | — |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (Chrome for Testing 159, headless shell 159); CI ubuntu-latest |
@@ -73,6 +73,10 @@ updated mid-way and the counts change by more than 10%.
 - 2026-11-23: proposed.
 - 2026-11-23: GitHub CI skipped at Gary's request: the CI box now asks for the
   CI job's commands run locally; "Set it" changed with it.
+- 2026-11-23: active. Approach: the PDL generator emits a typed client per
+  domain (`page.protocol().performance().get_metrics(..)`, events as
+  `.on_metrics()` streams), so every command and event is covered and stays
+  covered when the protocol is updated.
 
 ## Set it
 
