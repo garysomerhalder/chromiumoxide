@@ -566,6 +566,31 @@ impl Page {
             .await
     }
 
+    /// `input.performActions` on this page.
+    pub(crate) async fn perform_actions(&self, actions: Value) -> Result<()> {
+        self.check_open()?;
+        self.inner
+            .bidi
+            .call(
+                "input.performActions",
+                json!({"context": self.inner.context, "actions": actions}),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Inserts text at the caret like typing it without key events
+    /// (Playwright's `keyboard.insertText`; BiDi has no command for it).
+    pub(crate) async fn insert_text(&self, text: &str) -> Result<()> {
+        self.call_json(
+            "(text) => { document.execCommand('insertText', false, text); }",
+            &[json!(text)],
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+
     pub(crate) fn now(&self) -> Duration {
         Duration::from_millis(self.inner.services.clock.now_ms())
     }

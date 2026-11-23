@@ -48,6 +48,47 @@ pub fn profile_files(headless: bool) -> Vec<(&'static str, &'static str)> {
     ]
 }
 
+/// The WebDriver `input.performActions` value of a Playwright key name
+/// (`"a"`, `"KeyA"`, `"Backspace"`, `"Shift"`, ...): printable keys are
+/// their character, the others WebDriver's private-use code points.
+pub fn webdriver_key(name: &str) -> Option<String> {
+    let key = crate::domain::input::key_description(name)
+        .map(|d| d.key)
+        .unwrap_or_else(|| name.to_owned());
+    if key.chars().count() == 1 {
+        return Some(key);
+    }
+    let code = match key.as_str() {
+        "Cancel" => '\u{E001}',
+        "Help" => '\u{E002}',
+        "Backspace" => '\u{E003}',
+        "Tab" => '\u{E004}',
+        "Clear" => '\u{E005}',
+        "Enter" => '\u{E007}',
+        "Shift" => '\u{E008}',
+        "Control" => '\u{E009}',
+        "Alt" => '\u{E00A}',
+        "Pause" => '\u{E00B}',
+        "Escape" => '\u{E00C}',
+        "PageUp" => '\u{E00E}',
+        "PageDown" => '\u{E00F}',
+        "End" => '\u{E010}',
+        "Home" => '\u{E011}',
+        "ArrowLeft" => '\u{E012}',
+        "ArrowUp" => '\u{E013}',
+        "ArrowRight" => '\u{E014}',
+        "ArrowDown" => '\u{E015}',
+        "Insert" => '\u{E016}',
+        "Delete" => '\u{E017}',
+        "Meta" => '\u{E03D}',
+        f if f.starts_with('F') && f[1..].parse::<u32>().is_ok_and(|n| (1..=12).contains(&n)) => {
+            char::from_u32(0xE031 + f[1..].parse::<u32>().unwrap() - 1)?
+        }
+        _ => return None,
+    };
+    Some(code.to_string())
+}
+
 /// Context options Firefox 159 cannot honour over WebDriver BiDi (no
 /// command for them), by their Playwright names. Creating a context with any
 /// of them set is an error rather than a silent no-op.
@@ -163,6 +204,19 @@ mod tests {
         assert!(files.iter().any(|(p, c)| *p == "user.js"
             && c.contains("toolkit.legacyUserProfileCustomizations.stylesheets")));
         assert!(profile_files(false).is_empty());
+    }
+
+    #[test]
+    fn webdriver_keys() {
+        assert_eq!(webdriver_key("a").as_deref(), Some("a"));
+        assert_eq!(webdriver_key("KeyA").as_deref(), Some("a"));
+        assert_eq!(webdriver_key("Backspace").as_deref(), Some("\u{E003}"));
+        assert_eq!(webdriver_key("Enter").as_deref(), Some("\u{E007}"));
+        assert_eq!(webdriver_key("Control").as_deref(), Some("\u{E009}"));
+        assert_eq!(webdriver_key("ArrowLeft").as_deref(), Some("\u{E012}"));
+        assert_eq!(webdriver_key("F12").as_deref(), Some("\u{E03C}"));
+        assert_eq!(webdriver_key("Space").as_deref(), Some(" "));
+        assert_eq!(webdriver_key("NoSuchKey"), None);
     }
 
     #[test]

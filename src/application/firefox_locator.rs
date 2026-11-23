@@ -7,6 +7,8 @@ use serde_json::{Value, json};
 
 use crate::application::firefox::Page;
 use crate::domain::error::{Error, Result};
+use crate::domain::firefox::webdriver_key;
+use crate::domain::input::{resolve_smart_modifier, split_shortcut};
 use crate::domain::selectors::{self, RoleOptions, TextMatch, compose};
 
 /// `page.locator(selector)` and the `get_by_*` builders on a Firefox page.
@@ -161,6 +163,196 @@ impl Locator {
             )
             .await?;
         Ok(v.as_str().unwrap_or_default().to_owned())
+    }
+
+    /// Playwright's actionability for pointer actions: waits until the
+    /// single element is in `states`, scrolls it into view if needed and
+    /// checks the centre hits it; returns that point (viewport CSS px).
+    async fn actionable_point(&self, states: &[&str]) -> Result<(f64, f64)> {
+        const PREPARE: &str = "async (i, selector, states) => { const parsed = i.parseSelector(selector); \
+             const els = i.querySelectorAll(parsed, document); \
+             if (els.length > 1) throw i.strictModeViolationError(parsed, els); \
+             if (!els.length) return { retry: 'waiting for element' }; \
+             const node = els[0]; \
+             const state = await i.checkElementStates(node, states, true); \
+             if (state === 'error:notconnected') return { retry: 'element is not attached' }; \
+             if (state && state.missingState) return { retry: 'element is not ' + state.missingState }; \
+             let box = node.getBoundingClientRect(); \
+             if (box.top < 0 || box.left < 0 || box.bottom > innerHeight || box.right > innerWidth) { \
+               node.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }); \
+               box = node.getBoundingClientRect(); } \
+             const point = { x: box.left + box.width / 2, y: box.top + box.height / 2 }; \
+             const hit = i.expectHitTarget(point, node); \
+             if (hit !== 'done') return { retry: hit.hitTargetDescription + ' intercepts pointer events' }; \
+             return { point }; }";
+        let deadline = self.page.now() + TIMEOUT;
+        let mut delay = Duration::from_millis(20);
+        loop {
+            let r = self
+                .page
+                .injected_call(PREPARE, &[json!(self.selector), json!(states)])
+                .await?;
+            if let Some(p) = r.get("point") {
+                return Ok((
+                    p["x"].as_f64().unwrap_or_default(),
+                    p["y"].as_f64().unwrap_or_default(),
+                ));
+            }
+            let last = r["retry"].as_str().unwrap_or_default();
+            if self.page.now() >= deadline {
+                return Err(Error::Timeout {
+                    ms: TIMEOUT.as_millis() as u64,
+                    action: format!("waiting for locator('{}'): {last}", self.selector),
+                });
+            }
+            self.page.sleep(delay).await;
+            delay = (delay * 2).min(Duration::from_millis(100));
+        }
+    }
+
+    fn pointer(actions: Vec<Value>) -> Value {
+        json!([{"type": "pointer", "id": "__chromiumoxide_mouse",
+                "parameters": {"pointerType": "mouse"}, "actions": actions}])
+    }
+
+    /// `locator.click()`.
+    pub async fn click(&self) -> Result<()> {
+        let (x, y) = self
+            .actionable_point(&["visible", "enabled", "stable"])
+            .await?;
+        self.page
+            .perform_actions(Self::pointer(vec![
+                json!({"type": "pointerMove", "x": x.round() as i64, "y": y.round() as i64}),
+                json!({"type": "pointerDown", "button": 0}),
+                json!({"type": "pointerUp", "button": 0}),
+            ]))
+            .await
+    }
+
+    /// `locator.hover()`.
+    pub async fn hover(&self) -> Result<()> {
+        let (x, y) = self.actionable_point(&["visible", "stable"]).await?;
+        self.page
+            .perform_actions(Self::pointer(vec![json!({
+                "type": "pointerMove", "x": x.round() as i64, "y": y.round() as i64
+            })]))
+            .await
+    }
+
+    /// `locator.focus()`.
+    pub async fn focus(&self) -> Result<()> {
+        self.read("(i, node) => { i.focusNode(node); }", &[])
+            .await
+            .map(drop)
+    }
+
+    /// `locator.fill(value)`: Playwright's injected `fill`, then the text
+    /// typed in (or the selection deleted for an empty value).
+    pub async fn fill(&self, value: &str) -> Result<()> {
+        let r = self
+            .read("(i, node, value) => i.fill(node, value)", &[json!(value)])
+            .await?;
+        match r.as_str() {
+            Some("done") => Ok(()),
+            Some("needsinput") => {
+                if value.is_empty() {
+                    self.press_keys("Delete").await
+                } else {
+                    self.page.insert_text(value).await
+                }
+            }
+            Some(other) => Err(Error::Evaluation(other.to_owned())),
+            None => Ok(()),
+        }
+    }
+
+    async fn press_keys(&self, shortcut: &str) -> Result<()> {
+        let keys: Vec<String> = split_shortcut(shortcut)
+            .iter()
+            .map(|k| resolve_smart_modifier(k, cfg!(target_os = "macos")))
+            .map(|k| {
+                webdriver_key(&k)
+                    .ok_or_else(|| Error::InvalidArgument(format!("Unknown key: \"{k}\"")))
+            })
+            .collect::<Result<_>>()?;
+        let mut actions: Vec<Value> = keys
+            .iter()
+            .map(|k| json!({"type": "keyDown", "value": k}))
+            .collect();
+        actions.extend(
+            keys.iter()
+                .rev()
+                .map(|k| json!({"type": "keyUp", "value": k})),
+        );
+        self.page
+            .perform_actions(
+                json!([{"type": "key", "id": "__chromiumoxide_keyboard", "actions": actions}]),
+            )
+            .await
+    }
+
+    /// `locator.press(key)`: focuses the element, then presses `key`
+    /// (`"Enter"`, `"Control+a"`, ...).
+    pub async fn press(&self, key: &str) -> Result<()> {
+        self.focus().await?;
+        self.press_keys(key).await
+    }
+
+    /// `locator.pressSequentially(text)`: focuses the element and types
+    /// `text` key by key.
+    pub async fn press_sequentially(&self, text: &str) -> Result<()> {
+        self.focus().await?;
+        let mut actions = Vec::new();
+        for c in text.chars() {
+            let value = if c == '\n' {
+                "\u{E007}".to_owned()
+            } else {
+                c.to_string()
+            };
+            actions.push(json!({"type": "keyDown", "value": value}));
+            actions.push(json!({"type": "keyUp", "value": value}));
+        }
+        self.page
+            .perform_actions(
+                json!([{"type": "key", "id": "__chromiumoxide_keyboard", "actions": actions}]),
+            )
+            .await
+    }
+
+    /// `locator.isChecked()` (waits for the element).
+    pub async fn is_checked(&self) -> Result<bool> {
+        let v = self
+            .read(
+                "(i, node) => { const s = i.elementState(node, 'checked', true); \
+                 if (s.received === 'error:notcheckbox') throw i.createStacklessError('Not a checkbox or radio button'); \
+                 return s.matches; }",
+                &[],
+            )
+            .await?;
+        Ok(v == Value::Bool(true))
+    }
+
+    async fn set_checked(&self, checked: bool) -> Result<()> {
+        if self.is_checked().await? == checked {
+            return Ok(());
+        }
+        self.click().await?;
+        if self.is_checked().await? != checked {
+            return Err(Error::Evaluation(
+                "Clicking the checkbox did not change its state".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// `locator.check()`.
+    pub async fn check(&self) -> Result<()> {
+        self.set_checked(true).await
+    }
+
+    /// `locator.uncheck()`.
+    pub async fn uncheck(&self) -> Result<()> {
+        self.set_checked(false).await
     }
 
     /// `locator.isVisible()` (does not wait).
