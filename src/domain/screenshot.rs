@@ -175,6 +175,26 @@ pub fn plan_page(
     Ok(Target::Viewport(rect))
 }
 
+/// The viewport size for a page without a viewport option, from
+/// `window.innerWidth` / `innerHeight` and the visual viewport scale.
+///
+/// Playwright's clip math divides the viewport by the scale, which assumes
+/// the ideal viewport. That holds on desktop (scale 1, or above 1 when
+/// pinch-zoomed). A mobile page wider than the screen (no
+/// `<meta name=viewport>` on Chrome for Android) is zoomed out below 1 and
+/// its window size is the wider layout: the ideal size is the window size
+/// times the scale.
+pub fn ideal_viewport(window: Size, scale: f64) -> Size {
+    if scale > 0.0 && scale < 1.0 {
+        Size {
+            width: (window.width * scale).round(),
+            height: (window.height * scale).round(),
+        }
+    } else {
+        window
+    }
+}
+
 /// Turns a target into the capture parameters using the live layout metrics.
 /// `css_ratio` is the device scale factor used for `scale: css`.
 pub fn capture(
