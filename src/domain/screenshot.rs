@@ -377,9 +377,10 @@ mod tests {
 
     /// Chrome on Android lays a page without `<meta name=viewport>` out 980
     /// CSS px wide and zooms out to fit the screen (scale < 1). Then
-    /// `innerWidth` / `innerHeight` already are the visible area; dividing
-    /// by the scale (right when zoomed in) made the clip 2.7x too large and
-    /// Chrome tiled the page 3x3. Numbers from a real emulator (Chrome 145,
+    /// `innerWidth` / `innerHeight` are the 980 px layout, not the ideal
+    /// viewport Playwright's clip math expects (it divides by the scale), so
+    /// the clip came out 2.7x too large and Chrome tiled the page 3x3. The
+    /// ideal viewport is the window size times the scale. Numbers from a real emulator (Chrome 145,
     /// 1080x1944 screen, DPR 3).
     #[test]
     fn zoomed_out_mobile_page_captures_the_visible_area() {
@@ -388,18 +389,38 @@ mod tests {
             page_y: 0.0,
             scale: 0.36734694242477417,
         };
+        // window.innerWidth / innerHeight with no viewport option.
         let inner = Size {
             width: 980.0,
             height: 1764.0,
         };
+        let viewport = ideal_viewport(inner, vv.scale);
+        assert_eq!(
+            viewport,
+            Size {
+                width: 360.0,
+                height: 648.0
+            }
+        );
         let c = capture(
-            plan_page(&opts(), inner, None).unwrap(),
+            plan_page(&opts(), viewport, None).unwrap(),
             vv,
             ScreenshotScale::Device,
             3.0,
         );
         assert_eq!(c.clip, Rect::new(0.0, 0.0, 980.0, 1764.0));
         assert_eq!(c.scale, 0.36734694242477417);
+    }
+
+    /// Desktop and zoomed-in pages keep the window size, as in Playwright.
+    #[test]
+    fn ideal_viewport_keeps_the_window_size_at_scale_one_or_more() {
+        let inner = Size {
+            width: 1280.0,
+            height: 720.0,
+        };
+        assert_eq!(ideal_viewport(inner, 1.0), inner);
+        assert_eq!(ideal_viewport(inner, 2.5), inner);
     }
 
     #[test]
