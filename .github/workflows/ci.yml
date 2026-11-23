@@ -72,9 +72,17 @@ jobs:
         run: |
           npm install -g playwright@1.65.1
           npx -y playwright@1.65.1 install --with-deps chromium chromium-headless-shell ffmpeg
+      - name: Install Electron and Xvfb (Electron tests)
+        run: |
+          sudo apt-get install -y xvfb
+          npm install --prefix "$RUNNER_TEMP/electron" electron
+          # On a fresh install, require('electron') first downloads the binary
+          # and prints "Downloading Electron binary..."; the path is the last line.
+          echo "ELECTRON_PATH=$(node -e "console.log(require('$RUNNER_TEMP/electron/node_modules/electron'))" | tail -n 1)" >> "$GITHUB_ENV"
       - name: Integration and pixel-parity tests
         env:
           CHROMIUMOXIDE_REQUIRE_PARITY: "1"
+          CHROMIUMOXIDE_REQUIRE_ELECTRON: "1"
         run: cargo test --test architecture --test integration -- --test-threads=2
 
   test-fetcher:

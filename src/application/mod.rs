@@ -11,6 +11,7 @@ pub mod credentials;
 pub mod debugger;
 pub mod discovery;
 pub mod download;
+pub mod electron;
 pub mod element_handle;
 pub mod events;
 pub mod expect;

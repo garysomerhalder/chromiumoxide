@@ -11,6 +11,7 @@ mod context_events;
 mod coverage;
 mod debugger;
 mod dragdrop;
+mod electron;
 mod events;
 mod extras;
 mod extras2;

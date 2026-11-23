@@ -13,7 +13,10 @@ use tokio::process::{Child, Command};
 
 use crate::adapters::cdp::Connection;
 use crate::domain::error::{Error, Result};
-use crate::ports::{BrowserLauncher, BrowserProcess, Channel, LaunchCommand, Launched, Transport};
+use crate::ports::{
+    BrowserLauncher, BrowserProcess, Channel, ElectronCommand, LaunchCommand, Launched,
+    LaunchedElectron, Transport,
+};
 
 /// Spawns browsers with tokio.
 #[derive(Debug, Default, Clone, Copy)]
@@ -23,6 +26,115 @@ impl BrowserLauncher for TokioLauncher {
     fn launch(&self, command: LaunchCommand) -> BoxFuture<'static, Result<Launched>> {
         launch(command).boxed()
     }
+
+    fn launch_electron(
+        &self,
+        command: ElectronCommand,
+    ) -> BoxFuture<'static, Result<LaunchedElectron>> {
+        launch_electron(command).boxed()
+    }
+}
+
+/// Playwright's `electron.launch`: the app prints `Debugger listening on
+/// ws://…` (main process) and `DevTools listening on ws://…` (renderers) on
+/// stderr; both are connected.
+async fn launch_electron(command: ElectronCommand) -> Result<LaunchedElectron> {
+    let mut cmd = Command::new(&command.program);
+    cmd.args(&command.args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    if let Some(env) = &command.env {
+        cmd.env_clear().envs(env.iter().cloned());
+    }
+    cmd.env_remove("NODE_OPTIONS");
+    if let Some(dir) = &command.cwd {
+        cmd.current_dir(dir);
+    }
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| Error::Launch(format!("{}: {e}", command.program.display())))?;
+    let pid = child.id();
+    let stderr = child.stderr.take().expect("piped stderr");
+    let child = Arc::new(tokio::sync::Mutex::new(Some(child)));
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            tracing::debug!(target: "chromiumoxide::electron", "{line}");
+            let _ = tx.send(line);
+        }
+    });
+    let mut node_url = None;
+    let mut devtools_url = None;
+    let mut log = Vec::new();
+    let found = tokio::time::timeout(Duration::from_millis(command.timeout_ms.max(1)), async {
+        while node_url.is_none() || devtools_url.is_none() {
+            let Some(line) = rx.recv().await else {
+                return false;
+            };
+            if let Some(url) = line.strip_prefix("Debugger listening on ") {
+                node_url = Some(url.trim().to_owned());
+            } else if let Some(url) = line.strip_prefix("DevTools listening on ") {
+                devtools_url = Some(url.trim().to_owned());
+            } else if line.contains("Unable to open X display") || line.contains("Missing X server")
+            {
+                log.push(line);
+                return false;
+            } else {
+                log.push(line);
+            }
+        }
+        true
+    })
+    .await;
+    let fail = |msg: String, log: &[String]| {
+        let tail = log
+            .iter()
+            .rev()
+            .take(20)
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        Error::Launch(format!("{msg}\n{tail}"))
+    };
+    let (node_url, devtools_url) = match (found, node_url, devtools_url) {
+        (Ok(true), Some(n), Some(d)) => (n, d),
+        (Err(_), ..) => {
+            if let Some(mut c) = child.lock().await.take() {
+                let _ = c.kill().await;
+            }
+            return Err(fail(
+                "Timed out waiting for the Electron app's debugging endpoints".into(),
+                &log,
+            ));
+        }
+        _ => {
+            if let Some(mut c) = child.lock().await.take() {
+                let _ = c.kill().await;
+            }
+            let hint = if log
+                .iter()
+                .any(|l| l.contains("X display") || l.contains("X server"))
+            {
+                "Unable to open X display! Run under Xvfb (e.g. xvfb-run) or set DISPLAY."
+            } else {
+                "The Electron app exited before it was ready"
+            };
+            return Err(fail(hint.into(), &log));
+        }
+    };
+    // Keep draining stderr so the app never blocks on a full pipe.
+    tokio::spawn(async move { while rx.recv().await.is_some() {} });
+    let node = crate::adapters::transport::websocket::connect(&node_url).await?;
+    let browser = crate::adapters::transport::websocket::connect(&devtools_url).await?;
+    Ok(LaunchedElectron {
+        browser: Arc::new(Connection::spawn(browser)),
+        node: Arc::new(Connection::spawn(node)),
+        process: Box::new(Process { child, pid }),
+    })
 }
 
 struct Process {

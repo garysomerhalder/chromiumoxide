@@ -6,10 +6,16 @@ Gary owns the repo and is not a developer: keep status updates short and plain.
 
 ## Scope
 
-- Chromium only (Chrome, Chrome for Testing, chrome-headless-shell), driven over CDP.
-- Firefox / WebKit are out of scope for now. The architecture keeps the protocol
-  behind ports, so a WebDriver BiDi adapter could be added later as its own milestone.
-- Checklists live in `docs/PARITY.md`; the design lives in `docs/ARCHITECTURE.md`.
+- Chromium (Chrome, Chrome for Testing, chrome-headless-shell), driven over CDP,
+  is the base and the device-mockup contract.
+- Since 2026-11-23 also in scope (Gary's request): Electron, Android, the rest
+  of CDP, Firefox (WebDriver BiDi), WebKit and Tauri, in the order and with
+  the plan in `docs/BACKLOG-PLATFORMS.md`. None of it may change Chromium's
+  default discovery, launch or rendering.
+- Checklists live in `docs/PARITY.md`; the design lives in `docs/ARCHITECTURE.md`;
+  open work lives in `docs/BACKLOG.md` and `docs/BACKLOG-PLATFORMS.md`.
+- Goals live in `goals/`, one file per goal, in the shape `goals/README.md`
+  sets out; keep each goal's Status log and "Done when" boxes current.
 
 ## Hard compatibility contract (garysomerhalder/device-mockup)
 

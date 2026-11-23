@@ -402,6 +402,48 @@ impl Browser {
         Ok(browser)
     }
 
+    /// An Electron app's DevTools connection: a browser whose default
+    /// context (with `context` options) holds the app's windows.
+    pub(crate) async fn from_electron(
+        services: Services,
+        cdp: Arc<dyn CdpSession>,
+        process: Box<dyn BrowserProcess>,
+        context: ContextOptions,
+    ) -> Result<(Browser, BrowserContext)> {
+        let browser = Browser {
+            inner: Arc::new(BrowserInner {
+                cdp,
+                services,
+                shared: Mutex::new(None),
+                headless: false,
+                process: Mutex::new(Some(process)),
+                user_data_dir: None,
+                executable: None,
+                ws_endpoint: None,
+                closed: AtomicBool::new(false),
+                tracing: Mutex::new(None),
+                remove_profile: false,
+                bridge: Mutex::new(None),
+                registry_file: Mutex::new(None),
+                launch_args: None,
+                launch_proxy: None,
+                artifacts: Default::default(),
+                subscribers: Mutex::new(Vec::new()),
+                disconnected: AtomicBool::new(false),
+            }),
+        };
+        let ctx = browser
+            .handshake(Some(context))
+            .await?
+            .ok_or_else(|| Error::Launch("Electron: no default context".into()))?;
+        Ok((browser, ctx))
+    }
+
+    /// Takes the launched process (the caller ends it).
+    pub(crate) fn take_process(&self) -> Option<Box<dyn BrowserProcess>> {
+        self.inner.process.lock().unwrap().take()
+    }
+
     /// Playwright's `browser.bind()`: lets other clients
     /// ([`Chromium::connect`](crate::Chromium::connect)) share this browser
     /// over a local WebSocket, whatever channel it was launched with. Their

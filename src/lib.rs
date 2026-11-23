@@ -39,6 +39,10 @@ pub use application::credentials::{Credential, Credentials, NewCredential};
 pub use application::debugger::{Debugger, PausedDetails};
 pub use application::discovery::Discovered;
 pub use application::download::Download;
+pub use application::electron::{
+    ElectronApplication, ElectronConsoleMessage, ElectronEvent, ElectronHandle,
+    ElectronLaunchOptions, ElectronProcess,
+};
 pub use application::events::{ConsoleMessage, Dialog, EventWaiter, PageEvent};
 pub use application::expect::{
     Assertion, Expect, LocatorAssertions, PageAssertions, ResponseAssertions, expect,
@@ -110,6 +114,28 @@ pub use domain::url_matcher::UrlMatcher;
 pub use domain::video::RecordVideo;
 pub use domain::webmcp::{WebMcpAnnotations, WebMcpTool};
 pub use ports::Channel;
+
+/// Playwright's `_electron`: launches Electron apps.
+pub struct Electron;
+
+impl Electron {
+    /// `electron.launch(options)`.
+    pub async fn launch(options: ElectronLaunchOptions) -> Result<ElectronApplication> {
+        let found = if options.executable_path.is_none() {
+            Self::find_executable()
+        } else {
+            None
+        };
+        ElectronApplication::launch(Chromium::services(), options, found).await
+    }
+
+    /// The Electron binary `require('electron')` would use:
+    /// `ELECTRON_OVERRIDE_DIST_PATH`, else `node_modules/electron` in the
+    /// working directory or a parent.
+    pub fn find_executable() -> Option<std::path::PathBuf> {
+        adapters::electron::find_executable()
+    }
+}
 
 /// A launched browser serving clients (Playwright's `BrowserServer`).
 pub struct BrowserServer {
