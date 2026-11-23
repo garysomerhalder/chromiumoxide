@@ -405,6 +405,20 @@ mod tests {
         );
     }
 
+    /// Playwright's `ignoreDefaultArgs: ['--disable-extensions']`: only the
+    /// named default switches go; the rest of the preset stays.
+    #[test]
+    fn ignored_default_args_drop_only_those_switches() {
+        let mut s = spec(BrowserKind::HeadlessShell, true);
+        s.ignored_default_args = vec!["--disable-extensions".into(), "--mute-audio".into()];
+        let args = command_line(&s);
+        assert!(!args.iter().any(|a| a == "--disable-extensions"));
+        assert!(!args.iter().any(|a| a == "--mute-audio"));
+        let mut expected = command_line(&spec(BrowserKind::HeadlessShell, true));
+        expected.retain(|a| a != "--disable-extensions" && a != "--mute-audio");
+        assert_eq!(args, expected);
+    }
+
     #[test]
     fn kind_is_inferred_from_the_executable_name() {
         use BrowserKind::*;

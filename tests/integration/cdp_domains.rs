@@ -21,7 +21,7 @@ use chromiumoxide::cdp::browser_protocol::{
     web_mcp,
 };
 use chromiumoxide::cdp::js_protocol::{debugger, heap_profiler, profiler, runtime};
-use chromiumoxide::{Browser, Chromium, Error, LaunchOptions, Page};
+use chromiumoxide::{Browser, Channel, Chromium, Error, LaunchOptions, Page};
 use futures::StreamExt;
 
 use crate::server::TestServer;
@@ -45,6 +45,35 @@ fn answered<T: std::fmt::Debug>(result: Result<T, Error>) {
         }
         Err(e) => panic!("not a protocol answer: {e}"),
     }
+}
+
+/// A Chrome for Testing (full Chrome, not the headless shell) page, for the
+/// domains only full Chrome serves; `None` (the test is skipped) when none is
+/// installed.
+async fn full_chrome_page(options: LaunchOptions) -> Option<(Browser, Page)> {
+    let Some(exe) = crate::full_chromium() else {
+        eprintln!("skipped: no full Chromium installed");
+        return None;
+    };
+    let browser = Chromium::launch(LaunchOptions {
+        executable_path: Some(exe),
+        ..options
+    })
+    .await
+    .unwrap();
+    let page = browser.new_page().await.unwrap();
+    Some((browser, page))
+}
+
+async fn main_frame(page: &Page) -> page::FrameId {
+    page.protocol()
+        .page()
+        .get_frame_tree(page::GetFrameTreeParams::default())
+        .await
+        .unwrap()
+        .frame_tree
+        .frame
+        .id
 }
 
 async fn next<S: futures::Stream + Unpin>(stream: &mut S) -> S::Item {
@@ -120,13 +149,18 @@ async fn cdp_audits() {
 
 #[tokio::test]
 async fn cdp_autofill() {
-    let (browser, page) = page().await;
-    answered(
-        page.protocol()
-            .autofill()
-            .set_addresses(autofill::SetAddressesParams::new(vec![]))
-            .await,
-    );
+    let Some((browser, page)) = full_chrome_page(LaunchOptions::default()).await else {
+        return;
+    };
+    let autofill = page.protocol().autofill();
+    autofill
+        .enable(autofill::EnableParams::default())
+        .await
+        .unwrap();
+    autofill
+        .set_addresses(autofill::SetAddressesParams::new(vec![]))
+        .await
+        .unwrap();
     browser.close().await.unwrap();
 }
 
@@ -155,16 +189,21 @@ async fn cdp_background_service() {
 
 #[tokio::test]
 async fn cdp_bluetooth_emulation() {
-    let (browser, page) = page().await;
-    answered(
-        page.protocol()
-            .bluetooth_emulation()
-            .enable(bluetooth_emulation::EnableParams::new(
-                bluetooth_emulation::CentralState::PoweredOn,
-                true,
-            ))
-            .await,
-    );
+    let Some((browser, _page)) = full_chrome_page(LaunchOptions::default()).await else {
+        return;
+    };
+    let bluetooth = browser.protocol().bluetooth_emulation();
+    bluetooth
+        .enable(bluetooth_emulation::EnableParams::new(
+            bluetooth_emulation::CentralState::PoweredOn,
+            true,
+        ))
+        .await
+        .unwrap();
+    bluetooth
+        .disable(bluetooth_emulation::DisableParams::default())
+        .await
+        .unwrap();
     browser.close().await.unwrap();
 }
 
@@ -197,9 +236,13 @@ async fn cdp_cache_storage() {
     browser.close().await.unwrap();
 }
 
+/// Playwright's default arguments turn Media Router off, so Chrome answers
+/// `Cast.enable` with "You must enable the Media Router feature".
 #[tokio::test]
 async fn cdp_cast() {
-    let (browser, page) = page().await;
+    let Some((browser, page)) = full_chrome_page(LaunchOptions::default()).await else {
+        return;
+    };
     answered(
         page.protocol()
             .cast()
@@ -368,7 +411,11 @@ async fn cdp_dom_storage() {
     let cdp = page.protocol();
     let key = cdp
         .storage()
-        .get_storage_key(storage::GetStorageKeyParams::default())
+        .get_storage_key(
+            storage::GetStorageKeyParams::builder()
+                .frame_id(main_frame(&page).await)
+                .build(),
+        )
         .await
         .unwrap();
     let items = cdp
@@ -428,14 +475,52 @@ async fn cdp_event_breakpoints() {
 
 #[tokio::test]
 async fn cdp_extensions() {
-    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
-    answered(
-        browser
-            .protocol()
-            .extensions()
+    let Some((browser, _page)) = full_chrome_page(LaunchOptions {
+        args: vec!["--enable-unsafe-extension-debugging".into()],
+        // Playwright's `ignoreDefaultArgs: ['--disable-extensions']`.
+        ignored_default_args: vec!["--disable-extensions".into()],
+        ..Default::default()
+    })
+    .await
+    else {
+        return;
+    };
+    let dir = std::env::temp_dir().join(format!("cox-extension-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("manifest.json"),
+        r#"{"manifest_version": 3, "name": "cox-test", "version": "1.0"}"#,
+    )
+    .unwrap();
+    let extensions = browser.protocol().extensions();
+    let loaded = extensions
+        .load_unpacked(extensions::LoadUnpackedParams::new(dir.to_string_lossy()))
+        .await
+        .unwrap();
+    assert_eq!(loaded.id.len(), 32, "{}", loaded.id);
+    let mut listed = Vec::new();
+    for _ in 0..50 {
+        listed = extensions
             .get_extensions(extensions::GetExtensionsParams::default())
-            .await,
+            .await
+            .unwrap()
+            .extensions;
+        if !listed.is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(
+        listed
+            .iter()
+            .any(|e| e.id == loaded.id && e.name == "cox-test"),
+        "{listed:?}"
     );
+    extensions
+        .uninstall(extensions::UninstallParams::new(loaded.id))
+        .await
+        .unwrap();
+    std::fs::remove_dir_all(&dir).unwrap();
     browser.close().await.unwrap();
 }
 
@@ -454,28 +539,41 @@ async fn cdp_fed_cm() {
     browser.close().await.unwrap();
 }
 
+/// On a page, Fetch belongs to the page's own routing (`page.route`), which
+/// continues every request it is not asked to handle; the raw domain is driven
+/// here on the browser target, which intercepts every page's requests.
 #[tokio::test]
 async fn cdp_fetch() {
-    let server = TestServer::start().await;
-    server.route("/fetch.html", "text/html", "<p>x</p>", 0);
     let (browser, page) = page().await;
-    let fetch = page.protocol().fetch();
+    let fetch = browser.protocol().fetch();
     let mut paused = fetch.on_request_paused();
     fetch.enable(fetch::EnableParams::default()).await.unwrap();
     let goto = {
         let page = page.clone();
-        let url = server.url("/fetch.html");
-        tokio::spawn(async move { page.goto(&url).await })
+        tokio::spawn(async move { page.goto("https://cox.invalid/fetch.html").await })
     };
     let request = next(&mut paused).await;
-    assert!(request.request.url.ends_with("/fetch.html"));
+    assert_eq!(request.request.url, "https://cox.invalid/fetch.html");
     fetch
-        .continue_request(fetch::ContinueRequestParams::new(
-            request.request_id.clone(),
-        ))
+        .fulfill_request(
+            fetch::FulfillRequestParams::builder()
+                .request_id(request.request_id.clone())
+                .response_code(200)
+                .response_header(fetch::HeaderEntry::new("Content-Type", "text/html"))
+                .body(chromiumoxide_types::Binary::from(
+                    "PGgxPmZ1bGZpbGxlZDwvaDE+".to_string(),
+                ))
+                .build()
+                .unwrap(),
+        )
         .await
         .unwrap();
     goto.await.unwrap().unwrap();
+    let h1: String = page
+        .evaluate("document.querySelector('h1').textContent")
+        .await
+        .unwrap();
+    assert_eq!(h1, "fulfilled");
     browser.close().await.unwrap();
 }
 
@@ -488,7 +586,11 @@ async fn cdp_file_system() {
     let cdp = page.protocol();
     let key = cdp
         .storage()
-        .get_storage_key(storage::GetStorageKeyParams::default())
+        .get_storage_key(
+            storage::GetStorageKeyParams::builder()
+                .frame_id(main_frame(&page).await)
+                .build(),
+        )
         .await
         .unwrap();
     answered(
@@ -630,20 +732,19 @@ async fn cdp_layer_tree() {
 
 #[tokio::test]
 async fn cdp_log() {
+    let server = TestServer::start().await;
+    server.route("/log.html", "text/html", "<p>x</p>", 0);
     let (browser, page) = page().await;
+    page.goto(&server.url("/log.html")).await.unwrap();
     let log = page.protocol().log();
     let mut entries = log.on_entry_added();
     log.enable(log::EnableParams::default()).await.unwrap();
-    log.start_violations_report(log::StartViolationsReportParams::new(vec![
-        log::ViolationSetting::new(log::ViolationSettingName::DiscouragedApiUse, 0.0),
-    ]))
-    .await
-    .unwrap();
-    page.evaluate::<()>("document.write('<p>x</p>')")
+    page.evaluate::<()>("fetch('/missing').then(() => {}); undefined")
         .await
         .unwrap();
     let entry = next(&mut entries).await;
-    assert!(!entry.entry.text.is_empty());
+    assert_eq!(entry.entry.source, log::LogEntrySource::Network);
+    assert!(entry.entry.text.contains("404"), "{}", entry.entry.text);
     browser.close().await.unwrap();
 }
 
@@ -770,16 +871,24 @@ async fn cdp_preload() {
     browser.close().await.unwrap();
 }
 
+/// `PWA` is served on the browser target of full Chrome (on a page session
+/// Chrome 159 crashes).
 #[tokio::test]
 async fn cdp_pwa() {
-    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
-    answered(
-        browser
-            .protocol()
-            .pwa()
-            .get_os_app_state(pwa::GetOsAppStateParams::new("https://example.com/app"))
-            .await,
-    );
+    let Some((browser, _page)) = full_chrome_page(LaunchOptions::default()).await else {
+        return;
+    };
+    match browser
+        .protocol()
+        .pwa()
+        .get_os_app_state(pwa::GetOsAppStateParams::new("https://example.com/app"))
+        .await
+    {
+        Err(Error::Protocol { message, .. }) => {
+            assert!(message.contains("Unknown web-app manifest id"), "{message}")
+        }
+        other => panic!("expected an unknown-app answer, got {other:?}"),
+    }
     browser.close().await.unwrap();
 }
 
@@ -792,8 +901,14 @@ async fn cdp_security() {
         .enable(security::EnableParams::default())
         .await
         .unwrap();
-    page.goto("data:text/html,<p>x</p>").await.unwrap();
-    next(&mut states).await;
+    let server = TestServer::start().await;
+    server.route("/security.html", "text/html", "<p>x</p>", 0);
+    page.goto(&server.url("/security.html")).await.unwrap();
+    let state = next(&mut states).await;
+    assert_eq!(
+        state.visible_security_state.security_state,
+        security::SecurityState::Insecure
+    );
     browser.close().await.unwrap();
 }
 
@@ -812,15 +927,27 @@ async fn cdp_service_worker() {
     browser.close().await.unwrap();
 }
 
+/// Chrome for Testing on Linux does not build the SmartCardEmulation handler
+/// (the Web Smart Card API ships on ChromeOS), so the command is sent and
+/// Chromium answers "wasn't found". This test fails, on purpose, the day a
+/// Linux build starts serving it, so the test can be made to drive it.
 #[tokio::test]
 async fn cdp_smart_card_emulation() {
-    let (browser, page) = page().await;
-    answered(
-        page.protocol()
-            .smart_card_emulation()
-            .enable(smart_card_emulation::EnableParams::default())
-            .await,
-    );
+    let Some((browser, page)) = full_chrome_page(LaunchOptions::default()).await else {
+        return;
+    };
+    match page
+        .protocol()
+        .smart_card_emulation()
+        .enable(smart_card_emulation::EnableParams::default())
+        .await
+    {
+        Err(Error::Protocol { code, message, .. }) => {
+            assert_eq!(code, -32601, "{message}");
+            assert!(message.contains("SmartCardEmulation.enable"), "{message}");
+        }
+        other => panic!("SmartCardEmulation is served now: {other:?}"),
+    }
     browser.close().await.unwrap();
 }
 
@@ -868,34 +995,44 @@ async fn cdp_target() {
     browser.close().await.unwrap();
 }
 
+/// Tethering is served on the browser target when the connection is a
+/// WebSocket (Chrome has an HTTP handler to tether through).
 #[tokio::test]
 async fn cdp_tethering() {
-    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
-    answered(
-        browser
-            .protocol()
-            .tethering()
-            .unbind(tethering::UnbindParams::new(0))
-            .await,
-    );
+    let browser = Chromium::launch(LaunchOptions {
+        channel: Channel::WebSocket,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let tethering = browser.protocol().tethering();
+    tethering
+        .bind(tethering::BindParams::new(port as i64))
+        .await
+        .unwrap();
+    tethering
+        .unbind(tethering::UnbindParams::new(port as i64))
+        .await
+        .unwrap();
     browser.close().await.unwrap();
 }
 
 #[tokio::test]
 async fn cdp_tracing() {
     let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
-    let categories = browser
-        .protocol()
-        .tracing()
-        .get_categories(tracing::GetCategoriesParams::default())
+    let tracing = browser.protocol().tracing();
+    let mut complete = tracing.on_tracing_complete();
+    tracing
+        .start(tracing::StartParams::default())
         .await
         .unwrap();
-    assert!(
-        categories
-            .categories
-            .iter()
-            .any(|c| c == "devtools.timeline")
-    );
+    tracing.end(tracing::EndParams::default()).await.unwrap();
+    next(&mut complete).await;
     browser.close().await.unwrap();
 }
 
@@ -908,7 +1045,7 @@ async fn cdp_web_audio() {
         .enable(web_audio::EnableParams::default())
         .await
         .unwrap();
-    page.evaluate::<()>("window.ctx = new AudioContext()")
+    page.evaluate::<()>("window.ctx = new AudioContext(); undefined")
         .await
         .unwrap();
     let context = next(&mut created).await;
@@ -959,13 +1096,17 @@ async fn cdp_web_mcp() {
 #[tokio::test]
 async fn cdp_debugger() {
     let (browser, page) = page().await;
-    let debugger = page.protocol().debugger();
+    let cdp = page.protocol();
+    let debugger = cdp.debugger();
     let mut parsed = debugger.on_script_parsed();
     debugger
         .enable(debugger::EnableParams::default())
         .await
         .unwrap();
-    page.evaluate::<i64>("40 + 2\n//# sourceURL=cox-debugger.js")
+    cdp.runtime()
+        .evaluate(runtime::EvaluateParams::new(
+            "40 + 2\n//# sourceURL=cox-debugger.js",
+        ))
         .await
         .unwrap();
     let script = loop {
@@ -978,7 +1119,11 @@ async fn cdp_debugger() {
         .get_script_source(debugger::GetScriptSourceParams::new(script.script_id))
         .await
         .unwrap();
-    assert!(source.script_source.starts_with("40 + 2"));
+    assert!(
+        source.script_source.starts_with("40 + 2"),
+        "{}",
+        source.script_source
+    );
     browser.close().await.unwrap();
 }
 
@@ -999,7 +1144,7 @@ async fn cdp_heap_profiler() {
         .stop_sampling(heap_profiler::StopSamplingParams::default())
         .await
         .unwrap();
-    assert!(profile.profile.head.call_frame.function_name.is_empty());
+    assert_eq!(profile.profile.head.call_frame.function_name, "(root)");
     browser.close().await.unwrap();
 }
 
