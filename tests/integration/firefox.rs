@@ -182,3 +182,70 @@ async fn firefox_locators_query_the_page() {
     assert!(err.to_string().contains("strict mode violation"), "{err}");
     browser.close().await.unwrap();
 }
+
+/// Input over BiDi `input.performActions`: click, fill, press (named keys
+/// and chords), press_sequentially, check/uncheck, hover.
+#[tokio::test]
+async fn firefox_locators_act_on_elements() {
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<div style='height: 1500px'>spacer</div>
+         <button onclick=\"this.textContent = 'clicked ' + event.detail\">Go</button>
+         <input id=i><input type=checkbox id=c>
+         <div id=h onmouseover=\"this.textContent = 'hovered'\">hover me</div>
+         <input id=k onkeydown=\"this.dataset.keys = (this.dataset.keys || '') + event.key + ','\">",
+    )
+    .await
+    .unwrap();
+    // Below the fold: click scrolls it into view first.
+    page.locator("button").click().await.unwrap();
+    assert_eq!(
+        page.locator("button").inner_text().await.unwrap(),
+        "clicked 1"
+    );
+
+    let input = page.locator("#i");
+    input.fill("hello").await.unwrap();
+    assert_eq!(input.input_value().await.unwrap(), "hello");
+    input.press("Backspace").await.unwrap();
+    assert_eq!(input.input_value().await.unwrap(), "hell");
+    input.press("Control+a").await.unwrap();
+    input.press_sequentially("yo!").await.unwrap();
+    assert_eq!(input.input_value().await.unwrap(), "yo!");
+    input.fill("").await.unwrap();
+    assert_eq!(input.input_value().await.unwrap(), "");
+
+    let check = page.locator("#c");
+    check.check().await.unwrap();
+    assert!(
+        page.evaluate::<bool>("document.getElementById('c').checked")
+            .await
+            .unwrap()
+    );
+    check.uncheck().await.unwrap();
+    assert!(
+        !page
+            .evaluate::<bool>("document.getElementById('c').checked")
+            .await
+            .unwrap()
+    );
+
+    page.locator("#h").hover().await.unwrap();
+    assert_eq!(page.locator("#h").inner_text().await.unwrap(), "hovered");
+
+    page.locator("#k").press("Enter").await.unwrap();
+    page.locator("#k").press("ArrowLeft").await.unwrap();
+    assert_eq!(
+        page.locator("#k")
+            .get_attribute("data-keys")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("Enter,ArrowLeft,")
+    );
+    browser.close().await.unwrap();
+}
