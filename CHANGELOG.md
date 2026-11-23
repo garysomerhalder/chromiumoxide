@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.0] (in progress)
 
+### Milestone 9: Playwright 1.66 alpha
+
+- `ContextOptions::locate_only_visible` (Playwright 1.66's
+  `locateOnlyVisible`, built from the alpha of 2026-11-22): locators find
+  only visible elements and `first()` / `last()` / `nth()` pick among
+  visible ones; explicit visibility filters win; selector shortcuts, `$`
+  and element handles are unaffected.
+- The pixel-parity test passes on Chromium 159.0.8154.13 (the 1.66 alpha's
+  browser).
+
 ### Milestone 8: the 1.65.1 backlog (options, events, methods)
 
 - Input `delay` on clicks, presses and typing (locators, shortcuts,

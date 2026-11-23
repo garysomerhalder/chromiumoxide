@@ -25,8 +25,8 @@ classes against the code. Earlier milestones tracked methods only; the gaps
 below are mostly options and events, and almost all already existed in 1.63.
 
 **Status: sections 1 to 4 are done (milestone 8, see
-[`PARITY.md`](PARITY.md) section 8).** What is left is section 5, which waits
-for the Playwright 1.66 release.
+[`PARITY.md`](PARITY.md) section 8); section 5 is built from the 1.66 alpha
+(milestone 9, section 9) and needs a check against the 1.66 release.**
 
 ## 1. Options of existing methods (done, M8)
 
@@ -69,14 +69,16 @@ for the Playwright 1.66 release.
 | Hit-target message | A blocked click retries with `{"hitTargetDescription":"<body>…</body>"} intercepts pointer events`; Playwright logs `<body>…</body> intercepts pointer events`. |
 | Environment note | `CLAUDE.md` still says the image has Playwright 1.63; this session installed 1.65.1 (fresh containers start with 1.63 until the image is updated). Left for Gary to update; not a code change. |
 
-## 5. Next Playwright (1.66, not released yet)
+## 5. Next Playwright (1.66, not released yet; built from the alpha, M9)
 
-Seen in the 1.66 alpha of 2026-11-22. Wait for the release notes before building.
+Seen in the 1.66 alpha of 2026-11-22. Built against the alpha in milestone 9
+(still unreleased on 2026-11-23); compare with the release notes when 1.66
+ships and adjust if the behaviour changed.
 
 | Item | Notes |
 |---|---|
-| `locateOnlyVisible` | New context option (also on `browser.newPage` and `launchPersistentContext`): locators match only visible elements, except where the chain already filters on visibility. |
-| Chromium 159.0.8154.13 | A patch build of the same Chromium; re-run the pixel-parity test against it. |
+| `locateOnlyVisible` | Done (M9): `ContextOptions::locate_only_visible`, checked against selector rewrites recorded with the alpha. |
+| Chromium 159.0.8154.13 | Done (M9): the pixel-parity test passes with Chrome for Testing 159.0.8154.13 (`CHROME=<chrome-headless-shell>`). |
 | Test runner `launchOptions` | Test-runner config; out of scope. |
 
 ## 6. Out of scope (recorded so they are not re-found)
