@@ -26,7 +26,7 @@ use crate::domain::input::MouseButton;
 use crate::domain::screenshot::{Rect, ScreenshotOptions, Size, Target, enclosing_int_rect};
 use crate::domain::selectors::{self, Filter, RoleOptions, TextMatch, compose};
 
-const INJECTED_SOURCE: &str = include_str!("scripts/injected.js");
+pub(crate) const INJECTED_SOURCE: &str = include_str!("scripts/injected.js");
 const INJECTED: &str = "globalThis.__chromiumoxide_injected";
 
 /// A resolved element in the utility world.

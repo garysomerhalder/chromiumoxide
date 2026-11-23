@@ -16,6 +16,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::application::actions::{ADD_STYLE, StyleTag};
+use crate::application::locator::INJECTED_SOURCE;
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
 use crate::application::services::Services;
 use crate::domain::emulation::{ContextOptions, Viewport};
@@ -31,6 +32,9 @@ use crate::ports::{BidiSession, BrowserProcess, FirefoxCommand};
 
 /// The sandbox (BiDi's isolated world) for Playwright's utility scripts.
 const UTILITY: &str = "__chromiumoxide_utility";
+
+/// The global holding Playwright's injected script in the sandbox.
+const INJECTED: &str = "__chromiumoxide_injected";
 
 /// Options for [`crate::Firefox::launch`] (Playwright's `firefox.launch`).
 #[derive(Debug, Clone)]
@@ -560,6 +564,41 @@ impl Page {
                 }),
             )
             .await
+    }
+
+    pub(crate) fn now(&self) -> Duration {
+        Duration::from_millis(self.inner.services.clock.now_ms())
+    }
+
+    pub(crate) async fn sleep(&self, duration: Duration) {
+        self.inner.services.clock.sleep(duration).await
+    }
+
+    /// Calls `body(injected, ...args)` in the utility sandbox, installing
+    /// Playwright's injected script first when the document has none yet.
+    pub(crate) async fn injected_call(&self, body: &str, args: &[Value]) -> Result<Value> {
+        let call = format!(
+            "(...args) => {{ const i = globalThis.{INJECTED}; \
+             if (!i) return {{ __chromiumoxide_missing: true }}; return ({body})(i, ...args); }}"
+        );
+        let v = self.call_json(&call, args, Some(UTILITY)).await?;
+        if v.get("__chromiumoxide_missing") != Some(&Value::Bool(true)) {
+            return Ok(v);
+        }
+        let options = json!({
+            "isUnderTest": false, "sdkLanguage": "javascript", "frameSeq": 0,
+            "testIdAttributeName": "data-testid", "stableRafCount": 1, "browserName": "firefox",
+            "isUtilityWorld": true, "customEngines": [],
+        });
+        let install = format!(
+            "(() => {{ if (globalThis.{INJECTED}) return; const module = {{}};\n{INJECTED_SOURCE}\n\
+             globalThis.{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); }})()"
+        );
+        let r = self.script_evaluate(&install, Some(UTILITY)).await?;
+        if r.get("type").and_then(Value::as_str) == Some("exception") {
+            return Err(Error::Evaluation(exception_text(&r)));
+        }
+        self.call_json(&call, args, Some(UTILITY)).await
     }
 
     /// `page.setContent(html)`: replaces the document and waits for `load`

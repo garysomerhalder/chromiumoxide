@@ -140,6 +140,7 @@ pub mod firefox {
     pub use crate::application::firefox::{
         Browser, BrowserContext, FirefoxLaunchOptions, Page, Screenshot,
     };
+    pub use crate::application::firefox_locator::Locator;
 }
 
 /// Playwright's `firefox`: launches Firefox, driven over WebDriver BiDi.
