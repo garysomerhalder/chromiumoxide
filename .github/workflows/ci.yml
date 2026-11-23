@@ -76,7 +76,9 @@ jobs:
         run: |
           sudo apt-get install -y xvfb
           npm install --prefix "$RUNNER_TEMP/electron" electron
-          echo "ELECTRON_PATH=$(node -e "console.log(require('$RUNNER_TEMP/electron/node_modules/electron'))")" >> "$GITHUB_ENV"
+          # On a fresh install, require('electron') first downloads the binary
+          # and prints "Downloading Electron binary..."; the path is the last line.
+          echo "ELECTRON_PATH=$(node -e "console.log(require('$RUNNER_TEMP/electron/node_modules/electron'))" | tail -n 1)" >> "$GITHUB_ENV"
       - name: Integration and pixel-parity tests
         env:
           CHROMIUMOXIDE_REQUIRE_PARITY: "1"
