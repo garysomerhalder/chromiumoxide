@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.0] (in progress)
 
+### Milestone 10: Electron
+
+- `Electron::launch(ElectronLaunchOptions)` and `ElectronApplication`
+  (Playwright's `_electron`): windows as pages, the main process through
+  `evaluate`, `browser_window`, console, window and close events, `close()`.
+  Playwright's Electron loader is vendored. CI runs the test with Electron
+  under Xvfb.
+- `docs/BACKLOG-PLATFORMS.md` (Firefox, WebKit, Android, Electron, Tauri, all
+  of CDP) and the `goals/` folder (one file per goal, `goals/README.md`).
+
 ### Milestone 9: Playwright 1.66 alpha
 
 - `ContextOptions::locate_only_visible` (Playwright 1.66's

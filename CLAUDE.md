@@ -14,6 +14,8 @@ Gary owns the repo and is not a developer: keep status updates short and plain.
   default discovery, launch or rendering.
 - Checklists live in `docs/PARITY.md`; the design lives in `docs/ARCHITECTURE.md`;
   open work lives in `docs/BACKLOG.md` and `docs/BACKLOG-PLATFORMS.md`.
+- Goals live in `goals/`, one file per goal, in the shape `goals/README.md`
+  sets out; keep each goal's Status log and "Done when" boxes current.
 
 ## Hard compatibility contract (garysomerhalder/device-mockup)
 

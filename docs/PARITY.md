@@ -845,3 +845,20 @@ release notes when it ships).
 |---|---|---|
 | `locateOnlyVisible` context option (also `newPage`, `launchPersistentContext`) | M9 | ✅ selector rewrite checked against the alpha; selector shortcuts, `$` and element handles unaffected |
 | Chromium 159.0.8154.13 | M9 | ✅ pixel-parity test passes on Chrome for Testing 159.0.8154.13 |
+
+## 10. Electron (M10)
+
+Playwright's `_electron` (`tests/integration/electron.rs`, under Xvfb).
+Goal: [`goals/electron-apps-are-automatable.md`](../goals/electron-apps-are-automatable.md).
+
+| Item | Milestone | Status |
+|---|---|---|
+| `electron.launch({ executablePath, args, cwd, env, timeout, chromiumSandbox, ...context options })` | M10 | ✅ `Electron::launch`; Playwright's loader when Electron is found like `require('electron')` |
+| `electronApp.firstWindow({ timeout })`, `windows()`, `on('window')` | M10 | ✅ |
+| `electronApp.context()` | M10 | ✅ no default viewport, as in Playwright |
+| `electronApp.evaluate(fn, arg)`, `evaluateHandle` | M10 | ✅ `fn(electron, arg)` in the main process; `ElectronHandle` |
+| `electronApp.browserWindow(page)` | M10 | ✅ |
+| `electronApp.on('console')` | M10 | ✅ `ElectronConsoleMessage` |
+| `electronApp.process()`, `close()`, `on('close')` | M10 | ✅ |
+| `waitForEvent` | M10 | ✅ through `events()` |
+| Closing one window with `webContents.close()` | M10 | out of scope for now: `page.close()` closes the target |
