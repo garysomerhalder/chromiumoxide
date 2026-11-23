@@ -2,6 +2,7 @@
 
 pub mod cdp;
 pub mod clock;
+pub mod electron;
 pub mod http;
 pub mod os;
 pub mod process;

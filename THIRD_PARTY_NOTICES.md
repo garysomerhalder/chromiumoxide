@@ -14,6 +14,9 @@ Copyright (c) Microsoft Corporation, licensed under the Apache License, Version 
   preparation function.
 - `src/application/scripts/websocket_mock.js` — Playwright's WebSocket mock used
   by `routeWebSocket`, playwright-core 1.63.0 (identical in 1.65.1), unmodified.
+- `src/application/scripts/electron_loader.js` — Playwright's Electron loader
+  (`lib/server/electron/loader.js`), playwright-core 1.65.1, unmodified apart
+  from a header comment.
 - `src/domain/data/devices.json` — Playwright's device descriptors.
 - `src/domain/data/us_keyboard_layout.json` — Playwright's US keyboard layout.
 - `src/domain/data/font_families.json` — Playwright's default font families.

@@ -48,4 +48,38 @@ pub struct Launched {
 /// Starts browser processes.
 pub trait BrowserLauncher: Send + Sync {
     fn launch(&self, command: LaunchCommand) -> BoxFuture<'static, Result<Launched>>;
+    /// Starts an Electron app and connects to its renderer (CDP) and main
+    /// process (Node inspector) endpoints, printed on its stderr.
+    fn launch_electron(
+        &self,
+        command: ElectronCommand,
+    ) -> BoxFuture<'static, Result<LaunchedElectron>> {
+        let _ = command;
+        Box::pin(async {
+            Err(crate::domain::error::Error::Launch(
+                "this launcher cannot start Electron apps".into(),
+            ))
+        })
+    }
+}
+
+/// An Electron launch (Playwright's `electron.launch`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ElectronCommand {
+    pub program: PathBuf,
+    pub args: Vec<String>,
+    /// The whole environment (`None`: inherit this process's), without
+    /// `NODE_OPTIONS` either way.
+    pub env: Option<Vec<(String, String)>>,
+    pub cwd: Option<PathBuf>,
+    pub timeout_ms: u64,
+}
+
+/// A launched, connected Electron app.
+pub struct LaunchedElectron {
+    /// The DevTools endpoint (windows are its page targets).
+    pub browser: Arc<dyn CdpSession>,
+    /// The main process's Node inspector.
+    pub node: Arc<dyn CdpSession>,
+    pub process: Box<dyn BrowserProcess>,
 }

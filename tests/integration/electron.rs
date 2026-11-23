@@ -9,19 +9,24 @@ use std::time::Duration;
 use chromiumoxide::{Electron, ElectronEvent, ElectronLaunchOptions};
 use futures::StreamExt;
 
-fn electron_executable() -> Option<PathBuf> {
+/// `Some(None)`: found like `require('electron')` (Playwright's loader is
+/// preloaded); `Some(Some(path))`: `ELECTRON_PATH`; `None`: no Electron.
+fn electron_executable() -> Option<Option<PathBuf>> {
+    if chromiumoxide::Electron::find_executable().is_some() {
+        return Some(None);
+    }
     let found = std::env::var_os("ELECTRON_PATH")
         .map(PathBuf::from)
-        .filter(|p| p.exists())
-        .or_else(chromiumoxide::Electron::find_executable);
+        .filter(|p| p.exists());
     if found.is_none() {
         assert!(
             std::env::var_os("CHROMIUMOXIDE_REQUIRE_ELECTRON").is_none(),
-            "Electron is required (set ELECTRON_PATH)"
+            "Electron is required (install the electron npm package or set ELECTRON_PATH)"
         );
         eprintln!("no Electron; skipping");
+        return None;
     }
-    found
+    Some(found)
 }
 
 /// An X display for Electron: `DISPLAY` if set, else a private Xvfb.
@@ -85,7 +90,7 @@ async fn electron_app_windows_main_process_and_close() {
     };
     let display = display().expect("an X display (Xvfb)");
     let app = Electron::launch(ElectronLaunchOptions {
-        executable_path: Some(exe),
+        executable_path: exe,
         args: vec![fixture()],
         env: Some(vec![("DISPLAY".into(), display.name.clone())]),
         ..Default::default()
@@ -97,7 +102,7 @@ async fn electron_app_windows_main_process_and_close() {
     // The first window, as a page of the app's context.
     let window = app.first_window().await.unwrap();
     window
-        .wait_for_load_state(chromiumoxide::WaitUntil::Load)
+        .wait_for_load_state(chromiumoxide::WaitUntil::Load, None)
         .await
         .unwrap();
     assert_eq!(window.title().await.unwrap(), "Hello");
@@ -151,7 +156,10 @@ async fn electron_app_windows_main_process_and_close() {
     while console.is_none() || second.is_none() {
         match tokio::time::timeout(Duration::from_secs(20), events.next()).await {
             Ok(Some(ElectronEvent::Console(m))) => console = Some(m),
-            Ok(Some(ElectronEvent::Window(p))) => second = Some(p),
+            // `window` fires for every window, the first one included.
+            Ok(Some(ElectronEvent::Window(p))) if p.target_id() != window.target_id() => {
+                second = Some(p)
+            }
             Ok(Some(_)) => {}
             other => panic!("no event: {:?}", other.map(|e| e.map(|_| ()))),
         }
@@ -161,7 +169,7 @@ async fn electron_app_windows_main_process_and_close() {
     assert_eq!(console.text(), "hi from main 7");
     let second = second.unwrap();
     second
-        .wait_for_load_state(chromiumoxide::WaitUntil::Load)
+        .wait_for_load_state(chromiumoxide::WaitUntil::Load, None)
         .await
         .unwrap();
     assert_eq!(second.title().await.unwrap(), "Second");
