@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LaunchOptions::ignored_default_args`: Playwright's
   `ignoreDefaultArgs: [...]`, dropping single default switches (e.g.
   `--disable-extensions`); the default set is unchanged.
+- Fixed: on Chrome for Android, a page without `<meta name=viewport>`
+  (zoomed out to fit the screen) was screenshotted tiled 3x3; with no
+  viewport option, screenshots now measure the ideal viewport. Desktop
+  screenshots are unchanged. Found on a real emulator, where
+  `examples/android_device.rs` now passes end to end.
 - Fixed: required arrays were left out of the message when empty (the
   generator skipped them), so Chromium rejected calls such as
   `DOMSnapshot.captureSnapshot` with no computed styles or

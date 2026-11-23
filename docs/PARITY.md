@@ -880,7 +880,7 @@ real device or emulator). Goal:
 | `androidDevice.push(file, path, { mode })` | M11 | ✅ `sync:` protocol |
 | `androidDevice.installApk(file, { args })` | M11 | ✅ |
 | `androidDevice.screenshot()` | M11 | ✅ |
-| `androidDevice.launchBrowser({ pkg, args, ...context options })` | M11 | ✅ Playwright's command line and DevTools socket. On non-rooted devices Chrome reads that command line only with chrome://flags "Enable command line on non-rooted devices" on (same as Playwright) |
+| `androidDevice.launchBrowser({ pkg, args, ...context options })` | M11 | ✅ Playwright's command line and DevTools socket; checked on a real emulator (Chrome 145). On non-rooted devices Chrome reads that command line only with chrome://flags "Enable command line on non-rooted devices" on (same as Playwright). Screenshots of zoomed-out pages (no `<meta name=viewport>`) capture the screen, not a 3x3 tiling (M12 fix) |
 | `androidDevice.webViews()`, `webView({ pkg })`, `on('webview')`, `AndroidWebView.page()`, `pid()`, `pkg()` | M11 | ✅ |
 | `androidDevice.close()`, `on('close')` | M11 | ✅ |
 | `android.connect`, `android.launchServer` | M11 | out of scope: Playwright's own client-server protocol; use `AndroidDevicesOptions { host, port }` for a remote adb server |

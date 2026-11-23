@@ -90,6 +90,15 @@ check is needed that the container cannot do.
 - 2026-11-23: draft PR #11 open; every box ticked: met. Open follow-up: re-run
   `examples/android_device.rs` with the Chrome flag on.
 
+- 2026-11-23: follow-up done. The chrome://flags option was switched on
+  through Chrome's DevTools socket on Gary's emulator, and
+  `examples/android_device.rs` passed end to end. `launch_browser` loaded
+  the page, with the right title, h1, user agent and a page screenshot. The
+  first run showed a bug: a page without `<meta name=viewport>` was
+  screenshotted tiled 3x3. Fixed on branch `claude/rewrite-m12-cdp` (PR #12):
+  no-viewport screenshots measure the ideal viewport. The re-run gave a
+  1080x1944 PNG of the page.
+
 ## Set it
 
 ```
