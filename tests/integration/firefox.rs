@@ -111,3 +111,74 @@ async fn firefox_contexts_emulate_devices() {
     context.close().await.unwrap();
     browser.close().await.unwrap();
 }
+
+/// Locators run Playwright's injected script in a BiDi sandbox: CSS, role,
+/// text and test-id selectors, nth/first/last, chaining, reads, visibility,
+/// waiting for late elements and strictness.
+#[tokio::test]
+async fn firefox_locators_query_the_page() {
+    use chromiumoxide::RoleOptions;
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<ul><li class=a>One</li><li class=a>Two</li><li class=a data-testid=three>Three</li></ul>
+         <button title=go>Go <b>now</b></button><input hidden value=x>
+         <section><p>inner</p></section>
+         <script>setTimeout(() => document.body.insertAdjacentHTML('beforeend', '<p id=late>Late</p>'), 300)</script>",
+    )
+    .await
+    .unwrap();
+    let items = page.locator("li.a");
+    assert_eq!(items.count().await.unwrap(), 3);
+    assert_eq!(
+        items.all_text_contents().await.unwrap(),
+        ["One", "Two", "Three"]
+    );
+    assert_eq!(
+        items.nth(1).text_content().await.unwrap().as_deref(),
+        Some("Two")
+    );
+    assert_eq!(items.first().inner_text().await.unwrap(), "One");
+    assert_eq!(items.last().inner_text().await.unwrap(), "Three");
+    assert_eq!(
+        page.get_by_role("button", RoleOptions::default())
+            .inner_text()
+            .await
+            .unwrap(),
+        "Go now"
+    );
+    assert_eq!(
+        page.locator("button")
+            .get_attribute("title")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("go")
+    );
+    assert_eq!(
+        page.get_by_test_id("three")
+            .text_content()
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("Three")
+    );
+    assert!(page.get_by_text("Two", true).is_visible().await.unwrap());
+    assert!(!page.locator("input").is_visible().await.unwrap());
+    assert_eq!(
+        page.locator("section")
+            .locator("p")
+            .inner_html()
+            .await
+            .unwrap(),
+        "inner"
+    );
+    // Reads wait for the element, like Playwright.
+    assert_eq!(page.locator("#late").inner_text().await.unwrap(), "Late");
+    let err = page.locator("li").text_content().await.unwrap_err();
+    assert!(err.to_string().contains("strict mode violation"), "{err}");
+    browser.close().await.unwrap();
+}
