@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | active |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
 | Started | 2026-11-23 |
-| Finished | — |
+| Finished | 2026-11-23 |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (adb 1.0.41, no emulator: no KVM); Gary's Windows PC through the Desktop Bridge (Android SDK, emulator `Galaxy_S26`, Android 37, Rust 1.99) for the real-device check |
 
@@ -66,7 +66,7 @@ Out (until a driver is available):
 - [x] A page from `launchBrowser()` runs `goto`, `evaluate` and `screenshot` in the test.
 - [x] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
 - [x] `docs/PARITY.md` lists the in-scope members as done and the out-of-scope ones with the reason.
-- [ ] `CHANGELOG.md` has the entry and a draft PR is open.
+- [x] `CHANGELOG.md` has the entry and a draft PR is open (#11).
 
 ## Stop rule
 
@@ -87,6 +87,8 @@ check is needed that the container cannot do.
   `/data/local/tmp/chrome-command-line` unless chrome://flags "Enable command
   line on non-rooted devices" is on (Playwright needs the same). Noted in
   PARITY; to re-check once the flag is on.
+- 2026-11-23: draft PR #11 open; every box ticked: met. Open follow-up: re-run
+  `examples/android_device.rs` with the Chrome flag on.
 
 ## Set it
 
