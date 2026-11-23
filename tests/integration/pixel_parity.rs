@@ -17,7 +17,7 @@ use crate::screenshot::decode;
 
 const PIXEL: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAKklEQVQI12P4z8DwnwEIGP7//8/AwMDAxMjIyMDAwMDAxMDAwMDAwMDAwAAAvO8F/qD2QZIAAAAASUVORK5CYII=";
 
-fn rich_html() -> String {
+pub(crate) fn rich_html() -> String {
     format!(
         r##"<!doctype html><html><head><style>
 body {{ margin: 0; font-family: sans-serif; background: linear-gradient(135deg, #fdfbfb, #ebedee); }}
@@ -42,7 +42,7 @@ img {{ width: 64px; height: 64px; image-rendering: pixelated; }}
     )
 }
 
-fn mobile_html() -> String {
+pub(crate) fn mobile_html() -> String {
     format!(
         "<meta name=viewport content='width=device-width, initial-scale=1'>{}",
         rich_html().replace("<!doctype html>", "")
@@ -137,7 +137,7 @@ fn cases() -> Vec<Case> {
     ]
 }
 
-fn playwright_node_path() -> Option<String> {
+pub(crate) fn playwright_node_path() -> Option<String> {
     let root = Command::new("npm").args(["root", "-g"]).output().ok()?;
     let root = String::from_utf8(root.stdout).ok()?.trim().to_owned();
     let ok = Command::new("node")
@@ -149,7 +149,7 @@ fn playwright_node_path() -> Option<String> {
     ok.then_some(root)
 }
 
-fn shot_options(v: &Value) -> chromiumoxide::ScreenshotOptions {
+pub(crate) fn shot_options(v: &Value) -> chromiumoxide::ScreenshotOptions {
     let mut o = chromiumoxide::ScreenshotOptions {
         full_page: v["fullPage"].as_bool().unwrap_or(false),
         omit_background: v["omitBackground"].as_bool().unwrap_or(false),
@@ -165,7 +165,7 @@ fn shot_options(v: &Value) -> chromiumoxide::ScreenshotOptions {
     o
 }
 
-fn compare(ours: &Path, theirs: &Path) -> Result<(), String> {
+pub(crate) fn compare(ours: &Path, theirs: &Path) -> Result<(), String> {
     let a = decode(&std::fs::read(ours).unwrap());
     let b = decode(&std::fs::read(theirs).map_err(|e| format!("{}: {e}", theirs.display()))?);
     if (a.0, a.1) != (b.0, b.1) {
