@@ -53,7 +53,7 @@ Out:
 3. `feat(green)`: launcher port `launch_electron`, adapter, `ElectronApplication`.
 4. CI installs Electron and Xvfb and requires the test
    (`CHROMIUMOXIDE_REQUIRE_ELECTRON=1`).
-5. PARITY, CHANGELOG; draft PR.
+5. PARITY, CHANGELOG; draft PR: https://github.com/garysomerhalder/chromiumoxide/pull/10
 
 ## Evidence
 
@@ -68,7 +68,7 @@ Out:
 - [x] `cargo fmt --check`, `cargo clippy -D warnings`, the 1.88 MSRV check and the full test suite pass.
 - [x] `docs/PARITY.md` lists every in-scope `ElectronApplication` member as done.
 - [x] `CHANGELOG.md` has the Electron entry.
-- [ ] A draft PR into the previous milestone's branch is open.
+- [x] A draft PR into the previous milestone's branch is open (#10).
 
 ## Stop rule
 
@@ -79,6 +79,8 @@ launch, or if CI cannot run Electron (no Xvfb or no npm access).
 
 - 2026-11-23: proposed and started; the integration test passes locally with
   both launch paths.
+- 2026-11-23: PARITY and CHANGELOG done; draft PR #10 open. Waiting for CI
+  (GitHub has run no CI since 2026-11-22 23:26).
 
 ## Set it
 
