@@ -50,7 +50,7 @@ goals.
 
 | Goal | Status |
 |---|---|
-| [Electron apps are automatable](electron-apps-are-automatable.md) | active |
+| [Electron apps are automatable](electron-apps-are-automatable.md) | met |
 | [Android devices are automatable](android-devices-are-automatable.md) | proposed |
 | [Every CDP domain has a tested API](every-cdp-domain-has-a-tested-api.md) | proposed |
 | [Firefox runs the Playwright API](firefox-runs-the-playwright-api.md) | proposed |

@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | active |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
 | Started | 2026-11-23 |
-| Finished | — |
+| Finished | 2026-11-23 |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (Electron 45.4.1, Xvfb); CI ubuntu-latest (Electron from npm, Xvfb) |
 
@@ -64,7 +64,7 @@ Out:
 ## Done when
 
 - [x] `tests/integration/electron.rs` passes locally, with and without an explicit executable path.
-- [ ] CI runs it with `CHROMIUMOXIDE_REQUIRE_ELECTRON=1` and it passes.
+- [x] The CI job's commands, run locally with Electron from npm and `CHROMIUMOXIDE_REQUIRE_ELECTRON=1`, pass (GitHub CI skipped at Gary's request, 2026-11-23).
 - [x] `cargo fmt --check`, `cargo clippy -D warnings`, the 1.88 MSRV check and the full test suite pass.
 - [x] `docs/PARITY.md` lists every in-scope `ElectronApplication` member as done.
 - [x] `CHANGELOG.md` has the Electron entry.
@@ -88,9 +88,12 @@ launch, or if CI cannot run Electron (no Xvfb or no npm access).
   workflow is active, the repo is public, githubstatus.com shows Actions
   operational). Stop rule: waiting for Gary to check the repository's Actions
   settings.
+- 2026-11-23: Gary: "Skip GitHub". The CI box now asks for the CI job's
+  commands run locally (done: 164 passed, 0 failed, Electron required), and
+  "Set it" changes with it. Every box is ticked: met.
 
 ## Set it
 
 ```
-/goal Electron apps are automatable (goals/electron-apps-are-automatable.md): tests/integration/electron.rs passes locally with and without an explicit executable path; CI runs it with CHROMIUMOXIDE_REQUIRE_ELECTRON=1 and passes; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass; PARITY lists every in-scope ElectronApplication member as done; CHANGELOG has the entry; a draft PR is open.
+/goal Electron apps are automatable (goals/electron-apps-are-automatable.md): tests/integration/electron.rs passes locally with and without an explicit executable path; the CI job's commands, run locally with Electron from npm and CHROMIUMOXIDE_REQUIRE_ELECTRON=1, pass; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass; PARITY lists every in-scope ElectronApplication member as done; CHANGELOG has the entry; a draft PR is open.
 ```
