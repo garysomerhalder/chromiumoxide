@@ -29,6 +29,10 @@ pub use chromiumoxide_cdp::cdp;
 pub use chromiumoxide_fetcher as fetcher;
 
 pub use application::actions::{Polling, SetContent, StyleTag, WaitForFunction};
+pub use application::android::{
+    AndroidDevice, AndroidDeviceEvent, AndroidDevicesOptions, AndroidLaunchOptions, AndroidSocket,
+    AndroidWebView,
+};
 pub use application::aria::AriaAssertion;
 pub use application::aria_snapshot::{AriaSnapshotMode, AriaSnapshotOptions};
 pub use application::browser::{BindOptions, Browser, BrowserEvent, LaunchOptions};
@@ -114,6 +118,21 @@ pub use domain::url_matcher::UrlMatcher;
 pub use domain::video::RecordVideo;
 pub use domain::webmcp::{WebMcpAnnotations, WebMcpTool};
 pub use ports::Channel;
+
+/// Playwright's `_android`: Android devices through the adb server.
+pub struct Android;
+
+impl Android {
+    /// `android.devices(options)`.
+    pub async fn devices(options: AndroidDevicesOptions) -> Result<Vec<AndroidDevice>> {
+        application::android::devices(Chromium::services(), options).await
+    }
+}
+
+/// The `chrome-command-line` Playwright writes for Chrome on Android.
+pub fn android_chrome_command_line(args: &[String], socket_name: &str) -> String {
+    domain::android::chrome_command_line(args, socket_name)
+}
 
 /// Playwright's `_electron`: launches Electron apps.
 pub struct Electron;
@@ -208,6 +227,7 @@ impl Chromium {
             http: Arc::new(adapters::http::TcpHttpClient),
             bridge: Arc::new(adapters::cdp::bridge::WsBridge),
             signals: Arc::new(adapters::signals::OsSignals),
+            adb: Arc::new(adapters::adb::TcpAdb),
         }
     }
 

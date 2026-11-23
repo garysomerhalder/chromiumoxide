@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Status | proposed |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
-| Started | — |
-| Finished | — |
+| Started | 2026-11-23 |
+| Finished | 2026-11-23 |
 | Repos | garysomerhalder/chromiumoxide |
-| Environments | Linux container (adb 1.0.41, no device, no emulator: no KVM); a real device or emulator for a manual check |
+| Environments | Linux container (adb 1.0.41, no emulator: no KVM); Gary's Windows PC through the Desktop Bridge (Android SDK, emulator `Galaxy_S26`, Android 37, Rust 1.99) for the real-device check |
 
 ## Outcome
 
@@ -24,10 +24,15 @@ speak CDP, so the existing page API covers them once they are reachable.
 ## Scope
 
 In:
-- `android.devices({ host, port, omitDriverInstall })`, `android.connect`, `android.launchServer`.
+- `android.devices({ host, port, omitDriverInstall })`.
 - `AndroidDevice`: `serial`, `model`, `info`, `shell`, `open` (`AndroidSocket`), `push`,
   `installApk`, `screenshot`, `close`, `launchBrowser`, `webViews`, `webView`, event `webview`.
 - `AndroidWebView`: `page`, `pid`, `pkg`, event `close`.
+
+Out:
+- `android.connect` and `android.launchServer`: they serve and reach a
+  device over Playwright's own client-server protocol. Here a remote adb
+  server (`host`, `port`) does that job.
 
 Out (until a driver is available):
 - UI-automator input (`tap`, `fill`, `press`, `drag`, `fling`, `longTap`, `pinch*`, `scroll`,
@@ -57,11 +62,11 @@ Out (until a driver is available):
 
 ## Done when
 
-- [ ] Every in-scope member above has an integration test that passes against the fake adb server.
-- [ ] A page from `launchBrowser()` runs `goto`, `evaluate` and `screenshot` in the test.
-- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
-- [ ] `docs/PARITY.md` lists the in-scope members as done and the out-of-scope ones with the reason.
-- [ ] `CHANGELOG.md` has the entry and a draft PR is open.
+- [x] Every in-scope member above has an integration test that passes against the fake adb server.
+- [x] A page from `launchBrowser()` runs `goto`, `evaluate` and `screenshot` in the test.
+- [x] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
+- [x] `docs/PARITY.md` lists the in-scope members as done and the out-of-scope ones with the reason.
+- [x] `CHANGELOG.md` has the entry and a draft PR is open (#11).
 
 ## Stop rule
 
@@ -73,6 +78,17 @@ check is needed that the container cannot do.
 - 2026-11-23: proposed.
 - 2026-11-23: GitHub CI skipped at Gary's request: the CI box now asks for the
   CI job's commands run locally; "Set it" changed with it.
+- 2026-11-23: active. Scope: `connect` / `launchServer` out (Playwright's own
+  protocol); Gary's PC runs the emulator for the real-device check.
+- 2026-11-23: real emulator (Gary's PC, Galaxy_S26, Android 17, Chrome 145)
+  through `examples/android_device.rs`: devices, model
+  (`sdk_gphone64_x86_64`), shell, push + read back, screenshot (1.38 MB PNG)
+  all work. `launch_browser` timed out: on a `user` build Chrome ignores
+  `/data/local/tmp/chrome-command-line` unless chrome://flags "Enable command
+  line on non-rooted devices" is on (Playwright needs the same). Noted in
+  PARITY; to re-check once the flag is on.
+- 2026-11-23: draft PR #11 open; every box ticked: met. Open follow-up: re-run
+  `examples/android_device.rs` with the Chrome flag on.
 
 ## Set it
 

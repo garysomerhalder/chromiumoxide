@@ -862,3 +862,25 @@ Goal: [`goals/electron-apps-are-automatable.md`](../goals/electron-apps-are-auto
 | `electronApp.process()`, `close()`, `on('close')` | M10 | ✅ |
 | `waitForEvent` | M10 | ✅ through `events()` |
 | Closing one window with `webContents.close()` | M10 | out of scope for now: `page.close()` closes the target |
+
+## 11. Android (M11)
+
+Playwright's `_android` (`tests/integration/android.rs` against the fake adb
+server in `tests/integration/fake_adb.rs`; `examples/android_device.rs` on a
+real device or emulator). Goal:
+[`goals/android-devices-are-automatable.md`](../goals/android-devices-are-automatable.md).
+
+| Item | Milestone | Status |
+|---|---|---|
+| `android.devices({ host, port, omitDriverInstall })` | M11 | ✅ `Android::devices`; talks to the adb server directly; `omitDriverInstall` changes nothing (no driver) |
+| `androidDevice.serial()`, `model()` | M11 | ✅ |
+| `androidDevice.shell(command)` | M11 | ✅ |
+| `androidDevice.open(command)`, `AndroidSocket` (`write`, `on('data')`, `close`) | M11 | ✅ |
+| `androidDevice.push(file, path, { mode })` | M11 | ✅ `sync:` protocol |
+| `androidDevice.installApk(file, { args })` | M11 | ✅ |
+| `androidDevice.screenshot()` | M11 | ✅ |
+| `androidDevice.launchBrowser({ pkg, args, ...context options })` | M11 | ✅ Playwright's command line and DevTools socket. On non-rooted devices Chrome reads that command line only with chrome://flags "Enable command line on non-rooted devices" on (same as Playwright) |
+| `androidDevice.webViews()`, `webView({ pkg })`, `on('webview')`, `AndroidWebView.page()`, `pid()`, `pkg()` | M11 | ✅ |
+| `androidDevice.close()`, `on('close')` | M11 | ✅ |
+| `android.connect`, `android.launchServer` | M11 | out of scope: Playwright's own client-server protocol; use `AndroidDevicesOptions { host, port }` for a remote adb server |
+| `tap`, `fill`, `press`, `drag`, `fling`, `longTap`, `pinchOpen/Close`, `scroll`, `swipe`, `wait`, `info`, `input.*` | M11 | out of scope for now: they need Playwright's UI-automator driver APK installed on the device |

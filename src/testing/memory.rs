@@ -186,3 +186,58 @@ impl crate::ports::Signals for NoSignals {
         panic!("exit({code})")
     }
 }
+
+/// No adb server.
+pub struct NoAdb;
+
+impl crate::ports::adb::AdbClient for NoAdb {
+    fn devices(
+        &self,
+        _server: &crate::ports::adb::AdbAddress,
+    ) -> futures::future::BoxFuture<'static, io::Result<String>> {
+        Box::pin(async { Err(io::Error::other("no adb in unit tests")) })
+    }
+    fn run(
+        &self,
+        _server: &crate::ports::adb::AdbAddress,
+        _serial: &str,
+        _command: &str,
+        _input: Option<Vec<u8>>,
+    ) -> futures::future::BoxFuture<'static, io::Result<Vec<u8>>> {
+        Box::pin(async { Err(io::Error::other("no adb in unit tests")) })
+    }
+    fn push(
+        &self,
+        _server: &crate::ports::adb::AdbAddress,
+        _serial: &str,
+        _data: Vec<u8>,
+        _path: &str,
+        _mode: u32,
+    ) -> futures::future::BoxFuture<'static, io::Result<()>> {
+        Box::pin(async { Err(io::Error::other("no adb in unit tests")) })
+    }
+    fn open(
+        &self,
+        _server: &crate::ports::adb::AdbAddress,
+        _serial: &str,
+        _service: &str,
+    ) -> futures::future::BoxFuture<'static, io::Result<Box<dyn crate::ports::adb::AdbSocket>>>
+    {
+        Box::pin(async { Err(io::Error::other("no adb in unit tests")) })
+    }
+    fn devtools(
+        &self,
+        _server: &crate::ports::adb::AdbAddress,
+        _serial: &str,
+        _socket_name: &str,
+    ) -> futures::future::BoxFuture<
+        'static,
+        crate::domain::error::Result<std::sync::Arc<dyn crate::ports::CdpSession>>,
+    > {
+        Box::pin(async {
+            Err(crate::domain::error::Error::Transport(
+                "no adb in unit tests".into(),
+            ))
+        })
+    }
+}

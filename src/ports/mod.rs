@@ -1,5 +1,6 @@
 //! Ports: the traits the application needs from the outside world.
 
+pub mod adb;
 pub mod bridge;
 pub mod cdp;
 pub mod clock;

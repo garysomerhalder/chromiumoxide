@@ -410,13 +410,25 @@ impl Browser {
         process: Box<dyn BrowserProcess>,
         context: ContextOptions,
     ) -> Result<(Browser, BrowserContext)> {
+        Self::with_default_context(services, cdp, Some(process), context).await
+    }
+
+    /// A browser on an existing CDP connection whose default context (with
+    /// `context` options) is the one to use: Electron apps, Chrome and
+    /// WebViews on Android. Closing that context closes the connection.
+    pub(crate) async fn with_default_context(
+        services: Services,
+        cdp: Arc<dyn CdpSession>,
+        process: Option<Box<dyn BrowserProcess>>,
+        context: ContextOptions,
+    ) -> Result<(Browser, BrowserContext)> {
         let browser = Browser {
             inner: Arc::new(BrowserInner {
                 cdp,
                 services,
                 shared: Mutex::new(None),
                 headless: false,
-                process: Mutex::new(Some(process)),
+                process: Mutex::new(process),
                 user_data_dir: None,
                 executable: None,
                 ws_endpoint: None,
@@ -435,7 +447,7 @@ impl Browser {
         let ctx = browser
             .handshake(Some(context))
             .await?
-            .ok_or_else(|| Error::Launch("Electron: no default context".into()))?;
+            .ok_or_else(|| Error::Launch("no default context".into()))?;
         Ok((browser, ctx))
     }
 
@@ -938,6 +950,7 @@ mod tests {
             http: Arc::new(crate::testing::memory::NoHttp),
             bridge: Arc::new(crate::testing::memory::NoBridge),
             signals: Arc::new(crate::testing::memory::NoSignals),
+            adb: Arc::new(crate::testing::memory::NoAdb),
         };
         (s, fs)
     }
