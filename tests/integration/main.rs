@@ -19,6 +19,7 @@ mod extras;
 mod extras2;
 mod extras3;
 mod fake_adb;
+mod firefox;
 mod frames;
 mod handles;
 mod handles2;
