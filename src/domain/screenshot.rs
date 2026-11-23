@@ -375,6 +375,33 @@ mod tests {
         assert_eq!(c.clip, Rect::new(5.0, 300.0, 500.0, 400.0));
     }
 
+    /// Chrome on Android lays a page without `<meta name=viewport>` out 980
+    /// CSS px wide and zooms out to fit the screen (scale < 1). Then
+    /// `innerWidth` / `innerHeight` already are the visible area; dividing
+    /// by the scale (right when zoomed in) made the clip 2.7x too large and
+    /// Chrome tiled the page 3x3. Numbers from a real emulator (Chrome 145,
+    /// 1080x1944 screen, DPR 3).
+    #[test]
+    fn zoomed_out_mobile_page_captures_the_visible_area() {
+        let vv = VisualViewport {
+            page_x: 0.0,
+            page_y: 0.0,
+            scale: 0.36734694242477417,
+        };
+        let inner = Size {
+            width: 980.0,
+            height: 1764.0,
+        };
+        let c = capture(
+            plan_page(&opts(), inner, None).unwrap(),
+            vv,
+            ScreenshotScale::Device,
+            3.0,
+        );
+        assert_eq!(c.clip, Rect::new(0.0, 0.0, 980.0, 1764.0));
+        assert_eq!(c.scale, 0.36734694242477417);
+    }
+
     #[test]
     fn trimming_rejects_empty_areas() {
         let err = trim_clip_to_size(Rect::new(600.0, 0.0, 10.0, 10.0), VIEW).unwrap_err();
