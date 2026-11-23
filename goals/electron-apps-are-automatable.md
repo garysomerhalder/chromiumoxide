@@ -81,6 +81,13 @@ launch, or if CI cannot run Electron (no Xvfb or no npm access).
   both launch paths.
 - 2026-11-23: PARITY and CHANGELOG done; draft PR #10 open. Waiting for CI
   (GitHub has run no CI since 2026-11-22 23:26).
+- 2026-11-23: ran the CI job's exact steps locally (Electron from npm,
+  `CHROMIUMOXIDE_REQUIRE_ELECTRON=1`, `--test architecture --test integration`):
+  found and fixed a broken `ELECTRON_PATH` step (35fb669); then 164 passed, 0
+  failed. GitHub still creates no CI runs (none since 2026-11-22 23:26; the
+  workflow is active, the repo is public, githubstatus.com shows Actions
+  operational). Stop rule: waiting for Gary to check the repository's Actions
+  settings.
 
 ## Set it
 
