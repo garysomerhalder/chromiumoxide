@@ -18,9 +18,9 @@ use crate::domain::screenshot::{
     capture, ideal_viewport, plan_page, validate,
 };
 
-const PREPARE: &str = include_str!("scripts/prepare_screenshot.js");
+pub(crate) const PREPARE: &str = include_str!("scripts/prepare_screenshot.js");
 
-const CLEANUP: &str =
+pub(crate) const CLEANUP: &str =
     "function() { window.__pwCleanupScreenshot && window.__pwCleanupScreenshot(); }";
 
 /// Playwright's default `maskColor`.
@@ -31,7 +31,7 @@ const MASK: &str = "(i, selector, color) => { i.addMaskedElements(i.querySelecto
 const VIEWPORT_SIZE: &str = "function() { return { width: window.innerWidth, height: window.innerHeight, scale: window.visualViewport ? window.visualViewport.scale : 1 }; }";
 
 /// Playwright's `_fullPageSize`.
-const FULL_PAGE_SIZE: &str = "function() {
+pub(crate) const FULL_PAGE_SIZE: &str = "function() {
   if (!document.body || !document.documentElement) return null;
   return {
     width: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, document.body.offsetWidth,

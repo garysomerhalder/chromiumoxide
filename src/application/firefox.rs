@@ -6,14 +6,31 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use std::future::IntoFuture;
+
+use base64::Engine;
+use futures::FutureExt;
+use futures::future::BoxFuture;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
+use crate::application::actions::{ADD_STYLE, StyleTag};
+use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
 use crate::application::services::Services;
+use crate::domain::emulation::{ContextOptions, Viewport};
 use crate::domain::error::{Error, Result};
-use crate::domain::firefox::{command_line, remote_value_to_json};
+use crate::domain::firefox::{
+    command_line, profile_files, remote_value_to_json, unsupported_context_options,
+};
+use crate::domain::screenshot::{
+    Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale, Size, Target,
+    plan_page, validate,
+};
 use crate::ports::{BidiSession, BrowserProcess, FirefoxCommand};
+
+/// The sandbox (BiDi's isolated world) for Playwright's utility scripts.
+const UTILITY: &str = "__chromiumoxide_utility";
 
 /// Options for [`crate::Firefox::launch`] (Playwright's `firefox.launch`).
 #[derive(Debug, Clone)]
@@ -118,6 +135,18 @@ impl Browser {
             .fs
             .create_temp_dir("chromiumoxide-firefox-profile-")
             .map_err(|e| Error::Launch(format!("cannot create the profile: {e}")))?;
+        for (path, contents) in profile_files(options.headless) {
+            let path = profile.join(path);
+            let written = match path.parent() {
+                Some(dir) => services.fs.create_dir_all(dir),
+                None => Ok(()),
+            }
+            .and_then(|()| services.fs.write(&path, contents.as_bytes()));
+            if let Err(e) = written {
+                let _ = services.fs.remove_dir_all(&profile);
+                return Err(Error::Launch(format!("cannot write the profile: {e}")));
+            }
+        }
         let mut env = vec![("MOZ_DISABLE_SAFE_MODE_KEY".to_owned(), "1".to_owned())];
         env.extend(options.env.iter().cloned());
         let launched = services
@@ -173,41 +202,52 @@ impl Browser {
         Ok(self.inner.version.clone())
     }
 
-    /// `browser.newPage()`: a page in a new user context (closed with it).
-    pub async fn new_page(&self) -> Result<Page> {
-        let user_context = self
-            .inner
-            .bidi
-            .call("browser.createUserContext", json!({}))
+    /// `browser.newContext(options)`: a BiDi user context with the
+    /// options' emulation. Options Firefox cannot honour over BiDi are an
+    /// error (see `domain::firefox::unsupported_context_options`).
+    pub async fn new_context(&self, options: ContextOptions) -> Result<BrowserContext> {
+        let unsupported = unsupported_context_options(&options);
+        if !unsupported.is_empty() {
+            return Err(Error::InvalidArgument(format!(
+                "not supported on Firefox (no WebDriver BiDi command in Firefox {}): {}",
+                self.inner.version,
+                unsupported.join(", ")
+            )));
+        }
+        let bidi = &self.inner.bidi;
+        let mut create = json!({});
+        if options.ignore_https_errors {
+            create["acceptInsecureCerts"] = json!(true);
+        }
+        let user_context = bidi
+            .call("browser.createUserContext", create)
             .await?
             .get("userContext")
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
-        let created = self
-            .inner
-            .bidi
-            .call(
-                "browsingContext.create",
-                // A foreground tab never finishes opening in headless
-                // Firefox (it waits for focus); a window does, like
-                // Playwright's one window per page.
-                json!({"type": "window", "userContext": user_context}),
-            )
-            .await?;
-        let context = created
-            .get("context")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned();
-        Ok(Page {
-            inner: Arc::new(PageInner {
-                bidi: self.inner.bidi.clone(),
-                context,
-                owned_user_context: Some(user_context),
+        let context = BrowserContext {
+            inner: Arc::new(ContextInner {
+                bidi: bidi.clone(),
+                services: self.inner.services.clone(),
+                user_context: user_context.clone(),
+                options: Arc::new(options),
                 closed: AtomicBool::new(false),
             }),
-        })
+        };
+        if let Err(e) = context.apply_emulation().await {
+            let _ = context.close().await;
+            return Err(e);
+        }
+        Ok(context)
+    }
+
+    /// `browser.newPage()`: a page in a new context, closed with it.
+    pub async fn new_page(&self) -> Result<Page> {
+        let context = self.new_context(ContextOptions::default()).await?;
+        let page = context.new_page().await?;
+        *page.inner.owned_context.lock().unwrap() = Some(context);
+        Ok(page)
     }
 
     /// `browser.close()`: closes Firefox and deletes its temporary profile.
@@ -227,6 +267,146 @@ impl Browser {
     }
 }
 
+/// A Firefox browser context (a BiDi user context).
+#[derive(Clone)]
+pub struct BrowserContext {
+    inner: Arc<ContextInner>,
+}
+
+struct ContextInner {
+    bidi: Arc<dyn BidiSession>,
+    services: Services,
+    user_context: String,
+    options: Arc<ContextOptions>,
+    closed: AtomicBool,
+}
+
+impl std::fmt::Debug for BrowserContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("firefox::BrowserContext")
+            .field("user_context", &self.inner.user_context)
+            .finish()
+    }
+}
+
+impl BrowserContext {
+    /// The context's emulation, set once for the user context so every
+    /// page in it starts emulated.
+    async fn apply_emulation(&self) -> Result<()> {
+        let o = &self.inner.options;
+        let bidi = &self.inner.bidi;
+        let ucs = json!([self.inner.user_context]);
+        if o.viewport.is_some() || o.device_scale_factor.is_some() {
+            let mut p = json!({"userContexts": ucs});
+            if let Some(v) = o.viewport {
+                p["viewport"] = json!({"width": v.width, "height": v.height});
+            }
+            if let Some(dpr) = o.device_scale_factor {
+                p["devicePixelRatio"] = json!(dpr);
+            }
+            bidi.call("browsingContext.setViewport", p).await?;
+        }
+        if let Some(ua) = &o.user_agent {
+            bidi.call(
+                "emulation.setUserAgentOverride",
+                json!({"userAgent": ua, "userContexts": ucs}),
+            )
+            .await?;
+        }
+        if let Some(locale) = &o.locale {
+            bidi.call(
+                "emulation.setLocaleOverride",
+                json!({"locale": locale, "userContexts": ucs}),
+            )
+            .await?;
+        }
+        if let Some(tz) = &o.timezone_id {
+            bidi.call(
+                "emulation.setTimezoneOverride",
+                json!({"timezone": tz, "userContexts": ucs}),
+            )
+            .await?;
+        }
+        if let Some(screen) = o.screen {
+            bidi.call(
+                "emulation.setScreenSettingsOverride",
+                json!({"screenArea": {"width": screen.width, "height": screen.height}, "userContexts": ucs}),
+            )
+            .await?;
+        }
+        if let Some(g) = o.geolocation {
+            bidi.call(
+                "emulation.setGeolocationOverride",
+                json!({"coordinates": {"latitude": g.latitude, "longitude": g.longitude, "accuracy": g.accuracy},
+                       "userContexts": ucs}),
+            )
+            .await?;
+        }
+        if !o.extra_http_headers.is_empty() {
+            let headers: Vec<Value> = o
+                .extra_http_headers
+                .iter()
+                .map(|(k, v)| json!({"name": k, "value": {"type": "string", "value": v}}))
+                .collect();
+            bidi.call(
+                "network.setExtraHeaders",
+                json!({"headers": headers, "userContexts": ucs}),
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
+    /// `context.newPage()`: a new window in this user context.
+    pub async fn new_page(&self) -> Result<Page> {
+        if self.inner.closed.load(Ordering::SeqCst) {
+            return Err(Error::TargetClosed("context has been closed".into()));
+        }
+        let created = self
+            .inner
+            .bidi
+            .call(
+                "browsingContext.create",
+                // A foreground tab never finishes opening in headless
+                // Firefox (it waits for focus); a window does, like
+                // Playwright's one window per page.
+                json!({"type": "window", "userContext": self.inner.user_context}),
+            )
+            .await?;
+        let context = created
+            .get("context")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        Ok(Page {
+            inner: Arc::new(PageInner {
+                bidi: self.inner.bidi.clone(),
+                services: self.inner.services.clone(),
+                context,
+                options: self.inner.options.clone(),
+                viewport: Mutex::new(None),
+                owned_context: Mutex::new(None),
+                closed: AtomicBool::new(false),
+            }),
+        })
+    }
+
+    /// `context.close()`: closes its pages and the user context.
+    pub async fn close(&self) -> Result<()> {
+        if self.inner.closed.swap(true, Ordering::SeqCst) {
+            return Ok(());
+        }
+        self.inner
+            .bidi
+            .call(
+                "browser.removeUserContext",
+                json!({"userContext": self.inner.user_context}),
+            )
+            .await?;
+        Ok(())
+    }
+}
+
 /// A Firefox page (a top-level browsing context in its own window).
 #[derive(Clone)]
 pub struct Page {
@@ -235,10 +415,14 @@ pub struct Page {
 
 struct PageInner {
     bidi: Arc<dyn BidiSession>,
+    services: Services,
     /// The browsing context id.
     context: String,
-    /// The user context created for this page by `browser.new_page()`.
-    owned_user_context: Option<String>,
+    options: Arc<ContextOptions>,
+    /// `set_viewport_size` (else the context's viewport).
+    viewport: Mutex<Option<Viewport>>,
+    /// The context `browser.new_page()` made for this page.
+    owned_context: Mutex<Option<BrowserContext>>,
     closed: AtomicBool,
 }
 
@@ -313,13 +497,13 @@ impl Page {
              const __r = typeof __v === 'function' ? await __v(__chromiumoxide_arg) : await __v; \
              return __r === undefined ? undefined : JSON.stringify(__r); }})({arg})"
         );
-        let r = self.script_evaluate(&wrapped).await?;
+        let r = self.script_evaluate(&wrapped, None).await?;
         if r.get("type").and_then(Value::as_str) == Some("exception") {
             let message = exception_text(&r);
             if !message.starts_with("SyntaxError") {
                 return Err(Error::Evaluation(message));
             }
-            let r = self.script_evaluate(source).await?;
+            let r = self.script_evaluate(source, None).await?;
             if r.get("type").and_then(Value::as_str) == Some("exception") {
                 return Err(Error::Evaluation(exception_text(&r)));
             }
@@ -332,20 +516,236 @@ impl Page {
         }
     }
 
-    async fn script_evaluate(&self, expression: &str) -> Result<Value> {
+    /// Calls a function source with JSON arguments in the page (`None`) or
+    /// in a sandbox; returns its JSON result.
+    async fn call_json(
+        &self,
+        function: &str,
+        args: &[Value],
+        sandbox: Option<&str>,
+    ) -> Result<Value> {
+        self.check_open()?;
+        let args: Vec<String> = args.iter().map(Value::to_string).collect();
+        let expression = format!(
+            "(async () => {{ const __r = await ({function})({}); \
+             return __r === undefined ? undefined : JSON.stringify(__r); }})()",
+            args.join(", ")
+        );
+        let r = self.script_evaluate(&expression, sandbox).await?;
+        if r.get("type").and_then(Value::as_str) == Some("exception") {
+            return Err(Error::Evaluation(exception_text(&r)));
+        }
+        match r.pointer("/result/value").and_then(Value::as_str) {
+            Some(json) => serde_json::from_str(json)
+                .map_err(|e| Error::Evaluation(format!("cannot read the result: {e}"))),
+            None => Ok(Value::Null),
+        }
+    }
+
+    async fn script_evaluate(&self, expression: &str, sandbox: Option<&str>) -> Result<Value> {
+        let mut target = json!({"context": self.inner.context});
+        if let Some(sandbox) = sandbox {
+            target["sandbox"] = json!(sandbox);
+        }
         self.inner
             .bidi
             .call(
                 "script.evaluate",
                 json!({
                     "expression": expression,
-                    "target": {"context": self.inner.context},
+                    "target": target,
                     "awaitPromise": true,
                     "resultOwnership": "none",
                     "userActivation": true,
                 }),
             )
             .await
+    }
+
+    /// `page.setContent(html)`: replaces the document and waits for `load`
+    /// (Playwright's `document.open/write/close`).
+    pub async fn set_content(&self, html: &str) -> Result<()> {
+        self.call_json(
+            "(html) => new Promise(resolve => { document.open(); \
+             addEventListener('load', () => resolve(), { once: true }); \
+             document.write(html); document.close(); \
+             if (document.readyState === 'complete') resolve(); })",
+            &[json!(html)],
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// `page.addStyleTag({ content | url | path })`.
+    pub async fn add_style_tag(&self, tag: StyleTag) -> Result<()> {
+        let (content, url) = match tag {
+            StyleTag::Content(css) => (Value::String(css), Value::Null),
+            StyleTag::Url(u) => (Value::Null, Value::String(u)),
+            StyleTag::Path(p) => {
+                let bytes = self.inner.services.fs.read(&p)?;
+                let mut css = String::from_utf8_lossy(&bytes).into_owned();
+                css.push_str(&format!(
+                    "\n/*# sourceURL={}*/",
+                    p.display().to_string().replace('\n', "")
+                ));
+                (Value::String(css), Value::Null)
+            }
+        };
+        self.call_json(ADD_STYLE, &[content, url], None).await?;
+        Ok(())
+    }
+
+    /// `page.setViewportSize(size)` (the device scale factor stays).
+    pub async fn set_viewport_size(&self, viewport: Viewport) -> Result<()> {
+        self.check_open()?;
+        self.inner
+            .bidi
+            .call(
+                "browsingContext.setViewport",
+                json!({"context": self.inner.context,
+                       "viewport": {"width": viewport.width, "height": viewport.height}}),
+            )
+            .await?;
+        *self.inner.viewport.lock().unwrap() = Some(viewport);
+        Ok(())
+    }
+
+    /// `page.viewportSize()`.
+    pub fn viewport_size(&self) -> Option<Viewport> {
+        self.inner
+            .viewport
+            .lock()
+            .unwrap()
+            .or(self.inner.options.viewport)
+    }
+
+    /// `page.screenshot()`; chain options, then `.await` the image bytes.
+    pub fn screenshot(&self) -> Screenshot<'_> {
+        Screenshot {
+            page: self,
+            options: ScreenshotOptions::default(),
+            path: None,
+        }
+    }
+
+    /// Playwright's `Screenshotter.screenshotPage` with Firefox's
+    /// `takeScreenshot`: always a document-relative rectangle.
+    async fn take_screenshot(&self, o: &ScreenshotOptions) -> Result<Vec<u8>> {
+        let quality = validate(o).map_err(|e| Error::InvalidArgument(e.0))?;
+        if o.omit_background {
+            return Err(Error::InvalidArgument(
+                "omitBackground is not supported on Firefox over WebDriver BiDi".into(),
+            ));
+        }
+        if o.scale == ScreenshotScale::Css
+            && self.inner.options.device_scale_factor.unwrap_or(1.0) != 1.0
+        {
+            return Err(Error::InvalidArgument(
+                "scale: \"css\" is not supported on Firefox over WebDriver BiDi".into(),
+            ));
+        }
+        let format = match o.format {
+            ImageFormat::Png => json!({"type": "image/png"}),
+            ImageFormat::Jpeg => {
+                json!({"type": "image/jpeg", "quality": f64::from(quality.unwrap_or(80)) / 100.0})
+            }
+            ImageFormat::Webp => {
+                return Err(Error::InvalidArgument(
+                    "webp screenshots are not supported on Firefox over WebDriver BiDi".into(),
+                ));
+            }
+        };
+        let viewport = match self.viewport_size() {
+            Some(v) => Size {
+                width: f64::from(v.width),
+                height: f64::from(v.height),
+            },
+            None => {
+                let v = self
+                    .call_json(
+                        "() => ({ width: innerWidth, height: innerHeight })",
+                        &[],
+                        Some(UTILITY),
+                    )
+                    .await?;
+                Size {
+                    width: v["width"].as_f64().unwrap_or_default(),
+                    height: v["height"].as_f64().unwrap_or_default(),
+                }
+            }
+        };
+        let prepare = format!("({PREPARE})");
+        self.call_json(
+            &prepare,
+            &[
+                o.style.clone().map(Value::String).unwrap_or(Value::Null),
+                json!(o.caret != Caret::Initial),
+                json!(o.animations == Animations::Disabled),
+                json!(false),
+            ],
+            Some(UTILITY),
+        )
+        .await?;
+        let _ = self
+            .call_json(
+                "() => document.fonts.ready.then(() => undefined)",
+                &[],
+                Some(UTILITY),
+            )
+            .await;
+        let shot = self.capture(o, viewport, format).await;
+        let _ = self
+            .call_json(&format!("({CLEANUP})"), &[], Some(UTILITY))
+            .await;
+        shot
+    }
+
+    async fn capture(
+        &self,
+        o: &ScreenshotOptions,
+        viewport: Size,
+        format: Value,
+    ) -> Result<Vec<u8>> {
+        let full_page = if o.full_page {
+            let v = self
+                .call_json(&format!("({FULL_PAGE_SIZE})"), &[], Some(UTILITY))
+                .await?;
+            if v.is_null() {
+                return Err(Error::Evaluation("document has no body".into()));
+            }
+            Some(Size {
+                width: v["width"].as_f64().unwrap_or_default(),
+                height: v["height"].as_f64().unwrap_or_default(),
+            })
+        } else {
+            None
+        };
+        // Playwright asks Juggler for the document rectangle under the
+        // viewport (viewport rect + scroll); BiDi clips a document-origin
+        // capture to the document, which can be smaller than the viewport,
+        // so viewport shots use the viewport origin instead.
+        let (origin, rect) =
+            match plan_page(o, viewport, full_page).map_err(|e| Error::InvalidArgument(e.0))? {
+                Target::Document { rect, .. } => ("document", rect),
+                Target::Viewport(r) => ("viewport", r),
+            };
+        let r = self
+            .inner
+            .bidi
+            .call(
+                "browsingContext.captureScreenshot",
+                json!({
+                    "context": self.inner.context,
+                    "origin": origin,
+                    "format": format,
+                    "clip": {"type": "box", "x": rect.x, "y": rect.y, "width": rect.width, "height": rect.height},
+                }),
+            )
+            .await?;
+        base64::engine::general_purpose::STANDARD
+            .decode(r.get("data").and_then(Value::as_str).unwrap_or_default())
+            .map_err(|e| Error::Serde(format!("screenshot data: {e}")))
     }
 
     /// `page.close()`: closes the tab (and the user context `new_page` made).
@@ -361,17 +761,77 @@ impl Page {
                 json!({"context": self.inner.context}),
             )
             .await;
-        if let Some(user_context) = &self.inner.owned_user_context {
-            let _ = self
-                .inner
-                .bidi
-                .call(
-                    "browser.removeUserContext",
-                    json!({"userContext": user_context}),
-                )
-                .await;
+        let owned = self.inner.owned_context.lock().unwrap().take();
+        if let Some(context) = owned {
+            context.close().await?;
         }
         Ok(())
+    }
+}
+
+/// A pending `page.screenshot()` on Firefox.
+#[must_use = "does nothing until awaited"]
+pub struct Screenshot<'a> {
+    page: &'a Page,
+    options: ScreenshotOptions,
+    path: Option<PathBuf>,
+}
+
+impl<'a> Screenshot<'a> {
+    pub fn full_page(mut self, yes: bool) -> Self {
+        self.options.full_page = yes;
+        self
+    }
+    pub fn clip(mut self, clip: Rect) -> Self {
+        self.options.clip = Some(clip);
+        self
+    }
+    pub fn format(mut self, format: ImageFormat) -> Self {
+        self.options.format = format;
+        self
+    }
+    pub fn quality(mut self, quality: u8) -> Self {
+        self.options.quality = Some(quality);
+        self
+    }
+    pub fn caret(mut self, caret: Caret) -> Self {
+        self.options.caret = caret;
+        self
+    }
+    pub fn animations(mut self, animations: Animations) -> Self {
+        self.options.animations = animations;
+        self
+    }
+    /// Stylesheet applied while capturing.
+    pub fn style(mut self, css: &str) -> Self {
+        self.options.style = Some(css.to_owned());
+        self
+    }
+    /// Also write the image to this file.
+    pub fn path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.path = Some(path.into());
+        self
+    }
+    /// All options at once.
+    pub fn options(mut self, options: ScreenshotOptions) -> Self {
+        self.options = options;
+        self
+    }
+}
+
+impl<'a> IntoFuture for Screenshot<'a> {
+    type Output = Result<Vec<u8>>;
+    type IntoFuture = BoxFuture<'a, Result<Vec<u8>>>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        async move {
+            let bytes = self.page.take_screenshot(&self.options).await?;
+            if let Some(path) = &self.path {
+                self.page.inner.services.fs.write(path, &bytes)?;
+            }
+            Ok(bytes)
+        }
+        .boxed()
     }
 }
 

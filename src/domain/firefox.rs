@@ -4,6 +4,8 @@ use std::path::Path;
 
 use serde_json::{Map, Number, Value};
 
+use crate::domain::emulation::{ColorScheme, ContextOptions, ServiceWorkers};
+
 /// Playwright's Firefox arguments with the WebDriver BiDi endpoint instead
 /// of Juggler's pipe. Playwright passes `-silent` (no window) because its
 /// Juggler agent keeps Firefox alive; over BiDi Firefox quits without a
@@ -21,6 +23,65 @@ pub fn command_line(profile: &Path, headless: bool, args: &[String]) -> Vec<Stri
     out.push("--remote-debugging-port=0".to_owned());
     out.extend(args.iter().cloned());
     out.push("about:blank".to_owned());
+    out
+}
+
+/// Files written into a new profile before launch, as `(relative path,
+/// contents)`. In headless mode Playwright's Juggler hides every scrollbar
+/// with an agent stylesheet (`* { scrollbar-width: none !important }`, its
+/// `hidden-scrollbars.css`), so layouts and screenshots have no scrollbar
+/// gutter. Over BiDi the same rule goes in the profile's `userContent.css`
+/// (a user stylesheet, enabled by a pref): invisible to pages, like Juggler's.
+pub fn profile_files(headless: bool) -> Vec<(&'static str, &'static str)> {
+    if !headless {
+        return Vec::new();
+    }
+    vec![
+        (
+            "user.js",
+            "user_pref(\"toolkit.legacyUserProfileCustomizations.stylesheets\", true);\n",
+        ),
+        (
+            "chrome/userContent.css",
+            "* {\n  scrollbar-width: none !important;\n}\n",
+        ),
+    ]
+}
+
+/// Context options Firefox 159 cannot honour over WebDriver BiDi (no
+/// command for them), by their Playwright names. Creating a context with any
+/// of them set is an error rather than a silent no-op.
+pub fn unsupported_context_options(o: &ContextOptions) -> Vec<&'static str> {
+    let mut out = Vec::new();
+    let mut check = |set: bool, name: &'static str| {
+        if set {
+            out.push(name);
+        }
+    };
+    check(o.is_mobile, "isMobile");
+    check(o.has_touch, "hasTouch");
+    check(
+        matches!(
+            o.color_scheme,
+            Some(ColorScheme::Dark | ColorScheme::NoPreference)
+        ),
+        "colorScheme",
+    );
+    check(o.reduced_motion.is_some(), "reducedMotion");
+    check(o.forced_colors.is_some(), "forcedColors");
+    check(o.contrast.is_some(), "contrast");
+    check(!o.permissions.is_empty(), "permissions");
+    check(o.offline, "offline");
+    check(o.http_credentials.is_some(), "httpCredentials");
+    check(o.proxy.is_some(), "proxy");
+    check(!o.client_certificates.is_empty(), "clientCertificates");
+    check(!o.java_script_enabled, "javaScriptEnabled");
+    check(o.bypass_csp, "bypassCSP");
+    check(o.base_url.is_some(), "baseURL");
+    check(o.storage_state.is_some(), "storageState");
+    check(o.service_workers != ServiceWorkers::Allow, "serviceWorkers");
+    check(o.record_har.is_some(), "recordHar");
+    check(o.record_video.is_some(), "recordVideo");
     out
 }
 
@@ -92,6 +153,32 @@ mod tests {
         );
         let headed = command_line(Path::new("/tmp/p"), false, &[]);
         assert_eq!(&headed[1..3], ["-wait-for-browser", "-foreground"]);
+    }
+
+    #[test]
+    fn headless_profiles_hide_scrollbars_like_juggler() {
+        let files = profile_files(true);
+        assert!(files.iter().any(|(p, c)| *p == "chrome/userContent.css"
+            && c.contains("scrollbar-width: none !important")));
+        assert!(files.iter().any(|(p, c)| *p == "user.js"
+            && c.contains("toolkit.legacyUserProfileCustomizations.stylesheets")));
+        assert!(profile_files(false).is_empty());
+    }
+
+    #[test]
+    fn unsupported_options_are_named() {
+        assert!(unsupported_context_options(&ContextOptions::default()).is_empty());
+        let o = ContextOptions {
+            is_mobile: true,
+            color_scheme: Some(ColorScheme::Dark),
+            ..Default::default()
+        };
+        assert_eq!(unsupported_context_options(&o), ["isMobile", "colorScheme"]);
+        let light = ContextOptions {
+            color_scheme: Some(ColorScheme::Light),
+            ..Default::default()
+        };
+        assert!(unsupported_context_options(&light).is_empty());
     }
 
     #[test]
