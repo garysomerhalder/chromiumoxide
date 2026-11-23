@@ -58,7 +58,7 @@ Out:
 
 - [ ] The coverage check passes: every non-deprecated command and event has an API or a listed reason.
 - [ ] Each domain's API has at least one integration test against real Chromium.
-- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass, locally and in CI.
+- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
 - [ ] `docs/PARITY.md` has a CDP section per domain; `CHANGELOG.md` has the entries.
 - [ ] Draft PRs for the work are open.
 
@@ -71,9 +71,11 @@ updated mid-way and the counts change by more than 10%.
 ## Status
 
 - 2026-11-23: proposed.
+- 2026-11-23: GitHub CI skipped at Gary's request: the CI box now asks for the
+  CI job's commands run locally; "Set it" changed with it.
 
 ## Set it
 
 ```
-/goal Every CDP domain has a tested API (goals/every-cdp-domain-has-a-tested-api.md): the coverage check passes (every non-deprecated command and event has an API or a listed reason); each domain's API has an integration test against real Chromium; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally and in CI; PARITY has a CDP section per domain and CHANGELOG the entries; draft PRs are open.
+/goal Every CDP domain has a tested API (goals/every-cdp-domain-has-a-tested-api.md): the coverage check passes (every non-deprecated command and event has an API or a listed reason); each domain's API has an integration test against real Chromium; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally; PARITY has a CDP section per domain and CHANGELOG the entries; draft PRs are open.
 ```
