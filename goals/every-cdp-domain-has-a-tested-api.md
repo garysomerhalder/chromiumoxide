@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Status | active |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
 | Started | 2026-11-23 |
-| Finished | — |
+| Finished | 2026-11-23 |
 | Repos | garysomerhalder/chromiumoxide |
-| Environments | Linux container (Chrome for Testing 159, headless shell 159); CI ubuntu-latest |
+| Environments | Linux container (Chrome for Testing 159.0.8154.6, headless shell 159.0.8154.6) |
 
 ## Outcome
 
@@ -44,10 +44,11 @@ Out:
 ## Work
 
 1. A coverage check in the test suite: every non-deprecated command and event
-   has an API or an entry in the PARITY exclusion list.
-2. Priority 1 domains.
-3. Priority 2 domains.
-4. Priority 3 domains.
+   has an API or an entry in the PARITY exclusion list
+   (`chromiumoxide_cdp/tests/domains.rs`).
+2. All three priorities at once: the PDL generator emits a typed client per
+   domain (`cdp::domains`, `page.protocol()` / `browser.protocol()`), and
+   `tests/integration/cdp_domains.rs` tests each domain. Draft PR #12.
 
 ## Evidence
 
@@ -56,11 +57,11 @@ Out:
 
 ## Done when
 
-- [ ] The coverage check passes: every non-deprecated command and event has an API or a listed reason.
-- [ ] Each domain's API has at least one integration test against real Chromium.
-- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
-- [ ] `docs/PARITY.md` has a CDP section per domain; `CHANGELOG.md` has the entries.
-- [ ] Draft PRs for the work are open.
+- [x] The coverage check passes: every non-deprecated command and event has an API or a listed reason.
+- [x] Each domain's API has at least one integration test against real Chromium.
+- [x] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
+- [x] `docs/PARITY.md` has a CDP section per domain; `CHANGELOG.md` has the entries.
+- [x] Draft PRs for the work are open.
 
 ## Stop rule
 
@@ -77,6 +78,17 @@ updated mid-way and the counts change by more than 10%.
   domain (`page.protocol().performance().get_metrics(..)`, events as
   `.on_metrics()` streams), so every command and event is covered and stays
   covered when the protocol is updated.
+
+- 2026-11-23: met. 57 domains, 634 commands and 224 events have typed
+  methods, and the coverage check passes. All 57 domain tests pass against
+  real Chromium. The CI job's commands pass locally, and draft PR #12 is
+  open. Found and fixed on the way:
+  - empty required arrays were not sent;
+  - `ignoreDefaultArgs: [...]` was missing.
+
+  Caveat: SmartCardEmulation is not served by Chrome for Testing on Linux.
+  Its test pins Chromium's "wasn't found" answer and fails once it is
+  served (PARITY section 12).
 
 ## Set it
 
