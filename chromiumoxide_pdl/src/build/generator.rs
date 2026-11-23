@@ -237,6 +237,13 @@ impl Generator {
 
         let mod_name = self.target_mod.as_deref().unwrap_or("cdp");
         let events = self.generate_event_enums(&protocols);
+        let domain_clients = super::domains::generate(
+            &protocols,
+            &self.protocol_mods,
+            &super::domains::Filter {
+                experimental: self.with_experimental,
+            },
+        );
         let imports = self.serde_support.generate_serde_import_deserialize();
         let stream = quote! {
             /// This file is generated and should not be edited directly.
@@ -365,6 +372,8 @@ impl Generator {
                 #events
             }
             #modules
+
+            #domain_clients
 
             pub mod de {
                 use serde::{de, Deserialize, Deserializer};

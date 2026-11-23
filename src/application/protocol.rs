@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use chromiumoxide_cdp::cdp::domains::Protocol;
 use chromiumoxide_types::{Command, MethodType};
 use futures::{Stream, StreamExt};
 use serde::de::DeserializeOwned;
@@ -80,5 +81,68 @@ impl Browser {
         E: MethodType + DeserializeOwned + Send + 'static,
     {
         events(&self.cdp(), None)
+    }
+}
+
+impl chromiumoxide_types::CommandExecutor for Page {
+    type Error = Error;
+    type Events<E>
+        = futures::stream::BoxStream<'static, E>
+    where
+        E: MethodType + DeserializeOwned + Send + 'static;
+
+    fn execute<C>(&self, cmd: C) -> impl Future<Output = Result<C::Response>> + Send
+    where
+        C: Command + Send + 'static,
+        C::Response: Send,
+    {
+        Page::execute(self, cmd)
+    }
+
+    fn events<E>(&self) -> Self::Events<E>
+    where
+        E: MethodType + DeserializeOwned + Send + 'static,
+    {
+        self.cdp_events::<E>().boxed()
+    }
+}
+
+impl chromiumoxide_types::CommandExecutor for Browser {
+    type Error = Error;
+    type Events<E>
+        = futures::stream::BoxStream<'static, E>
+    where
+        E: MethodType + DeserializeOwned + Send + 'static;
+
+    fn execute<C>(&self, cmd: C) -> impl Future<Output = Result<C::Response>> + Send
+    where
+        C: Command + Send + 'static,
+        C::Response: Send,
+    {
+        Browser::execute(self, cmd)
+    }
+
+    fn events<E>(&self) -> Self::Events<E>
+    where
+        E: MethodType + DeserializeOwned + Send + 'static,
+    {
+        self.cdp_events::<E>().boxed()
+    }
+}
+
+impl Page {
+    /// A typed client for every protocol domain on this page's session:
+    /// `page.protocol().performance().get_metrics(Default::default())`,
+    /// `page.protocol().network().on_request_will_be_sent()`.
+    pub fn protocol(&self) -> Protocol<'_, Page> {
+        Protocol::new(self)
+    }
+}
+
+impl Browser {
+    /// A typed client for every protocol domain on the browser target:
+    /// `browser.protocol().system_info().get_info(Default::default())`.
+    pub fn protocol(&self) -> Protocol<'_, Browser> {
+        Protocol::new(self)
     }
 }
