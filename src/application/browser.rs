@@ -305,7 +305,8 @@ impl Browser {
         } else {
             command_line(&spec)
         };
-        if options.channel == Channel::WebSocket {
+        let channel = effective_channel(options.channel, cfg!(windows));
+        if channel == Channel::WebSocket {
             for a in &mut args {
                 if a == "--remote-debugging-pipe" {
                     *a = "--remote-debugging-port=0".to_owned();
@@ -316,7 +317,7 @@ impl Browser {
             program: found.executable.clone(),
             args,
             env: options.env.clone(),
-            channel: options.channel,
+            channel,
             user_data_dir: user_data_dir.clone(),
             timeout_ms: options.timeout.as_millis() as u64,
         };
@@ -931,6 +932,17 @@ impl Shared {
 impl Browser {
     pub(crate) fn tracing_session(&self) -> &Mutex<Option<Option<String>>> {
         &self.inner.tracing
+    }
+}
+
+/// The channel a launch really uses: the pipe needs inherited file
+/// descriptors 3 and 4, which only the Unix launcher sets up, so Windows
+/// reaches the browser over `--remote-debugging-port=0` instead.
+fn effective_channel(requested: Channel, windows: bool) -> Channel {
+    if windows {
+        Channel::WebSocket
+    } else {
+        requested
     }
 }
 
