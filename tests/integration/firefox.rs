@@ -3238,3 +3238,78 @@ async fn firefox_locator_handlers() {
     assert_eq!(once.load(Ordering::SeqCst), 1);
     browser.close().await.unwrap();
 }
+
+/// Firefox: page / context routeWebSocket (a mocked socket, a socket
+/// connected through to the real server, and one passed through).
+#[tokio::test]
+async fn firefox_route_web_socket() {
+    use chromiumoxide::WsPayload;
+    let Some(options) = options() else {
+        return;
+    };
+    let port = crate::workers::ws_server().await;
+    let server = crate::server::TestServer::start().await;
+    server.route("/p.html", "text/html", "<title>ws</title>", 0);
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+
+    // A mock: the handler answers the page itself.
+    page.route_web_socket("**/mock", |ws| async move {
+        let reply = ws.clone();
+        ws.on_message(move |m| {
+            let reply = reply.clone();
+            async move {
+                if let WsPayload::Text(t) = m {
+                    reply.send(format!("mocked:{t}")).await;
+                }
+            }
+        });
+    })
+    .await
+    .unwrap();
+    // Through to the real server, changing what it sends.
+    context
+        .route_web_socket("**/real", |ws| async move {
+            let server = ws.connect_to_server().unwrap();
+            let page_side = ws.clone();
+            server.on_message(move |m| {
+                let page_side = page_side.clone();
+                async move {
+                    if let WsPayload::Text(t) = m {
+                        page_side.send(format!("{t}!")).await;
+                    }
+                }
+            });
+        })
+        .await
+        .unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+    let talk = |url: String| {
+        format!(
+            "new Promise(ok => {{ const ws = new WebSocket('{url}'); \
+             ws.onopen = () => ws.send('hi'); \
+             ws.onmessage = e => {{ if (typeof e.data === 'string') {{ ok(e.data); ws.close(); }} }}; }})"
+        )
+    };
+    assert_eq!(
+        page.evaluate::<String>(&talk("ws://127.0.0.1:1/mock".into()))
+            .await
+            .unwrap(),
+        "mocked:hi"
+    );
+    assert_eq!(
+        page.evaluate::<String>(&talk(format!("ws://127.0.0.1:{port}/real")))
+            .await
+            .unwrap(),
+        "echo:hi!"
+    );
+    // No route: the real socket.
+    assert_eq!(
+        page.evaluate::<String>(&talk(format!("ws://127.0.0.1:{port}/plain")))
+            .await
+            .unwrap(),
+        "echo:hi"
+    );
+    browser.close().await.unwrap();
+}
