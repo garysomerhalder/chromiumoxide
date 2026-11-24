@@ -322,3 +322,27 @@ impl Page {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn toolchain_frames_are_skipped_on_every_system() {
+        for file in [
+            "/rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/future/future.rs",
+            "/home/u/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/lib.rs",
+            "/Users/u/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/future/future.rs",
+            "C:\\Users\\u\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust\\library\\core\\src\\future\\future.rs",
+            "C:\\Users\\u\\.cargo\\registry\\src\\index.crates.io-1949cf8c6b5b557f\\tokio-1.54.1\\src\\lib.rs",
+        ] {
+            assert!(is_toolchain_file(file), "{file}");
+        }
+        assert!(!is_toolchain_file(
+            "/home/u/app/tests/integration/backlog.rs"
+        ));
+        assert!(!is_toolchain_file(
+            "C:\\Users\\u\\app\\tests\\integration\\backlog.rs"
+        ));
+    }
+}

@@ -180,3 +180,24 @@ async fn edge_channel_runs_the_installed_edge() {
     assert_eq!(&png[1..4], b"PNG");
     browser.close().await.unwrap();
 }
+
+/// A profile reused over the WebSocket channel (Windows' default): the
+/// second launch must not read the first one's `DevToolsActivePort`.
+#[tokio::test]
+async fn websocket_relaunch_on_the_same_profile() {
+    let dir = std::env::temp_dir().join(format!("cox-ws-relaunch-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let options = || LaunchOptions {
+        channel: Channel::WebSocket,
+        ..Default::default()
+    };
+    for _ in 0..2 {
+        let context = Chromium::launch_persistent_context(&dir, options(), Default::default())
+            .await
+            .unwrap();
+        let page = context.new_page().await.unwrap();
+        page.set_content("<p>again</p>").await.unwrap();
+        context.close().await.unwrap();
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
