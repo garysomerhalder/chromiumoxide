@@ -1420,3 +1420,205 @@ async fn webkit_event_object_details() {
     assert_eq!(touch.inner_text("button").await.unwrap(), "tapped");
     browser.close().await.unwrap();
 }
+
+/// WebKit: ARIA snapshots (YAML, JSON, AI mode with refs into iframes)
+/// and page.getByRef.
+#[tokio::test]
+async fn webkit_aria_snapshots_and_refs() {
+    use chromiumoxide::{AriaSnapshotMode, AriaSnapshotOptions};
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = WebKit::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<h1>Title</h1><button>Go</button><iframe srcdoc='<button>Inner</button>'></iframe>",
+    )
+    .await
+    .unwrap();
+    page.wait_for_function("frames[0] && frames[0].document.readyState === 'complete'")
+        .await
+        .unwrap();
+    let yaml = page.aria_snapshot().await.unwrap();
+    assert!(yaml.contains("- heading \"Title\" [level=1]"), "{yaml}");
+    assert!(yaml.contains("- button \"Go\""), "{yaml}");
+    assert_eq!(
+        page.locator("button").aria_snapshot().await.unwrap(),
+        "- button \"Go\""
+    );
+    let json = page.locator("button").aria_snapshot_json().await.unwrap();
+    assert_eq!(json[0]["role"], "button", "{json}");
+    assert!(page.aria_snapshot_json().await.unwrap().is_array());
+
+    let ai = page
+        .aria_snapshot_with(AriaSnapshotOptions {
+            mode: AriaSnapshotMode::Ai,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(ai.contains("[ref=e"), "{ai}");
+    assert!(ai.contains("button \"Inner\""), "{ai}");
+    let go = ai
+        .lines()
+        .find(|l| l.contains("button \"Go\""))
+        .and_then(|l| l.split("[ref=").nth(1))
+        .and_then(|r| r.split(']').next())
+        .unwrap()
+        .to_owned();
+    page.get_by_ref(&go).click().await.unwrap();
+    assert_eq!(page.get_by_ref(&go).inner_text().await.unwrap(), "Go");
+    browser.close().await.unwrap();
+}
+
+/// WebKit: Playwright's clock (fake timers) on a context and its pages.
+#[tokio::test]
+async fn webkit_clock_controls_time() {
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    page.set_content("<p>t</p>").await.unwrap();
+    let clock = page.clock();
+    clock
+        .install(Some("2024-01-01T00:00:00Z".into()))
+        .await
+        .unwrap();
+    assert_eq!(
+        page.evaluate::<String>("new Date().toISOString().slice(0, 10)")
+            .await
+            .unwrap(),
+        "2024-01-01"
+    );
+    page.evaluate::<()>("void (window.fired = 0, setTimeout(() => window.fired++, 5000))")
+        .await
+        .unwrap();
+    clock.run_for(1000).await.unwrap();
+    assert_eq!(page.evaluate::<i64>("window.fired").await.unwrap(), 0);
+    clock.fast_forward(5000).await.unwrap();
+    assert_eq!(page.evaluate::<i64>("window.fired").await.unwrap(), 1);
+    clock.pause_at("2024-02-01T00:00:00Z").await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("new Date().toISOString().slice(0, 7)")
+            .await
+            .unwrap(),
+        "2024-02"
+    );
+    clock.resume().await.unwrap();
+    clock.set_fixed_time("2030-05-05T00:00:00Z").await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("new Date().toISOString().slice(0, 10)")
+            .await
+            .unwrap(),
+        "2030-05-05"
+    );
+    context
+        .clock()
+        .set_system_time("2031-01-01T00:00:00Z")
+        .await
+        .unwrap();
+    // A new page in the context gets the same clock.
+    let other = context.new_page().await.unwrap();
+    other.set_content("<p>o</p>").await.unwrap();
+    assert!(
+        other
+            .evaluate::<bool>("!!globalThis.__pwClock")
+            .await
+            .unwrap()
+    );
+    browser.close().await.unwrap();
+}
+
+/// WebKit: page.addLocatorHandler (an overlay closed before actions,
+/// `times`, `noWaitAfter`) and removeLocatorHandler.
+#[tokio::test]
+async fn webkit_locator_handlers() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = WebKit::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<div id=overlay style='position:fixed;inset:0;background:#0008'>\
+         <button id=close onclick=\"overlay.style.display='none'\">close</button></div>\
+         <button id=target onclick=\"this.textContent='clicked'\">target</button>\
+         <input id=i>",
+    )
+    .await
+    .unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let c = calls.clone();
+    page.add_locator_handler(&page.locator("#overlay"), move |overlay| {
+        let c = c.clone();
+        async move {
+            c.fetch_add(1, Ordering::SeqCst);
+            overlay.locator("#close").click().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    page.locator("#target").click().await.unwrap();
+    assert_eq!(page.inner_text("#target").await.unwrap(), "clicked");
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+    // The overlay comes back: the handler runs before fill too.
+    page.evaluate::<()>("void (overlay.style.display = 'block')")
+        .await
+        .unwrap();
+    page.locator("#i").fill("typed").await.unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+    // Removed: the overlay stays and the click times out.
+    page.remove_locator_handler(&page.locator("#overlay"))
+        .await
+        .unwrap();
+    page.evaluate::<()>("void (overlay.style.display = 'block')")
+        .await
+        .unwrap();
+    page.set_default_timeout(std::time::Duration::from_millis(500));
+    assert!(page.locator("#target").click().await.is_err());
+
+    // times: 1 runs the handler once.
+    page.set_default_timeout(std::time::Duration::from_secs(10));
+    let once = Arc::new(AtomicUsize::new(0));
+    let o = once.clone();
+    page.add_locator_handler_with(
+        &page.locator("#overlay"),
+        move |overlay| {
+            let o = o.clone();
+            async move {
+                o.fetch_add(1, Ordering::SeqCst);
+                overlay.locator("#close").click().await.unwrap();
+            }
+        },
+        Some(1),
+        true,
+    )
+    .await
+    .unwrap();
+    page.locator("#target").click().await.unwrap();
+    page.evaluate::<()>("void (overlay.style.display = 'block')")
+        .await
+        .unwrap();
+    page.set_default_timeout(std::time::Duration::from_millis(500));
+    assert!(page.locator("#target").click().await.is_err());
+    assert_eq!(once.load(Ordering::SeqCst), 1);
+    browser.close().await.unwrap();
+}
+
+/// WebKit: page.pdf() is Chromium only in Playwright; an error that says so.
+#[tokio::test]
+async fn webkit_pdf_is_chromium_only() {
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = WebKit::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    let err = page.pdf(Default::default()).await.unwrap_err().to_string();
+    assert!(err.contains("Chromium"), "{err}");
+    browser.close().await.unwrap();
+}
