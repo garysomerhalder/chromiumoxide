@@ -146,6 +146,7 @@ pub mod firefox {
         ConsoleMessage, ContextEvent, Dialog, PageError, PageEvent,
     };
     pub use crate::application::firefox_expect::{Assertion, LocatorAssertions, PageAssertions};
+    pub use crate::application::firefox_handle::{ElementHandle, JsHandle};
     pub use crate::application::firefox_input::{Keyboard, Mouse};
     pub use crate::application::firefox_locator::{FrameLocator, Locator};
     pub use crate::application::firefox_record::{Pdf, Tracing, Video};

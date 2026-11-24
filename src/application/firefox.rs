@@ -2053,7 +2053,11 @@ impl Page {
         self.script_evaluate_target(target, expression).await
     }
 
-    async fn script_evaluate_target(&self, target: Value, expression: &str) -> Result<Value> {
+    pub(crate) async fn script_evaluate_target(
+        &self,
+        target: Value,
+        expression: &str,
+    ) -> Result<Value> {
         self.inner
             .bidi
             .call(
@@ -2177,7 +2181,9 @@ impl Page {
         let options = json!({
             "isUnderTest": false, "sdkLanguage": "javascript", "frameSeq": 0,
             "testIdAttributeName": "data-testid", "stableRafCount": 1, "browserName": "firefox",
-            "isUtilityWorld": true, "customEngines": [],
+            "isUtilityWorld": true,
+            "customEngines": [{"name": "chromiumoxide-handle",
+                               "source": crate::application::locator::HANDLE_ENGINE}],
         });
         let install = format!(
             "(() => {{ if (globalThis.{INJECTED}) return; const module = {{}};\n{INJECTED_SOURCE}\n\
@@ -2523,7 +2529,7 @@ fn truthy(v: &Value) -> bool {
 
 /// The message of a `script.evaluate` exception, like Chromium's
 /// (`Error: boom`).
-fn exception_text(r: &Value) -> String {
+pub(crate) fn exception_text(r: &Value) -> String {
     let details = &r["exceptionDetails"];
     details
         .get("text")
