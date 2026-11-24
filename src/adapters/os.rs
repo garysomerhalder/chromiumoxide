@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::domain::discovery::Os;
-use crate::domain::source::{SourceLocation, backtrace_locations};
+use crate::domain::source::{SourceLocation, backtrace_locations, resolve_frame_file};
 use crate::ports::{Environment, FileSystem};
 
 /// The real file system.
@@ -115,10 +115,7 @@ impl Environment for OsEnvironment {
         backtrace_locations(&text)
             .into_iter()
             .map(|mut loc| {
-                // std prints paths under the working directory as `./…`.
-                if let (Some(rest), Some(cwd)) = (loc.file.strip_prefix("./"), &cwd) {
-                    loc.file = cwd.join(rest).to_string_lossy().into_owned();
-                }
+                loc.file = resolve_frame_file(&loc.file, cwd.as_deref());
                 loc
             })
             .collect()
