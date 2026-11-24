@@ -3019,3 +3019,71 @@ async fn firefox_expose_function_and_binding() {
     );
     browser.close().await.unwrap();
 }
+
+/// Firefox: route.fallback() (to older page routes, then context routes,
+/// then the network) and route.fetch() + fulfill(response).
+#[tokio::test]
+async fn firefox_route_fallback_and_fetch() {
+    use std::sync::{Arc, Mutex};
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/data.txt", "text/plain", "original", 0);
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    let order = Arc::new(Mutex::new(Vec::new()));
+
+    let o = order.clone();
+    context
+        .route("**/data.txt", move |route| {
+            let o = o.clone();
+            async move {
+                o.lock().unwrap().push("context");
+                route.fallback().await.unwrap();
+            }
+        })
+        .await
+        .unwrap();
+    let o = order.clone();
+    page.route("**/data.txt", move |route| {
+        let o = o.clone();
+        async move {
+            o.lock().unwrap().push("older");
+            // Fetch the real response and change it.
+            let response = route.fetch().await.unwrap();
+            assert_eq!(response.status(), 200);
+            let text = response.text().await.unwrap();
+            route
+                .fulfill()
+                .response(&response)
+                .body(format!("{text} + changed"))
+                .await
+                .unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    let o = order.clone();
+    page.route("**/data.txt", move |route| {
+        let o = o.clone();
+        async move {
+            o.lock().unwrap().push("newer");
+            route.fallback().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    page.goto(&server.url("/data.txt")).await.unwrap();
+    assert_eq!(page.inner_text("body").await.unwrap(), "original + changed");
+    assert_eq!(*order.lock().unwrap(), ["newer", "older"]);
+
+    // With no page routes left, the context route falls back to the network.
+    page.unroute_all().await.unwrap();
+    order.lock().unwrap().clear();
+    page.goto(&server.url("/data.txt")).await.unwrap();
+    assert_eq!(page.inner_text("body").await.unwrap(), "original");
+    assert_eq!(*order.lock().unwrap(), ["context"]);
+    browser.close().await.unwrap();
+}
