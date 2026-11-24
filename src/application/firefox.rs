@@ -545,7 +545,7 @@ pub(crate) struct ContextInner {
     /// Where this context's downloads go (removed with the context).
     downloads_dir: Option<PathBuf>,
     /// HAR and tracing recorders (shared with the pages).
-    recorders: Arc<Recorders>,
+    pub(crate) recorders: Arc<Recorders>,
     /// The browser of a persistent context (closed with it).
     persistent: Mutex<Option<Browser>>,
     /// `context.setDefaultTimeout` / `setDefaultNavigationTimeout`.
@@ -1135,7 +1135,7 @@ pub struct PageInner {
     /// The BiDi network intercept while routes exist.
     intercept: tokio::sync::Mutex<Option<String>>,
     /// The context's recorders.
-    recorders: Arc<Recorders>,
+    pub(crate) recorders: Arc<Recorders>,
     /// `page.video()`.
     video: Mutex<Option<Video>>,
     /// The context the page belongs to.

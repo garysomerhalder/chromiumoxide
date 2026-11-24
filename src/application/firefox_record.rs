@@ -239,7 +239,13 @@ impl Recorders {
     /// `recordHar`: records the context's traffic until it closes.
     pub(crate) async fn start_har(&self, options: RecordHar) -> Result<()> {
         self.ensure_collector().await?;
-        *self.har.lock().unwrap() = Some(HarRec {
+        let mut har = self.har.lock().unwrap();
+        if har.is_some() {
+            return Err(crate::domain::error::Error::InvalidArgument(
+                "HAR recording is already started".into(),
+            ));
+        }
+        *har = Some(HarRec {
             filter: options.url_filter.as_deref().map(UrlMatcher::glob),
             options,
             pages: Vec::new(),
@@ -250,13 +256,20 @@ impl Recorders {
 
     /// A new page of the context.
     pub(crate) fn page_created(self: &Arc<Self>, page: &Page) {
-        if let Some(rec) = self.har.lock().unwrap().as_mut() {
+        self.har_page(page);
+        self.trace_page(page);
+    }
+
+    /// Adds `page` to the HAR being recorded.
+    pub(crate) fn har_page(&self, page: &Page) {
+        if let Some(rec) = self.har.lock().unwrap().as_mut()
+            && !rec.pages.iter().any(|p| p.id == page.page_id())
+        {
             rec.pages.push(HarPage {
                 id: page.page_id(),
                 ..Default::default()
             });
         }
-        self.trace_page(page);
     }
 
     /// One BiDi event of `page`.
@@ -565,6 +578,33 @@ pub struct Tracing {
 impl Tracing {
     pub(crate) fn new(recorders: Arc<Recorders>, pages: Vec<Page>) -> Self {
         Tracing { recorders, pages }
+    }
+
+    /// `tracing.startHar(path)`: records the context's traffic as a HAR
+    /// until `stop_har`.
+    pub async fn start_har(&self, path: impl AsRef<Path>) -> Result<()> {
+        self.start_har_with(path, crate::domain::har::HarOptions::default())
+            .await
+    }
+
+    /// `tracing.startHar(path, { content, mode, resourcesDir, urlFilter })`.
+    pub async fn start_har_with(
+        &self,
+        path: impl AsRef<Path>,
+        options: crate::domain::har::HarOptions,
+    ) -> Result<()> {
+        self.recorders
+            .start_har(RecordHar::with_options(path.as_ref(), options))
+            .await?;
+        for page in &self.pages {
+            self.recorders.har_page(page);
+        }
+        Ok(())
+    }
+
+    /// `tracing.stopHar()`: writes the HAR started with `start_har`.
+    pub async fn stop_har(&self) -> Result<()> {
+        self.recorders.flush_har(&self.pages).await
     }
 
     /// `tracing.start(options)`: actions, console, network and (with
