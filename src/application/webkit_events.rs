@@ -3,6 +3,7 @@
 
 use serde_json::{Value, json};
 
+use crate::application::firefox_route::{Request, Response};
 use crate::application::webkit::{BrowserContext, Page};
 use crate::domain::error::{Error, Result};
 use crate::domain::storage::{Cookie, NewCookie, filter_cookies};
@@ -117,6 +118,27 @@ fn console_arg(p: &Value) -> String {
     }
 }
 
+/// A WebKit headers object as name / value pairs.
+fn header_pairs(h: &Value) -> Vec<(String, String)> {
+    h.as_object()
+        .map(|h| {
+            h.iter()
+                .map(|(k, v)| (k.clone(), v.as_str().unwrap_or_default().to_owned()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A WebKit `Network.Response`.
+fn response(r: &Value) -> Response {
+    Response {
+        url: r["url"].as_str().unwrap_or_default().to_owned(),
+        status: r["status"].as_u64().unwrap_or_default() as u16,
+        status_text: r["statusText"].as_str().unwrap_or_default().to_owned(),
+        headers: header_pairs(&r["headers"]),
+    }
+}
+
 /// `WKBrowserContext._calculateBootstrapScript`'s fixed part.
 const PUBLIC_KEY_CREDENTIAL: &str = "(function polyfill() {\n          window.PublicKeyCredential ??= {\n            async getClientCapabilities() {\n              return {};\n            },\n            async isConditionalMediationAvailable() {\n              return false;\n            },\n            async isUserVerifyingPlatformAuthenticatorAvailable() {\n              return false;\n            }\n          };\n        })();";
 
@@ -203,6 +225,57 @@ impl Page {
         let message = ConsoleMessage { kind, text };
         *self.inner.last_console.lock().unwrap() = Some((message.clone(), 1));
         self.emit(PageEvent::Console(message));
+    }
+
+    /// WebKit `Network.*` events as request, response, requestfinished and
+    /// requestfailed (`WKPage._onRequestWillBeSent` and friends).
+    pub(crate) fn on_network_event(&self, method: &str, p: &Value) {
+        let id = p["requestId"].as_str().unwrap_or_default().to_owned();
+        match method {
+            "Network.requestWillBeSent" => {
+                let r = &p["request"];
+                let url = r["url"].as_str().unwrap_or_default();
+                if url.starts_with("data:") || url.starts_with("about:") {
+                    return;
+                }
+                let mut requests = self.inner.requests.lock().unwrap();
+                // A redirect ends the previous request with its response.
+                if let Some(prev) = requests.remove(&id)
+                    && p["redirectResponse"].is_object()
+                {
+                    self.emit(PageEvent::Response(response(&p["redirectResponse"])));
+                    self.emit(PageEvent::RequestFinished(prev));
+                }
+                let request = Request {
+                    url: url.to_owned(),
+                    method: r["method"].as_str().unwrap_or("GET").to_owned(),
+                    headers: header_pairs(&r["headers"]),
+                    failure: None,
+                };
+                requests.insert(id, request.clone());
+                drop(requests);
+                self.emit(PageEvent::Request(request));
+            }
+            "Network.responseReceived" => {
+                if self.inner.requests.lock().unwrap().contains_key(&id) {
+                    self.emit(PageEvent::Response(response(&p["response"])));
+                }
+            }
+            "Network.loadingFinished" => {
+                let done = self.inner.requests.lock().unwrap().remove(&id);
+                if let Some(r) = done {
+                    self.emit(PageEvent::RequestFinished(r));
+                }
+            }
+            "Network.loadingFailed" => {
+                let failed = self.inner.requests.lock().unwrap().remove(&id);
+                if let Some(mut r) = failed {
+                    r.failure = Some(p["errorText"].as_str().unwrap_or("failed").to_owned());
+                    self.emit(PageEvent::RequestFailed(r));
+                }
+            }
+            _ => {}
+        }
     }
 
     /// `Dialog.javascriptDialogOpening`: to the listeners, else dismissed.

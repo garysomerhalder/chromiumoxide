@@ -360,6 +360,7 @@ impl BrowserContext {
             subscribers: Mutex::new(Vec::new()),
             last_console: Mutex::new(None),
             routes: Mutex::new(Vec::new()),
+            requests: Mutex::new(HashMap::new()),
             closed: AtomicBool::new(false),
         });
         self.inner
@@ -441,6 +442,8 @@ pub(crate) struct PageInner {
     pub(crate) last_console: Mutex<Option<(ConsoleMessage, u64)>>,
     /// `page.route` handlers, oldest first.
     pub(crate) routes: Mutex<Vec<crate::application::webkit_route::RouteEntry>>,
+    /// Requests in flight, by request id (for network events).
+    pub(crate) requests: Mutex<HashMap<String, crate::application::firefox_route::Request>>,
     closed: AtomicBool,
 }
 
@@ -564,6 +567,10 @@ impl Page {
             }
             "Console.messageAdded" if current => self.on_console(&p["message"]),
             "Network.requestIntercepted" => self.on_request_intercepted(target, p),
+            "Network.requestWillBeSent"
+            | "Network.responseReceived"
+            | "Network.loadingFinished"
+            | "Network.loadingFailed" => self.on_network_event(method, p),
             "Console.messageRepeatCountUpdated" if current => {
                 let count = p["count"].as_u64().unwrap_or(1);
                 let repeated = {
