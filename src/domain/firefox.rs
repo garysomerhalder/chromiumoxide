@@ -195,7 +195,6 @@ pub fn unsupported_context_options(o: &ContextOptions) -> Vec<&'static str> {
     check(!o.client_certificates.is_empty(), "clientCertificates");
     check(!o.java_script_enabled, "javaScriptEnabled");
     check(o.bypass_csp, "bypassCSP");
-    check(o.base_url.is_some(), "baseURL");
     check(o.service_workers != ServiceWorkers::Allow, "serviceWorkers");
     out
 }

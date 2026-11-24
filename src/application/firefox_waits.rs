@@ -18,6 +18,7 @@ use crate::application::locator::BoundingBox;
 use crate::application::wait::with_timeout;
 use crate::domain::error::{Error, Result};
 use crate::domain::frame::LifecycleEvent;
+use crate::domain::screenshot::Rect;
 use crate::domain::selectors::{Filter, compose};
 use crate::domain::url_matcher::UrlMatcher;
 
@@ -180,6 +181,31 @@ impl Locator {
             width: n("width"),
             height: n("height"),
         }))
+    }
+
+    /// `locator.screenshot()`: a PNG of the element's box, scrolled into
+    /// view first.
+    pub async fn screenshot(&self) -> Result<Vec<u8>> {
+        self.read_value(
+            "(i, node) => node.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })",
+            &[],
+        )
+        .await?;
+        let b = self.bounding_box().await?.ok_or_else(|| {
+            Error::Evaluation(format!(
+                "element is not visible: locator('{}')",
+                self.selector()
+            ))
+        })?;
+        self.page()
+            .screenshot()
+            .clip(Rect {
+                x: b.x,
+                y: b.y,
+                width: b.width,
+                height: b.height,
+            })
+            .await
     }
 
     /// `locator.evaluate(fn)`: `fn(element)` (awaited) with a JSON result.

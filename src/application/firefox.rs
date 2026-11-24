@@ -1033,7 +1033,9 @@ impl Page {
             .bidi
             .call(
                 "browsingContext.navigate",
-                json!({"context": self.inner.context, "url": url, "wait": "complete"}),
+                json!({"context": self.inner.context, "wait": "complete",
+                       "url": crate::domain::url_matcher::resolve_url(
+                           self.inner.options.base_url.as_deref(), url)}),
             )
             .await
             .map_err(|e| match e {

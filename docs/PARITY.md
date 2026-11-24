@@ -1232,7 +1232,8 @@ Firefox.
 | `browser.version`, `newPage`, `newContext`, `close` | ✅ | `firefox_launches_and_runs_a_page`, `firefox_contexts_emulate_devices` |
 | Context emulation: `viewport`, `deviceScaleFactor`, `userAgent`, `locale`, `timezoneId`, `screen`, `geolocation`, `extraHTTPHeaders`, `ignoreHTTPSErrors` | ✅ | `firefox_contexts_emulate_devices` |
 | Context options `isMobile`, `hasTouch`, `colorScheme` (dark / no-preference), `reducedMotion`, `forcedColors`, `contrast`, `javaScriptEnabled: false`, `offline`, `permissions` | ❌ | No BiDi command in Firefox 159 (Playwright uses its Juggler protocol); creating such a context is an error naming the options |
-| Context options `bypassCSP`, `proxy`, `clientCertificates`, `baseURL`, `serviceWorkers` | ⬜ | An error naming the option for now |
+| Context option `baseURL` | ✅ | `firefox_base_url_and_locator_screenshot` |
+| Context options `bypassCSP`, `proxy`, `clientCertificates`, `serviceWorkers` | ⬜ | An error naming the option for now |
 | `recordHar` (bodies from a BiDi network data collector; `content`, `mode`, `urlFilter`, `.zip`) | ✅ | `firefox_pdf_and_har` |
 | `recordVideo` (viewport screenshots on a 25 fps timeline, scaled into the `.webm`) | ✅ | `firefox_records_video` |
 | `httpCredentials` | ✅ | `firefox_network_events_context_routes_and_auth` |
@@ -1247,7 +1248,8 @@ Firefox.
 | `page.waitForEvent` | ⬜ | `page.events()` covers it for now |
 | Locators: `locator`, `getBy*`, `nth` / `first` / `last`, chaining, `textContent`, `innerText`, `innerHTML`, `getAttribute`, `inputValue`, `count`, `allTextContents`, `allInnerTexts`, `isVisible`, `isHidden`, `isChecked`, strictness | ✅ | `firefox_locators_query_the_page` |
 | Locator `filter`, `and`, `or`, `all`, `boundingBox`, `evaluate` | ✅ | `firefox_waits_and_locator_extras` |
-| Locator `ariaSnapshot`, `screenshot`, `highlight` | ⬜ | |
+| Locator `screenshot` | ✅ | `firefox_base_url_and_locator_screenshot` |
+| Locator `ariaSnapshot`, `highlight` | ⬜ | |
 | Input: `click`, `hover`, `fill`, `focus`, `press`, `pressSequentially`, `check`, `uncheck` | ✅ | `firefox_locators_act_on_elements` |
 | Input: `dblclick`, `dragTo`, `selectOption`, `setInputFiles`, `page.mouse` (`move`, `down`, `up`, `click`, `dblclick`, `wheel`), `page.keyboard` (`down`, `up`, `press`, `type`, `insertText`) | ✅ | `firefox_more_input`. Firefox's WebDriver actions start a drag but end it without a `drop`, so `dragTo` finishes the drop in the page the way the browser does |
 | Input: `tap` | ❌ | `hasTouch` cannot be set over BiDi in Firefox 159 |
