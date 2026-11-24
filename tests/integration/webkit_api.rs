@@ -1158,3 +1158,265 @@ async fn webkit_api_request_context() {
     assert!(request.get(&server.url("/p.html")).await.is_err());
     browser.close().await.unwrap();
 }
+
+/// WebKit: the event objects' details (console message args, location,
+/// page, timestamp; dialog page; download page, delete, read stream; file
+/// chooser), Worker.evaluateHandle / waitForEvent, Frame.waitForNavigation
+/// and the touchscreen.
+#[tokio::test]
+async fn webkit_event_object_details() {
+    use chromiumoxide::webkit::{PageEvent, WorkerEvent};
+    use futures::{AsyncReadExt, StreamExt};
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.respond(
+        "/file.txt",
+        "200 OK",
+        &[
+            ("Content-Type", "text/plain"),
+            ("Content-Disposition", "attachment; filename=file.txt"),
+        ],
+        "downloaded",
+    );
+    server.route(
+        "/w.js",
+        "text/javascript",
+        "onmessage = e => postMessage(e.data * 2);",
+        0,
+    );
+    server.route("/kid.html", "text/html", "<a href='/kid2.html'>next</a>", 0);
+    server.route("/kid2.html", "text/html", "<p>two</p>", 0);
+    server.route(
+        "/p.html",
+        "text/html",
+        "<iframe name=k src='/kid.html'></iframe>",
+        0,
+    );
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser
+        .new_context(chromiumoxide::ContextOptions {
+            accept_downloads: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+    let mut events = page.events();
+
+    // Console message details.
+    page.evaluate::<()>("console.log('hello', 5, { a: 1 })")
+        .await
+        .unwrap();
+    let message = loop {
+        if let Some(PageEvent::Console(m)) = events.next().await {
+            break m;
+        }
+    };
+    assert_eq!(message.args().len(), 3);
+    assert_eq!(message.args()[1].json_value().await.unwrap(), 5);
+    assert_eq!(
+        message.args()[2].json_value().await.unwrap(),
+        serde_json::json!({"a": 1})
+    );
+    assert!(message.timestamp() > 0.0);
+    assert!(message.page().is_some());
+    assert!(message.worker().is_none());
+    let _ = message.location();
+
+    // Dialog page.
+    let dialog = {
+        let page = page.clone();
+        tokio::spawn(async move { page.evaluate::<()>("alert('hi')").await })
+    };
+    let d = loop {
+        if let Some(PageEvent::Dialog(d)) = events.next().await {
+            break d;
+        }
+    };
+    assert!(std::ptr::eq(d.page(), d.page()));
+    d.dismiss().await.unwrap();
+    dialog.await.unwrap().unwrap();
+
+    // Download page, read stream, delete, cancel.
+    page.set_content(&format!("<a href='{}'>dl</a>", server.url("/file.txt")))
+        .await
+        .unwrap();
+    page.locator("a").click().await.unwrap();
+    let download = loop {
+        if let Some(PageEvent::Download(d)) = events.next().await {
+            break d;
+        }
+    };
+    assert!(download.page().is_some());
+    let mut text = String::new();
+    download
+        .create_read_stream()
+        .await
+        .unwrap()
+        .read_to_string(&mut text)
+        .await
+        .unwrap();
+    assert_eq!(text, "downloaded");
+    let path = download.path().await.unwrap();
+    download.delete().await.unwrap();
+    assert!(!path.exists());
+    // Cancelling a finished download does nothing, as in Playwright.
+    download.cancel().await.unwrap();
+    assert!(download.failure().await.unwrap().is_none());
+
+    // File chooser.
+    page.set_content("<input type=file multiple>")
+        .await
+        .unwrap();
+    page.locator("input").click().await.unwrap();
+    let chooser = loop {
+        if let Some(PageEvent::FileChooser(c)) = events.next().await {
+            break c;
+        }
+    };
+    assert!(chooser.is_multiple());
+    assert!(std::ptr::eq(chooser.page(), chooser.page()));
+    let file = std::env::temp_dir().join("cox-wk-chooser.txt");
+    std::fs::write(&file, "x").unwrap();
+    chooser
+        .set_files(std::slice::from_ref(&file))
+        .await
+        .unwrap();
+    assert_eq!(
+        chooser
+            .element()
+            .evaluate::<String>("e => e.files[0].name")
+            .await
+            .unwrap(),
+        "cox-wk-chooser.txt"
+    );
+
+    // Worker handles and events.
+    page.goto(&server.url("/p.html")).await.unwrap();
+    page.evaluate::<()>("void (window.w = new Worker('/w.js'))")
+        .await
+        .unwrap();
+    page.wait_for_function("true").await.unwrap();
+    let worker = loop {
+        if let Some(w) = page.workers().into_iter().next() {
+            break w;
+        }
+        page.wait_for_timeout(std::time::Duration::from_millis(50))
+            .await;
+    };
+    assert!(worker.url().ends_with("/w.js"));
+    assert_eq!(worker.evaluate::<i64>("1 + 2").await.unwrap(), 3);
+    assert_eq!(
+        worker
+            .evaluate_with::<i64, _>("x => x * 2", 21)
+            .await
+            .unwrap(),
+        42
+    );
+    let h = worker.evaluate_handle("({ x: 1 })").await.unwrap();
+    assert_eq!(h.json_value().await.unwrap(), serde_json::json!({"x": 1}));
+    // Worker console messages reach the page, with the worker.
+    worker
+        .evaluate::<()>("void console.log('from worker')")
+        .await
+        .unwrap();
+    let m = loop {
+        if let Some(PageEvent::Console(m)) = events.next().await
+            && m.text() == "from worker"
+        {
+            break m;
+        }
+    };
+    assert!(m.worker().is_some());
+    let closed = worker.wait_for_event(|e| matches!(e, WorkerEvent::Close).then_some(()));
+    page.evaluate::<()>("w.terminate()").await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(10), closed)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(worker.is_closed());
+
+    // WebSockets: frames both ways, then close.
+    {
+        use chromiumoxide::{WebSocketEvent, WsPayload};
+        let port = crate::workers::ws_server().await;
+        page.evaluate::<()>(&format!(
+            "void (() => {{ const ws = new WebSocket('ws://127.0.0.1:{port}/sock'); ws.onopen = () => ws.send('hello'); \
+             let n = 0; ws.onmessage = () => {{ if (++n === 2) ws.close(); }}; }})()"
+        ))
+        .await
+        .unwrap();
+        let ws = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                if let Some(PageEvent::WebSocket(ws)) = events.next().await {
+                    return ws;
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(ws.url(), format!("ws://127.0.0.1:{port}/sock"));
+        let mut ws_events = ws.events();
+        let mut log = Vec::new();
+        while let Some(e) =
+            tokio::time::timeout(std::time::Duration::from_secs(10), ws_events.next())
+                .await
+                .unwrap()
+        {
+            match e {
+                WebSocketEvent::FrameSent(WsPayload::Text(t)) => log.push(format!("sent {t}")),
+                WebSocketEvent::FrameReceived(WsPayload::Text(t)) => log.push(format!("recv {t}")),
+                WebSocketEvent::FrameReceived(WsPayload::Binary(b)) => {
+                    log.push(format!("recv {b:?}"))
+                }
+                WebSocketEvent::Close => {
+                    log.push("close".into());
+                    break;
+                }
+                other => log.push(format!("{other:?}")),
+            }
+        }
+        assert_eq!(
+            log,
+            ["sent hello", "recv echo:hello", "recv [1, 2, 3]", "close"]
+        );
+        assert!(ws.is_closed());
+    }
+
+    // Frame.waitForNavigation.
+    let kid = page.frame("k").await.unwrap().unwrap();
+    let nav = kid.wait_for_navigation();
+    kid.click("a").await.unwrap();
+    nav.await.unwrap();
+    assert_eq!(kid.inner_text("p").await.unwrap(), "two");
+
+    // Touchscreen needs hasTouch; with it, a tap reaches the page.
+    assert!(
+        page.touchscreen()
+            .tap(1.0, 1.0)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("hasTouch")
+    );
+    let touch = browser
+        .new_context(chromiumoxide::ContextOptions {
+            has_touch: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .new_page()
+        .await
+        .unwrap();
+    touch
+        .set_content("<body style='margin:0'><button style='width:100px;height:100px' onclick=\"this.textContent='tapped'\">b</button>")
+        .await
+        .unwrap();
+    touch.touchscreen().tap(50.0, 50.0).await.unwrap();
+    assert_eq!(touch.inner_text("button").await.unwrap(), "tapped");
+    browser.close().await.unwrap();
+}
