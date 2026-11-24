@@ -295,7 +295,7 @@ async fn firefox_navigates_and_waits() {
         .await
         .unwrap();
 
-    page.evaluate::<()>("document.body.dataset.mark = 'x'")
+    page.evaluate::<String>("document.body.dataset.mark = 'x'")
         .await
         .unwrap();
     page.reload().await.unwrap();
@@ -307,7 +307,7 @@ async fn firefox_navigates_and_waits() {
     );
 
     // wait_for_function returns the first truthy value.
-    page.evaluate::<()>("setTimeout(() => { window.answer = 42 }, 200)")
+    page.evaluate::<()>("void setTimeout(() => { window.answer = 42 }, 200)")
         .await
         .unwrap();
     let v = page.wait_for_function("window.answer").await.unwrap();

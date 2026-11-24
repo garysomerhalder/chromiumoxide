@@ -184,6 +184,15 @@ impl Browser {
                 return Err(e);
             }
         };
+        if let Err(e) = launched
+            .bidi
+            .call("session.subscribe", json!({"events": ["browsingContext"]}))
+            .await
+        {
+            launched.process.shutdown().await;
+            let _ = services.fs.remove_dir_all(&profile);
+            return Err(e);
+        }
         let version = session
             .pointer("/capabilities/browserVersion")
             .and_then(Value::as_str)
@@ -366,6 +375,7 @@ impl BrowserContext {
         if self.inner.closed.load(Ordering::SeqCst) {
             return Err(Error::TargetClosed("context has been closed".into()));
         }
+        let mut events = self.inner.bidi.subscribe();
         let created = self
             .inner
             .bidi
@@ -382,17 +392,43 @@ impl BrowserContext {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
-        Ok(Page {
-            inner: Arc::new(PageInner {
-                bidi: self.inner.bidi.clone(),
-                services: self.inner.services.clone(),
-                context,
-                options: self.inner.options.clone(),
-                viewport: Mutex::new(None),
-                owned_context: Mutex::new(None),
-                closed: AtomicBool::new(false),
-            }),
-        })
+        let inner = Arc::new(PageInner {
+            bidi: self.inner.bidi.clone(),
+            services: self.inner.services.clone(),
+            context: context.clone(),
+            options: self.inner.options.clone(),
+            viewport: Mutex::new(None),
+            owned_context: Mutex::new(None),
+            url: Mutex::new("about:blank".to_owned()),
+            closed: AtomicBool::new(false),
+        });
+        let weak = Arc::downgrade(&inner);
+        tokio::spawn(async move {
+            use futures::StreamExt;
+            while let Some(event) = events.next().await {
+                if event.params.get("context").and_then(Value::as_str) != Some(context.as_str()) {
+                    continue;
+                }
+                let Some(page) = weak.upgrade() else {
+                    break;
+                };
+                match event.method.as_str() {
+                    "browsingContext.navigationCommitted"
+                    | "browsingContext.fragmentNavigated"
+                    | "browsingContext.historyUpdated" => {
+                        if let Some(url) = event.params.get("url").and_then(Value::as_str) {
+                            *page.url.lock().unwrap() = url.to_owned();
+                        }
+                    }
+                    "browsingContext.contextDestroyed" => {
+                        page.closed.store(true, Ordering::SeqCst);
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        });
+        Ok(Page { inner })
     }
 
     /// `context.close()`: closes its pages and the user context.
@@ -427,6 +463,8 @@ struct PageInner {
     viewport: Mutex<Option<Viewport>>,
     /// The context `browser.new_page()` made for this page.
     owned_context: Mutex<Option<BrowserContext>>,
+    /// The main frame's URL, from `browsingContext` events.
+    url: Mutex<String>,
     closed: AtomicBool,
 }
 
@@ -461,6 +499,101 @@ impl Page {
                 other => other,
             })?;
         Ok(())
+    }
+
+    /// `page.url()`: the main frame's URL.
+    pub fn url(&self) -> String {
+        self.inner.url.lock().unwrap().clone()
+    }
+
+    /// `page.content()`: the doctype and `documentElement.outerHTML`.
+    pub async fn content(&self) -> Result<String> {
+        let v = self
+            .call_json(
+                "() => { let r = ''; if (document.doctype) r = new XMLSerializer().serializeToString(document.doctype); \
+                 if (document.documentElement) r += document.documentElement.outerHTML; return r; }",
+                &[],
+                Some(UTILITY),
+            )
+            .await?;
+        Ok(v.as_str().unwrap_or_default().to_owned())
+    }
+
+    /// `page.reload()`: reloads and waits for `load`.
+    pub async fn reload(&self) -> Result<()> {
+        self.check_open()?;
+        self.inner
+            .bidi
+            .call(
+                "browsingContext.reload",
+                json!({"context": self.inner.context, "wait": "complete"}),
+            )
+            .await
+            .map_err(|e| match e {
+                Error::Protocol { message, .. } => Error::Navigation(message),
+                other => other,
+            })?;
+        Ok(())
+    }
+
+    async fn traverse(&self, delta: i64) -> Result<()> {
+        self.check_open()?;
+        match self
+            .inner
+            .bidi
+            .call(
+                "browsingContext.traverseHistory",
+                json!({"context": self.inner.context, "delta": delta}),
+            )
+            .await
+        {
+            Ok(_) => Ok(()),
+            // Playwright resolves with null when there is nowhere to go.
+            Err(Error::Protocol { message, .. })
+                if message.starts_with("no such history entry") =>
+            {
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// `page.goBack()` (nothing happens when there is no previous entry).
+    pub async fn go_back(&self) -> Result<()> {
+        self.traverse(-1).await
+    }
+
+    /// `page.goForward()` (nothing happens when there is no next entry).
+    pub async fn go_forward(&self) -> Result<()> {
+        self.traverse(1).await
+    }
+
+    /// `page.waitForTimeout(ms)`.
+    pub async fn wait_for_timeout(&self, duration: Duration) {
+        self.sleep(duration).await
+    }
+
+    /// `page.waitForFunction(fn | expression)`: polls until it returns a
+    /// truthy value (Playwright's 30 s default timeout) and resolves with it.
+    pub async fn wait_for_function(&self, source: &str) -> Result<Value> {
+        let timeout = Duration::from_secs(30);
+        let deadline = self.now() + timeout;
+        loop {
+            match self.evaluate_value(source, None).await {
+                Ok(v) if truthy(&v) => return Ok(v),
+                Ok(_) => {}
+                // A navigation can destroy the realm mid-poll; try again.
+                Err(Error::Protocol { .. }) => {}
+                Err(e) => return Err(e),
+            }
+            if self.now() >= deadline {
+                return Err(Error::Timeout {
+                    ms: timeout.as_millis() as u64,
+                    action: "waiting for function".into(),
+                });
+            }
+            self.sleep(Duration::from_millis(16)).await;
+        }
     }
 
     /// `page.title()`.
@@ -896,6 +1029,17 @@ impl<'a> IntoFuture for Screenshot<'a> {
             Ok(bytes)
         }
         .boxed()
+    }
+}
+
+/// JavaScript truthiness of a JSON value.
+fn truthy(v: &Value) -> bool {
+    match v {
+        Value::Null => false,
+        Value::Bool(b) => *b,
+        Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0 && !f.is_nan()),
+        Value::String(s) => !s.is_empty(),
+        Value::Array(_) | Value::Object(_) => true,
     }
 }
 

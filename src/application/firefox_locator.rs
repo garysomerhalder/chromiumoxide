@@ -355,6 +355,47 @@ impl Locator {
         self.set_checked(false).await
     }
 
+    /// `locator.waitFor({ state })`: waits until the element is attached,
+    /// visible (default), detached or hidden (strict: more than one match
+    /// is an error).
+    pub async fn wait_for(&self, state: crate::application::locator::WaitForState) -> Result<()> {
+        use crate::application::locator::WaitForState;
+        let wanted = match state {
+            WaitForState::Attached => "attached",
+            WaitForState::Detached => "detached",
+            WaitForState::Visible => "visible",
+            WaitForState::Hidden => "hidden",
+        };
+        let deadline = self.page.now() + TIMEOUT;
+        loop {
+            let v = self
+                .page
+                .injected_call(
+                    "(i, selector, wanted) => { const parsed = i.parseSelector(selector); \
+                     const els = i.querySelectorAll(parsed, document); \
+                     if (els.length > 1) throw i.strictModeViolationError(parsed, els); \
+                     const el = els[0]; \
+                     const visible = !!el && i.elementState(el, 'visible', true).matches; \
+                     if (wanted === 'attached') return !!el; \
+                     if (wanted === 'detached') return !el; \
+                     if (wanted === 'visible') return visible; \
+                     return !visible; }",
+                    &[json!(self.selector), json!(wanted)],
+                )
+                .await?;
+            if v == Value::Bool(true) {
+                return Ok(());
+            }
+            if self.page.now() >= deadline {
+                return Err(Error::Timeout {
+                    ms: TIMEOUT.as_millis() as u64,
+                    action: format!("waiting for locator('{}') to be {wanted}", self.selector),
+                });
+            }
+            self.page.sleep(Duration::from_millis(16)).await;
+        }
+    }
+
     /// `locator.isVisible()` (does not wait).
     pub async fn is_visible(&self) -> Result<bool> {
         let v = self
