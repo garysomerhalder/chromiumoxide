@@ -159,6 +159,7 @@ pub mod webkit {
     };
     pub use crate::application::webkit_events::{ConsoleMessage, Dialog, PageError, PageEvent};
     pub use crate::application::webkit_locator::Locator;
+    pub use crate::application::webkit_route::{Fulfill, Route};
 }
 
 /// Playwright's `webkit`: launches Playwright's WebKit build (Safari's

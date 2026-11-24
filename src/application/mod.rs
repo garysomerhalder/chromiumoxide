@@ -60,6 +60,7 @@ pub mod wait;
 pub mod webkit;
 pub mod webkit_events;
 pub mod webkit_locator;
+pub mod webkit_route;
 pub mod webmcp;
 pub mod websocket;
 pub mod websocket_route;

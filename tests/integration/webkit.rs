@@ -402,3 +402,86 @@ async fn webkit_history_cookies_scripts_and_events() {
     assert!(context.cookies().await.unwrap().is_empty());
     browser.close().await.unwrap();
 }
+
+/// page.route on WebKit (`Network.addInterception`): fulfil with a made-up
+/// response, continue, abort; the newest matching handler wins; unroute.
+#[tokio::test]
+async fn webkit_routes_requests() {
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/r.html", "text/html", "<p>r</p>", 0);
+    server.route("/pass.txt", "text/plain", "from the server", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.route("**/api/*", |route| async move {
+        assert_eq!(route.request().method(), "GET");
+        route
+            .fulfill()
+            .status(201)
+            .content_type("application/json")
+            .header("x-fake", "yes")
+            .body(r#"{"fake":true}"#)
+            .await
+            .unwrap();
+    })
+    .await
+    .unwrap();
+    page.route("**/pass.txt", |route| async move {
+        assert!(route.request().url().ends_with("/pass.txt"));
+        route.continue_().await.unwrap();
+    })
+    .await
+    .unwrap();
+    page.route("**/blocked", |route| async move {
+        route.abort().await.unwrap();
+    })
+    .await
+    .unwrap();
+    page.goto(&server.url("/r.html")).await.unwrap();
+
+    let fake: serde_json::Value = page
+        .evaluate(
+            "fetch('/api/x').then(async r => ({ status: r.status, header: r.headers.get('x-fake'), body: await r.json() }))",
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        fake,
+        serde_json::json!({"status": 201, "header": "yes", "body": {"fake": true}})
+    );
+    assert_eq!(
+        page.evaluate::<String>("fetch('/pass.txt').then(r => r.text())")
+            .await
+            .unwrap(),
+        "from the server"
+    );
+    assert_eq!(
+        page.evaluate::<String>("fetch('/blocked').then(() => 'loaded', () => 'failed')")
+            .await
+            .unwrap(),
+        "failed"
+    );
+
+    // Newest handler first; unroute removes it again.
+    page.route("**/api/*", |route| async move {
+        route.fulfill().body("newer").await.unwrap();
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        page.evaluate::<String>("fetch('/api/y').then(r => r.text())")
+            .await
+            .unwrap(),
+        "newer"
+    );
+    page.unroute("**/api/*").await.unwrap();
+    assert_eq!(
+        page.evaluate::<u16>("fetch('/api/z').then(r => r.status)")
+            .await
+            .unwrap(),
+        404
+    );
+    browser.close().await.unwrap();
+}
