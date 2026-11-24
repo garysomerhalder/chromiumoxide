@@ -948,15 +948,11 @@ impl Browser {
     }
 }
 
-/// The channel a launch really uses: the pipe needs inherited file
-/// descriptors 3 and 4, which only the Unix launcher sets up, so Windows
-/// reaches the browser over `--remote-debugging-port=0` instead.
+/// The channel a launch really uses: the one asked for, on every system
+/// (Windows gets the pipe through its C runtime's fds 3 and 4, like Node).
 fn effective_channel(requested: Channel, windows: bool) -> Channel {
-    if windows {
-        Channel::WebSocket
-    } else {
-        requested
-    }
+    let _ = windows;
+    requested
 }
 
 #[cfg(test)]
