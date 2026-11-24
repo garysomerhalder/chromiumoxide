@@ -105,6 +105,8 @@ pub struct Route {
     pub(crate) id: String,
     pub(crate) request: RouteRequest,
     pub(crate) handled: Arc<AtomicBool>,
+    /// The handlers `fallback()` passes the request to, in order.
+    pub(crate) rest: Vec<Handler>,
 }
 
 impl std::fmt::Debug for Route {
@@ -116,6 +118,67 @@ impl std::fmt::Debug for Route {
 }
 
 impl Route {
+    /// Runs the first handler of `chain` (the rest follow on `fallback`);
+    /// with none, the request goes on to the network.
+    pub(crate) fn dispatch(
+        page: Page,
+        id: String,
+        request: RouteRequest,
+        mut chain: Vec<Handler>,
+    ) -> BoxFuture<'static, ()> {
+        async move {
+            if chain.is_empty() {
+                let _ = page
+                    .bidi_call("network.continueRequest", json!({"request": id}))
+                    .await;
+                return;
+            }
+            let handler = chain.remove(0);
+            handler(Route {
+                page,
+                id,
+                request,
+                handled: Arc::default(),
+                rest: chain,
+            })
+            .await
+        }
+        .boxed()
+    }
+
+    /// `route.fallback()`: lets the next matching handler (an older page
+    /// route, then the context's) handle the request, or the network.
+    pub async fn fallback(&self) -> Result<()> {
+        self.take()?;
+        Route::dispatch(
+            self.page.clone(),
+            self.id.clone(),
+            self.request.clone(),
+            self.rest.clone(),
+        )
+        .await;
+        Ok(())
+    }
+
+    /// `route.fetch()`: performs the request (through the context's API
+    /// request context) and returns the response, for `fulfill().response()`.
+    pub async fn fetch(&self) -> Result<crate::application::request::ApiResponse> {
+        let request = self.page.request();
+        let body = self.request.post_data_buffer().await?;
+        let mut call = request
+            .fetch(self.request.url())
+            .method(self.request.method());
+        for (k, v) in self.request.headers() {
+            if !k.eq_ignore_ascii_case("cookie") && !k.eq_ignore_ascii_case("host") {
+                call = call.header(k, v);
+            }
+        }
+        if let Some(body) = body {
+            call = call.data_bytes(body);
+        }
+        call.await
+    }
+
     pub fn request(&self) -> RouteRequest {
         self.request.clone()
     }
@@ -154,6 +217,8 @@ impl Route {
             headers: Vec::new(),
             content_type: None,
             body: Vec::new(),
+            response: None,
+            body_set: false,
         }
     }
 }
@@ -166,6 +231,10 @@ pub struct Fulfill<'a> {
     headers: Vec<(String, String)>,
     content_type: Option<String>,
     body: Vec<u8>,
+    /// `fulfill({ response })`: its status, headers and (unless `body` is
+    /// set) body.
+    response: Option<crate::application::request::ApiResponse>,
+    body_set: bool,
 }
 
 impl Fulfill<'_> {
@@ -183,6 +252,14 @@ impl Fulfill<'_> {
     }
     pub fn body(mut self, body: impl Into<Vec<u8>>) -> Self {
         self.body = body.into();
+        self.body_set = true;
+        self
+    }
+    /// `fulfill({ response })`: answers with a fetched response's status,
+    /// headers and body (each can still be overridden).
+    pub fn response(mut self, response: &crate::application::request::ApiResponse) -> Self {
+        self.status = response.status();
+        self.response = Some(response.clone());
         self
     }
 }
@@ -195,6 +272,24 @@ impl<'a> IntoFuture for Fulfill<'a> {
         async move {
             self.route.take()?;
             let mut headers = self.headers;
+            let mut body = self.body;
+            if let Some(response) = &self.response {
+                let mut from: Vec<(String, String)> = response
+                    .headers_array()
+                    .into_iter()
+                    .map(|h| (h.name, h.value))
+                    .filter(|(k, _)| {
+                        !k.eq_ignore_ascii_case("content-length")
+                            && !k.eq_ignore_ascii_case("content-encoding")
+                            && !k.eq_ignore_ascii_case("transfer-encoding")
+                    })
+                    .collect();
+                from.retain(|(k, _)| !headers.iter().any(|(h, _)| h.eq_ignore_ascii_case(k)));
+                headers.extend(from);
+                if !self.body_set {
+                    body = response.body().await?;
+                }
+            }
             if let Some(ct) = self.content_type {
                 headers.retain(|(n, _)| !n.eq_ignore_ascii_case("content-type"));
                 headers.push(("content-type".into(), ct));
@@ -203,7 +298,7 @@ impl<'a> IntoFuture for Fulfill<'a> {
                 .iter()
                 .any(|(n, _)| n.eq_ignore_ascii_case("content-length"))
             {
-                headers.push(("content-length".into(), self.body.len().to_string()));
+                headers.push(("content-length".into(), body.len().to_string()));
             }
             let headers: Vec<Value> = headers
                 .iter()
@@ -219,7 +314,7 @@ impl<'a> IntoFuture for Fulfill<'a> {
                         "reasonPhrase": status_text(self.status),
                         "headers": headers,
                         "body": {"type": "base64",
-                                 "value": base64::engine::general_purpose::STANDARD.encode(&self.body)},
+                                 "value": base64::engine::general_purpose::STANDARD.encode(&body)},
                     }),
                 )
                 .await

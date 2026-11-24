@@ -1712,38 +1712,26 @@ impl Page {
         self.inner.bidi.call(method, params).await
     }
 
-    /// Hands a blocked request to the newest matching route handler, or
+    /// Hands a blocked request to the newest matching route handler (the
+    /// older ones, then the context's, follow on `route.fallback()`), or
     /// lets it through.
     fn route_request(&self, request: Request) {
         let id = request.inner.id.clone();
-        let find = |routes: &Mutex<Vec<RouteEntry>>| {
+        let matching = |routes: &Mutex<Vec<RouteEntry>>| {
             routes
                 .lock()
                 .unwrap()
                 .iter()
                 .rev()
-                .find(|e| e.matcher.matches(request.url()))
+                .filter(|e| e.matcher.matches(request.url()))
                 .map(|e| e.handler.clone())
+                .collect::<Vec<_>>()
         };
-        let handler = find(&self.inner.routes).or_else(|| find(&self.inner.context_routes));
+        let mut chain = matching(&self.inner.routes);
+        chain.extend(matching(&self.inner.context_routes));
         let page = self.clone();
         tokio::spawn(async move {
-            match handler {
-                Some(handler) => {
-                    handler(Route {
-                        page,
-                        id,
-                        request,
-                        handled: Arc::default(),
-                    })
-                    .await
-                }
-                None => {
-                    let _ = page
-                        .bidi_call("network.continueRequest", json!({"request": id}))
-                        .await;
-                }
-            }
+            Route::dispatch(page, id, request, chain).await;
         });
     }
 
