@@ -82,6 +82,11 @@ impl Locator {
         self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
     }
 
+    /// The page this locator belongs to.
+    pub fn page(&self) -> &Page {
+        &self.page
+    }
+
     /// The selector string (Playwright's internal form).
     pub fn selector(&self) -> &str {
         &self.selector
