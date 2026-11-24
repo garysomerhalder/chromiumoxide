@@ -143,6 +143,7 @@ pub mod firefox {
     pub use crate::application::firefox_events::{ConsoleMessage, Dialog, PageError, PageEvent};
     pub use crate::application::firefox_expect::{Assertion, LocatorAssertions, PageAssertions};
     pub use crate::application::firefox_locator::Locator;
+    pub use crate::application::firefox_route::{Fulfill, Route, RouteRequest};
 }
 
 /// Playwright's `firefox`: launches Firefox, driven over WebDriver BiDi.

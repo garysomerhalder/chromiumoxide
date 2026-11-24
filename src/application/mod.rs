@@ -22,6 +22,7 @@ pub mod firefox;
 pub mod firefox_events;
 pub mod firefox_expect;
 pub mod firefox_locator;
+pub mod firefox_route;
 pub mod frame;
 pub mod frame_actions;
 pub mod handle;

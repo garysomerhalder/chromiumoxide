@@ -19,6 +19,7 @@ use crate::application::actions::{ADD_STYLE, StyleTag};
 use crate::application::firefox_events::{
     ConsoleMessage, Dialog, PageError, PageEvent, console_kind, prompt_params,
 };
+use crate::application::firefox_route::{Route, RouteEntry, RouteRequest};
 use crate::application::locator::INJECTED_SOURCE;
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
 use crate::application::services::Services;
@@ -195,7 +196,7 @@ impl Browser {
             .bidi
             .call(
                 "session.subscribe",
-                json!({"events": ["browsingContext", "log.entryAdded"]}),
+                json!({"events": ["browsingContext", "log.entryAdded", "network.beforeRequestSent"]}),
             )
             .await
         {
@@ -480,6 +481,8 @@ impl BrowserContext {
             owned_context: Mutex::new(None),
             url: Mutex::new("about:blank".to_owned()),
             subscribers: Mutex::new(Vec::new()),
+            routes: Mutex::new(Vec::new()),
+            intercept: tokio::sync::Mutex::new(None),
             closed: AtomicBool::new(false),
         });
         let weak = Arc::downgrade(&inner);
@@ -554,6 +557,10 @@ struct PageInner {
     owned_context: Mutex<Option<BrowserContext>>,
     /// The main frame's URL, from `browsingContext` events.
     url: Mutex<String>,
+    /// `page.route` handlers, oldest first.
+    routes: Mutex<Vec<RouteEntry>>,
+    /// The BiDi network intercept while routes exist.
+    intercept: tokio::sync::Mutex<Option<String>>,
     /// `page.events()` subscribers.
     subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<PageEvent>>>,
     closed: AtomicBool,
@@ -662,6 +669,9 @@ impl Page {
                     });
                 }
             }
+            "network.beforeRequestSent" if p["isBlocked"] == Value::Bool(true) => {
+                self.route_request(p);
+            }
             "browsingContext.domContentLoaded" => {
                 self.emit(PageEvent::DomContentLoaded);
             }
@@ -673,6 +683,90 @@ impl Page {
             }
             _ => {}
         }
+    }
+
+    /// Any BiDi command (for the engine's other modules).
+    pub(crate) async fn bidi_call(&self, method: &str, params: Value) -> Result<Value> {
+        self.check_open()?;
+        self.inner.bidi.call(method, params).await
+    }
+
+    /// Hands a blocked request to the newest matching route handler, or
+    /// lets it through.
+    fn route_request(&self, p: &Value) {
+        let id = p
+            .pointer("/request/request")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        let request = RouteRequest::from_bidi(&p["request"]);
+        let handler = self
+            .inner
+            .routes
+            .lock()
+            .unwrap()
+            .iter()
+            .rev()
+            .find(|e| e.matcher.matches(&request.url))
+            .map(|e| e.handler.clone());
+        let page = self.clone();
+        tokio::spawn(async move {
+            match handler {
+                Some(handler) => {
+                    handler(Route {
+                        page,
+                        id,
+                        request,
+                        handled: Arc::default(),
+                    })
+                    .await
+                }
+                None => {
+                    let _ = page
+                        .bidi_call("network.continueRequest", json!({"request": id}))
+                        .await;
+                }
+            }
+        });
+    }
+
+    /// Registers a route; the first one adds the page's network intercept.
+    pub(crate) async fn add_route(&self, entry: RouteEntry) -> Result<()> {
+        self.check_open()?;
+        let mut intercept = self.inner.intercept.lock().await;
+        if intercept.is_none() {
+            let r = self
+                .inner
+                .bidi
+                .call(
+                    "network.addIntercept",
+                    json!({"phases": ["beforeRequestSent"], "contexts": [self.inner.context]}),
+                )
+                .await?;
+            *intercept = r
+                .get("intercept")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+        }
+        self.inner.routes.lock().unwrap().push(entry);
+        Ok(())
+    }
+
+    /// Removes routes; with none left the network intercept goes too.
+    pub(crate) async fn remove_routes(&self, remove: impl Fn(&RouteEntry) -> bool) -> Result<()> {
+        let mut intercept = self.inner.intercept.lock().await;
+        let empty = {
+            let mut routes = self.inner.routes.lock().unwrap();
+            routes.retain(|e| !remove(e));
+            routes.is_empty()
+        };
+        if empty && let Some(id) = intercept.take() {
+            self.inner
+                .bidi
+                .call("network.removeIntercept", json!({"intercept": id}))
+                .await?;
+        }
+        Ok(())
     }
 
     /// Accepts or dismisses the open dialog.
