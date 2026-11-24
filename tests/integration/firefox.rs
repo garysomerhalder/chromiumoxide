@@ -1969,9 +1969,11 @@ async fn firefox_page_details_and_frame_locator_nth() {
 
     // Recent console messages, page errors and requests.
     page.goto(&server.url("/a.html")).await.unwrap();
-    page.evaluate::<()>("console.log('one'); setTimeout(() => { throw new Error('boom'); })")
-        .await
-        .unwrap();
+    page.evaluate::<serde_json::Value>(
+        "console.log('one'); setTimeout(() => { throw new Error('boom'); })",
+    )
+    .await
+    .unwrap();
     page.wait_for_function("true").await.unwrap();
     page.wait_for_timeout(std::time::Duration::from_millis(200))
         .await;

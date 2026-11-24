@@ -15,9 +15,6 @@ use crate::application::locator::{DROP, DropPayload};
 use crate::domain::error::{Error, Result};
 use crate::domain::selectors::{self, TextMatch, compose};
 
-/// Playwright's default action timeout.
-const TIMEOUT: Duration = Duration::from_secs(30);
-
 impl std::fmt::Display for Locator {
     /// Playwright's `locator.toString()`: the selector.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -126,7 +123,7 @@ impl Locator {
 
     /// `locator.waitForFunction(fn)`: until `fn(element)` is truthy.
     pub async fn wait_for_function(&self, function: &str) -> Result<()> {
-        let deadline = self.page.now() + TIMEOUT;
+        let deadline = self.page.now() + self.page.timeout();
         loop {
             let v: Value = self
                 .read_value(&format!("(i, node) => ({function})(node)"), &[])
@@ -136,7 +133,7 @@ impl Locator {
             }
             if self.page.now() >= deadline {
                 return Err(Error::Timeout {
-                    ms: TIMEOUT.as_millis() as u64,
+                    ms: self.page.timeout().as_millis() as u64,
                     action: format!("waiting for function on locator('{}')", self.selector),
                 });
             }

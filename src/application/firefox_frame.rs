@@ -18,9 +18,6 @@ use crate::domain::frame::LifecycleEvent;
 use crate::domain::selectors::{self, RoleOptions, TextMatch};
 use crate::domain::url_matcher::UrlMatcher;
 
-/// Playwright's default timeout for waits.
-const TIMEOUT: Duration = Duration::from_secs(30);
-
 /// Playwright's selector shortcuts: each is `self.locator(selector).<method>`.
 macro_rules! selector_shortcuts {
     () => {
@@ -349,7 +346,7 @@ impl Frame {
     /// `frame.waitForURL(url)`: until the frame's URL matches, then `load`.
     pub async fn wait_for_url(&self, url: impl Into<UrlMatcher>) -> Result<()> {
         let matcher = url.into();
-        let deadline = self.page.now() + TIMEOUT;
+        let deadline = self.page.now() + self.page.timeout();
         loop {
             let now: String = self.evaluate("location.href").await.unwrap_or_default();
             if matcher.matches(&now) {
@@ -357,7 +354,7 @@ impl Frame {
             }
             if self.page.now() >= deadline {
                 return Err(Error::Timeout {
-                    ms: TIMEOUT.as_millis() as u64,
+                    ms: self.page.timeout().as_millis() as u64,
                     action: format!("waiting for URL, now {now}"),
                 });
             }

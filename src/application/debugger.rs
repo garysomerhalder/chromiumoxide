@@ -208,7 +208,7 @@ fn is_toolchain_file(file: &str) -> bool {
 /// Picking mode in one frame: hover highlights the element with its
 /// locator, a click picks it (and does not reach the page). Re-installed by
 /// every poll, so it survives new documents.
-const PICK_TICK: &str = "(i) => {
+pub(crate) const PICK_TICK: &str = "(i) => {
   let state = window.__coxPick;
   if (!state) {
     const h = i._ensureHighlight();
@@ -241,7 +241,7 @@ const PICK_TICK: &str = "(i) => {
   return picked;
 }";
 
-const PICK_STOP: &str = "() => { if (window.__coxPick) window.__coxPick.stop(); }";
+pub(crate) const PICK_STOP: &str = "() => { if (window.__coxPick) window.__coxPick.stop(); }";
 
 impl Page {
     async fn stop_picking(&self) {

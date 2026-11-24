@@ -79,7 +79,7 @@ def impl_fns(files):
         for m in re.finditer(r'\npub struct (\w+)(?:<[^>]*>)?\s*\{([^}]*)\}', text):
             out.setdefault(m.group(1), set()).update(
                 re.findall(r'\n    pub (\w+):', m.group(2)))
-        for m in re.finditer(r'\nimpl(?:<[^>]*>)?\s+(?:(?:[\w:]+)\s+for\s+)?(\w+)(?:<[^>]*>)?\s*\{', text):
+        for m in re.finditer(r'\nimpl(?:<[^>]*>)?\s+(?:(?:[\w:]+)\s+for\s+)?(?:\w+::)*(\w+)(?:<[^>]*>)?\s*\{', text):
             trait = re.match(r'\nimpl(?:<[^>]*>)?\s+([\w:]+)\s+for', m.group(0))
             i = j = m.end()
             depth = 1

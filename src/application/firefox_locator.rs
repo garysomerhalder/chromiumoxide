@@ -108,9 +108,6 @@ impl FrameLocator {
     }
 }
 
-/// Default action timeout (Playwright's 30 s).
-const TIMEOUT: Duration = Duration::from_secs(30);
-
 /// Records the drag session the next pointer actions start: Firefox's
 /// WebDriver actions run `dragstart`/`dragover` but end the session on
 /// release without a `drop` (a TODO in its `EventUtils.js`).
@@ -233,7 +230,7 @@ impl Locator {
              if (!els.length) return {{ found: false }}; \
              return {{ found: true, value: ({body})(i, els[0], ...args) }}; }}"
         );
-        let deadline = self.page.now() + TIMEOUT;
+        let deadline = self.page.now() + self.page.timeout();
         let mut delay = Duration::from_millis(20);
         loop {
             let r = self
@@ -244,7 +241,7 @@ impl Locator {
             }
             if self.page.now() >= deadline {
                 return Err(Error::Timeout {
-                    ms: TIMEOUT.as_millis() as u64,
+                    ms: self.page.timeout().as_millis() as u64,
                     action: format!("waiting for locator('{}')", self.selector),
                 });
             }
@@ -264,7 +261,7 @@ impl Locator {
              const value = await ({body})(i, els[0], ...args); \
              return {{ found: true, value: value === undefined ? null : value }}; }}"
         );
-        let deadline = self.page.now() + TIMEOUT;
+        let deadline = self.page.now() + self.page.timeout();
         let mut delay = Duration::from_millis(20);
         loop {
             let r = self
@@ -275,7 +272,7 @@ impl Locator {
             }
             if self.page.now() >= deadline {
                 return Err(Error::Timeout {
-                    ms: TIMEOUT.as_millis() as u64,
+                    ms: self.page.timeout().as_millis() as u64,
                     action: format!("waiting for locator('{}')", self.selector),
                 });
             }
@@ -355,7 +352,7 @@ impl Locator {
              const hit = i.expectHitTarget(point, node); \
              if (hit !== 'done') return { retry: hit.hitTargetDescription + ' intercepts pointer events' }; \
              return { point }; }";
-        let deadline = self.page.now() + TIMEOUT;
+        let deadline = self.page.now() + self.page.timeout();
         let mut delay = Duration::from_millis(20);
         loop {
             // The point is in the locator's frame; add the frames' offsets
@@ -378,7 +375,7 @@ impl Locator {
             let last = r["retry"].as_str().unwrap_or_default();
             if self.page.now() >= deadline {
                 return Err(Error::Timeout {
-                    ms: TIMEOUT.as_millis() as u64,
+                    ms: self.page.timeout().as_millis() as u64,
                     action: format!("waiting for locator('{}'): {last}", self.selector),
                 });
             }
@@ -494,7 +491,7 @@ impl Locator {
 
     async fn select_option_untraced(&self, values: &[&str]) -> Result<Vec<String>> {
         let options: Vec<Value> = values.iter().map(|v| json!({"valueOrLabel": v})).collect();
-        let deadline = self.page.now() + TIMEOUT;
+        let deadline = self.page.now() + self.page.timeout();
         loop {
             let r = self
                 .read(
@@ -510,7 +507,7 @@ impl Locator {
             }
             if self.page.now() >= deadline {
                 return Err(Error::Timeout {
-                    ms: TIMEOUT.as_millis() as u64,
+                    ms: self.page.timeout().as_millis() as u64,
                     action: format!(
                         "selecting options in locator('{}'): {}",
                         self.selector,
@@ -781,7 +778,7 @@ impl Locator {
             WaitForState::Visible => "visible",
             WaitForState::Hidden => "hidden",
         };
-        let deadline = self.page.now() + TIMEOUT;
+        let deadline = self.page.now() + self.page.timeout();
         loop {
             let v = self
                 .call(
@@ -802,7 +799,7 @@ impl Locator {
             }
             if self.page.now() >= deadline {
                 return Err(Error::Timeout {
-                    ms: TIMEOUT.as_millis() as u64,
+                    ms: self.page.timeout().as_millis() as u64,
                     action: format!("waiting for locator('{}') to be {wanted}", self.selector),
                 });
             }

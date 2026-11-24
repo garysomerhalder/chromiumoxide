@@ -414,6 +414,8 @@ impl Browser {
                     viewport,
                 )),
                 persistent: Mutex::new(persistent),
+                timeouts: Mutex::new(Timeouts::default()),
+                paused: tokio::sync::watch::channel(false).0,
                 closed: AtomicBool::new(false),
             }),
         };
@@ -496,7 +498,7 @@ pub struct BrowserContext {
     inner: Arc<ContextInner>,
 }
 
-struct ContextInner {
+pub(crate) struct ContextInner {
     bidi: Arc<dyn BidiSession>,
     services: Services,
     user_context: String,
@@ -514,7 +516,30 @@ struct ContextInner {
     recorders: Arc<Recorders>,
     /// The browser of a persistent context (closed with it).
     persistent: Mutex<Option<Browser>>,
+    /// `context.setDefaultTimeout` / `setDefaultNavigationTimeout`.
+    pub(crate) timeouts: Mutex<Timeouts>,
+    /// `page.pause()` waits while this is true; `context.resume()` clears it.
+    pub(crate) paused: tokio::sync::watch::Sender<bool>,
     closed: AtomicBool,
+}
+
+/// Default timeouts set on a page or context (`None`: not set there).
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Timeouts {
+    pub(crate) action: Option<Duration>,
+    pub(crate) navigation: Option<Duration>,
+}
+
+/// Playwright's default timeout.
+pub(crate) const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// What a page remembers for `consoleMessages()`, `pageErrors()` and
+/// `requests()` (Playwright keeps the last 200, 200 and 100).
+#[derive(Default)]
+pub(crate) struct History {
+    pub(crate) console: std::collections::VecDeque<ConsoleMessage>,
+    pub(crate) errors: std::collections::VecDeque<PageError>,
+    pub(crate) requests: std::collections::VecDeque<Request>,
 }
 
 impl std::fmt::Debug for BrowserContext {
@@ -522,6 +547,28 @@ impl std::fmt::Debug for BrowserContext {
         f.debug_struct("firefox::BrowserContext")
             .field("user_context", &self.inner.user_context)
             .finish()
+    }
+}
+
+impl BrowserContext {
+    /// `context.setDefaultTimeout(timeout)`: for every page's actions and
+    /// waits (a page's own setting wins).
+    pub fn set_default_timeout(&self, timeout: Duration) {
+        self.inner.timeouts.lock().unwrap().action = Some(timeout);
+    }
+
+    /// `context.setDefaultNavigationTimeout(timeout)`.
+    pub fn set_default_navigation_timeout(&self, timeout: Duration) {
+        self.inner.timeouts.lock().unwrap().navigation = Some(timeout);
+    }
+
+    /// Ends a `page.pause()` (what Playwright's inspector "Resume" does).
+    pub fn resume(&self) {
+        self.inner.paused.send_replace(false);
+    }
+
+    pub(crate) fn from_inner(inner: Arc<ContextInner>) -> BrowserContext {
+        BrowserContext { inner }
     }
 }
 
@@ -884,6 +931,10 @@ async fn attach_page(
         realms: Mutex::new(std::collections::HashSet::new()),
         workers: Mutex::new(Vec::new()),
         websockets: Mutex::new(HashMap::new()),
+        history: Mutex::new(History::default()),
+        opener: Mutex::new(None),
+        timeouts: Mutex::new(Timeouts::default()),
+        picking: AtomicBool::new(false),
         closed: AtomicBool::new(false),
     });
     ctx.pages.lock().unwrap().push(inner.clone());
@@ -988,7 +1039,7 @@ pub(crate) struct PageInner {
     /// `page.video()`.
     video: Mutex<Option<Video>>,
     /// The context the page belongs to.
-    owner: std::sync::Weak<ContextInner>,
+    pub(crate) owner: std::sync::Weak<ContextInner>,
     /// The page's window realms (owners of its dedicated workers).
     realms: Mutex<std::collections::HashSet<String>>,
     /// `page.workers()`.
@@ -997,6 +1048,14 @@ pub(crate) struct PageInner {
     websockets: Mutex<HashMap<String, WebSocket>>,
     /// `page.events()` subscribers.
     subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<PageEvent>>>,
+    /// Recent console messages, errors and requests.
+    pub(crate) history: Mutex<History>,
+    /// The page that opened this one (`page.opener()`).
+    pub(crate) opener: Mutex<Option<Page>>,
+    /// `page.setDefaultTimeout` / `setDefaultNavigationTimeout`.
+    pub(crate) timeouts: Mutex<Timeouts>,
+    /// While `page.pickLocator()` runs.
+    pub(crate) picking: AtomicBool,
     closed: AtomicBool,
 }
 
@@ -1009,6 +1068,35 @@ impl std::fmt::Debug for Page {
 }
 
 impl Page {
+    /// The action timeout: the page's, else the context's, else 30 s.
+    pub(crate) fn timeout(&self) -> Duration {
+        let own = self.inner.timeouts.lock().unwrap().action;
+        own.or_else(|| {
+            self.inner
+                .owner
+                .upgrade()
+                .and_then(|c| c.timeouts.lock().unwrap().action)
+        })
+        .unwrap_or(DEFAULT_TIMEOUT)
+    }
+
+    /// The navigation timeout: the page's navigation, else its default,
+    /// else the context's navigation, else the context's default, else 30 s.
+    pub(crate) fn navigation_timeout(&self) -> Duration {
+        let own = *self.inner.timeouts.lock().unwrap();
+        let ctx = self
+            .inner
+            .owner
+            .upgrade()
+            .map(|c| *c.timeouts.lock().unwrap())
+            .unwrap_or_default();
+        own.navigation
+            .or(own.action)
+            .or(ctx.navigation)
+            .or(ctx.action)
+            .unwrap_or(DEFAULT_TIMEOUT)
+    }
+
     /// `page.isClosed()`.
     pub fn is_closed(&self) -> bool {
         self.inner.closed.load(Ordering::SeqCst)
@@ -1034,7 +1122,14 @@ impl Page {
 
     async fn goto_untraced(&self, url: &str) -> Result<()> {
         let context = self.inner.context.clone();
-        self.goto_in(&context, url).await
+        let timeout = self.navigation_timeout();
+        crate::application::wait::with_timeout(
+            &*self.inner.services.clock,
+            timeout,
+            &format!("navigating to \"{url}\""),
+            self.goto_in(&context, url),
+        )
+        .await
     }
 
     /// Navigates a frame's browsing context and waits for its `load`.
@@ -1067,6 +1162,30 @@ impl Page {
 
     /// Sends an event to the live subscribers; false when there are none.
     fn emit(&self, event: PageEvent) -> bool {
+        {
+            let mut h = self.inner.history.lock().unwrap();
+            match &event {
+                PageEvent::Console(m) => {
+                    h.console.push_back(m.clone());
+                    if h.console.len() > 200 {
+                        h.console.pop_front();
+                    }
+                }
+                PageEvent::PageError(e) => {
+                    h.errors.push_back(e.clone());
+                    if h.errors.len() > 200 {
+                        h.errors.pop_front();
+                    }
+                }
+                PageEvent::Request(r) => {
+                    h.requests.push_back(r.clone());
+                    if h.requests.len() > 100 {
+                        h.requests.pop_front();
+                    }
+                }
+                _ => {}
+            }
+        }
         let mut subs = self.inner.subscribers.lock().unwrap();
         subs.retain(|s| s.unbounded_send(event.clone()).is_ok());
         !subs.is_empty()
@@ -1233,6 +1352,7 @@ impl Page {
                 let opener = self.clone();
                 tokio::spawn(async move {
                     if let Ok(popup) = attach_page(&owner, id, url, events).await {
+                        *popup.inner.opener.lock().unwrap() = Some(opener.clone());
                         popup.refresh_url().await;
                         opener.emit(PageEvent::Popup(popup));
                     }
@@ -1699,7 +1819,7 @@ impl Page {
 
     /// `frame.waitForFunction(...)` in a browsing context.
     pub(crate) async fn wait_for_function_in(&self, context: &str, source: &str) -> Result<Value> {
-        let timeout = Duration::from_secs(30);
+        let timeout = self.timeout();
         let deadline = self.now() + timeout;
         loop {
             match self

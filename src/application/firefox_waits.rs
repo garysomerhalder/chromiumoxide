@@ -22,8 +22,6 @@ use crate::domain::screenshot::Rect;
 use crate::domain::selectors::{Filter, compose};
 use crate::domain::url_matcher::UrlMatcher;
 
-/// Playwright's default timeout for waits.
-const TIMEOUT: Duration = Duration::from_secs(30);
 /// No network activity for this long is `networkidle`.
 const IDLE: Duration = Duration::from_millis(500);
 
@@ -32,11 +30,11 @@ impl Page {
     /// `load`.
     pub async fn wait_for_url(&self, url: impl Into<UrlMatcher>) -> Result<()> {
         let matcher = url.into();
-        let deadline = self.now() + TIMEOUT;
+        let deadline = self.now() + self.timeout();
         while !matcher.matches(&self.url()) {
             if self.now() >= deadline {
                 return Err(Error::Timeout {
-                    ms: TIMEOUT.as_millis() as u64,
+                    ms: self.timeout().as_millis() as u64,
                     action: format!("waiting for URL, now {}", self.url()),
                 });
             }
@@ -88,7 +86,7 @@ impl Page {
                 }
             }
         };
-        with_timeout(&*clock, TIMEOUT, "waiting for networkidle", quiet).await
+        with_timeout(&*clock, self.timeout(), "waiting for networkidle", quiet).await
     }
 
     /// `page.waitForRequest(url)`: the next request to a matching URL.
@@ -100,8 +98,9 @@ impl Page {
         let matcher = url.into();
         let mut events = self.events();
         let clock = self.inner.services.clock.clone();
+        let timeout = self.timeout();
         async move {
-            with_timeout(&*clock, TIMEOUT, "waiting for request", async {
+            with_timeout(&*clock, timeout, "waiting for request", async {
                 while let Some(e) = events.next().await {
                     if let PageEvent::Request(r) = e
                         && matcher.matches(r.url())
@@ -123,8 +122,9 @@ impl Page {
         let matcher = url.into();
         let mut events = self.events();
         let clock = self.inner.services.clock.clone();
+        let timeout = self.timeout();
         async move {
-            with_timeout(&*clock, TIMEOUT, "waiting for response", async {
+            with_timeout(&*clock, timeout, "waiting for response", async {
                 while let Some(e) = events.next().await {
                     if let PageEvent::Response(r) = e
                         && matcher.matches(r.url())
