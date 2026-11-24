@@ -1626,3 +1626,37 @@ async fn firefox_waits_and_locator_extras() {
     );
     browser.close().await.unwrap();
 }
+
+/// Firefox: the baseURL context option and locator.screenshot().
+#[tokio::test]
+async fn firefox_base_url_and_locator_screenshot() {
+    use chromiumoxide::ContextOptions;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/b.html", "text/html", "<title>based</title>", 0);
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions {
+            base_url: Some(server.url("/")),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto("/b.html").await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "based");
+
+    page.set_content(
+        "<body style='margin:0'><div style='height:300px'></div>\
+         <div id=box style='width:50px;height:30px;margin-left:20px;background:rgb(255,0,0)'></div></body>",
+    )
+    .await
+    .unwrap();
+    let png = page.locator("#box").screenshot().await.unwrap();
+    let (w, h, rgba) = crate::screenshot::decode(&png);
+    assert_eq!((w, h), (50, 30));
+    assert_eq!(&rgba[..4], &[255, 0, 0, 255]);
+    browser.close().await.unwrap();
+}
