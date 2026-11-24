@@ -396,6 +396,36 @@ pub fn har_entry(
 #[cfg(test)]
 mod tests {
     #[test]
+    fn playwright_folders_on_every_system() {
+        use std::path::PathBuf;
+        let p = PathBuf::from;
+        assert_eq!(
+            playwright_dirs(Some(p("/pw")), Some(p("/home/u")), None, false),
+            [
+                p("/pw"),
+                p("/opt/pw-browsers"),
+                p("/home/u/.cache/ms-playwright"),
+                p("/home/u/Library/Caches/ms-playwright"),
+            ]
+        );
+        assert_eq!(
+            playwright_dirs(
+                None,
+                Some(p("C:/Users/u")),
+                Some(p("C:/Users/u/AppData/Local")),
+                true
+            ),
+            [
+                p("C:/Users/u/.cache/ms-playwright"),
+                p("C:/Users/u/Library/Caches/ms-playwright"),
+                p("C:/Users/u/AppData/Local/ms-playwright"),
+            ]
+        );
+        // "0" and an empty value mean "the default folders" to Playwright.
+        assert_eq!(playwright_dirs(Some(p("0")), None, None, false), [p("/opt/pw-browsers")]);
+    }
+
+    #[test]
     fn har_entries_from_bidi_network_events() {
         let request = serde_json::json!({
             "request": "7", "url": "http://h:1/p?a=1", "method": "POST",
