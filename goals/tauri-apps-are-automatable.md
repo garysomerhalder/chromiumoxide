@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | active |
+| Status | done |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
 | Started | 2026-11-24 |
-| Finished | — |
+| Finished | 2026-11-24 |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (WebKitGTK; `webkit2gtk-driver` 2.52 installable); a Windows CI runner for WebView2 |
 
@@ -53,7 +53,7 @@ Out:
 
 - [x] A Tauri app's window runs `goto`, `evaluate`, a locator click and a screenshot on Windows CI.
 - [x] The same test passes on Linux (WebKitGTK).
-- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass, locally and in CI.
+- [x] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass, locally and in CI.
 - [x] `docs/PARITY.md` lists Tauri support per platform (macOS as not possible, with the reason).
 - [x] `CHANGELOG.md` has the entry and a draft PR is open.
 
@@ -76,8 +76,9 @@ Linux path if the WebKit goal is not met yet.
 - 2026-11-24: `tauri_window_runs_the_page_api` passes on Gary's PC
   (WebView2 158). Two fixes on the way: WebView2's DevTools answers
   `/json/version` only over HTTP/1.1, and keeps the connection open, so
-  the answer is read up to its Content-Length. Left: the full suite on
-  Windows once more.
+  the answer is read up to its Content-Length.
+- 2026-11-24: the full workspace suite passes on Gary's PC (Windows 11):
+  224 unit, 257 integration and every other test crate, Tauri included.
 
 ## Set it
 

@@ -82,6 +82,11 @@ the WebKit build needs system libraries CI cannot install.
   dialogs; `page.route` (fulfill, continue, abort); network events. All
   WebKit tests pass on Linux; locators and parity also on Windows. Next:
   context routes, frames, `expect`, recording.
+- 2026-11-24: context routes, `expect`, frames, pop-ups, downloads and
+  `recordVideo`; 15 WebKit tests. The full suite passes on Windows. The
+  parity cases also leave out `autofocus`: its focus ring races in
+  Playwright's own WebKit shots under load. Next: tracing, HAR, workers;
+  real Safari needs the Mac.
 
 ## Set it
 
