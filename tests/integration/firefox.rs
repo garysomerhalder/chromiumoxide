@@ -1548,3 +1548,81 @@ async fn firefox_trace_snapshots_chunks_and_groups() {
     let _ = std::fs::remove_dir_all(&dir);
     browser.close().await.unwrap();
 }
+
+/// Firefox waits (waitForURL, waitForLoadState, waitForRequest,
+/// waitForResponse) and locator extras (filter, and, or, all, boundingBox,
+/// evaluate).
+#[tokio::test]
+async fn firefox_waits_and_locator_extras() {
+    use chromiumoxide::{Filter, WaitUntil};
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/a.html", "text/html", "<a href='/b.html'>next</a>", 0);
+    server.route("/b.html", "text/html", "<title>b</title>", 0);
+    server.route("/data.txt", "text/plain", "data", 0);
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.goto(&server.url("/a.html")).await.unwrap();
+
+    let clicked = {
+        let page = page.clone();
+        tokio::spawn(async move { page.locator("a").click().await })
+    };
+    page.wait_for_url("**/b.html").await.unwrap();
+    clicked.await.unwrap().unwrap();
+    page.wait_for_load_state(WaitUntil::Load).await.unwrap();
+    page.wait_for_load_state(WaitUntil::DomContentLoaded)
+        .await
+        .unwrap();
+    page.wait_for_load_state(WaitUntil::NetworkIdle)
+        .await
+        .unwrap();
+    assert_eq!(page.title().await.unwrap(), "b");
+
+    let request = page.wait_for_request("**/data.txt");
+    let response = page.wait_for_response("**/data.txt");
+    page.evaluate::<String>("fetch('/data.txt').then(r => r.text())")
+        .await
+        .unwrap();
+    assert_eq!(request.await.unwrap().method(), "GET");
+    assert_eq!(response.await.unwrap().status(), 200);
+
+    page.set_content("<li>apple</li><li class=x>banana</li><li>cherry</li><button>b</button>")
+        .await
+        .unwrap();
+    let li = page.locator("li");
+    assert_eq!(
+        li.filter(Filter {
+            has_text: Some("an".into()),
+            ..Default::default()
+        })
+        .inner_text()
+        .await
+        .unwrap(),
+        "banana"
+    );
+    assert_eq!(li.and(&page.locator(".x")).count().await.unwrap(), 1);
+    assert_eq!(
+        page.locator("li.x")
+            .or(&page.locator("button"))
+            .count()
+            .await
+            .unwrap(),
+        2
+    );
+    let all = li.all().await.unwrap();
+    assert_eq!(all.len(), 3);
+    assert_eq!(all[2].inner_text().await.unwrap(), "cherry");
+    let b = page.locator(".x").bounding_box().await.unwrap().unwrap();
+    assert!(b.width > 0.0 && b.height > 0.0, "{b:?}");
+    assert_eq!(
+        page.locator(".x")
+            .evaluate::<String>("e => e.className + ':' + e.textContent")
+            .await
+            .unwrap(),
+        "x:banana"
+    );
+    browser.close().await.unwrap();
+}
