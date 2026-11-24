@@ -1331,3 +1331,93 @@ async fn firefox_popups_workers_and_websockets() {
     assert_eq!(context.pages().len(), 1);
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn firefox_persistent_context_and_connect() {
+    use chromiumoxide::ContextOptions;
+    use std::io::BufRead;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route(
+        "/set.html",
+        "text/html",
+        "<script>localStorage.k = 'v'; document.cookie = 'c=1; max-age=3600'</script>",
+        0,
+    );
+    server.route("/get.html", "text/html", "<p>get</p>", 0);
+
+    // A persistent profile keeps storage across launches; the context has
+    // the window Firefox opened.
+    let dir = std::env::temp_dir().join(format!("cox-ff-persistent-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let context =
+        Firefox::launch_persistent_context(&dir, options.clone(), ContextOptions::default())
+            .await
+            .unwrap();
+    assert_eq!(context.pages().len(), 1);
+    let page = context.pages().remove(0);
+    page.goto(&server.url("/set.html")).await.unwrap();
+    page.wait_for_function("localStorage.k === 'v'")
+        .await
+        .unwrap();
+    context.close().await.unwrap();
+    assert!(dir.join("prefs.js").exists(), "the profile stays");
+
+    let context =
+        Firefox::launch_persistent_context(&dir, options.clone(), ContextOptions::default())
+            .await
+            .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/get.html")).await.unwrap();
+    assert_eq!(
+        page.evaluate::<Option<String>>("localStorage.k")
+            .await
+            .unwrap(),
+        Some("v".into())
+    );
+    let cookies = context.cookies().await.unwrap();
+    assert!(
+        cookies.iter().any(|c| c.name == "c" && c.value == "1"),
+        "{cookies:?}"
+    );
+    context.close().await.unwrap();
+    std::fs::remove_dir_all(&dir).unwrap();
+
+    // Connecting to a Firefox started elsewhere; close only disconnects.
+    let profile = std::env::temp_dir().join(format!("cox-ff-connect-{}", std::process::id()));
+    std::fs::create_dir_all(&profile).unwrap();
+    let mut child = std::process::Command::new(options.executable_path.as_ref().unwrap())
+        .args(["-no-remote", "-headless", "-profile"])
+        .arg(&profile)
+        .args(["--remote-debugging-port=0", "about:blank"])
+        .env("MOZ_DISABLE_SAFE_MODE_KEY", "1")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let stderr = std::io::BufReader::new(child.stderr.take().unwrap());
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for line in stderr.lines().map_while(Result::ok) {
+            if let Some(url) = line.split("WebDriver BiDi listening on ").nth(1) {
+                let _ = tx.send(url.trim().to_owned());
+            }
+        }
+    });
+    let endpoint = rx.recv_timeout(std::time::Duration::from_secs(60)).unwrap();
+    let browser = Firefox::connect(&endpoint).await.unwrap();
+    assert!(!browser.version().await.unwrap().is_empty());
+    let page = browser.new_page().await.unwrap();
+    page.set_content("<p>connected</p>").await.unwrap();
+    assert_eq!(page.evaluate::<i32>("1 + 1").await.unwrap(), 2);
+    browser.close().await.unwrap();
+    assert!(child.try_wait().unwrap().is_none(), "Firefox keeps running");
+    // The session ended, so another client can connect.
+    let again = Firefox::connect(&endpoint).await.unwrap();
+    again.close().await.unwrap();
+    child.kill().unwrap();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&profile);
+}
