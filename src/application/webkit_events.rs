@@ -26,6 +26,8 @@ pub enum PageEvent {
     RequestFinished(crate::application::firefox_route::Request),
     /// The request failed (`page.on('requestfailed')`).
     RequestFailed(crate::application::firefox_route::Request),
+    /// The page opened a pop-up (`page.on('popup')`).
+    Popup(Page),
 }
 
 /// `page.on('console')`.

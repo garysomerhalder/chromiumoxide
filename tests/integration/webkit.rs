@@ -699,3 +699,48 @@ async fn webkit_frames() {
     );
     browser.close().await.unwrap();
 }
+
+/// Pop-ups on WebKit: window.open from a page is a PageEvent::Popup with a
+/// working page.
+#[tokio::test]
+async fn webkit_popups() {
+    use chromiumoxide::webkit::PageEvent;
+    use futures::StreamExt;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/opener.html", "text/html", "<p>opener</p>", 0);
+    server.route(
+        "/popup.html",
+        "text/html",
+        "<title>Popup</title><p id=p>in the popup</p>",
+        0,
+    );
+    let browser = WebKit::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.goto(&server.url("/opener.html")).await.unwrap();
+    let mut events = page.events();
+    page.evaluate::<()>("void window.open('/popup.html')")
+        .await
+        .unwrap();
+    let popup = loop {
+        let e = tokio::time::timeout(std::time::Duration::from_secs(10), events.next())
+            .await
+            .expect("a popup within 10 s")
+            .unwrap();
+        if let PageEvent::Popup(p) = e {
+            break p;
+        }
+    };
+    popup
+        .wait_for_function("document.title === 'Popup'")
+        .await
+        .unwrap();
+    assert!(popup.url().ends_with("/popup.html"), "{}", popup.url());
+    assert_eq!(
+        popup.locator("#p").inner_text().await.unwrap(),
+        "in the popup"
+    );
+    browser.close().await.unwrap();
+}
