@@ -47,7 +47,9 @@ fn start_app(name: &str) -> DevtoolsApp {
         .stderr(Stdio::null())
         .spawn()
         .unwrap();
-    for _ in 0..500 {
+    // Up to 60 s: under the full suite's load (many browsers at once) a
+    // helper browser can take longer than the 10 s this used to allow.
+    for _ in 0..3000 {
         if let Ok(text) = std::fs::read_to_string(dir.join("DevToolsActivePort")) {
             let mut lines = text.lines();
             if let (Some(port), Some(path)) = (lines.next(), lines.next()) {
