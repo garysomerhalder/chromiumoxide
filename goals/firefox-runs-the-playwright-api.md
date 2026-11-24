@@ -139,6 +139,11 @@ uses Juggler).
 
   Still ⬜ in PARITY section 13: element handles, clock, aria snapshots,
   tracing DOM snapshots, some locator and route extras, `launchServer`.
+- 2026-11-24: trace DOM snapshots, chunks and groups on Firefox (21
+  Firefox tests). Drag and drop: Firefox's `remote.events.async.mouse`
+  pref was tried and ends the drag without a drop too, so the in-page
+  drop stays. `worker.evaluate` stays ❌: the only way round BiDi would
+  start workers from another script URL and break their relative imports.
 
 ## Set it
 

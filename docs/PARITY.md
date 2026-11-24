@@ -1251,7 +1251,7 @@ Firefox.
 | Events: console, page errors, dialogs (auto-dismissed without a listener), load, DOMContentLoaded, close | ✅ | `firefox_page_events` |
 | Events: request, response, requestfinished, requestfailed | ✅ | `firefox_network_events_context_routes_and_auth` |
 | Events: popup (`context.pages()` keeps pop-ups), websocket (frames both ways, close), worker (`page.workers()`, url, close; worker console messages reach the page) | ✅ | `firefox_popups_workers_and_websockets` |
-| `worker.evaluate` | ❌ | Firefox 159's BiDi only runs scripts in window realms; a clear error |
+| `worker.evaluate` | ❌ | Firefox 159's BiDi only runs scripts in window realms; a clear error. Running code in a worker any other way means starting it from a different script URL, which breaks the worker's own relative imports, so it is not done |
 | Events: filechooser, frameattached / framedetached | ⬜ | |
 | Cookies: `context.cookies`, `addCookies`, `clearCookies` | ✅ | `firefox_cookies_and_init_scripts` |
 | `context.addInitScript`, `page.addInitScript` | ✅ | `firefox_cookies_and_init_scripts` |
@@ -1261,7 +1261,7 @@ Firefox.
 | Frames: `frameLocator` (nested), clicks and fills inside iframes, `page.frames()`, `frame.evaluate` | ✅ | `firefox_frames` |
 | `page.pdf` (format, size, margins, landscape, scale, page ranges, background) | ✅ | `firefox_pdf_and_har` (`browsingContext.print`); `displayHeaderFooter` is an error (BiDi prints none) |
 | `context.tracing()` `start` / `stop` (actions, console, network resources, screencast frames) | ✅ | `firefox_tracing` |
-| Tracing DOM snapshots (`snapshots: true`), chunks, groups | ⬜ | |
+| Tracing DOM snapshots (`snapshots: true`, Playwright's snapshot streamer), `startChunk` / `stopChunk`, `group` / `groupEnd` | ✅ | `firefox_trace_snapshots_chunks_and_groups` |
 | Clock, aria snapshots, accessibility, `exposeBinding`, element handles | ⬜ | |
 | CDP sessions, coverage, `browser.startTracing`, CDP domain clients (section 12) | ❌ | Chromium-only: Firefox does not speak CDP |
 | `firefox.connect` (a running Firefox's BiDi endpoint; `close` leaves it running), `launchPersistentContext` (kept profile) | ✅ | `firefox_persistent_context_and_connect` |

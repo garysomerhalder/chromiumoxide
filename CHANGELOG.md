@@ -41,7 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - more input: `dblclick`, `drag_to`, `select_option`, `set_input_files`,
     `page.mouse()` and `page.keyboard()`;
   - `page.pdf()`, `recordHar`, `recordVideo` and `context.tracing()`
-    (actions, console, network, screencast frames; no DOM snapshots yet);
+    (actions, console, network, screencast frames, DOM snapshots, chunks
+    and groups);
   - pop-ups, workers (events, url, close) and WebSockets;
   - `Firefox::launch_persistent_context` and `Firefox::connect`.
 - `worker.evaluate` is an error on Firefox: Firefox 159's BiDi cannot run
