@@ -21,12 +21,13 @@ use crate::application::services::Services;
 use crate::application::tracing::TracingStart;
 use crate::domain::error::{Error, Result};
 use crate::domain::firefox::har_entry;
+use crate::domain::firefox::init_script_function;
 use crate::domain::har::{
     Creator, Entry, Har, HarContent, HarMode, HarPage, Log, RecordHar, attachment_name, iso_time,
     slim,
 };
 use crate::domain::pdf::PdfOptions;
-use crate::domain::trace::{context_options_event, sha1_hex, zip_stored};
+use crate::domain::trace::{context_options_event, frame_snapshot, sha1_hex, zip_stored};
 use crate::domain::url_matcher::UrlMatcher;
 use crate::domain::video::{FPS, FrameTimeline, video_size};
 use crate::ports::BidiSession;
@@ -101,6 +102,10 @@ struct TraceRec {
     network: Vec<JoinHandle<Option<String>>>,
     next_call: u64,
     pages: HashSet<String>,
+    /// Open `tracing.group` calls.
+    groups: Vec<String>,
+    /// The page global of Playwright's snapshot streamer (`snapshots: true`).
+    streamer: Option<String>,
 }
 
 /// A context's recorders (HAR and tracing), shared with its pages.
@@ -376,6 +381,77 @@ impl Recorders {
         write_har(&*self.services.fs, &rec.options, &har, &attachments)
     }
 
+    /// The `context-options` event that starts a trace chunk.
+    fn first_event(&self, title: &str) -> String {
+        context_options_event(
+            "firefox",
+            self.viewport.0,
+            self.viewport.1,
+            self.services.clock.wall_ms(),
+            0.0,
+            title,
+            if cfg!(target_os = "macos") {
+                "darwin"
+            } else if cfg!(windows) {
+                "win32"
+            } else {
+                "linux"
+            },
+        )
+    }
+
+    /// Records the page's frames into the trace (`snapshots: true`).
+    async fn snapshot(&self, page: &Page, call_id: &str, phase: &str) {
+        let Some(name) = self
+            .trace
+            .lock()
+            .unwrap()
+            .as_ref()
+            .and_then(|r| r.streamer.clone())
+        else {
+            return;
+        };
+        let main = page.main_context();
+        let page_id = page.page_id();
+        for frame in page.frames().await.unwrap_or_default() {
+            let data = page
+                .call_json_in(
+                    frame.context_id(),
+                    &format!(
+                        "() => {{ const s = window[{name:?}]; return s ? s.captureSnapshot(undefined) : null; }}"
+                    ),
+                    &[],
+                    None,
+                )
+                .await;
+            let Ok(data) = data else { continue };
+            if data.is_null() {
+                continue;
+            }
+            let Some(time) = self.trace_time() else {
+                return;
+            };
+            let (snapshot, files) = frame_snapshot(
+                &data,
+                call_id,
+                phase,
+                &page_id,
+                &format!("frame@{}", frame.context_id().to_lowercase()),
+                frame.context_id() == main,
+                time,
+            );
+            if let Some(rec) = self.trace.lock().unwrap().as_mut() {
+                for (name, body) in files {
+                    if !rec.resources.iter().any(|(n, _)| *n == name) {
+                        rec.resources.push((name, body));
+                    }
+                }
+                rec.events
+                    .push(json!({"type": "frame-snapshot", "snapshot": snapshot}).to_string());
+            }
+        }
+    }
+
     fn trace_time(&self) -> Option<f64> {
         let rec = self.trace.lock().unwrap();
         let rec = rec.as_ref()?;
@@ -414,7 +490,13 @@ impl Recorders {
                 _ => None,
             }
         };
+        if let Some(id) = &call {
+            self.snapshot(page, id, "before").await;
+        }
         let result = f.await;
+        if let Some(id) = &call {
+            self.snapshot(page, id, "after").await;
+        }
         if let (Some(id), Some(time)) = (call, self.trace_time()) {
             let mut after = json!({"type": "after", "callId": id, "endTime": time});
             if let Err(e) = &result {
@@ -492,21 +574,7 @@ impl Tracing {
                     "Tracing has been already started".into(),
                 ));
             }
-            let first = context_options_event(
-                "firefox",
-                r.viewport.0,
-                r.viewport.1,
-                r.services.clock.wall_ms(),
-                0.0,
-                options.title.as_deref().unwrap_or_default(),
-                if cfg!(target_os = "macos") {
-                    "darwin"
-                } else if cfg!(windows) {
-                    "win32"
-                } else {
-                    "linux"
-                },
-            );
+            let first = r.first_event(options.title.as_deref().unwrap_or_default());
             *rec = Some(TraceRec {
                 options,
                 start_ms: r.services.clock.now_ms(),
@@ -515,11 +583,157 @@ impl Tracing {
                 network: Vec::new(),
                 next_call: 0,
                 pages: HashSet::new(),
+                groups: Vec::new(),
+                streamer: None,
             });
+        }
+        let snapshots = r
+            .trace
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|t| t.options.snapshots);
+        if snapshots {
+            let name = format!(
+                "__playwright_snapshot_streamer_{:x}",
+                (r.services.clock.wall_ms().to_bits() ^ r.services.clock.now_ms().rotate_left(13))
+            );
+            let script = format!(
+                "({})({name:?}, true)",
+                crate::application::tracing::SNAPSHOT_STREAMER
+            );
+            r.bidi
+                .call(
+                    "script.addPreloadScript",
+                    json!({"functionDeclaration": init_script_function(&script),
+                           "userContexts": [r.user_context]}),
+                )
+                .await?;
+            for page in &self.pages {
+                for frame in page.frames().await.unwrap_or_default() {
+                    let _ = page
+                        .call_json_in(
+                            frame.context_id(),
+                            &format!("() => {{ {script}; }}"),
+                            &[],
+                            None,
+                        )
+                        .await;
+                }
+            }
+            if let Some(rec) = r.trace.lock().unwrap().as_mut() {
+                rec.streamer = Some(name);
+            }
         }
         for page in &self.pages {
             r.trace_page(page);
         }
+        Ok(())
+    }
+
+    /// `tracing.startChunk({title})`: starts a new chunk of a started trace.
+    pub async fn start_chunk(&self, title: Option<&str>) -> Result<()> {
+        let r = &self.recorders;
+        let first = r.first_event(title.unwrap_or_default());
+        let now = r.services.clock.now_ms();
+        let mut rec = r.trace.lock().unwrap();
+        let rec = rec
+            .as_mut()
+            .ok_or_else(|| Error::InvalidArgument("Tracing is not started".into()))?;
+        rec.events = vec![first];
+        rec.resources.clear();
+        rec.start_ms = now;
+        Ok(())
+    }
+
+    /// `tracing.stopChunk({path})`: writes what was recorded since the last
+    /// chunk; tracing goes on.
+    pub async fn stop_chunk(&self, path: Option<&Path>) -> Result<()> {
+        let (events, resources, network) = {
+            let mut rec = self.recorders.trace.lock().unwrap();
+            let rec = rec
+                .as_mut()
+                .ok_or_else(|| Error::InvalidArgument("Tracing is not started".into()))?;
+            (
+                std::mem::take(&mut rec.events),
+                std::mem::take(&mut rec.resources),
+                std::mem::take(&mut rec.network),
+            )
+        };
+        self.write(path, events, resources, network).await
+    }
+
+    /// `tracing.group(name)`: groups the following actions in the viewer.
+    pub async fn group(&self, name: &str) -> Result<()> {
+        let time = self.recorders.trace_time();
+        let mut rec = self.recorders.trace.lock().unwrap();
+        let rec = rec
+            .as_mut()
+            .ok_or_else(|| Error::InvalidArgument("Tracing is not started".into()))?;
+        rec.next_call += 1;
+        let id = format!("call@{}", rec.next_call);
+        rec.events.push(
+            json!({"type": "before", "callId": id, "startTime": time.unwrap_or(0.0),
+                   "class": "Tracing", "method": "tracingGroup", "params": {"name": name}})
+            .to_string(),
+        );
+        rec.groups.push(id);
+        Ok(())
+    }
+
+    /// `tracing.groupEnd()`.
+    pub async fn group_end(&self) -> Result<()> {
+        let time = self.recorders.trace_time();
+        let mut rec = self.recorders.trace.lock().unwrap();
+        let rec = rec
+            .as_mut()
+            .ok_or_else(|| Error::InvalidArgument("Tracing is not started".into()))?;
+        if let Some(id) = rec.groups.pop() {
+            rec.events.push(
+                json!({"type": "after", "callId": id, "endTime": time.unwrap_or(0.0)}).to_string(),
+            );
+        }
+        Ok(())
+    }
+
+    /// Writes a chunk as a trace zip when `path` is given.
+    async fn write(
+        &self,
+        path: Option<&Path>,
+        events: Vec<String>,
+        resources: Vec<(String, Vec<u8>)>,
+        pending: Vec<JoinHandle<Option<String>>>,
+    ) -> Result<()> {
+        let mut network = Vec::new();
+        for handle in pending {
+            if let Ok(Some(line)) = handle.await {
+                network.push(line);
+            }
+        }
+        // Bodies stored while the network entries finished.
+        let mut resources = resources;
+        if let Some(rec) = self.recorders.trace.lock().unwrap().as_mut() {
+            for (name, body) in rec.resources.drain(..) {
+                if !resources.iter().any(|(n, _)| *n == name) {
+                    resources.push((name, body));
+                }
+            }
+        }
+        let Some(path) = path else {
+            return Ok(());
+        };
+        let mut files: Vec<(&str, Vec<u8>)> = vec![
+            ("trace.trace", (events.join("\n") + "\n").into_bytes()),
+            ("trace.network", (network.join("\n") + "\n").into_bytes()),
+            ("trace.stacks", br#"{"files":[],"stacks":[]}"#.to_vec()),
+        ];
+        for (name, data) in &resources {
+            files.push((name.as_str(), data.clone()));
+        }
+        self.recorders
+            .services
+            .fs
+            .write(path, &zip_stored(&files))?;
         Ok(())
     }
 
@@ -528,28 +742,8 @@ impl Tracing {
         let Some(rec) = self.recorders.trace.lock().unwrap().take() else {
             return Err(Error::InvalidArgument("Tracing is not started".into()));
         };
-        let mut network = Vec::new();
-        for handle in rec.network {
-            if let Ok(Some(line)) = handle.await {
-                network.push(line);
-            }
-        }
-        let Some(path) = path else {
-            return Ok(());
-        };
-        let mut files: Vec<(&str, Vec<u8>)> = vec![
-            ("trace.trace", (rec.events.join("\n") + "\n").into_bytes()),
-            ("trace.network", (network.join("\n") + "\n").into_bytes()),
-            ("trace.stacks", br#"{"files":[],"stacks":[]}"#.to_vec()),
-        ];
-        for (name, data) in &rec.resources {
-            files.push((name.as_str(), data.clone()));
-        }
-        self.recorders
-            .services
-            .fs
-            .write(path, &zip_stored(&files))?;
-        Ok(())
+        self.write(path, rec.events, rec.resources, rec.network)
+            .await
     }
 }
 

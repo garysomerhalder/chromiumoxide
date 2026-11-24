@@ -45,7 +45,7 @@ pub(crate) struct TraceRecording {
     chunk: u32,
 }
 
-const SNAPSHOT_STREAMER: &str = include_str!("scripts/snapshot_streamer.js");
+pub(crate) const SNAPSHOT_STREAMER: &str = include_str!("scripts/snapshot_streamer.js");
 
 use crate::domain::har::extension_for;
 
@@ -615,36 +615,15 @@ impl Page {
                 continue;
             }
             let Some(time) = ctx.trace_time() else { return };
-            let mut overrides = Vec::new();
-            let mut files = Vec::new();
-            for o in data["resourceOverrides"].as_array().into_iter().flatten() {
-                let url = o.get("url").cloned().unwrap_or(Value::Null);
-                match o.get("content") {
-                    Some(Value::String(content)) => {
-                        let mime = o
-                            .get("contentType")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default();
-                        let file = format!(
-                            "resources/{}.{}",
-                            crate::domain::trace::sha1_hex(content.as_bytes()),
-                            extension_for(mime)
-                        );
-                        files.push((file.clone(), content.as_bytes().to_vec()));
-                        overrides.push(json!({"url": url, "file": file}));
-                    }
-                    other => overrides
-                        .push(json!({"url": url, "ref": other.cloned().unwrap_or(Value::Null)})),
-                }
-            }
-            let snapshot = json!({
-                "callId": call_id, "phase": phase, "pageId": page_id,
-                "frameId": format!("frame@{}", frame.id().to_lowercase()),
-                "frameUrl": data["url"], "doctype": data["doctype"], "html": data["html"],
-                "viewport": data["viewport"], "timestamp": time, "wallTime": data["wallTime"],
-                "collectionTime": data["collectionTime"], "resourceOverrides": overrides,
-                "isMainFrame": frame.id() == main,
-            });
+            let (snapshot, files) = crate::domain::trace::frame_snapshot(
+                &data,
+                call_id,
+                phase,
+                &page_id,
+                &format!("frame@{}", frame.id().to_lowercase()),
+                frame.id() == main,
+                time,
+            );
             if let Some(rec) = ctx.tracing.lock().unwrap().as_mut() {
                 for (name, body) in files {
                     if !rec.resources.iter().any(|(n, _)| *n == name) {

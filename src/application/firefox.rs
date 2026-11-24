@@ -2178,6 +2178,11 @@ pub struct Frame {
 }
 
 impl Frame {
+    /// The frame's browsing context id.
+    pub(crate) fn context_id(&self) -> &str {
+        &self.context
+    }
+
     /// The frame's URL when it was listed.
     pub fn url(&self) -> &str {
         &self.url
