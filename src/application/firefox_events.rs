@@ -24,6 +24,8 @@ pub enum PageEvent {
     RequestFinished(crate::application::firefox_route::Request),
     /// The request failed (`page.on('requestfailed')`).
     RequestFailed(crate::application::firefox_route::Request),
+    /// A download started (`page.on('download')`).
+    Download(crate::application::firefox_download::Download),
 }
 
 /// `page.on('console')`.

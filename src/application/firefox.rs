@@ -16,6 +16,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::application::actions::{ADD_STYLE, StyleTag};
+use crate::application::firefox_download::Download;
 use crate::application::firefox_events::{
     ConsoleMessage, Dialog, PageError, PageEvent, console_kind, prompt_params,
 };
@@ -35,6 +36,7 @@ use crate::domain::screenshot::{
 };
 use crate::domain::storage::{Cookie, NewCookie, filter_cookies};
 use crate::ports::{BidiSession, BrowserProcess, FirefoxCommand};
+use std::collections::HashMap;
 
 /// The sandbox (BiDi's isolated world) for Playwright's utility scripts.
 const UTILITY: &str = "__chromiumoxide_utility";
@@ -243,6 +245,7 @@ impl Browser {
         if options.ignore_https_errors {
             create["acceptInsecureCerts"] = json!(true);
         }
+        let options_accept_downloads = options.accept_downloads;
         let user_context = bidi
             .call("browser.createUserContext", create)
             .await?
@@ -258,6 +261,15 @@ impl Browser {
                 options: Arc::new(options),
                 routes: Arc::default(),
                 pages: Mutex::new(Vec::new()),
+                downloads_dir: if options_accept_downloads {
+                    self.inner
+                        .services
+                        .fs
+                        .create_temp_dir("chromiumoxide-firefox-downloads-")
+                        .ok()
+                } else {
+                    None
+                },
                 closed: AtomicBool::new(false),
             }),
         };
@@ -308,6 +320,8 @@ struct ContextInner {
     routes: Arc<Mutex<Vec<RouteEntry>>>,
     /// The context's pages (to add network intercepts for new routes).
     pages: Mutex<Vec<std::sync::Weak<PageInner>>>,
+    /// Where this context's downloads go (removed with the context).
+    downloads_dir: Option<PathBuf>,
     closed: AtomicBool,
 }
 
@@ -372,6 +386,15 @@ impl BrowserContext {
             )
             .await?;
         }
+        let behavior = match &self.inner.downloads_dir {
+            Some(dir) => json!({"type": "allowed", "destinationFolder": dir.display().to_string()}),
+            None => json!({"type": "denied"}),
+        };
+        bidi.call(
+            "browser.setDownloadBehavior",
+            json!({"downloadBehavior": behavior, "userContexts": ucs}),
+        )
+        .await?;
         if !o.extra_http_headers.is_empty() {
             let headers: Vec<Value> = o
                 .extra_http_headers
@@ -518,6 +541,7 @@ impl BrowserContext {
             routes: Mutex::new(Vec::new()),
             context_routes: self.inner.routes.clone(),
             auth_attempts: Mutex::new(std::collections::HashSet::new()),
+            downloads: Mutex::new(HashMap::new()),
             intercept: tokio::sync::Mutex::new(None),
             closed: AtomicBool::new(false),
         });
@@ -587,6 +611,9 @@ impl BrowserContext {
                 json!({"userContext": self.inner.user_context}),
             )
             .await?;
+        if let Some(dir) = &self.inner.downloads_dir {
+            let _ = self.inner.services.fs.remove_dir_all(dir);
+        }
         Ok(())
     }
 }
@@ -613,6 +640,8 @@ struct PageInner {
     routes: Mutex<Vec<RouteEntry>>,
     /// The context's `context.route` handlers (shared).
     context_routes: Arc<Mutex<Vec<RouteEntry>>>,
+    /// Downloads in progress, by BiDi navigation id.
+    downloads: Mutex<HashMap<String, Download>>,
     /// Requests already answered with credentials (a second challenge is
     /// cancelled, like Playwright).
     auth_attempts: Mutex<std::collections::HashSet<String>>,
@@ -755,6 +784,36 @@ impl Page {
             }
             "network.authRequired" if p["isBlocked"] == Value::Bool(true) => {
                 self.answer_auth(p);
+            }
+            "browsingContext.downloadWillBegin" => {
+                let download = Download::new(
+                    text("url"),
+                    text("suggestedFilename"),
+                    self.inner.services.clone(),
+                );
+                self.inner
+                    .downloads
+                    .lock()
+                    .unwrap()
+                    .insert(text("navigation"), download.clone());
+                self.emit(PageEvent::Download(download));
+            }
+            "browsingContext.downloadEnd" => {
+                let download = self
+                    .inner
+                    .downloads
+                    .lock()
+                    .unwrap()
+                    .remove(&text("navigation"));
+                if let Some(download) = download {
+                    match (p["status"].as_str(), p["filepath"].as_str()) {
+                        (Some("complete"), Some(path)) => download.finish(Ok(PathBuf::from(path))),
+                        (Some("complete"), None) => {
+                            download.finish(Err("download was not saved".into()))
+                        }
+                        _ => download.finish(Err("canceled".into())),
+                    }
+                }
             }
             "browsingContext.domContentLoaded" => {
                 self.emit(PageEvent::DomContentLoaded);

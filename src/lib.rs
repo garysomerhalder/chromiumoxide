@@ -140,6 +140,7 @@ pub mod firefox {
     pub use crate::application::firefox::{
         Browser, BrowserContext, FirefoxLaunchOptions, Page, Screenshot,
     };
+    pub use crate::application::firefox_download::Download;
     pub use crate::application::firefox_events::{ConsoleMessage, Dialog, PageError, PageEvent};
     pub use crate::application::firefox_expect::{Assertion, LocatorAssertions, PageAssertions};
     pub use crate::application::firefox_locator::Locator;
