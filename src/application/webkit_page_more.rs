@@ -1311,3 +1311,117 @@ impl Touchscreen {
         self.page.tap_at(x, y).await
     }
 }
+
+type HandlerFn =
+    std::sync::Arc<dyn Fn(Locator) -> futures::future::BoxFuture<'static, ()> + Send + Sync>;
+
+/// One `page.addLocatorHandler` registration.
+pub(crate) struct LocatorHandler {
+    locator: Locator,
+    handler: HandlerFn,
+    times_left: Option<usize>,
+    no_wait_after: bool,
+}
+
+impl Page {
+    /// `page.addLocatorHandler(locator, handler)`: before an action, when
+    /// `locator` is visible, `handler` runs (e.g. to dismiss an overlay),
+    /// then the action waits for it to be hidden.
+    pub async fn add_locator_handler<F, Fut>(&self, locator: &Locator, handler: F) -> Result<()>
+    where
+        F: Fn(Locator) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.add_locator_handler_with(locator, handler, None, false)
+            .await
+    }
+
+    /// `addLocatorHandler` with `times` and `noWaitAfter`.
+    pub async fn add_locator_handler_with<F, Fut>(
+        &self,
+        locator: &Locator,
+        handler: F,
+        times: Option<usize>,
+        no_wait_after: bool,
+    ) -> Result<()>
+    where
+        F: Fn(Locator) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        use futures::FutureExt;
+        self.inner
+            .locator_handlers
+            .lock()
+            .unwrap()
+            .push(LocatorHandler {
+                locator: locator.clone(),
+                handler: std::sync::Arc::new(move |l| handler(l).boxed()),
+                times_left: times,
+                no_wait_after,
+            });
+        Ok(())
+    }
+
+    /// `page.removeLocatorHandler(locator)`.
+    pub async fn remove_locator_handler(&self, locator: &Locator) -> Result<()> {
+        self.inner
+            .locator_handlers
+            .lock()
+            .unwrap()
+            .retain(|h| h.locator.selector() != locator.selector());
+        Ok(())
+    }
+
+    /// Runs the locator handlers whose locator is visible (before an action).
+    pub(crate) async fn run_locator_handlers(&self) {
+        if self.inner.locator_handlers.lock().unwrap().is_empty()
+            || self.inner.handling_locator.swap(true, Ordering::SeqCst)
+        {
+            return;
+        }
+        let handlers: Vec<(String, Locator, HandlerFn, bool)> = self
+            .inner
+            .locator_handlers
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|h| {
+                (
+                    h.locator.selector().to_owned(),
+                    h.locator.clone(),
+                    h.handler.clone(),
+                    h.no_wait_after,
+                )
+            })
+            .collect();
+        for (key, locator, handler, no_wait_after) in handlers {
+            if !locator.is_visible().await.unwrap_or(false) {
+                continue;
+            }
+            handler(locator.clone()).await;
+            {
+                let mut list = self.inner.locator_handlers.lock().unwrap();
+                if let Some(h) = list.iter_mut().find(|h| h.locator.selector() == key)
+                    && let Some(n) = h.times_left.as_mut()
+                {
+                    *n = n.saturating_sub(1);
+                }
+                list.retain(|h| h.times_left != Some(0));
+            }
+            if !no_wait_after {
+                let deadline = self.now() + self.timeout();
+                while locator.is_visible().await.unwrap_or(false) && self.now() < deadline {
+                    self.sleep(Duration::from_millis(50)).await;
+                }
+            }
+        }
+        self.inner.handling_locator.store(false, Ordering::SeqCst);
+    }
+}
+
+impl Page {
+    /// `page.pdf()`: Playwright prints PDFs in Chromium only.
+    pub async fn pdf(&self) -> Result<Vec<u8>> {
+        Err(chromium_only("page.pdf()"))
+    }
+}

@@ -239,6 +239,7 @@ impl Browser {
                 offline: AtomicBool::new(offline),
                 granted: Mutex::new(granted),
                 credentials: Mutex::new(credentials),
+                clock_installed: AtomicBool::new(false),
                 closed: AtomicBool::new(false),
             }),
         };
@@ -321,6 +322,8 @@ pub(crate) struct ContextInner {
     pub(crate) granted: Mutex<Vec<(String, Vec<String>)>>,
     /// `context.setHTTPCredentials`.
     pub(crate) credentials: Mutex<Option<crate::domain::emulation::HttpCredentials>>,
+    /// Playwright's fake timers are installed (`context.clock`).
+    pub(crate) clock_installed: AtomicBool,
     pub(crate) closed: AtomicBool,
 }
 
@@ -455,6 +458,8 @@ impl BrowserContext {
             extra_headers: Mutex::new(Vec::new()),
             media: Mutex::new(Default::default()),
             globals: Mutex::new(HashMap::new()),
+            locator_handlers: Mutex::new(Vec::new()),
+            handling_locator: AtomicBool::new(false),
             workers: Mutex::new(HashMap::new()),
             websockets: Mutex::new(HashMap::new()),
             closed: AtomicBool::new(false),
@@ -664,6 +669,9 @@ pub(crate) struct PageInner {
     pub(crate) extra_headers: Mutex<Vec<(String, String)>>,
     /// `page.emulateMedia` overrides.
     pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
+    /// `page.addLocatorHandler` registrations, and whether they run now.
+    pub(crate) locator_handlers: Mutex<Vec<crate::application::webkit_page_more::LocatorHandler>>,
+    pub(crate) handling_locator: AtomicBool,
     /// Dedicated workers by worker id.
     pub(crate) workers: Mutex<HashMap<String, crate::application::webkit_worker::Worker>>,
     /// Open WebSockets by request id.
@@ -992,6 +1000,14 @@ impl Page {
                 .await;
         }
         if first {
+            // The first blank document was made before the bootstrap script
+            // was set: run the init scripts in it now.
+            if self.url() == "about:blank" {
+                let script = Value::String(self.bootstrap_script()).to_string();
+                let _ = self
+                    .run_in(&format!("void (0, eval)({script})"), None, false)
+                    .await;
+            }
             self.start_video();
             self.inner.ready.send_replace(true);
         }
@@ -1540,7 +1556,8 @@ impl Page {
         });
         let install = format!(
             "(() => {{ if (globalThis.{INJECTED}) return; const module = {{}};\n{}\n\
-             globalThis.{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); }})()",
+             globalThis.{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); \
+             globalThis.{INJECTED}.__chromiumoxide_render_aria_yaml = json => renderAriaSnapshotAsYaml(json); }})()",
             crate::application::locator::INJECTED_SOURCE
         );
         self.run_in(&install, frame, true).await?;

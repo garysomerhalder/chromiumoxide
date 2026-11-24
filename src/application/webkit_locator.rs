@@ -300,6 +300,7 @@ impl Locator {
         let deadline = self.page.now() + self.page.timeout();
         let mut delay = Duration::from_millis(20);
         loop {
+            self.page.run_locator_handlers().await;
             let (r, offset) = match self.scope().await? {
                 Some((frame, offset)) => (
                     self.page
@@ -363,6 +364,7 @@ impl Locator {
     /// `locator.fill(value)`: Playwright's injected `fill`, then the text
     /// inserted (or the selection deleted for an empty value).
     pub async fn fill(&self, value: &str) -> Result<()> {
+        self.page.run_locator_handlers().await;
         let r = self
             .read("(i, node, value) => i.fill(node, value)", &[json!(value)])
             .await?;
@@ -381,6 +383,7 @@ impl Locator {
 
     /// `locator.press(key)`: focuses the element, then presses `key`.
     pub async fn press(&self, key: &str) -> Result<()> {
+        self.page.run_locator_handlers().await;
         self.focus().await?;
         self.page.press_shortcut(key).await
     }

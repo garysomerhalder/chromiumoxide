@@ -71,6 +71,8 @@ pub mod tracing;
 pub mod video;
 pub mod wait;
 pub mod webkit;
+pub mod webkit_aria;
+pub mod webkit_clock;
 pub mod webkit_download;
 pub mod webkit_events;
 pub mod webkit_expect;

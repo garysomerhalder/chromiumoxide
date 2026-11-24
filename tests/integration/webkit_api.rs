@@ -1618,7 +1618,7 @@ async fn webkit_pdf_is_chromium_only() {
     };
     let browser = WebKit::launch(options).await.unwrap();
     let page = browser.new_page().await.unwrap();
-    let err = page.pdf(Default::default()).await.unwrap_err().to_string();
+    let err = page.pdf().await.unwrap_err().to_string();
     assert!(err.contains("Chromium"), "{err}");
     browser.close().await.unwrap();
 }
