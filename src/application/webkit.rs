@@ -25,6 +25,7 @@ use tokio::sync::watch;
 use crate::application::actions::{ADD_STYLE, StyleTag};
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
 use crate::application::services::Services;
+use crate::application::webkit_events::{ConsoleMessage, PageEvent};
 use crate::domain::emulation::{ContextOptions, Viewport};
 use crate::domain::error::{Error, Result};
 use crate::domain::screenshot::{
@@ -204,6 +205,8 @@ impl Browser {
                 browser: self.clone(),
                 id: id.clone(),
                 options: Arc::new(options),
+                init_scripts: Mutex::new(Vec::new()),
+                pages: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
             }),
         };
@@ -245,13 +248,17 @@ impl Browser {
 /// A WebKit browser context.
 #[derive(Clone)]
 pub struct BrowserContext {
-    inner: Arc<ContextInner>,
+    pub(crate) inner: Arc<ContextInner>,
 }
 
-struct ContextInner {
+pub(crate) struct ContextInner {
     browser: Browser,
-    id: String,
+    pub(crate) id: String,
     options: Arc<ContextOptions>,
+    /// `context.addInitScript` sources.
+    pub(crate) init_scripts: Mutex<Vec<String>>,
+    /// The context's pages (to update their bootstrap script).
+    pub(crate) pages: Mutex<Vec<std::sync::Weak<PageInner>>>,
     closed: AtomicBool,
 }
 
@@ -264,7 +271,7 @@ impl std::fmt::Debug for BrowserContext {
 }
 
 impl BrowserContext {
-    fn wk(&self) -> &Arc<dyn WebKitSession> {
+    pub(crate) fn wk(&self) -> &Arc<dyn WebKitSession> {
         &self.inner.browser.inner.wk
     }
 
@@ -348,8 +355,17 @@ impl BrowserContext {
                 target_os = "macos"
             ))),
             mouse: Mutex::new(crate::domain::input::Mouse::default()),
+            context: Arc::downgrade(&self.inner),
+            init_scripts: Mutex::new(Vec::new()),
+            subscribers: Mutex::new(Vec::new()),
+            last_console: Mutex::new(None),
             closed: AtomicBool::new(false),
         });
+        self.inner
+            .pages
+            .lock()
+            .unwrap()
+            .push(Arc::downgrade(&inner));
         let page = Page { inner };
         page.follow(events);
         let mut ready = page.inner.ready.subscribe();
@@ -386,15 +402,15 @@ type Worlds = (Option<i64>, Option<i64>);
 /// A WebKit page.
 #[derive(Clone)]
 pub struct Page {
-    inner: Arc<PageInner>,
+    pub(crate) inner: Arc<PageInner>,
 }
 
-struct PageInner {
+pub(crate) struct PageInner {
     wk: Arc<dyn WebKitSession>,
     services: Services,
     /// The page proxy id.
     proxy: String,
-    options: Arc<ContextOptions>,
+    pub(crate) options: Arc<ContextOptions>,
     /// The current page target.
     target: Mutex<String>,
     /// The main frame id.
@@ -407,13 +423,21 @@ struct PageInner {
     /// The first page target is set up.
     ready: watch::Sender<bool>,
     /// Main-frame loads so far (`Page.loadEventFired`).
-    loads: watch::Sender<u64>,
+    pub(crate) loads: watch::Sender<u64>,
     /// The last failed navigation (`Playwright.provisionalLoadFailed`).
-    load_error: Mutex<Option<String>>,
+    pub(crate) load_error: Mutex<Option<String>>,
     owned_context: Mutex<Option<BrowserContext>>,
     /// The keyboard and mouse models (`page.keyboard`, `page.mouse`).
     keyboard: tokio::sync::Mutex<crate::domain::input::Keyboard>,
     mouse: Mutex<crate::domain::input::Mouse>,
+    /// The context (for its init scripts).
+    pub(crate) context: std::sync::Weak<ContextInner>,
+    /// `page.addInitScript` sources.
+    pub(crate) init_scripts: Mutex<Vec<String>>,
+    /// `page.events()` listeners.
+    pub(crate) subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<PageEvent>>>,
+    /// The last console message, for `Console.messageRepeatCountUpdated`.
+    pub(crate) last_console: Mutex<Option<(ConsoleMessage, u64)>>,
     closed: AtomicBool,
 }
 
@@ -426,7 +450,7 @@ impl std::fmt::Debug for Page {
 }
 
 impl Page {
-    fn check_open(&self) -> Result<()> {
+    pub(crate) fn check_open(&self) -> Result<()> {
         if self.inner.closed.load(Ordering::SeqCst) {
             return Err(Error::TargetClosed("page has been closed".into()));
         }
@@ -438,7 +462,7 @@ impl Page {
     }
 
     /// A command to the page proxy.
-    async fn proxy_call(&self, method: &str, params: Value) -> Result<Value> {
+    pub(crate) async fn proxy_call(&self, method: &str, params: Value) -> Result<Value> {
         self.inner
             .wk
             .call(Some(&self.inner.proxy), method, params)
@@ -446,7 +470,7 @@ impl Page {
     }
 
     /// A command to the current page target.
-    async fn target_call(&self, method: &str, params: Value) -> Result<Value> {
+    pub(crate) async fn target_call(&self, method: &str, params: Value) -> Result<Value> {
         self.check_open()?;
         let target = self.target();
         self.inner
@@ -490,6 +514,7 @@ impl Page {
                             }
                             "Playwright.pageProxyDestroyed" => {
                                 page.inner.closed.store(true, Ordering::SeqCst);
+                                page.emit(PageEvent::Close);
                                 break;
                             }
                             _ => {}
@@ -511,6 +536,7 @@ impl Page {
                                 page.inner.worlds.lock().unwrap().remove(t);
                             }
                         }
+                        "Dialog.javascriptDialogOpening" => page.on_dialog(p),
                         _ => {}
                     },
                     Some(s) if s.starts_with(&prefix) => {
@@ -528,6 +554,30 @@ impl Page {
         match method {
             "Page.loadEventFired" if current => {
                 self.inner.loads.send_modify(|n| *n += 1);
+                self.emit(PageEvent::Load);
+            }
+            "Page.domContentEventFired" if current => {
+                self.emit(PageEvent::DomContentLoaded);
+            }
+            "Console.messageAdded" if current => self.on_console(&p["message"]),
+            "Console.messageRepeatCountUpdated" if current => {
+                let count = p["count"].as_u64().unwrap_or(1);
+                let repeated = {
+                    let mut last = self.inner.last_console.lock().unwrap();
+                    match last.as_mut() {
+                        Some((m, seen)) if count > *seen => {
+                            let n = count - *seen;
+                            *seen = count;
+                            Some((m.clone(), n))
+                        }
+                        _ => None,
+                    }
+                };
+                if let Some((m, n)) = repeated {
+                    for _ in 0..n {
+                        self.emit(PageEvent::Console(m.clone()));
+                    }
+                }
             }
             "Page.frameNavigated" if p["frame"]["parentId"].is_null() => {
                 if let Some(url) = p["frame"]["url"].as_str() {
@@ -588,6 +638,10 @@ impl Page {
                 json!({"value": o.user_agent.clone().unwrap_or_else(default_user_agent)}),
             ),
         ];
+        steps.push(call(
+            "Page.setBootstrapScript",
+            json!({"source": self.bootstrap_script()}),
+        ));
         steps.push(call("Network.enable", json!({})));
         steps.push(call("Console.enable", json!({})));
         steps.push(call(
@@ -682,6 +736,16 @@ impl Page {
                 Error::Protocol { message, .. } => Error::Navigation(message),
                 other => other,
             })?;
+        self.wait_for_load(loads, before).await
+    }
+
+    /// Waits for a main-frame load after `before` loads; a failed one is a
+    /// navigation error.
+    pub(crate) async fn wait_for_load(
+        &self,
+        mut loads: watch::Receiver<u64>,
+        before: u64,
+    ) -> Result<()> {
         within(
             &self.inner.services,
             TIMEOUT,

@@ -54,13 +54,51 @@ pub fn modifiers(cdp: u32) -> u32 {
 
 /// A resolved cookie as `Playwright.setCookies` takes it (`WKBrowserContext.addCookies`):
 /// `expires` in milliseconds, `session` when it has none.
-pub fn cookie_to_webkit(_c: &crate::domain::storage::NewCookie) -> serde_json::Value {
-    serde_json::Value::Null
+pub fn cookie_to_webkit(c: &crate::domain::storage::NewCookie) -> serde_json::Value {
+    use serde_json::json;
+    let mut v = json!({"name": c.name, "value": c.value});
+    if let Some(d) = &c.domain {
+        v["domain"] = json!(d);
+    }
+    if let Some(p) = &c.path {
+        v["path"] = json!(p);
+    }
+    if let Some(e) = c.expires
+        && e != -1.0
+    {
+        v["expires"] = json!(e * 1000.0);
+    }
+    if let Some(h) = c.http_only {
+        v["httpOnly"] = json!(h);
+    }
+    if let Some(s) = c.secure {
+        v["secure"] = json!(s);
+    }
+    if let Some(s) = c.same_site {
+        v["sameSite"] = json!(s.as_str());
+    }
+    if let Some(k) = &c.partition_key {
+        v["partitionKey"] = json!(k);
+    }
+    v["session"] = json!(matches!(c.expires, None | Some(-1.0)));
+    v
 }
 
 /// A `Playwright.getAllCookies` cookie (`expires` in milliseconds, `-1` for session).
-pub fn cookie_from_webkit(_c: &serde_json::Value) -> crate::domain::storage::Cookie {
-    unimplemented!()
+pub fn cookie_from_webkit(c: &serde_json::Value) -> crate::domain::storage::Cookie {
+    use serde_json::Value;
+    let mut cookie = crate::domain::storage::Cookie::from_protocol(c);
+    let expires = c.get("expires").and_then(Value::as_f64).unwrap_or(-1.0);
+    cookie.expires = if expires == -1.0 || c["session"] == true {
+        -1.0
+    } else {
+        expires / 1000.0
+    };
+    cookie.partition_key = c
+        .get("partitionKey")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    cookie
 }
 
 #[cfg(test)]

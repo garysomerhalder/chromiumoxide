@@ -13,7 +13,7 @@ pub enum SameSite {
 }
 
 impl SameSite {
-    fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             SameSite::Strict => "Strict",
             SameSite::Lax => "Lax",
