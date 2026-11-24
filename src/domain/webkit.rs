@@ -68,6 +68,17 @@ mod tests {
     }
 
     #[test]
+    fn modifiers_use_webkits_bits() {
+        use crate::domain::input::{ALT, CONTROL, META, SHIFT};
+        assert_eq!(modifiers(SHIFT), 1);
+        assert_eq!(modifiers(CONTROL), 2);
+        assert_eq!(modifiers(ALT), 4);
+        assert_eq!(modifiers(META), 8);
+        assert_eq!(modifiers(SHIFT | META), 9);
+        assert_eq!(modifiers(0), 0);
+    }
+
+    #[test]
     fn default_user_agent_is_playwrights() {
         assert_eq!(
             default_user_agent(),
