@@ -344,6 +344,10 @@ impl BrowserContext {
             loads,
             load_error: Mutex::new(None),
             owned_context: Mutex::new(None),
+            keyboard: tokio::sync::Mutex::new(crate::domain::input::Keyboard::new(cfg!(
+                target_os = "macos"
+            ))),
+            mouse: Mutex::new(crate::domain::input::Mouse::default()),
             closed: AtomicBool::new(false),
         });
         let page = Page { inner };
@@ -407,6 +411,9 @@ struct PageInner {
     /// The last failed navigation (`Playwright.provisionalLoadFailed`).
     load_error: Mutex<Option<String>>,
     owned_context: Mutex<Option<BrowserContext>>,
+    /// The keyboard and mouse models (`page.keyboard`, `page.mouse`).
+    keyboard: tokio::sync::Mutex<crate::domain::input::Keyboard>,
+    mouse: Mutex<crate::domain::input::Mouse>,
     closed: AtomicBool,
 }
 
@@ -1000,6 +1007,145 @@ impl Page {
         base64::engine::general_purpose::STANDARD
             .decode(data)
             .map_err(|e| Error::Serde(format!("screenshot data: {e}")))
+    }
+
+    pub(crate) fn now(&self) -> Duration {
+        Duration::from_millis(self.inner.services.clock.now_ms())
+    }
+
+    pub(crate) async fn sleep(&self, duration: Duration) {
+        self.inner.services.clock.sleep(duration).await
+    }
+
+    /// Calls `body(injected, ...args)` in the utility world, installing
+    /// Playwright's injected script first when needed.
+    pub(crate) async fn injected_call(&self, body: &str, args: &[Value]) -> Result<Value> {
+        const INJECTED: &str = "__chromiumoxide_injected";
+        let call = format!(
+            "(...args) => {{ const i = globalThis.{INJECTED}; \
+             if (!i) return {{ __chromiumoxide_missing: true }}; return ({body})(i, ...args); }}"
+        );
+        let v = self.call_json_in(&call, args, true).await?;
+        if v.get("__chromiumoxide_missing") != Some(&Value::Bool(true)) {
+            return Ok(v);
+        }
+        let options = json!({
+            "isUnderTest": false, "sdkLanguage": "javascript", "frameSeq": 0,
+            "testIdAttributeName": "data-testid", "stableRafCount": 1, "browserName": "webkit",
+            "isUtilityWorld": true, "customEngines": [],
+        });
+        let install = format!(
+            "(() => {{ if (globalThis.{INJECTED}) return; const module = {{}};\n{}\n\
+             globalThis.{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); }})()",
+            crate::application::locator::INJECTED_SOURCE
+        );
+        self.run(&install, true).await?;
+        self.call_json_in(&call, args, true).await
+    }
+
+    /// One mouse event (`Input.dispatchMouseEvent`, viewport CSS px).
+    pub(crate) async fn dispatch_mouse(&self, e: crate::domain::input::MouseEvent) -> Result<()> {
+        use crate::domain::input::MouseEventType;
+        let kind = match e.kind {
+            MouseEventType::Moved => "move",
+            MouseEventType::Pressed => "down",
+            MouseEventType::Released => "up",
+            MouseEventType::Wheel => {
+                return self
+                    .target_call("Page.updateScrollingState", json!({}))
+                    .await
+                    .and(Ok(()))
+                    .and(
+                        self.proxy_call(
+                            "Input.dispatchWheelEvent",
+                            json!({"x": e.x, "y": e.y, "deltaX": e.delta_x, "deltaY": e.delta_y,
+                                   "modifiers": 0}),
+                        )
+                        .await
+                        .map(drop),
+                    );
+            }
+        };
+        let modifiers =
+            crate::domain::webkit::modifiers(self.inner.keyboard.lock().await.modifiers());
+        let mut params = json!({"type": kind, "button": e.button, "buttons": e.buttons,
+                                "x": e.x, "y": e.y, "modifiers": modifiers});
+        if kind != "move" {
+            params["clickCount"] = json!(e.click_count);
+        }
+        self.proxy_call("Input.dispatchMouseEvent", params)
+            .await
+            .map(drop)
+    }
+
+    /// Moves the mouse to `(x, y)` and clicks `count` times.
+    pub(crate) async fn click_at(&self, x: f64, y: f64, count: u32) -> Result<()> {
+        use crate::domain::input::MouseButton;
+        let moves = self.inner.mouse.lock().unwrap().move_to(x, y, 1);
+        for m in moves {
+            self.dispatch_mouse(m).await?;
+        }
+        for n in 1..=count.max(1) {
+            let down = self.inner.mouse.lock().unwrap().down(MouseButton::Left, n);
+            self.dispatch_mouse(down).await?;
+            let up = self.inner.mouse.lock().unwrap().up(MouseButton::Left, n);
+            self.dispatch_mouse(up).await?;
+        }
+        Ok(())
+    }
+
+    /// Moves the mouse to `(x, y)`.
+    pub(crate) async fn move_mouse(&self, x: f64, y: f64) -> Result<()> {
+        let moves = self.inner.mouse.lock().unwrap().move_to(x, y, 1);
+        for m in moves {
+            self.dispatch_mouse(m).await?;
+        }
+        Ok(())
+    }
+
+    /// `keyboard.down(key)` / `keyboard.up(key)` (`Input.dispatchKeyEvent`).
+    pub(crate) async fn key(&self, key: &str, down: bool) -> Result<()> {
+        let mut keyboard = self.inner.keyboard.lock().await;
+        let e = if down {
+            keyboard.down(key)
+        } else {
+            keyboard.up(key)
+        }
+        .map_err(Error::InvalidArgument)?;
+        drop(keyboard);
+        let mut params = json!({
+            "type": if down { "keyDown" } else { "keyUp" },
+            "modifiers": crate::domain::webkit::modifiers(e.modifiers),
+            "windowsVirtualKeyCode": e.windows_virtual_key_code,
+            "code": e.code, "key": e.key, "isKeypad": e.is_keypad,
+        });
+        if down {
+            params["text"] = json!(e.text);
+            params["unmodifiedText"] = json!(e.text);
+            params["autoRepeat"] = json!(e.auto_repeat);
+        }
+        self.proxy_call("Input.dispatchKeyEvent", params)
+            .await
+            .map(drop)
+    }
+
+    /// `keyboard.press(shortcut)`: `"Enter"`, `"Control+a"`, ...
+    pub(crate) async fn press_shortcut(&self, shortcut: &str) -> Result<()> {
+        let keys = crate::domain::input::split_shortcut(shortcut);
+        for k in &keys {
+            self.key(k, true).await?;
+        }
+        for k in keys.iter().rev() {
+            self.key(k, false).await?;
+        }
+        Ok(())
+    }
+
+    /// `keyboard.insertText(text)` (`Page.insertText`).
+    pub(crate) async fn insert_text(&self, text: &str) -> Result<()> {
+        self.target_call("Page.insertText", json!({"text": text}))
+            .await
+            .map(drop)
     }
 
     /// `page.close()` (and the context `browser.new_page()` made).

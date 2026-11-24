@@ -157,6 +157,7 @@ pub mod webkit {
     pub use crate::application::webkit::{
         Browser, BrowserContext, Page, Screenshot, WebKitLaunchOptions,
     };
+    pub use crate::application::webkit_locator::Locator;
 }
 
 /// Playwright's `webkit`: launches Playwright's WebKit build (Safari's
