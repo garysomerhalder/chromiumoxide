@@ -893,3 +893,106 @@ async fn firefox_storage_state_round_trip() {
     );
     browser.close().await.unwrap();
 }
+
+/// More input on Firefox: dblclick, drag_to, select_option,
+/// set_input_files, and the raw page.mouse / page.keyboard.
+#[tokio::test]
+async fn firefox_more_input() {
+    use chromiumoxide::MouseButton;
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<button id=d ondblclick=\"this.textContent = 'double'\">twice</button>
+         <div id=src draggable=true style='width:50px;height:50px;background:red'>drag</div>
+         <div id=dst style='width:100px;height:100px;background:blue'
+              ondragover='event.preventDefault()' ondrop=\"this.textContent = 'dropped'\">drop here</div>
+         <select id=s multiple><option value=a>Apple</option><option value=b>Banana</option><option value=c>Cherry</option></select>
+         <input type=file id=f multiple>
+         <textarea id=t></textarea>
+         <div id=m style='width:200px;height:100px' onmousedown=\"this.dataset.log = (this.dataset.log||'') + 'down' + event.button + ','\"
+              onmouseup=\"this.dataset.log += 'up,'\" onwheel=\"this.dataset.wheel = event.deltaY\">mouse</div>",
+    )
+    .await
+    .unwrap();
+
+    page.locator("#d").dblclick().await.unwrap();
+    assert_eq!(page.locator("#d").inner_text().await.unwrap(), "double");
+
+    page.locator("#src")
+        .drag_to(&page.locator("#dst"))
+        .await
+        .unwrap();
+    assert_eq!(page.locator("#dst").inner_text().await.unwrap(), "dropped");
+
+    let picked = page
+        .locator("#s")
+        .select_option(&["a", "Cherry"])
+        .await
+        .unwrap();
+    assert_eq!(picked, ["a", "c"]);
+    assert_eq!(
+        page.evaluate::<Vec<String>>(
+            "[...document.getElementById('s').selectedOptions].map(o => o.value)"
+        )
+        .await
+        .unwrap(),
+        ["a", "c"]
+    );
+
+    let dir = std::env::temp_dir().join(format!("cox-ff-files-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (one, two) = (dir.join("one.txt"), dir.join("two.txt"));
+    std::fs::write(&one, "1").unwrap();
+    std::fs::write(&two, "22").unwrap();
+    page.locator("#f")
+        .set_input_files(&[one, two])
+        .await
+        .unwrap();
+    assert_eq!(
+        page.evaluate::<Vec<String>>(
+            "[...document.getElementById('f').files].map(f => f.name + ':' + f.size)"
+        )
+        .await
+        .unwrap(),
+        ["one.txt:1", "two.txt:2"]
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+
+    page.locator("#t").focus().await.unwrap();
+    let keyboard = page.keyboard();
+    keyboard.type_text("Hi").await.unwrap();
+    keyboard.down("Shift").await.unwrap();
+    keyboard.press("a").await.unwrap();
+    keyboard.up("Shift").await.unwrap();
+    keyboard.insert_text(" there").await.unwrap();
+    keyboard.press("Backspace").await.unwrap();
+    assert_eq!(page.locator("#t").input_value().await.unwrap(), "HiA ther");
+
+    let mouse = page.mouse();
+    let b = page
+        .evaluate::<Vec<f64>>(
+            "(r => [r.x, r.y])(document.getElementById('m').getBoundingClientRect())",
+        )
+        .await
+        .unwrap();
+    mouse.move_to(b[0] + 20.0, b[1] + 20.0, 3).await.unwrap();
+    mouse.down(MouseButton::Left).await.unwrap();
+    mouse.up(MouseButton::Left).await.unwrap();
+    mouse.click(b[0] + 30.0, b[1] + 30.0).await.unwrap();
+    mouse.wheel(0.0, 120.0).await.unwrap();
+    page.wait_for_function("document.getElementById('m').dataset.wheel")
+        .await
+        .unwrap();
+    assert_eq!(
+        page.locator("#m")
+            .get_attribute("data-log")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("down0,up,down0,up,")
+    );
+    browser.close().await.unwrap();
+}
