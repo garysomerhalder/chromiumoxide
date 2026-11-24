@@ -92,8 +92,12 @@ def impl_fns(files):
                     fns.add('fmt')
                 continue
             fns |= set(re.findall(r'\n    pub(?:\(crate\))? (?:async )?fn (\w+)', text[i:j]))
-            for name in re.findall(r'\n    (\w+)!\(\);', text[i:j]):
+            body = text[i:j]
+            for name in re.findall(r'\n    (\w+)!\(\);', body):
                 fns |= MACROS.get(name, set())
+            # `name! { method(args) -> T; ... }`: one method per entry.
+            for inv in re.finditer(r'\n    \w+! \{(.*?)\n    \}', body, re.S):
+                fns |= set(re.findall(r'\n\s+(\w+)\(', inv.group(1)))
     return out
 
 
