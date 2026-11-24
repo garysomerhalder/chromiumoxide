@@ -154,6 +154,7 @@ pub mod firefox {
 /// The WebKit engine (`WebKit::launch`): Playwright's WebKit build over its
 /// own protocol, with the Playwright method names.
 pub mod webkit {
+    pub use crate::application::firefox_route::{Request, Response};
     pub use crate::application::webkit::{
         Browser, BrowserContext, Page, Screenshot, WebKitLaunchOptions,
     };

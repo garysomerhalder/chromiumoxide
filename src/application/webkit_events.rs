@@ -17,6 +17,14 @@ pub enum PageEvent {
     DomContentLoaded,
     Load,
     Close,
+    /// A request was issued (`page.on('request')`).
+    Request(crate::application::firefox_route::Request),
+    /// Response headers arrived (`page.on('response')`).
+    Response(crate::application::firefox_route::Response),
+    /// The response finished loading (`page.on('requestfinished')`).
+    RequestFinished(crate::application::firefox_route::Request),
+    /// The request failed (`page.on('requestfailed')`).
+    RequestFailed(crate::application::firefox_route::Request),
 }
 
 /// `page.on('console')`.

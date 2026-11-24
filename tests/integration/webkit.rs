@@ -485,3 +485,65 @@ async fn webkit_routes_requests() {
     );
     browser.close().await.unwrap();
 }
+
+/// Network events on WebKit: request, response, requestfinished and
+/// requestfailed in `page.events()`.
+#[tokio::test]
+async fn webkit_network_events() {
+    use chromiumoxide::webkit::PageEvent;
+    use futures::StreamExt;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/n.html", "text/html", "<p>n</p>", 0);
+    server.route("/data.txt", "text/plain", "real data", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.goto(&server.url("/n.html")).await.unwrap();
+    let mut events = page.events();
+    assert_eq!(
+        page.evaluate::<String>("fetch('/data.txt').then(r => r.text())")
+            .await
+            .unwrap(),
+        "real data"
+    );
+    let closed = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let _ = page
+        .evaluate_with::<String, _>(
+            "port => fetch(`http://127.0.0.1:${port}/nope`).then(() => 'ok', () => 'failed')",
+            closed,
+        )
+        .await
+        .unwrap();
+    let closed_url = format!("127.0.0.1:{closed}/nope");
+    let (mut request, mut response, mut finished, mut failed) = (false, false, false, false);
+    while !(request && response && finished && failed) {
+        let event = tokio::time::timeout(std::time::Duration::from_secs(10), events.next())
+            .await
+            .expect("network events within 10 s")
+            .unwrap();
+        match event {
+            PageEvent::Request(r) if r.url().ends_with("/data.txt") => {
+                assert_eq!(r.method(), "GET");
+                request = true;
+            }
+            PageEvent::Response(r) if r.url().ends_with("/data.txt") => {
+                assert_eq!(r.status(), 200);
+                assert_eq!(r.header_value("content-type"), Some("text/plain"));
+                response = true;
+            }
+            PageEvent::RequestFinished(r) if r.url().ends_with("/data.txt") => finished = true,
+            PageEvent::RequestFailed(r) if r.url().contains(&closed_url) => {
+                assert!(r.failure().is_some());
+                failed = true;
+            }
+            _ => {}
+        }
+    }
+    browser.close().await.unwrap();
+}
