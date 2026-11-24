@@ -52,6 +52,7 @@ mod tauri;
 mod tracing;
 mod video;
 mod webkit;
+mod webkit_api;
 mod webkit_parity;
 mod workers;
 
