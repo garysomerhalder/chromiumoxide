@@ -221,7 +221,7 @@ async fn firefox_locators_act_on_elements() {
     assert_eq!(input.input_value().await.unwrap(), "hello");
     input.press("Backspace").await.unwrap();
     assert_eq!(input.input_value().await.unwrap(), "hell");
-    input.press("Control+a").await.unwrap();
+    input.press("ControlOrMeta+a").await.unwrap();
     input.press_sequentially("yo!").await.unwrap();
     assert_eq!(input.input_value().await.unwrap(), "yo!");
     input.fill("").await.unwrap();
