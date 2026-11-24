@@ -77,6 +77,11 @@ the WebKit build needs system libraries CI cannot install.
   Windows (pipe on the C runtime's fds 3 and 4). Real Safari needs a Mac:
   the Daytona key given for the cloud Mac is rejected ("Invalid
   credentials"). Next: locators, input, events, network, as for Firefox.
+- 2026-11-24: locators and input; reload, back, forward; context cookies;
+  init scripts (with Playwright's Safari shims); console, page errors and
+  dialogs; `page.route` (fulfill, continue, abort); network events. All
+  WebKit tests pass on Linux; locators and parity also on Windows. Next:
+  context routes, frames, `expect`, recording.
 
 ## Set it
 
