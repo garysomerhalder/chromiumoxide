@@ -3195,7 +3195,7 @@ async fn firefox_locator_handlers() {
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 
     // The overlay comes back: the handler runs before fill too.
-    page.evaluate::<()>("overlay.style.display = 'block'")
+    page.evaluate::<()>("void (overlay.style.display = 'block')")
         .await
         .unwrap();
     page.locator("#i").fill("typed").await.unwrap();
@@ -3205,7 +3205,7 @@ async fn firefox_locator_handlers() {
     page.remove_locator_handler(&page.locator("#overlay"))
         .await
         .unwrap();
-    page.evaluate::<()>("overlay.style.display = 'block'")
+    page.evaluate::<()>("void (overlay.style.display = 'block')")
         .await
         .unwrap();
     page.set_default_timeout(std::time::Duration::from_millis(500));
@@ -3230,7 +3230,7 @@ async fn firefox_locator_handlers() {
     .await
     .unwrap();
     page.locator("#target").click().await.unwrap();
-    page.evaluate::<()>("overlay.style.display = 'block'")
+    page.evaluate::<()>("void (overlay.style.display = 'block')")
         .await
         .unwrap();
     page.set_default_timeout(std::time::Duration::from_millis(500));

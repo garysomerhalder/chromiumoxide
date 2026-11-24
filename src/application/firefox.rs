@@ -1012,6 +1012,8 @@ async fn attach_page(
         requests: Mutex::new(HashMap::new()),
         pending_post: Mutex::new(HashMap::new()),
         bindings: Mutex::new(HashMap::new()),
+        locator_handlers: Mutex::new(Vec::new()),
+        handling_locator: AtomicBool::new(false),
         closed: AtomicBool::new(false),
     });
     ctx.pages.lock().unwrap().push(inner.clone());
@@ -1164,6 +1166,9 @@ pub struct PageInner {
     pub(crate) pending_post: Mutex<HashMap<String, Vec<u8>>>,
     /// `page.exposeBinding` callbacks.
     pub(crate) bindings: crate::application::firefox_binding::Bindings,
+    /// `page.addLocatorHandler` registrations, and whether they are running.
+    pub(crate) locator_handlers: Mutex<Vec<crate::application::firefox_page_more::LocatorHandler>>,
+    pub(crate) handling_locator: AtomicBool,
     closed: AtomicBool,
 }
 

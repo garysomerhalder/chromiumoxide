@@ -355,6 +355,7 @@ impl Locator {
         let deadline = self.page.now() + self.page.timeout();
         let mut delay = Duration::from_millis(20);
         loop {
+            self.page.run_locator_handlers().await;
             // The point is in the locator's frame; add the frames' offsets
             // for the page's viewport.
             let (r, offset) = match self.scope().await? {
@@ -613,6 +614,7 @@ impl Locator {
     }
 
     async fn fill_untraced(&self, value: &str) -> Result<()> {
+        self.page.run_locator_handlers().await;
         let r = self
             .read("(i, node, value) => i.fill(node, value)", &[json!(value)])
             .await?;
@@ -673,6 +675,7 @@ impl Locator {
     }
 
     async fn press_untraced(&self, key: &str) -> Result<()> {
+        self.page.run_locator_handlers().await;
         self.focus().await?;
         self.press_keys(key).await
     }
