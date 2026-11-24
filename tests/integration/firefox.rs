@@ -1807,3 +1807,143 @@ async fn firefox_locator_helpers() {
     assert!(err.contains("hasTouch"), "{err}");
     browser.close().await.unwrap();
 }
+
+/// Firefox: Frame objects (main frame, child frames, parent, name, goto,
+/// content, locators, waits, script and style tags) and Playwright's
+/// selector shortcuts on Page and Frame (`page.click(selector)`, ...).
+#[tokio::test]
+async fn firefox_frames_and_selector_shortcuts() {
+    use chromiumoxide::{ScriptTag, StyleTag, WaitUntil as LifecycleEvent};
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route(
+        "/main.html",
+        "text/html",
+        "<title>main</title><iframe name=kid src='/kid.html'></iframe>",
+        0,
+    );
+    server.route(
+        "/kid.html",
+        "text/html",
+        "<title>kid</title><input id=i><button id=b onclick=\"this.textContent='hit'\">b</button>\
+         <input id=c type=checkbox><select id=s><option>x</option><option>y</option></select>",
+        0,
+    );
+    server.route(
+        "/other.html",
+        "text/html",
+        "<title>other</title><p>o</p>",
+        0,
+    );
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.goto(&server.url("/main.html")).await.unwrap();
+
+    let main = page.main_frame();
+    assert!(main.parent_frame().is_none());
+    assert_eq!(main.title().await.unwrap(), "main");
+    let kids = main.child_frames().await.unwrap();
+    assert_eq!(kids.len(), 1);
+    let kid = page.frame("kid").await.unwrap().expect("frame by name");
+    assert_eq!(kid.name().await.unwrap(), "kid");
+    assert!(kid.url().ends_with("/kid.html"));
+    assert_eq!(kid.parent_frame().unwrap().url(), main.url());
+    assert!(!kid.is_detached().await.unwrap());
+    assert!(std::ptr::eq(kid.page(), kid.page()));
+
+    // Shortcuts on a frame, and its locators.
+    kid.fill("#i", "typed").await.unwrap();
+    assert_eq!(kid.input_value("#i").await.unwrap(), "typed");
+    kid.click("#b").await.unwrap();
+    assert_eq!(kid.inner_text("#b").await.unwrap(), "hit");
+    assert_eq!(
+        kid.text_content("#b").await.unwrap().as_deref(),
+        Some("hit")
+    );
+    assert_eq!(kid.inner_html("#b").await.unwrap(), "hit");
+    assert_eq!(
+        kid.get_attribute("#i", "id").await.unwrap().as_deref(),
+        Some("i")
+    );
+    kid.check("#c").await.unwrap();
+    assert!(kid.is_checked("#c").await.unwrap());
+    kid.uncheck("#c").await.unwrap();
+    kid.set_checked("#c", true).await.unwrap();
+    assert_eq!(kid.select_option("#s", &["y"]).await.unwrap(), ["y"]);
+    assert!(kid.is_visible("#b").await.unwrap());
+    assert!(kid.is_hidden("#nope").await.unwrap());
+    assert!(kid.is_enabled("#b").await.unwrap());
+    assert!(!kid.is_disabled("#b").await.unwrap());
+    assert!(kid.is_editable("#i").await.unwrap());
+    kid.focus("#i").await.unwrap();
+    kid.press("#i", "End").await.unwrap();
+    kid.hover("#b").await.unwrap();
+    kid.dblclick("#b").await.unwrap();
+    kid.dispatch_event("#b", "click").await.unwrap();
+    assert_eq!(kid.locator("#b").count().await.unwrap(), 1);
+    assert_eq!(
+        kid.get_by_role("button", Default::default())
+            .count()
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(kid.get_by_text("hit", true).count().await.unwrap(), 1);
+    assert_eq!(
+        kid.evaluate::<String>("document.title").await.unwrap(),
+        "kid"
+    );
+    assert!(kid.content().await.unwrap().contains("<title>kid</title>"));
+    kid.add_style_tag(StyleTag::Content("#b { color: rgb(1, 2, 3) }".into()))
+        .await
+        .unwrap();
+    kid.add_script_tag(ScriptTag::content("window.added = 7;"))
+        .await
+        .unwrap();
+    assert_eq!(kid.evaluate::<i64>("window.added").await.unwrap(), 7);
+    kid.wait_for_function("window.added === 7").await.unwrap();
+    kid.wait_for_timeout(std::time::Duration::from_millis(1))
+        .await;
+
+    // Navigation inside the frame.
+    kid.goto(&server.url("/other.html")).await.unwrap();
+    kid.wait_for_url("**/other.html").await.unwrap();
+    kid.wait_for_load_state(LifecycleEvent::Load).await.unwrap();
+    assert_eq!(kid.title().await.unwrap(), "other");
+    kid.set_content("<p id=x>set</p>").await.unwrap();
+    assert_eq!(kid.inner_text("#x").await.unwrap(), "set");
+    assert_eq!(
+        kid.frame_locator("nope")
+            .locator("p")
+            .count()
+            .await
+            .unwrap(),
+        0
+    );
+
+    // Page shortcuts.
+    page.set_content("<input id=t><button onclick=\"this.textContent='p'\">b</button>")
+        .await
+        .unwrap();
+    page.fill("#t", "x").await.unwrap();
+    page.click("button").await.unwrap();
+    assert_eq!(page.inner_text("button").await.unwrap(), "p");
+    assert_eq!(page.input_value("#t").await.unwrap(), "x");
+    page.add_script_tag(ScriptTag::content("window.p = 1;"))
+        .await
+        .unwrap();
+    assert_eq!(page.evaluate::<i64>("window.p").await.unwrap(), 1);
+
+    // A frame removed from the page is detached.
+    page.set_content("<iframe name=gone srcdoc='x'></iframe>")
+        .await
+        .unwrap();
+    let gone = page.frame("gone").await.unwrap().unwrap();
+    page.evaluate::<()>("document.querySelector('iframe').remove()")
+        .await
+        .unwrap();
+    assert!(gone.is_detached().await.unwrap());
+    browser.close().await.unwrap();
+}
