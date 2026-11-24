@@ -280,6 +280,60 @@ mod tests {
         v.iter().map(|s| (*s).to_owned()).collect()
     }
 
+    #[test]
+    fn channels_are_where_playwright_looks() {
+        let linux = DiscoveryEnv {
+            os: Os::Linux,
+            ..Default::default()
+        };
+        assert_eq!(
+            channel_paths("msedge", &linux).unwrap(),
+            [p("/opt/microsoft/msedge/msedge")]
+        );
+        assert_eq!(
+            channel_paths("chrome-beta", &linux).unwrap(),
+            [p("/opt/google/chrome-beta/chrome")]
+        );
+        let mac = DiscoveryEnv {
+            os: Os::MacOs,
+            ..Default::default()
+        };
+        assert_eq!(
+            channel_paths("msedge-canary", &mac).unwrap(),
+            [p(
+                "/Applications/Microsoft Edge Canary.app/Contents/MacOS/Microsoft Edge Canary"
+            )]
+        );
+        assert_eq!(
+            channel_paths("chrome", &mac).unwrap(),
+            [p(
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            )]
+        );
+        let windows = DiscoveryEnv {
+            os: Os::Windows,
+            local_app_data: Some(p("C:/Users/u/AppData/Local")),
+            program_files: vec![p("C:/Program Files"), p("C:/Program Files (x86)")],
+            ..Default::default()
+        };
+        assert_eq!(
+            channel_paths("msedge", &windows).unwrap(),
+            [
+                p("C:/Users/u/AppData/Local/Microsoft/Edge/Application/msedge.exe"),
+                p("C:/Program Files/Microsoft/Edge/Application/msedge.exe"),
+                p("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"),
+            ]
+        );
+        assert_eq!(
+            channel_paths("chrome-canary", &windows).unwrap()[0],
+            p("C:/Users/u/AppData/Local/Google/Chrome SxS/Application/chrome.exe")
+        );
+        // Linux has no canary; unknown names are errors, like Playwright.
+        assert!(channel_paths("chrome-canary", &linux).is_err());
+        let err = channel_paths("opera", &linux).unwrap_err();
+        assert!(err.contains("opera"), "{err}");
+    }
+
     fn linux_env() -> DiscoveryEnv {
         DiscoveryEnv {
             os: Os::Linux,

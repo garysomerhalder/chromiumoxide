@@ -1011,8 +1011,49 @@ mod tests {
             cmd.args
                 .contains(&format!("--user-data-dir={}", dir.display()))
         );
-        assert_eq!(cmd.channel, Channel::Pipe);
+        assert_eq!(cmd.channel, effective_channel(Channel::Pipe, cfg!(windows)));
         assert_eq!(browser.executable_path(), Some(PathBuf::from(SHELL)));
+    }
+
+    #[tokio::test]
+    async fn a_channel_launches_the_installed_chrome_or_edge() {
+        let launcher = FakeLauncher::default();
+        let (s, fs) = services(&launcher);
+        fs.add_file("/opt/microsoft/msedge/msedge");
+        let browser = Browser::launch(
+            s.clone(),
+            LaunchOptions {
+                browser_channel: Some("msedge".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            browser.executable_path(),
+            Some(PathBuf::from("/opt/microsoft/msedge/msedge"))
+        );
+        let cmd = launcher.commands.lock().unwrap()[0].clone();
+        assert!(
+            cmd.args.contains(&"--headless=new".to_owned()),
+            "{:?}",
+            cmd.args
+        );
+        // Not installed: an error naming the channel and where it looked.
+        let err = match Browser::launch(
+            s,
+            LaunchOptions {
+                browser_channel: Some("chrome-beta".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("chrome-beta is not installed"),
+        };
+        assert!(err.contains("chrome-beta"), "{err}");
+        assert!(err.contains("/opt/google/chrome-beta/chrome"), "{err}");
     }
 
     #[tokio::test]
