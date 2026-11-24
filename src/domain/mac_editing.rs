@@ -191,23 +191,45 @@ const META: u32 = 4;
 const SHIFT: u32 = 8;
 
 /// Playwright's shortcut name for `code` with CDP `modifiers`.
-pub fn shortcut(_code: &str, _modifiers: u32) -> String {
-    String::new()
+pub fn shortcut(code: &str, modifiers: u32) -> String {
+    let mut parts: Vec<&str> = [
+        (SHIFT, "Shift"),
+        (CONTROL, "Control"),
+        (ALT, "Alt"),
+        (META, "Meta"),
+    ]
+    .into_iter()
+    .filter(|(bit, _)| modifiers & bit != 0)
+    .map(|(_, name)| name)
+    .collect();
+    parts.push(code);
+    parts.join("+")
 }
 
 /// The commands for a shortcut, as in Playwright's table.
-pub fn commands(_shortcut: &str) -> &'static [&'static str] {
-    &[]
+pub fn commands(shortcut: &str) -> &'static [&'static str] {
+    COMMANDS
+        .iter()
+        .find(|(s, _)| *s == shortcut)
+        .map(|(_, c)| *c)
+        .unwrap_or(&[])
 }
 
 /// Chromium's `Input.dispatchKeyEvent` `commands` on macOS.
-pub fn chromium_commands(_code: &str, _modifiers: u32) -> Vec<String> {
-    Vec::new()
+pub fn chromium_commands(code: &str, modifiers: u32) -> Vec<String> {
+    commands(&shortcut(code, modifiers))
+        .iter()
+        .filter(|c| !c.starts_with("insert"))
+        .map(|c| c.trim_end_matches(':').to_owned())
+        .collect()
 }
 
 /// WebKit's `Input.dispatchKeyEvent` `macCommands`.
-pub fn webkit_commands(_code: &str, _modifiers: u32) -> Vec<String> {
-    Vec::new()
+pub fn webkit_commands(code: &str, modifiers: u32) -> Vec<String> {
+    commands(&shortcut(code, modifiers))
+        .iter()
+        .map(|c| (*c).to_owned())
+        .collect()
 }
 
 #[cfg(test)]

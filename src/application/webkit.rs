@@ -1402,6 +1402,11 @@ impl Page {
             params["text"] = json!(e.text);
             params["unmodifiedText"] = json!(e.text);
             params["autoRepeat"] = json!(e.auto_repeat);
+            // As Playwright's WKPage: always sent, used by WebKit on macOS.
+            let commands = crate::domain::mac_editing::webkit_commands(&e.code, e.modifiers);
+            if !commands.is_empty() {
+                params["macCommands"] = json!(commands);
+            }
         }
         self.proxy_call("Input.dispatchKeyEvent", params)
             .await
