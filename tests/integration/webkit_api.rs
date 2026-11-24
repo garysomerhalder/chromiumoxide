@@ -873,3 +873,288 @@ async fn webkit_js_and_element_handles() {
     );
     browser.close().await.unwrap();
 }
+
+/// WebKit: Request and Response details (post data, resource type,
+/// navigation, frame, redirects, response() / finished(), bodies, headers,
+/// timing, sizes, HTTP version).
+#[tokio::test]
+async fn webkit_request_and_response_details() {
+    use chromiumoxide::webkit::PageEvent;
+    use futures::StreamExt;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/page.html", "text/html", "<title>p</title>", 0);
+    server.route("/data.json", "application/json", r#"{"a":1}"#, 0);
+    server.respond("/redirect", "302 Found", &[("Location", "/page.html")], "");
+    let browser = WebKit::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+
+    // A navigation through a redirect.
+    let mut events = page.events();
+    page.goto(&server.url("/redirect")).await.unwrap();
+    let mut requests = Vec::new();
+    let mut responses = Vec::new();
+    while responses.len() < 2 {
+        match events.next().await.unwrap() {
+            PageEvent::Request(r) => requests.push(r),
+            PageEvent::Response(r) => responses.push(r),
+            _ => {}
+        }
+    }
+    let final_request = requests.last().unwrap().clone();
+    assert!(final_request.url().ends_with("/page.html"));
+    assert!(final_request.is_navigation_request());
+    assert_eq!(final_request.resource_type(), "document");
+    let first = final_request.redirected_from().expect("redirected from");
+    assert!(first.url().ends_with("/redirect"));
+    assert!(first.redirected_to().unwrap().url().ends_with("/page.html"));
+    assert_eq!(first.existing_response().unwrap().status(), 302);
+    let response = final_request.response().await.unwrap().unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.text().await.unwrap(), "<title>p</title>");
+    assert_eq!(response.http_version(), "HTTP/1.1");
+    assert!(response.request().url().ends_with("/page.html"));
+    assert!(response.frame().await.unwrap().is_some());
+    assert!(final_request.frame().await.unwrap().is_some());
+    assert!(response.finished().await.unwrap().is_none());
+    assert_eq!(
+        response
+            .all_headers()
+            .await
+            .unwrap()
+            .get("content-type")
+            .map(String::as_str),
+        Some("text/html")
+    );
+    assert!(
+        response
+            .headers_array()
+            .iter()
+            .any(|(k, _)| k.eq_ignore_ascii_case("content-length"))
+    );
+    assert_eq!(response.header_values("content-type"), ["text/html"]);
+    assert!(!response.from_service_worker());
+    assert!(final_request.service_worker().is_none());
+    let timing = final_request.timing();
+    assert!(
+        timing.start_time > 0.0 && timing.response_end >= 0.0,
+        "{timing:?}"
+    );
+    let sizes = final_request.sizes().await.unwrap();
+    assert!(sizes.response_body_size > 0, "{sizes:?}");
+    assert!(
+        final_request
+            .all_headers()
+            .await
+            .unwrap()
+            .contains_key("user-agent")
+    );
+    assert!(!final_request.headers_array().is_empty());
+
+    // A fetch with a body, and its JSON response.
+    let request = page.wait_for_request("**/data.json");
+    let body: serde_json::Value = page
+        .evaluate("fetch('/data.json', { method: 'POST', body: JSON.stringify({ q: 2 }) }).then(r => r.json())")
+        .await
+        .unwrap();
+    assert_eq!(body["a"], 1);
+    let request = request.await.unwrap();
+    assert_eq!(request.method(), "POST");
+    assert_eq!(request.resource_type(), "fetch");
+    assert!(!request.is_navigation_request());
+    assert_eq!(
+        request.post_data().await.unwrap().as_deref(),
+        Some(r#"{"q":2}"#)
+    );
+    assert_eq!(
+        request.post_data_buffer().await.unwrap().unwrap(),
+        br#"{"q":2}"#
+    );
+    assert_eq!(
+        request
+            .post_data_json::<serde_json::Value>()
+            .await
+            .unwrap()
+            .unwrap()["q"],
+        2
+    );
+    let response = request.response().await.unwrap().unwrap();
+    assert_eq!(response.json::<serde_json::Value>().await.unwrap()["a"], 1);
+    assert_eq!(response.body().await.unwrap(), br#"{"a":1}"#);
+    // WebKit reports the server address (no TLS on plain HTTP).
+    assert!(response.finished().await.unwrap().is_none());
+    assert_eq!(response.server_addr().unwrap().ip_address, "127.0.0.1");
+    assert!(response.security_details().is_none());
+    browser.close().await.unwrap();
+}
+
+/// WebKit: route.fallback() (to older page routes, then context routes,
+/// then the network) and route.fetch() + fulfill(response).
+#[tokio::test]
+async fn webkit_route_fallback_and_fetch() {
+    use std::sync::{Arc, Mutex};
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/data.txt", "text/plain", "original", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    let order = Arc::new(Mutex::new(Vec::new()));
+
+    let o = order.clone();
+    context
+        .route("**/data.txt", move |route| {
+            let o = o.clone();
+            async move {
+                o.lock().unwrap().push("context");
+                route.fallback().await.unwrap();
+            }
+        })
+        .await
+        .unwrap();
+    let o = order.clone();
+    page.route("**/data.txt", move |route| {
+        let o = o.clone();
+        async move {
+            o.lock().unwrap().push("older");
+            // Fetch the real response and change it.
+            let response = route.fetch().await.unwrap();
+            assert_eq!(response.status(), 200);
+            let text = response.text().await.unwrap();
+            route
+                .fulfill()
+                .response(&response)
+                .body(format!("{text} + changed"))
+                .await
+                .unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    let o = order.clone();
+    page.route("**/data.txt", move |route| {
+        let o = o.clone();
+        async move {
+            o.lock().unwrap().push("newer");
+            route.fallback().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    page.goto(&server.url("/data.txt")).await.unwrap();
+    assert_eq!(page.inner_text("body").await.unwrap(), "original + changed");
+    assert_eq!(*order.lock().unwrap(), ["newer", "older"]);
+
+    // With no page routes left, the context route falls back to the network.
+    page.unroute_all().await.unwrap();
+    order.lock().unwrap().clear();
+    page.goto(&server.url("/data.txt")).await.unwrap();
+    assert_eq!(page.inner_text("body").await.unwrap(), "original");
+    assert_eq!(*order.lock().unwrap(), ["context"]);
+    browser.close().await.unwrap();
+}
+
+/// WebKit: `context.request` / `page.request` (Playwright's
+/// APIRequestContext), sharing cookies with the browser context.
+#[tokio::test]
+async fn webkit_api_request_context() {
+    use chromiumoxide::NewCookie;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/p.html", "text/html", "<title>p</title>", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+
+    let request = context.request();
+    // /dump sets a cookie, which lands in the browser context.
+    let response = request.get(&server.url("/dump")).await.unwrap();
+    assert!(response.ok());
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.status_text(), "OK");
+    assert!(response.url().ends_with("/dump"));
+    let json: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(json["method"], "GET");
+    assert!(
+        json["headers"]["user-agent"]
+            .as_str()
+            .unwrap()
+            .contains("AppleWebKit")
+    );
+    assert!(!response.headers_array().is_empty());
+    assert!(response.headers().contains_key("content-type"));
+    assert!(!response.text().await.unwrap().is_empty());
+    assert!(!response.body().await.unwrap().is_empty());
+    let _ = response.timing();
+    assert_eq!(
+        response.server_addr().await.unwrap().unwrap().ip_address,
+        "127.0.0.1"
+    );
+    assert!(response.security_details().await.unwrap().is_none());
+    response.dispose().await;
+    assert!(
+        context
+            .cookies()
+            .await
+            .unwrap()
+            .iter()
+            .any(|c| c.name == "from_server")
+    );
+
+    // Browser cookies go out with API requests.
+    context
+        .add_cookies(&[NewCookie::new("sent", "yes").url(&server.url("/"))])
+        .await
+        .unwrap();
+    let echoed: serde_json::Value = page
+        .request()
+        .post(&server.url("/dump"))
+        .data_text("body")
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(
+        echoed["headers"]["cookie"]
+            .as_str()
+            .unwrap()
+            .contains("sent=yes")
+    );
+    assert_eq!(echoed["body"], "body");
+    for r in [
+        request.head(&server.url("/p.html")).await.unwrap(),
+        request.put(&server.url("/dump")).await.unwrap(),
+        request.patch(&server.url("/dump")).await.unwrap(),
+        request.delete(&server.url("/dump")).await.unwrap(),
+        request.fetch(&server.url("/p.html")).await.unwrap(),
+    ] {
+        assert!(r.ok());
+    }
+    assert!(!request.cookies().await.unwrap().is_empty());
+    request
+        .add_cookies(&[NewCookie::new("api", "1").url(&server.url("/"))])
+        .await
+        .unwrap();
+    assert!(
+        context
+            .cookies()
+            .await
+            .unwrap()
+            .iter()
+            .any(|c| c.name == "api")
+    );
+    assert!(!request.storage_state().await.unwrap().cookies.is_empty());
+    request.clear_cookies().await.unwrap();
+    assert!(context.cookies().await.unwrap().is_empty());
+    request.dispose().await;
+    assert!(request.get(&server.url("/p.html")).await.is_err());
+    browser.close().await.unwrap();
+}
