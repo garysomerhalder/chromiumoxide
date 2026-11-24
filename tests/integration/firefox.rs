@@ -853,9 +853,11 @@ async fn firefox_storage_state_round_trip() {
         .unwrap();
     let page = first.new_page().await.unwrap();
     page.goto(&url).await.unwrap();
-    page.evaluate::<()>("localStorage.setItem('token', 'abc'); document.cookie = 'session=s1'")
-        .await
-        .unwrap();
+    page.evaluate::<()>(
+        "localStorage.setItem('token', 'abc'); void (document.cookie = 'session=s1')",
+    )
+    .await
+    .unwrap();
     let state = first.storage_state().await.unwrap();
     assert!(
         state

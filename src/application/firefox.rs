@@ -34,7 +34,9 @@ use crate::domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale, Size, Target,
     plan_page, validate,
 };
-use crate::domain::storage::{Cookie, NewCookie, filter_cookies};
+use crate::domain::storage::{
+    Cookie, NameValue, NewCookie, OriginState, StorageState, filter_cookies,
+};
 use crate::ports::{BidiSession, BrowserProcess, FirefoxCommand};
 use std::collections::HashMap;
 
@@ -277,6 +279,12 @@ impl Browser {
             let _ = context.close().await;
             return Err(e);
         }
+        if let Some(state) = context.inner.options.storage_state.clone()
+            && let Err(e) = context.restore_storage_state(&state).await
+        {
+            let _ = context.close().await;
+            return Err(e);
+        }
         Ok(context)
     }
 
@@ -434,6 +442,90 @@ impl BrowserContext {
         self.inner.routes.lock().unwrap().retain(|e| !remove(e));
         for page in self.live_pages() {
             page.sync_intercept().await?;
+        }
+        Ok(())
+    }
+
+    /// `context.storageState()`: the cookies, and the localStorage of the
+    /// origins open in this context's pages.
+    pub async fn storage_state(&self) -> Result<StorageState> {
+        let cookies = self.cookies().await?;
+        let mut origins: Vec<OriginState> = Vec::new();
+        for page in self.live_pages() {
+            let v = page
+                .call_json(
+                    "() => ({ origin: location.origin, items: Object.keys(localStorage)\
+                     .map(name => ({ name, value: localStorage.getItem(name) })) })",
+                    &[],
+                    None,
+                )
+                .await;
+            let Ok(v) = v else {
+                continue;
+            };
+            let origin = v["origin"].as_str().unwrap_or_default().to_owned();
+            if origin.is_empty() || origin == "null" {
+                continue;
+            }
+            let items: Vec<NameValue> = v["items"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .map(|kv| NameValue {
+                            name: kv["name"].as_str().unwrap_or_default().to_owned(),
+                            value: kv["value"].as_str().unwrap_or_default().to_owned(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            if items.is_empty() || origins.iter().any(|o| o.origin == origin) {
+                continue;
+            }
+            origins.push(OriginState {
+                origin,
+                local_storage: items,
+                indexed_db: None,
+                opfs: None,
+            });
+        }
+        Ok(StorageState { cookies, origins })
+    }
+
+    /// Playwright's way to restore `storageState`: the cookies, then per
+    /// origin a temporary page served a blank document (the site is never
+    /// loaded) that writes the localStorage.
+    async fn restore_storage_state(&self, state: &StorageState) -> Result<()> {
+        if !state.cookies.is_empty() {
+            let cookies: Vec<NewCookie> = state.cookies.iter().map(Cookie::to_new_cookie).collect();
+            self.add_cookies(&cookies).await?;
+        }
+        for origin in state.origins.iter().filter(|o| !o.local_storage.is_empty()) {
+            let page = self.new_page().await?;
+            page.route("**/*", |route| async move {
+                let _ = route
+                    .fulfill()
+                    .content_type("text/html")
+                    .body("<html></html>")
+                    .await;
+            })
+            .await?;
+            let items: Vec<Value> = origin
+                .local_storage
+                .iter()
+                .map(|kv| json!({"name": kv.name, "value": kv.value}))
+                .collect();
+            let written = async {
+                page.goto(&format!("{}/", origin.origin.trim_end_matches('/'))).await?;
+                page.call_json(
+                    "(items) => { for (const { name, value } of items) localStorage.setItem(name, value); }",
+                    &[json!(items)],
+                    None,
+                )
+                .await
+            }
+            .await;
+            page.close().await?;
+            written?;
         }
         Ok(())
     }
