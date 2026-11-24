@@ -2051,3 +2051,108 @@ async fn webkit_record_har_option() {
     std::fs::remove_dir_all(&dir).unwrap();
     browser.close().await.unwrap();
 }
+
+/// WebKit: page / context routeWebSocket (a mocked socket, a socket
+/// connected through to the real server, and one passed through).
+#[tokio::test]
+async fn webkit_route_web_socket() {
+    use chromiumoxide::WsPayload;
+    let Some(options) = options() else {
+        return;
+    };
+    let port = crate::workers::ws_server().await;
+    let server = crate::server::TestServer::start().await;
+    server.route("/p.html", "text/html", "<title>ws</title>", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+
+    // A mock: the handler answers the page itself.
+    page.route_web_socket("**/mock", |ws| async move {
+        let reply = ws.clone();
+        ws.on_message(move |m| {
+            let reply = reply.clone();
+            async move {
+                if let WsPayload::Text(t) = m {
+                    reply.send(format!("mocked:{t}")).await;
+                }
+            }
+        });
+    })
+    .await
+    .unwrap();
+    // Through to the real server, changing what it sends.
+    context
+        .route_web_socket("**/real", |ws| async move {
+            let server = ws.connect_to_server().unwrap();
+            let page_side = ws.clone();
+            server.on_message(move |m| {
+                let page_side = page_side.clone();
+                async move {
+                    if let WsPayload::Text(t) = m {
+                        page_side.send(format!("{t}!")).await;
+                    }
+                }
+            });
+        })
+        .await
+        .unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+    let talk = |url: String| {
+        format!(
+            "new Promise(ok => {{ const ws = new WebSocket('{url}'); \
+             ws.onopen = () => ws.send('hi'); \
+             ws.onmessage = e => {{ if (typeof e.data === 'string') {{ ok(e.data); ws.close(); }} }}; }})"
+        )
+    };
+    assert_eq!(
+        page.evaluate::<String>(&talk("ws://127.0.0.1:1/mock".into()))
+            .await
+            .unwrap(),
+        "mocked:hi"
+    );
+    assert_eq!(
+        page.evaluate::<String>(&talk(format!("ws://127.0.0.1:{port}/real")))
+            .await
+            .unwrap(),
+        "echo:hi!"
+    );
+    // No route: the real socket.
+    assert_eq!(
+        page.evaluate::<String>(&talk(format!("ws://127.0.0.1:{port}/plain")))
+            .await
+            .unwrap(),
+        "echo:hi"
+    );
+    browser.close().await.unwrap();
+}
+
+/// WebKit: browser.bind() shares the browser with other clients (its
+/// inspector protocol, relayed over a WebSocket); unbind() stops it.
+#[tokio::test]
+async fn webkit_bind_shares_the_browser() {
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/p.html", "text/html", "<title>shared</title>", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let endpoint = browser.bind().await.unwrap();
+    assert!(endpoint.starts_with("ws://127.0.0.1:"), "{endpoint}");
+    assert_eq!(browser.bind().await.unwrap(), endpoint);
+
+    let other = WebKit::connect(&endpoint).await.unwrap();
+    let page = other.new_page().await.unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "shared");
+    other.close().await.unwrap();
+
+    // The first client still works.
+    let mine = browser.new_page().await.unwrap();
+    mine.goto(&server.url("/p.html")).await.unwrap();
+    assert_eq!(mine.title().await.unwrap(), "shared");
+
+    browser.unbind().await.unwrap();
+    assert!(WebKit::connect(&endpoint).await.is_err());
+    browser.close().await.unwrap();
+}
