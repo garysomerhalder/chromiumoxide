@@ -28,6 +28,8 @@ pub enum PageEvent {
     RequestFailed(crate::application::firefox_route::Request),
     /// The page opened a pop-up (`page.on('popup')`).
     Popup(Page),
+    /// A download started (`page.on('download')`).
+    Download(crate::application::firefox_download::Download),
 }
 
 /// `page.on('console')`.

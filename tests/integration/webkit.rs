@@ -744,3 +744,46 @@ async fn webkit_popups() {
     );
     browser.close().await.unwrap();
 }
+
+/// Downloads on WebKit: PageEvent::Download with the suggested file name,
+/// the file's bytes and save_as.
+#[tokio::test]
+async fn webkit_downloads() {
+    use chromiumoxide::webkit::PageEvent;
+    use futures::StreamExt;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.respond(
+        "/dl",
+        "200 OK",
+        &[("Content-Disposition", "attachment; filename=f.txt")],
+        "downloaded bytes",
+    );
+    let browser = WebKit::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    let mut events = page.events();
+    page.set_content(&format!("<a href='{}'>dl</a>", server.url("/dl")))
+        .await
+        .unwrap();
+    page.locator("a").click().await.unwrap();
+    let download = loop {
+        let event = tokio::time::timeout(std::time::Duration::from_secs(10), events.next())
+            .await
+            .expect("download within 10 s")
+            .unwrap();
+        if let PageEvent::Download(d) = event {
+            break d;
+        }
+    };
+    assert_eq!(download.suggested_filename(), "f.txt");
+    assert!(download.url().ends_with("/dl"));
+    assert_eq!(download.read().await.unwrap(), b"downloaded bytes");
+    assert_eq!(download.failure().await.unwrap(), None);
+    let copy = std::env::temp_dir().join(format!("cox-wk-dl-{}.txt", std::process::id()));
+    download.save_as(&copy).await.unwrap();
+    assert_eq!(std::fs::read(&copy).unwrap(), b"downloaded bytes");
+    std::fs::remove_file(&copy).unwrap();
+    browser.close().await.unwrap();
+}
