@@ -26,6 +26,12 @@ pub enum PageEvent {
     RequestFailed(crate::application::firefox_route::Request),
     /// A download started (`page.on('download')`).
     Download(crate::application::firefox_download::Download),
+    /// The page opened a pop-up (`page.on('popup')`).
+    Popup(crate::application::firefox::Page),
+    /// A dedicated worker started (`page.on('worker')`).
+    Worker(crate::application::firefox_worker::Worker),
+    /// The page opened a WebSocket (`page.on('websocket')`).
+    WebSocket(crate::application::websocket::WebSocket),
 }
 
 /// `page.on('console')`.

@@ -23,9 +23,11 @@ use crate::application::firefox_events::{
 use crate::application::firefox_input::{InputState, Keyboard, Mouse};
 use crate::application::firefox_record::{Recorders, Tracing, Video};
 use crate::application::firefox_route::{Request, Response, Route, RouteEntry};
+use crate::application::firefox_worker::{WS_CHANNEL, WS_PRELOAD, Worker};
 use crate::application::locator::INJECTED_SOURCE;
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
 use crate::application::services::Services;
+use crate::application::websocket::{WebSocket, WebSocketEvent, WsPayload};
 use crate::domain::emulation::{ContextOptions, Viewport};
 use crate::domain::error::{Error, Result};
 use crate::domain::firefox::{
@@ -202,7 +204,8 @@ impl Browser {
             .bidi
             .call(
                 "session.subscribe",
-                json!({"events": ["browsingContext", "log.entryAdded", "network"]}),
+                json!({"events": ["browsingContext", "log.entryAdded", "network",
+                                   "script.realmCreated", "script.realmDestroyed", "script.message"]}),
             )
             .await
         {
@@ -290,6 +293,18 @@ impl Browser {
         };
         if let Some(har) = record_har
             && let Err(e) = context.inner.recorders.start_har(har).await
+        {
+            let _ = context.close().await;
+            return Err(e);
+        }
+        if let Err(e) = bidi
+            .call(
+                "script.addPreloadScript",
+                json!({"functionDeclaration": WS_PRELOAD,
+                       "arguments": [{"type": "channel", "value": {"channel": WS_CHANNEL}}],
+                       "userContexts": [user_context]}),
+            )
+            .await
         {
             let _ = context.close().await;
             return Err(e);
@@ -625,7 +640,7 @@ impl BrowserContext {
         if self.inner.closed.load(Ordering::SeqCst) {
             return Err(Error::TargetClosed("context has been closed".into()));
         }
-        let mut events = self.inner.bidi.subscribe();
+        let events = self.inner.bidi.subscribe();
         let created = self
             .inner
             .bidi
@@ -642,82 +657,15 @@ impl BrowserContext {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
-        let inner = Arc::new(PageInner {
-            bidi: self.inner.bidi.clone(),
-            services: self.inner.services.clone(),
-            context: context.clone(),
-            options: self.inner.options.clone(),
-            viewport: Mutex::new(None),
-            owned_context: Mutex::new(None),
-            url: Mutex::new("about:blank".to_owned()),
-            subscribers: Mutex::new(Vec::new()),
-            routes: Mutex::new(Vec::new()),
-            context_routes: self.inner.routes.clone(),
-            auth_attempts: Mutex::new(std::collections::HashSet::new()),
-            downloads: Mutex::new(HashMap::new()),
-            input: Arc::default(),
-            recorders: self.inner.recorders.clone(),
-            video: Mutex::new(None),
-            intercept: tokio::sync::Mutex::new(None),
-            closed: AtomicBool::new(false),
-        });
-        self.inner
-            .pages
-            .lock()
-            .unwrap()
-            .push(Arc::downgrade(&inner));
-        let weak = Arc::downgrade(&inner);
-        tokio::spawn(async move {
-            use futures::StreamExt;
-            while let Some(event) = events.next().await {
-                let event_context = event
-                    .params
-                    .get("context")
-                    .or_else(|| event.params.pointer("/source/context"))
-                    .and_then(Value::as_str);
-                if event_context != Some(context.as_str()) {
-                    continue;
-                }
-                let Some(page) = weak.upgrade() else {
-                    break;
-                };
-                let page = Page { inner: page };
-                page.dispatch(&event.method, &event.params);
-                page.inner
-                    .recorders
-                    .on_event(&page, &event.method, &event.params);
-                let page = page.inner;
-                match event.method.as_str() {
-                    "browsingContext.navigationCommitted"
-                    | "browsingContext.fragmentNavigated"
-                    | "browsingContext.historyUpdated" => {
-                        if let Some(url) = event.params.get("url").and_then(Value::as_str) {
-                            *page.url.lock().unwrap() = url.to_owned();
-                        }
-                    }
-                    "browsingContext.contextDestroyed" => {
-                        page.closed.store(true, Ordering::SeqCst);
-                        page.subscribers.lock().unwrap().clear();
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-        });
-        let page = Page { inner };
-        *page.inner.video.lock().unwrap() = Video::start(&page);
-        self.inner.recorders.page_created(&page);
-        page.sync_intercept().await?;
-        if self.inner.options.http_credentials.is_some() {
-            page.inner
-                .bidi
-                .call(
-                    "network.addIntercept",
-                    json!({"phases": ["authRequired"], "contexts": [page.inner.context]}),
-                )
-                .await?;
-        }
-        Ok(page)
+        attach_page(&self.inner, context, "about:blank".to_owned(), events).await
+    }
+
+    /// `context.pages()`: the context's open pages.
+    pub fn pages(&self) -> Vec<Page> {
+        self.live_pages()
+            .into_iter()
+            .filter(|p| !p.inner.closed.load(Ordering::SeqCst))
+            .collect()
     }
 
     /// `context.close()`: closes its pages and the user context.
@@ -750,6 +698,100 @@ impl BrowserContext {
     pub fn tracing(&self) -> Tracing {
         Tracing::new(self.inner.recorders.clone(), self.live_pages())
     }
+}
+
+/// Makes the page object of a top-level browsing context of `ctx` (a new
+/// page or a pop-up) and starts following its events (`events` was
+/// subscribed before the context could send any).
+async fn attach_page(
+    ctx: &Arc<ContextInner>,
+    context: String,
+    url: String,
+    mut events: crate::ports::EventStream,
+) -> Result<Page> {
+    let inner = Arc::new(PageInner {
+        bidi: ctx.bidi.clone(),
+        services: ctx.services.clone(),
+        context: context.clone(),
+        options: ctx.options.clone(),
+        viewport: Mutex::new(None),
+        owned_context: Mutex::new(None),
+        url: Mutex::new(url),
+        subscribers: Mutex::new(Vec::new()),
+        routes: Mutex::new(Vec::new()),
+        context_routes: ctx.routes.clone(),
+        auth_attempts: Mutex::new(std::collections::HashSet::new()),
+        downloads: Mutex::new(HashMap::new()),
+        input: Arc::default(),
+        recorders: ctx.recorders.clone(),
+        video: Mutex::new(None),
+        intercept: tokio::sync::Mutex::new(None),
+        owner: Arc::downgrade(ctx),
+        realms: Mutex::new(std::collections::HashSet::new()),
+        workers: Mutex::new(Vec::new()),
+        websockets: Mutex::new(HashMap::new()),
+        closed: AtomicBool::new(false),
+    });
+    ctx.pages.lock().unwrap().push(Arc::downgrade(&inner));
+    let weak = Arc::downgrade(&inner);
+    tokio::spawn(async move {
+        use futures::StreamExt;
+        while let Some(event) = events.next().await {
+            let event_context = event
+                .params
+                .get("context")
+                .or_else(|| event.params.pointer("/source/context"))
+                .and_then(Value::as_str);
+            let Some(page) = weak.upgrade() else {
+                break;
+            };
+            let page = Page { inner: page };
+            if event_context != Some(context.as_str()) {
+                page.foreign_event(&event.method, &event.params);
+                continue;
+            }
+            page.dispatch(&event.method, &event.params);
+            page.inner
+                .recorders
+                .on_event(&page, &event.method, &event.params);
+            let page = page.inner;
+            match event.method.as_str() {
+                "browsingContext.navigationCommitted"
+                | "browsingContext.fragmentNavigated"
+                | "browsingContext.historyUpdated" => {
+                    if let Some(url) = event.params.get("url").and_then(Value::as_str) {
+                        *page.url.lock().unwrap() = url.to_owned();
+                    }
+                }
+                "browsingContext.contextDestroyed" => {
+                    page.closed.store(true, Ordering::SeqCst);
+                    for ws in page.websockets.lock().unwrap().drain() {
+                        ws.1.push(WebSocketEvent::Close);
+                    }
+                    for w in page.workers.lock().unwrap().drain(..) {
+                        w.mark_closed();
+                    }
+                    page.subscribers.lock().unwrap().clear();
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+    let page = Page { inner };
+    *page.inner.video.lock().unwrap() = Video::start(&page);
+    ctx.recorders.page_created(&page);
+    page.sync_intercept().await?;
+    if ctx.options.http_credentials.is_some() {
+        page.inner
+            .bidi
+            .call(
+                "network.addIntercept",
+                json!({"phases": ["authRequired"], "contexts": [page.inner.context]}),
+            )
+            .await?;
+    }
+    Ok(page)
 }
 
 /// A Firefox page (a top-level browsing context in its own window).
@@ -787,6 +829,14 @@ struct PageInner {
     recorders: Arc<Recorders>,
     /// `page.video()`.
     video: Mutex<Option<Video>>,
+    /// The context the page belongs to.
+    owner: std::sync::Weak<ContextInner>,
+    /// The page's window realms (owners of its dedicated workers).
+    realms: Mutex<std::collections::HashSet<String>>,
+    /// `page.workers()`.
+    workers: Mutex<Vec<Worker>>,
+    /// Open WebSockets, by `<realm>:<id>`.
+    websockets: Mutex<HashMap<String, WebSocket>>,
     /// `page.events()` subscribers.
     subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<PageEvent>>>,
     closed: AtomicBool,
@@ -968,6 +1018,22 @@ impl Page {
             "browsingContext.domContentLoaded" => {
                 self.emit(PageEvent::DomContentLoaded);
             }
+            "script.realmCreated" if p["type"] == "window" => {
+                self.inner.realms.lock().unwrap().insert(text("realm"));
+            }
+            "script.message" if p["channel"] == WS_CHANNEL => {
+                let realm = p
+                    .pointer("/source/realm")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if let Some(msg) = p
+                    .pointer("/data/value")
+                    .and_then(Value::as_str)
+                    .and_then(|m| serde_json::from_str::<Value>(m).ok())
+                {
+                    self.websocket_message(realm, &msg);
+                }
+            }
             "browsingContext.load" => {
                 self.emit(PageEvent::Load);
             }
@@ -976,6 +1042,122 @@ impl Page {
             }
             _ => {}
         }
+    }
+
+    /// An event about another browsing context or realm that may concern
+    /// this page: a pop-up it opened, its dedicated workers.
+    fn foreign_event(&self, method: &str, p: &Value) {
+        match method {
+            "browsingContext.contextCreated"
+                if p["originalOpener"].as_str() == Some(self.inner.context.as_str())
+                    && p["parent"].is_null() =>
+            {
+                let Some(owner) = self.inner.owner.upgrade() else {
+                    return;
+                };
+                let id = p["context"].as_str().unwrap_or_default().to_owned();
+                let url = p["url"].as_str().unwrap_or("about:blank").to_owned();
+                // Subscribed now, before the pop-up's next events arrive.
+                let events = self.inner.bidi.subscribe();
+                let opener = self.clone();
+                tokio::spawn(async move {
+                    if let Ok(popup) = attach_page(&owner, id, url, events).await {
+                        popup.refresh_url().await;
+                        opener.emit(PageEvent::Popup(popup));
+                    }
+                });
+            }
+            "script.realmCreated" if p["type"] == "dedicated-worker" => {
+                let owned = p["owners"].as_array().is_some_and(|owners| {
+                    let realms = self.inner.realms.lock().unwrap();
+                    owners
+                        .iter()
+                        .any(|o| o.as_str().is_some_and(|o| realms.contains(o)))
+                });
+                if owned {
+                    let worker = Worker::new(
+                        self.clone(),
+                        p["realm"].as_str().unwrap_or_default().to_owned(),
+                        p["origin"].as_str().unwrap_or_default().to_owned(),
+                    );
+                    self.inner.workers.lock().unwrap().push(worker.clone());
+                    self.emit(PageEvent::Worker(worker));
+                }
+            }
+            "script.realmDestroyed" => {
+                let realm = p["realm"].as_str().unwrap_or_default();
+                self.inner.realms.lock().unwrap().remove(realm);
+                let mut workers = self.inner.workers.lock().unwrap();
+                if let Some(i) = workers.iter().position(|w| w.realm() == realm) {
+                    workers.remove(i).mark_closed();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Re-reads the URL (events before the page was attached are missed).
+    async fn refresh_url(&self) {
+        if let Ok(tree) = self
+            .bidi_call(
+                "browsingContext.getTree",
+                json!({"root": self.inner.context, "maxDepth": 0}),
+            )
+            .await
+            && let Some(url) = tree.pointer("/contexts/0/url").and_then(Value::as_str)
+        {
+            *self.inner.url.lock().unwrap() = url.to_owned();
+        }
+    }
+
+    /// One report of the WebSocket preload script.
+    fn websocket_message(&self, realm: &str, m: &Value) {
+        let key = format!("{realm}:{}", m["id"]);
+        let payload = || match (m["text"].as_str(), m["b64"].as_str()) {
+            (_, Some(b64)) => WsPayload::Binary(
+                base64::engine::general_purpose::STANDARD
+                    .decode(b64)
+                    .unwrap_or_default(),
+            ),
+            (text, None) => WsPayload::Text(text.unwrap_or_default().to_owned()),
+        };
+        match m["type"].as_str() {
+            Some("open") => {
+                let ws = WebSocket::new(m["url"].as_str().unwrap_or_default().to_owned());
+                self.inner
+                    .websockets
+                    .lock()
+                    .unwrap()
+                    .insert(key, ws.clone());
+                self.emit(PageEvent::WebSocket(ws));
+            }
+            Some(kind) => {
+                let ws = {
+                    let mut sockets = self.inner.websockets.lock().unwrap();
+                    if kind == "close" {
+                        sockets.remove(&key)
+                    } else {
+                        sockets.get(&key).cloned()
+                    }
+                };
+                let Some(ws) = ws else { return };
+                match kind {
+                    "sent" => ws.push(WebSocketEvent::FrameSent(payload())),
+                    "recv" => ws.push(WebSocketEvent::FrameReceived(payload())),
+                    "error" => ws.push(WebSocketEvent::Error(
+                        m["message"].as_str().unwrap_or_default().to_owned(),
+                    )),
+                    "close" => ws.push(WebSocketEvent::Close),
+                    _ => {}
+                }
+            }
+            None => {}
+        }
+    }
+
+    /// `page.workers()`: the page's dedicated workers.
+    pub fn workers(&self) -> Vec<Worker> {
+        self.inner.workers.lock().unwrap().clone()
     }
 
     /// Any BiDi command (for the engine's other modules).
@@ -1379,6 +1561,18 @@ impl Page {
     /// is called with the argument; values come back as JSON. Sources that
     /// are statements rather than one expression run as a script.
     async fn evaluate_value(&self, source: &str, arg: Option<&Value>) -> Result<Value> {
+        let target = json!({"context": self.inner.context});
+        self.evaluate_value_in(target, source, arg).await
+    }
+
+    /// [`Page::evaluate_value`] in a BiDi script target (a frame or a
+    /// worker realm).
+    pub(crate) async fn evaluate_value_in(
+        &self,
+        target: Value,
+        source: &str,
+        arg: Option<&Value>,
+    ) -> Result<Value> {
         self.check_open()?;
         let source = source.trim().trim_end_matches(';');
         let arg = arg
@@ -1389,13 +1583,15 @@ impl Page {
              const __r = typeof __v === 'function' ? await __v(__chromiumoxide_arg) : await __v; \
              return __r === undefined ? undefined : JSON.stringify(__r); }})({arg})"
         );
-        let r = self.script_evaluate(&wrapped, None).await?;
+        let r = self
+            .script_evaluate_target(target.clone(), &wrapped)
+            .await?;
         if r.get("type").and_then(Value::as_str) == Some("exception") {
             let message = exception_text(&r);
             if !message.starts_with("SyntaxError") {
                 return Err(Error::Evaluation(message));
             }
-            let r = self.script_evaluate(source, None).await?;
+            let r = self.script_evaluate_target(target, source).await?;
             if r.get("type").and_then(Value::as_str) == Some("exception") {
                 return Err(Error::Evaluation(exception_text(&r)));
             }
@@ -1448,11 +1644,6 @@ impl Page {
         }
     }
 
-    async fn script_evaluate(&self, expression: &str, sandbox: Option<&str>) -> Result<Value> {
-        let context = self.inner.context.clone();
-        self.script_evaluate_in(&context, expression, sandbox).await
-    }
-
     async fn script_evaluate_in(
         &self,
         context: &str,
@@ -1463,6 +1654,10 @@ impl Page {
         if let Some(sandbox) = sandbox {
             target["sandbox"] = json!(sandbox);
         }
+        self.script_evaluate_target(target, expression).await
+    }
+
+    async fn script_evaluate_target(&self, target: Value, expression: &str) -> Result<Value> {
         self.inner
             .bidi
             .call(

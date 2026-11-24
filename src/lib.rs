@@ -147,6 +147,8 @@ pub mod firefox {
     pub use crate::application::firefox_locator::{FrameLocator, Locator};
     pub use crate::application::firefox_record::{Pdf, Tracing, Video};
     pub use crate::application::firefox_route::{Fulfill, Request, Response, Route, RouteRequest};
+    pub use crate::application::firefox_worker::Worker;
+    pub use crate::application::websocket::{WebSocket, WebSocketEvent, WsPayload};
 }
 
 /// Playwright's `firefox`: launches Firefox, driven over WebDriver BiDi.

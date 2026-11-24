@@ -26,6 +26,7 @@ pub mod firefox_input;
 pub mod firefox_locator;
 pub mod firefox_record;
 pub mod firefox_route;
+pub mod firefox_worker;
 pub mod frame;
 pub mod frame_actions;
 pub mod handle;
