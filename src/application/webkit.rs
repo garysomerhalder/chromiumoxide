@@ -211,6 +211,7 @@ impl Browser {
                 closed: AtomicBool::new(false),
             }),
         };
+        context.watch_popups();
         if let Err(e) = context.initialize().await {
             let _ = context.close().await;
             return Err(e);
@@ -338,6 +339,23 @@ impl BrowserContext {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
+        let page = self.make_page(proxy, events);
+        let mut ready = page.inner.ready.subscribe();
+        within(&services, TIMEOUT, "waiting for the page target", async {
+            ready
+                .wait_for(|r| *r)
+                .await
+                .map(drop)
+                .map_err(|_| Error::TargetClosed("page closed while opening".into()))
+        })
+        .await?;
+        Ok(page)
+    }
+
+    /// A page for page proxy `proxy`, following `events` (which must start
+    /// before the proxy's first target event).
+    fn make_page(&self, proxy: String, events: EventStream) -> Page {
+        let services = self.inner.browser.inner.services.clone();
         let (ready, _) = watch::channel(false);
         let (loads, _) = watch::channel(0u64);
         let inner = Arc::new(PageInner {
@@ -375,16 +393,61 @@ impl BrowserContext {
             .push(Arc::downgrade(&inner));
         let page = Page { inner };
         page.follow(events);
-        let mut ready = page.inner.ready.subscribe();
-        within(&services, TIMEOUT, "waiting for the page target", async {
-            ready
-                .wait_for(|r| *r)
-                .await
-                .map(drop)
-                .map_err(|_| Error::TargetClosed("page closed while opening".into()))
-        })
-        .await?;
-        Ok(page)
+        page
+    }
+
+    /// Pages that this context's pages open (`window.open`, `target=_blank`):
+    /// WebKit announces each with `Playwright.pageProxyCreated` and an
+    /// `openerId`; its events go to a new page, reported to the opener as
+    /// [`PageEvent::Popup`] once its first target is set up.
+    fn watch_popups(&self) {
+        let mut events = self.wk().subscribe();
+        let context = Arc::downgrade(&self.inner);
+        tokio::spawn(async move {
+            let mut popups: HashMap<
+                String,
+                futures::channel::mpsc::UnboundedSender<Arc<crate::ports::RawEvent>>,
+            > = HashMap::new();
+            while let Some(event) = events.next().await {
+                let Some(inner) = context.upgrade() else {
+                    break;
+                };
+                let context = BrowserContext { inner };
+                let p = &event.params;
+                if event.session_id.is_none() && event.method == "Playwright.pageProxyCreated" {
+                    let ours = p["browserContextId"].as_str() == Some(context.inner.id.as_str());
+                    if let (true, Some(proxy), Some(opener)) =
+                        (ours, p["pageProxyId"].as_str(), p["openerId"].as_str())
+                    {
+                        let (tx, rx) = futures::channel::mpsc::unbounded();
+                        popups.insert(proxy.to_owned(), tx);
+                        let page = context.make_page(proxy.to_owned(), Box::pin(rx));
+                        let opener = context
+                            .live_pages()
+                            .into_iter()
+                            .find(|o| o.inner.proxy == opener);
+                        tokio::spawn(async move {
+                            let mut ready = page.inner.ready.subscribe();
+                            if ready.wait_for(|r| *r).await.is_ok()
+                                && let Some(opener) = opener
+                            {
+                                opener.emit(PageEvent::Popup(page));
+                            }
+                        });
+                    }
+                    continue;
+                }
+                let proxy = match event.session_id.as_deref() {
+                    Some(s) => s.split('/').next().unwrap_or_default(),
+                    None => p["pageProxyId"].as_str().unwrap_or_default(),
+                };
+                if let Some(tx) = popups.get(proxy)
+                    && tx.unbounded_send(event.clone()).is_err()
+                {
+                    popups.remove(proxy);
+                }
+            }
+        });
     }
 
     /// `context.close()`.

@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cookies; `addInitScript` (context and page); `page.events()` with
   console messages, page errors and dialogs; `page.route` (fulfill,
   continue, abort), `context.route` and `unroute`; network events;
-  `expect()` web-first assertions; frames (`frame_locator`, `frames()`).
+  `expect()` web-first assertions; frames (`frame_locator`, `frames()`);
+  pop-ups.
 - `LaunchOptions::browser_channel`: Playwright's `channel` (`chrome`,
   `msedge`, betas, devs, canaries), looked up where Playwright looks on
   each system. Tested with Microsoft Edge on Linux and Windows.
