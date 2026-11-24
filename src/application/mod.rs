@@ -44,6 +44,7 @@ pub mod protocol;
 pub mod query;
 pub mod request;
 pub mod route;
+pub mod safari;
 pub mod screencast;
 pub mod screenshot;
 pub mod scripts;

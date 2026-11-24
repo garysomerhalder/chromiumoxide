@@ -23,8 +23,8 @@ pub use fs::FileSystem;
 pub use http::HttpClient;
 pub use process::{
     BrowserLauncher, BrowserProcess, Channel, ElectronCommand, FirefoxCommand, LaunchCommand,
-    Launched, LaunchedElectron, LaunchedFirefox, LaunchedTauri, LaunchedWebKit, TauriCommand,
-    TauriConnection, WebKitCommand,
+    Launched, LaunchedElectron, LaunchedFirefox, LaunchedTauri, LaunchedWebDriver, LaunchedWebKit,
+    TauriCommand, TauriConnection, WebDriverCommand, WebKitCommand,
 };
 pub use signals::{Signal, Signals};
 pub use transport::Transport;

@@ -111,12 +111,10 @@ impl TauriApp {
                 Backend::Cdp { browser, context }
             }
             TauriConnection::WebDriver { endpoint, session } => Backend::WebDriver {
-                window: WebDriverWindow {
-                    inner: Arc::new(WdInner {
-                        services: services.clone(),
-                        base: format!("{endpoint}/session/{session}"),
-                    }),
-                },
+                window: WebDriverWindow::new(
+                    services.clone(),
+                    format!("{endpoint}/session/{session}"),
+                ),
                 process: std::sync::Mutex::new(Some(launched.process)),
             },
         };
@@ -194,7 +192,7 @@ impl TauriApp {
                 }
             }
             Backend::WebDriver { window, process } => {
-                let _ = window.command("DELETE", "", None).await;
+                let _ = window.end_session().await;
                 let process = process.lock().unwrap().take();
                 if let Some(process) = process {
                     process.shutdown().await;
@@ -237,10 +235,7 @@ impl TauriWindow {
     pub async fn goto(&self, url: &str) -> Result<()> {
         match self {
             TauriWindow::WebView2(p) => p.goto(url).await.map(drop),
-            TauriWindow::WebKitGtk(w) => w
-                .command("POST", "/url", Some(json!({"url": url})))
-                .await
-                .map(drop),
+            TauriWindow::WebKitGtk(w) => w.goto(url).await,
         }
     }
 
@@ -248,12 +243,7 @@ impl TauriWindow {
     pub async fn title(&self) -> Result<String> {
         match self {
             TauriWindow::WebView2(p) => p.title().await,
-            TauriWindow::WebKitGtk(w) => Ok(w
-                .command("GET", "/title", None)
-                .await?
-                .as_str()
-                .unwrap_or_default()
-                .to_owned()),
+            TauriWindow::WebKitGtk(w) => w.title().await,
         }
     }
 
@@ -261,11 +251,7 @@ impl TauriWindow {
     pub async fn evaluate<T: DeserializeOwned>(&self, source: &str) -> Result<T> {
         match self {
             TauriWindow::WebView2(p) => p.evaluate(source).await,
-            TauriWindow::WebKitGtk(w) => {
-                let v = w.evaluate_value(source).await?;
-                serde_json::from_value(v)
-                    .map_err(|e| Error::Evaluation(format!("cannot deserialize result: {e}")))
-            }
+            TauriWindow::WebKitGtk(w) => w.evaluate(source).await,
         }
     }
 
@@ -273,24 +259,7 @@ impl TauriWindow {
     pub async fn wait_for_function(&self, source: &str) -> Result<()> {
         match self {
             TauriWindow::WebView2(p) => p.wait_for_function(source).await.map(drop),
-            TauriWindow::WebKitGtk(w) => {
-                let clock = w.inner.services.clock.clone();
-                let deadline = clock.now_ms() + 30_000;
-                loop {
-                    if let Ok(v) = w.evaluate_value(&format!("!!({source})")).await
-                        && v == Value::Bool(true)
-                    {
-                        return Ok(());
-                    }
-                    if clock.now_ms() > deadline {
-                        return Err(Error::Timeout {
-                            ms: 30_000,
-                            action: format!("waiting for function: {source}"),
-                        });
-                    }
-                    clock.sleep(Duration::from_millis(50)).await;
-                }
-            }
+            TauriWindow::WebKitGtk(w) => w.wait_for_function(source).await,
         }
     }
 
@@ -298,12 +267,7 @@ impl TauriWindow {
     pub async fn screenshot(&self) -> Result<Vec<u8>> {
         match self {
             TauriWindow::WebView2(p) => p.screenshot().await,
-            TauriWindow::WebKitGtk(w) => {
-                let data = w.command("GET", "/screenshot", None).await?;
-                base64::engine::general_purpose::STANDARD
-                    .decode(data.as_str().unwrap_or_default())
-                    .map_err(|e| Error::Serde(format!("screenshot data: {e}")))
-            }
+            TauriWindow::WebKitGtk(w) => w.screenshot().await,
         }
     }
 
@@ -329,12 +293,7 @@ impl TauriLocator {
     pub async fn click(&self) -> Result<()> {
         match &self.window {
             TauriWindow::WebView2(p) => p.locator(&self.selector).click().await,
-            TauriWindow::WebKitGtk(w) => {
-                let id = w.element(&self.selector).await?;
-                w.command("POST", &format!("/element/{id}/click"), Some(json!({})))
-                    .await
-                    .map(drop)
-            }
+            TauriWindow::WebKitGtk(w) => w.locator(&self.selector).click().await,
         }
     }
 
@@ -342,20 +301,60 @@ impl TauriLocator {
     pub async fn inner_text(&self) -> Result<String> {
         match &self.window {
             TauriWindow::WebView2(p) => p.locator(&self.selector).inner_text().await,
-            TauriWindow::WebKitGtk(w) => {
-                let id = w.element(&self.selector).await?;
-                Ok(w.command("GET", &format!("/element/{id}/text"), None)
-                    .await?
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_owned())
-            }
+            TauriWindow::WebKitGtk(w) => w.locator(&self.selector).inner_text().await,
         }
     }
 }
 
-/// A WebKitGTK window of a Tauri app, over a WebDriver session. Cheap to
-/// clone.
+/// An element of a [`WebDriverWindow`], found by CSS selector when used.
+#[derive(Clone, Debug)]
+pub struct WebDriverLocator {
+    window: WebDriverWindow,
+    selector: String,
+}
+
+impl WebDriverLocator {
+    /// `locator.click()` (WebDriver's element click: scrolls into view,
+    /// checks the element is not covered).
+    pub async fn click(&self) -> Result<()> {
+        let id = self.window.element(&self.selector).await?;
+        self.window
+            .command("POST", &format!("/element/{id}/click"), Some(json!({})))
+            .await
+            .map(drop)
+    }
+
+    /// `locator.innerText()` (WebDriver's rendered element text).
+    pub async fn inner_text(&self) -> Result<String> {
+        let id = self.window.element(&self.selector).await?;
+        Ok(self
+            .window
+            .command("GET", &format!("/element/{id}/text"), None)
+            .await?
+            .as_str()
+            .unwrap_or_default()
+            .to_owned())
+    }
+
+    /// `locator.fill(value)`: clears the field, then types `value`.
+    pub async fn fill(&self, value: &str) -> Result<()> {
+        let id = self.window.element(&self.selector).await?;
+        self.window
+            .command("POST", &format!("/element/{id}/clear"), Some(json!({})))
+            .await?;
+        self.window
+            .command(
+                "POST",
+                &format!("/element/{id}/value"),
+                Some(json!({"text": value})),
+            )
+            .await
+            .map(drop)
+    }
+}
+
+/// A window driven over a WebDriver session (a Tauri app's WebKitGTK
+/// window, or Safari). Cheap to clone.
 #[derive(Clone)]
 pub struct WebDriverWindow {
     inner: Arc<WdInner>,
@@ -376,6 +375,89 @@ impl std::fmt::Debug for WebDriverWindow {
 }
 
 impl WebDriverWindow {
+    /// A window of the session at `base` (`http://host:port/session/<id>`).
+    pub(crate) fn new(services: Services, base: String) -> Self {
+        WebDriverWindow {
+            inner: Arc::new(WdInner { services, base }),
+        }
+    }
+
+    /// `page.goto(url)`: navigates and waits for the load (WebDriver's
+    /// normal page load strategy).
+    pub async fn goto(&self, url: &str) -> Result<()> {
+        self.command("POST", "/url", Some(json!({"url": url})))
+            .await
+            .map(drop)
+    }
+
+    /// `page.title()`.
+    pub async fn title(&self) -> Result<String> {
+        Ok(self
+            .command("GET", "/title", None)
+            .await?
+            .as_str()
+            .unwrap_or_default()
+            .to_owned())
+    }
+
+    /// `page.url()`.
+    pub async fn url(&self) -> Result<String> {
+        Ok(self
+            .command("GET", "/url", None)
+            .await?
+            .as_str()
+            .unwrap_or_default()
+            .to_owned())
+    }
+
+    /// `page.evaluate(expression or function)` with a JSON result.
+    pub async fn evaluate<T: DeserializeOwned>(&self, source: &str) -> Result<T> {
+        let v = self.evaluate_value(source).await?;
+        serde_json::from_value(v)
+            .map_err(|e| Error::Evaluation(format!("cannot deserialize result: {e}")))
+    }
+
+    /// `page.waitForFunction(source)`: until it is truthy (30 s at most).
+    pub async fn wait_for_function(&self, source: &str) -> Result<()> {
+        let clock = self.inner.services.clock.clone();
+        let deadline = clock.now_ms() + 30_000;
+        loop {
+            if let Ok(v) = self.evaluate_value(&format!("!!({source})")).await
+                && v == Value::Bool(true)
+            {
+                return Ok(());
+            }
+            if clock.now_ms() > deadline {
+                return Err(Error::Timeout {
+                    ms: 30_000,
+                    action: format!("waiting for function: {source}"),
+                });
+            }
+            clock.sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    /// A PNG of the viewport.
+    pub async fn screenshot(&self) -> Result<Vec<u8>> {
+        let data = self.command("GET", "/screenshot", None).await?;
+        base64::engine::general_purpose::STANDARD
+            .decode(data.as_str().unwrap_or_default())
+            .map_err(|e| Error::Serde(format!("screenshot data: {e}")))
+    }
+
+    /// An element by CSS selector (WebDriver's locator strategy).
+    pub fn locator(&self, selector: &str) -> WebDriverLocator {
+        WebDriverLocator {
+            window: self.clone(),
+            selector: selector.to_owned(),
+        }
+    }
+
+    /// Ends the WebDriver session (closes the browser window).
+    pub(crate) async fn end_session(&self) -> Result<()> {
+        self.command("DELETE", "", None).await.map(drop)
+    }
+
     /// A WebDriver command; its `value`, or the WebDriver error.
     async fn command(&self, method: &str, path: &str, body: Option<Value>) -> Result<Value> {
         let body = body.map(|b| b.to_string().into_bytes()).unwrap_or_default();

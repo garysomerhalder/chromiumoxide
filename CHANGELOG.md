@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   continue, abort), `context.route` and `unroute`; network events;
   `expect()` web-first assertions; frames (`frame_locator`, `frames()`);
   pop-ups; downloads; `recordVideo`.
+- `chromiumoxide::Safari`: Safari through `safaridriver` (WebDriver):
+  goto, title, url, evaluate, waits, screenshots and CSS locators. Tested
+  against WebKitGTK's WebDriver on Linux; Tauri on Linux shares the code
+  (`WebDriverWindow`, `WebDriverLocator`).
 - `LaunchOptions::browser_channel`: Playwright's `channel` (`chrome`,
   `msedge`, betas, devs, canaries), looked up where Playwright looks on
   each system. Tested with Microsoft Edge on Linux and Windows.

@@ -11,13 +11,24 @@ pub const SAFARIDRIVER: &str = "/usr/bin/safaridriver";
 
 /// The server's arguments to listen on `port`: `safaridriver --port N`,
 /// `WebKitWebDriver --port=N`.
-pub fn driver_args(_driver: &Path, _port: u16) -> Vec<String> {
-    Vec::new()
+pub fn driver_args(driver: &Path, port: u16) -> Vec<String> {
+    let name = driver
+        .file_name()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    if name.starts_with("safaridriver") {
+        vec!["--port".into(), port.to_string()]
+    } else {
+        vec![format!("--port={port}")]
+    }
 }
 
 /// The `POST /session` body: Safari by default, or `always_match` as given.
-pub fn new_session(_always_match: Option<&Value>) -> Value {
-    Value::Null
+pub fn new_session(always_match: Option<&Value>) -> Value {
+    let always = always_match
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({"browserName": "safari"}));
+    serde_json::json!({"capabilities": {"alwaysMatch": always}})
 }
 
 #[cfg(test)]

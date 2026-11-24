@@ -1300,6 +1300,21 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 | `recordVideo`: one `.webm` per page from WebKit's screencast (`Screencast.startScreencast`), `page.video()` with `path`, `save_as`, `delete` | ✅ | `webkit_records_video` |
 | Tracing, HAR, workers | ⬜ | Next, as for Firefox |
 
+## 16. Safari (M14)
+
+`chromiumoxide::Safari` drives Safari through Apple's `safaridriver` (W3C
+WebDriver), the only automation interface Safari offers outside Apple. The
+same code drives any WebDriver server: `tests/integration/safari.rs` runs it
+against WebKitGTK's `WebKitWebDriver` and MiniBrowser on Linux, and against
+the real Safari on macOS.
+
+| Area | Safari | Test / reason |
+|---|---|---|
+| `Safari::launch` (`safaridriver --port`, `browserName: safari`; `driver_path`, `capabilities`, `env`, `timeout`), `version`, `close` | ✅ | `safari_runs_the_page_api` (Linux: WebKitGTK 2.52 MiniBrowser) |
+| `goto`, `title`, `url`, `evaluate`, `wait_for_function`, `screenshot`; CSS locators with `click`, `inner_text`, `fill` | ✅ | `safari_runs_the_page_api` |
+| Real Safari on macOS | ⬜ | Needs the Mac: not reachable yet (see the WebKit goal) |
+| Contexts, emulation, routes, events, tracing, video | ❌ | WebDriver classic has no such commands, and Safari has no BiDi; use [`WebKit`] (Playwright's WebKit build) for the full API on Safari's engine |
+
 ## 15. Tauri (M14)
 
 `chromiumoxide::Tauri` drives Tauri apps. Test:

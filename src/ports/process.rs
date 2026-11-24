@@ -62,6 +62,20 @@ pub trait BrowserLauncher: Send + Sync {
         })
     }
 
+    /// Starts a W3C WebDriver server (`safaridriver`, `WebKitWebDriver`)
+    /// and opens a session with `command.new_session`.
+    fn launch_webdriver(
+        &self,
+        command: WebDriverCommand,
+    ) -> BoxFuture<'static, Result<LaunchedWebDriver>> {
+        let _ = command;
+        Box::pin(async {
+            Err(crate::domain::error::Error::Launch(
+                "this launcher cannot start WebDriver servers".into(),
+            ))
+        })
+    }
+
     /// Starts a Tauri app with its web view's DevTools open (Windows:
     /// WebView2's `--remote-debugging-port`) and connects to them.
     fn launch_tauri(&self, command: TauriCommand) -> BoxFuture<'static, Result<LaunchedTauri>> {
@@ -130,6 +144,29 @@ pub struct WebKitCommand {
 /// A launched WebKit with its inspector-pipe connection.
 pub struct LaunchedWebKit {
     pub session: std::sync::Arc<dyn crate::ports::WebKitSession>,
+    pub process: Box<dyn BrowserProcess>,
+}
+
+/// A WebDriver server launch.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WebDriverCommand {
+    pub driver: PathBuf,
+    /// Arguments before the port (the port is picked by the launcher).
+    pub args: Vec<String>,
+    /// Added to this process's environment.
+    pub env: Vec<(String, String)>,
+    /// The `POST /session` body.
+    pub new_session: serde_json::Value,
+    pub timeout_ms: u64,
+}
+
+/// A WebDriver server with an open session.
+pub struct LaunchedWebDriver {
+    /// `http://127.0.0.1:<port>`.
+    pub endpoint: String,
+    pub session: String,
+    /// The capabilities the server answered with.
+    pub capabilities: serde_json::Value,
     pub process: Box<dyn BrowserProcess>,
 }
 

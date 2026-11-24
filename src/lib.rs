@@ -177,9 +177,21 @@ impl WebKit {
     }
 }
 
+pub use crate::application::safari::{SafariBrowser, SafariLaunchOptions};
 pub use crate::application::tauri::{
-    TauriApp, TauriLaunchOptions, TauriLocator, TauriWindow, WebDriverWindow,
+    TauriApp, TauriLaunchOptions, TauriLocator, TauriWindow, WebDriverLocator, WebDriverWindow,
 };
+
+/// Safari, through Apple's `safaridriver` (WebDriver). Real Safari runs on
+/// macOS only; Playwright's WebKit ([`WebKit`]) runs its engine everywhere.
+pub struct Safari;
+
+impl Safari {
+    /// Starts `safaridriver` and opens a Safari automation window.
+    pub async fn launch(options: SafariLaunchOptions) -> Result<SafariBrowser> {
+        SafariBrowser::launch(Chromium::services(), options).await
+    }
+}
 
 /// Tauri apps: on Windows their WebView2 windows are driven over CDP with
 /// the Chromium API.
