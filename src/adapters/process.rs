@@ -16,7 +16,7 @@ use crate::domain::error::{Error, Result};
 use crate::ports::{
     BrowserLauncher, BrowserProcess, Channel, ElectronCommand, FirefoxCommand, LaunchCommand,
     Launched, LaunchedElectron, LaunchedFirefox, LaunchedTauri, LaunchedWebKit, TauriCommand,
-    Transport, WebKitCommand,
+    TauriConnection, Transport, WebKitCommand,
 };
 
 /// Spawns browsers with tokio.
@@ -107,7 +107,7 @@ async fn launch_tauri(command: TauriCommand) -> Result<LaunchedTauri> {
     };
     let transport = crate::adapters::transport::websocket::connect(&url).await?;
     Ok(LaunchedTauri {
-        browser: Arc::new(Connection::spawn(transport)),
+        connection: TauriConnection::Cdp(Arc::new(Connection::spawn(transport))),
         process: Box::new(Process { child, pid }),
     })
 }
@@ -133,14 +133,110 @@ async fn devtools_browser_url(port: u16) -> Option<String> {
     v["webSocketDebuggerUrl"].as_str().map(str::to_owned)
 }
 
+/// Linux: `WebKitWebDriver` (WebKitGTK's WebDriver server, as Tauri's own
+/// `tauri-driver` uses) starts the app in a WebDriver session. Tauri apps
+/// accept automation with `TAURI_WEBVIEW_AUTOMATION=true`.
 #[cfg(not(windows))]
 async fn launch_tauri(command: TauriCommand) -> Result<LaunchedTauri> {
-    let _ = command;
-    Err(Error::Launch(
-        "Tauri apps are driven through WebView2 on Windows; Linux (WebKitGTK) is not supported yet, \
-         and macOS (WKWebView) has no automation interface"
-            .into(),
-    ))
+    if cfg!(target_os = "macos") {
+        return Err(Error::Launch(
+            "Tauri apps cannot be automated on macOS: WKWebView has no WebDriver or DevTools \
+             interface for embedding apps"
+                .into(),
+        ));
+    }
+    let driver = std::env::var_os("WEBKIT_WEBDRIVER")
+        .map(std::path::PathBuf::from)
+        .or_else(|| which::which("WebKitWebDriver").ok())
+        .ok_or_else(|| {
+            Error::Launch(
+                "WebKitWebDriver not found (install webkit2gtk-driver, or set WEBKIT_WEBDRIVER)"
+                    .into(),
+            )
+        })?;
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .map_err(|e| Error::Launch(format!("cannot pick a port: {e}")))?
+        .port();
+    let mut cmd = Command::new(&driver);
+    cmd.arg(format!("--port={port}"))
+        .envs(command.env.iter().cloned())
+        .env("TAURI_WEBVIEW_AUTOMATION", "true")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    let child = cmd
+        .spawn()
+        .map_err(|e| Error::Launch(format!("{}: {e}", driver.display())))?;
+    let pid = child.id();
+    let child = Arc::new(tokio::sync::Mutex::new(Some(child)));
+    let process = Process { child, pid };
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(command.timeout_ms.max(1));
+    while http_json(port, "GET", "/status", None).await.is_none() {
+        if tokio::time::Instant::now() > deadline {
+            return Err(Error::Timeout {
+                ms: command.timeout_ms,
+                action: "waiting for WebKitWebDriver".into(),
+            });
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let caps = serde_json::json!({"capabilities": {"alwaysMatch": {"webkitgtk:browserOptions": {
+        "binary": command.program, "args": command.args}}}});
+    let created = tokio::time::timeout(
+        Duration::from_millis(command.timeout_ms.max(1)),
+        http_json(port, "POST", "/session", Some(caps)),
+    )
+    .await
+    .ok()
+    .flatten()
+    .ok_or_else(|| Error::Launch("WebKitWebDriver did not start the app".into()))?;
+    let session = created
+        .pointer("/value/sessionId")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| {
+            Error::Launch(format!(
+                "WebKitWebDriver could not start the app: {}",
+                created
+                    .pointer("/value/message")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("")
+            ))
+        })?
+        .to_owned();
+    Ok(LaunchedTauri {
+        connection: TauriConnection::WebDriver {
+            endpoint: format!("http://127.0.0.1:{port}"),
+            session,
+        },
+        process: Box::new(process),
+    })
+}
+
+/// One HTTP/1.0 JSON exchange with a local server; `None` when it cannot
+/// connect or the answer is not JSON.
+#[cfg(not(windows))]
+async fn http_json(
+    port: u16,
+    method: &str,
+    path: &str,
+    body: Option<serde_json::Value>,
+) -> Option<serde_json::Value> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .ok()?;
+    let body = body.map(|b| b.to_string()).unwrap_or_default();
+    let request = format!(
+        "{method} {path} HTTP/1.0\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+        body.len()
+    );
+    stream.write_all(request.as_bytes()).await.ok()?;
+    let mut answer = Vec::new();
+    stream.read_to_end(&mut answer).await.ok()?;
+    let text = String::from_utf8_lossy(&answer);
+    serde_json::from_str(text.split_once("\r\n\r\n")?.1).ok()
 }
 
 /// Starts WebKit with its inspector pipe on fds 3 and 4.

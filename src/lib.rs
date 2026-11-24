@@ -170,7 +170,9 @@ impl WebKit {
     }
 }
 
-pub use crate::application::tauri::{TauriApp, TauriLaunchOptions};
+pub use crate::application::tauri::{
+    TauriApp, TauriLaunchOptions, TauriLocator, TauriWindow, WebDriverWindow,
+};
 
 /// Tauri apps: on Windows their WebView2 windows are driven over CDP with
 /// the Chromium API.

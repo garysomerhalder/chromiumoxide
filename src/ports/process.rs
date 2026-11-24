@@ -143,10 +143,19 @@ pub struct TauriCommand {
     pub timeout_ms: u64,
 }
 
-/// A launched Tauri app connected to its web view's DevTools (Windows:
-/// WebView2).
+/// How a launched Tauri app's web view is reached.
+pub enum TauriConnection {
+    /// Windows: WebView2's DevTools (CDP).
+    Cdp(Arc<dyn CdpSession>),
+    /// Linux: a WebDriver session of `WebKitWebDriver` (WebKitGTK), at
+    /// `endpoint` (`http://127.0.0.1:<port>`).
+    WebDriver { endpoint: String, session: String },
+}
+
+/// A launched Tauri app connected to its web view. `process` is the app
+/// (Windows) or the WebDriver server that started it (Linux).
 pub struct LaunchedTauri {
-    pub browser: Arc<dyn CdpSession>,
+    pub connection: TauriConnection,
     pub process: Box<dyn BrowserProcess>,
 }
 

@@ -24,7 +24,7 @@ pub use http::HttpClient;
 pub use process::{
     BrowserLauncher, BrowserProcess, Channel, ElectronCommand, FirefoxCommand, LaunchCommand,
     Launched, LaunchedElectron, LaunchedFirefox, LaunchedTauri, LaunchedWebKit, TauriCommand,
-    WebKitCommand,
+    TauriConnection, WebKitCommand,
 };
 pub use signals::{Signal, Signals};
 pub use transport::Transport;
