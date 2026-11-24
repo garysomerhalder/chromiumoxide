@@ -54,7 +54,12 @@ async fn tauri_window_runs_the_page_api() {
     assert_eq!(&png[1..4], b"PNG");
     // `goto` returns once the page has loaded.
     let server = crate::server::TestServer::start().await;
-    server.route("/m.html", "text/html", "<title>served</title><p>here</p>", 0);
+    server.route(
+        "/m.html",
+        "text/html",
+        "<title>served</title><p>here</p>",
+        0,
+    );
     window.goto(&server.url("/m.html")).await.unwrap();
     assert_eq!(
         window.evaluate::<String>("document.title").await.unwrap(),

@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Runs on Linux, Windows and macOS: the full suite passes on each with
   every browser required (Chromium, Chrome, Edge, Firefox, Playwright's
-  WebKit, Electron; Tauri on Windows and Linux; real Safari on macOS).
+  WebKit, Electron, Tauri; real Safari on macOS).
 - macOS editing commands (`domain::mac_editing`, Playwright's
   `macEditingCommands`): Backspace, Meta+A and the rest work in Chromium
   and WebKit on a Mac as under Playwright.
@@ -44,8 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parent; Firefox and the test helpers find Playwright's Windows and macOS
   folders; a reused profile's old DevTools port file is removed; the
   debugger finds call sites in Windows backtraces.
-- `chromiumoxide::Tauri`: Tauri apps on Windows (WebView2 over CDP) and
-  Linux (WebKitGTK through WebKitWebDriver); macOS is an error naming why.
+- `chromiumoxide::Tauri`: Tauri apps on Windows (WebView2 over CDP),
+  Linux (WebKitGTK through WebKitWebDriver) and macOS (WKWebView through
+  the app's embedded WebDriver server, `tauri-plugin-wdio-webdriver`,
+  started with `TAURI_WEBDRIVER_PORT`). WebDriver `goto` waits for the
+  load. `TauriWindow::WebKitGtk` is now `TauriWindow::WebDriver`.
 - The whole suite runs on Windows 11 (Gary's PC).
 
 ### Milestone 13: Firefox (in progress)

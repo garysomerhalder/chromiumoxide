@@ -80,6 +80,7 @@ impl SafariBrowser {
                 env: options.env.clone(),
                 new_session: new_session(options.capabilities.as_ref()),
                 timeout_ms: options.timeout.as_millis() as u64,
+                embedded: false,
             })
             .await?;
         Ok(SafariBrowser {

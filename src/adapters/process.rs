@@ -174,11 +174,32 @@ async fn devtools_browser_url(port: u16) -> Option<String> {
 #[cfg(not(windows))]
 async fn launch_tauri(command: TauriCommand) -> Result<LaunchedTauri> {
     if cfg!(target_os = "macos") {
-        return Err(Error::Launch(
-            "Tauri apps cannot be automated on macOS: WKWebView has no WebDriver or DevTools \
-             interface for embedding apps"
-                .into(),
-        ));
+        // WKWebView has no automation interface of its own: the app embeds
+        // a W3C WebDriver server (tauri-plugin-wdio-webdriver).
+        let launched = launch_webdriver(WebDriverCommand {
+            driver: command.program.clone(),
+            args: command.args,
+            env: command.env,
+            new_session: crate::domain::safari::embedded_new_session(),
+            timeout_ms: command.timeout_ms,
+            embedded: true,
+        })
+        .await
+        .map_err(|e| match e {
+            Error::Timeout { .. } => Error::Launch(format!(
+                "{} did not start a WebDriver server on TAURI_WEBDRIVER_PORT: on macOS the app \
+                 must embed tauri-plugin-wdio-webdriver (see tests/fixtures/tauri-app)",
+                command.program.display()
+            )),
+            other => other,
+        })?;
+        return Ok(LaunchedTauri {
+            connection: TauriConnection::WebDriver {
+                endpoint: launched.endpoint,
+                session: launched.session,
+            },
+            process: launched.process,
+        });
     }
     let driver = std::env::var_os("WEBKIT_WEBDRIVER")
         .map(std::path::PathBuf::from)
@@ -201,6 +222,7 @@ async fn launch_tauri(command: TauriCommand) -> Result<LaunchedTauri> {
         new_session: serde_json::json!({"capabilities": {"alwaysMatch": {"webkitgtk:browserOptions": {
             "binary": command.program, "args": command.args}}}}),
         timeout_ms: command.timeout_ms,
+        embedded: false,
     })
     .await
     .map_err(|e| match e {
@@ -224,10 +246,14 @@ async fn launch_webdriver(command: WebDriverCommand) -> Result<LaunchedWebDriver
         .map_err(|e| Error::Launch(format!("cannot pick a port: {e}")))?
         .port();
     let mut cmd = Command::new(&command.driver);
-    cmd.args(&command.args)
-        .args(crate::domain::safari::driver_args(&command.driver, port))
-        .envs(command.env.iter().cloned())
-        .stdin(Stdio::null())
+    cmd.args(&command.args).envs(command.env.iter().cloned());
+    if command.embedded {
+        let (name, value) = crate::domain::safari::embedded_port_env(port);
+        cmd.env(name, value);
+    } else {
+        cmd.args(crate::domain::safari::driver_args(&command.driver, port));
+    }
+    cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .kill_on_drop(true);

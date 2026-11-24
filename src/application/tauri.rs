@@ -1,13 +1,16 @@
 //! Tauri apps (`chromiumoxide::Tauri`). Tauri has no browser of its own:
 //! on Windows its windows are WebView2 (Chromium), reached over CDP, so
 //! each window is a [`Page`] with the whole Chromium API; on Linux they are
-//! WebKitGTK, reached through `WebKitWebDriver` (WebDriver). macOS has no
-//! automation interface for WKWebView.
+//! WebKitGTK, reached through `WebKitWebDriver` (WebDriver); on macOS they
+//! are WKWebView, which has no automation interface of its own, so the app
+//! embeds a W3C WebDriver server (`tauri-plugin-wdio-webdriver`).
 //!
 //! The app opts in: on Windows it passes `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`
 //! on to its WebView2 arguments (Tauri sets its own, which WebView2 then
 //! prefers); on Linux Tauri reads `TAURI_WEBVIEW_AUTOMATION=true`, which
-//! chromiumoxide sets. See `tests/fixtures/tauri-app`.
+//! chromiumoxide sets; on macOS the app registers the plugin, which listens
+//! on `TAURI_WEBDRIVER_PORT` (chromiumoxide sets it). See
+//! `tests/fixtures/tauri-app`.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -68,7 +71,8 @@ enum Backend {
         browser: Browser,
         context: BrowserContext,
     },
-    /// Linux: a WebKitWebDriver session; `process` is the driver.
+    /// Linux: a WebKitWebDriver session (`process` is the driver); macOS:
+    /// a session of the app's embedded server (`process` is the app).
     WebDriver {
         window: WebDriverWindow,
         process: std::sync::Mutex<Option<Box<dyn crate::ports::BrowserProcess>>>,
@@ -149,7 +153,7 @@ impl TauriApp {
                 .filter(|p| !p.is_closed())
                 .map(TauriWindow::WebView2)
                 .collect(),
-            Backend::WebDriver { window, .. } => vec![TauriWindow::WebKitGtk(window.clone())],
+            Backend::WebDriver { window, .. } => vec![TauriWindow::WebDriver(window.clone())],
         }
     }
 
@@ -157,7 +161,7 @@ impl TauriApp {
     pub async fn first_window(&self) -> Result<TauriWindow> {
         let context = match &self.inner.backend {
             Backend::Cdp { context, .. } => context.clone(),
-            Backend::WebDriver { window, .. } => return Ok(TauriWindow::WebKitGtk(window.clone())),
+            Backend::WebDriver { window, .. } => return Ok(TauriWindow::WebDriver(window.clone())),
         };
         let mut events = context.events();
         if let Some(p) = self.windows().into_iter().next() {
@@ -204,12 +208,12 @@ impl TauriApp {
 }
 
 /// A window of a Tauri app: a WebView2 [`Page`] (Windows, the whole
-/// Chromium API through [`TauriWindow::page`]) or a WebKitGTK window driven
-/// over WebDriver (Linux).
+/// Chromium API through [`TauriWindow::page`]) or a window driven over
+/// WebDriver (Linux WebKitGTK, macOS WKWebView).
 #[derive(Clone, Debug)]
 pub enum TauriWindow {
     WebView2(Page),
-    WebKitGtk(WebDriverWindow),
+    WebDriver(WebDriverWindow),
 }
 
 /// The JSON of a page-side value: an expression's, or a function's result.
@@ -227,7 +231,7 @@ impl TauriWindow {
     pub fn page(&self) -> Option<&Page> {
         match self {
             TauriWindow::WebView2(p) => Some(p),
-            TauriWindow::WebKitGtk(_) => None,
+            TauriWindow::WebDriver(_) => None,
         }
     }
 
@@ -235,7 +239,7 @@ impl TauriWindow {
     pub async fn goto(&self, url: &str) -> Result<()> {
         match self {
             TauriWindow::WebView2(p) => p.goto(url).await.map(drop),
-            TauriWindow::WebKitGtk(w) => w.goto(url).await,
+            TauriWindow::WebDriver(w) => w.goto(url).await,
         }
     }
 
@@ -243,7 +247,7 @@ impl TauriWindow {
     pub async fn title(&self) -> Result<String> {
         match self {
             TauriWindow::WebView2(p) => p.title().await,
-            TauriWindow::WebKitGtk(w) => w.title().await,
+            TauriWindow::WebDriver(w) => w.title().await,
         }
     }
 
@@ -251,7 +255,7 @@ impl TauriWindow {
     pub async fn evaluate<T: DeserializeOwned>(&self, source: &str) -> Result<T> {
         match self {
             TauriWindow::WebView2(p) => p.evaluate(source).await,
-            TauriWindow::WebKitGtk(w) => w.evaluate(source).await,
+            TauriWindow::WebDriver(w) => w.evaluate(source).await,
         }
     }
 
@@ -259,7 +263,7 @@ impl TauriWindow {
     pub async fn wait_for_function(&self, source: &str) -> Result<()> {
         match self {
             TauriWindow::WebView2(p) => p.wait_for_function(source).await.map(drop),
-            TauriWindow::WebKitGtk(w) => w.wait_for_function(source).await,
+            TauriWindow::WebDriver(w) => w.wait_for_function(source).await,
         }
     }
 
@@ -267,7 +271,7 @@ impl TauriWindow {
     pub async fn screenshot(&self) -> Result<Vec<u8>> {
         match self {
             TauriWindow::WebView2(p) => p.screenshot().await,
-            TauriWindow::WebKitGtk(w) => w.screenshot().await,
+            TauriWindow::WebDriver(w) => w.screenshot().await,
         }
     }
 
@@ -293,7 +297,7 @@ impl TauriLocator {
     pub async fn click(&self) -> Result<()> {
         match &self.window {
             TauriWindow::WebView2(p) => p.locator(&self.selector).click().await,
-            TauriWindow::WebKitGtk(w) => w.locator(&self.selector).click().await,
+            TauriWindow::WebDriver(w) => w.locator(&self.selector).click().await,
         }
     }
 
@@ -301,7 +305,7 @@ impl TauriLocator {
     pub async fn inner_text(&self) -> Result<String> {
         match &self.window {
             TauriWindow::WebView2(p) => p.locator(&self.selector).inner_text().await,
-            TauriWindow::WebKitGtk(w) => w.locator(&self.selector).inner_text().await,
+            TauriWindow::WebDriver(w) => w.locator(&self.selector).inner_text().await,
         }
     }
 }
@@ -384,10 +388,33 @@ impl WebDriverWindow {
 
     /// `page.goto(url)`: navigates and waits for the load (WebDriver's
     /// normal page load strategy).
+    /// Some servers (the embedded one on macOS) answer before the load, so
+    /// this also waits until the URL has changed and the document is
+    /// complete (30 s at most).
     pub async fn goto(&self, url: &str) -> Result<()> {
+        let before = self.url().await.unwrap_or_default();
         self.command("POST", "/url", Some(json!({"url": url})))
-            .await
-            .map(drop)
+            .await?;
+        let clock = self.inner.services.clock.clone();
+        let deadline = clock.now_ms() + 30_000;
+        loop {
+            let now = self.url().await.unwrap_or_default();
+            if (now != before || now == url)
+                && self
+                    .evaluate_value("document.readyState")
+                    .await
+                    .is_ok_and(|v| v == "complete")
+            {
+                return Ok(());
+            }
+            if clock.now_ms() > deadline {
+                return Err(Error::Timeout {
+                    ms: 30_000,
+                    action: format!("waiting for the navigation to {url}"),
+                });
+            }
+            clock.sleep(Duration::from_millis(50)).await;
+        }
     }
 
     /// `page.title()`.

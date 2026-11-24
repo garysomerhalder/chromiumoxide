@@ -1316,7 +1316,7 @@ the real Safari on macOS.
 |---|---|---|
 | `Safari::launch` (`safaridriver --port`, `browserName: safari`; `driver_path`, `capabilities`, `env`, `timeout`), `version`, `close` | ✅ | `safari_runs_the_page_api` (Linux: WebKitGTK 2.52 MiniBrowser) |
 | `goto`, `title`, `url`, `evaluate`, `wait_for_function`, `screenshot`; CSS locators with `click`, `inner_text`, `fill` | ✅ | `safari_runs_the_page_api` |
-| Real Safari on macOS | ⬜ | Needs the Mac: not reachable yet (see the WebKit goal) |
+| Real Safari on macOS | ✅ | `safari_runs_the_page_api` (macOS 26.6 arm64, Safari through `/usr/bin/safaridriver`) |
 | Contexts, emulation, routes, events, tracing, video | ❌ | WebDriver classic has no such commands, and Safari has no BiDi; use [`WebKit`] (Playwright's WebKit build) for the full API on Safari's engine |
 
 ## 15. Tauri (M14)
@@ -1328,4 +1328,4 @@ the real Safari on macOS.
 |---|---|---|
 | Windows | WebView2 over CDP: the app passes `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` on to its WebView2 arguments (Tauri sets its own, and WebView2 then ignores the variable); each window is a Chromium `Page` | ✅ `tauri_window_runs_the_page_api` (Windows 11, WebView2 158) |
 | Linux | WebKitGTK through `WebKitWebDriver` (`webkit2gtk-driver`), with `TAURI_WEBVIEW_AUTOMATION=true` like `tauri-driver`; goto, title, evaluate, waits, screenshot, CSS locators (click, inner text) | ✅ `tauri_window_runs_the_page_api` (Xvfb) |
-| macOS | ❌ WKWebView has no WebDriver or DevTools interface for embedding apps (Tauri's `tauri-driver` has no macOS support either) | error naming the reason |
+| macOS | WKWebView has no automation interface of its own (Tauri's `tauri-driver` has no macOS support), so the app embeds a W3C WebDriver server, [`tauri-plugin-wdio-webdriver`](https://crates.io/crates/tauri-plugin-wdio-webdriver), and chromiumoxide starts it with `TAURI_WEBDRIVER_PORT`; same calls as Linux; `goto` waits for the load (the server answers first). WKWebView does not open `data:` URLs as the top page. An app without the plugin gets an error that names it | ✅ `tauri_window_runs_the_page_api` (macOS 26.6 arm64) |

@@ -158,6 +158,9 @@ pub struct WebDriverCommand {
     /// The `POST /session` body.
     pub new_session: serde_json::Value,
     pub timeout_ms: u64,
+    /// The server is an app that embeds it (a Tauri app on macOS): it gets
+    /// its port from `TAURI_WEBDRIVER_PORT`, not from arguments.
+    pub embedded: bool,
 }
 
 /// A WebDriver server with an open session.
@@ -184,13 +187,14 @@ pub struct TauriCommand {
 pub enum TauriConnection {
     /// Windows: WebView2's DevTools (CDP).
     Cdp(Arc<dyn CdpSession>),
-    /// Linux: a WebDriver session of `WebKitWebDriver` (WebKitGTK), at
-    /// `endpoint` (`http://127.0.0.1:<port>`).
+    /// Linux: a WebDriver session of `WebKitWebDriver` (WebKitGTK); macOS:
+    /// of the app's embedded server (WKWebView). At `endpoint`
+    /// (`http://127.0.0.1:<port>`).
     WebDriver { endpoint: String, session: String },
 }
 
 /// A launched Tauri app connected to its web view. `process` is the app
-/// (Windows) or the WebDriver server that started it (Linux).
+/// (Windows, macOS) or the WebDriver server that started it (Linux).
 pub struct LaunchedTauri {
     pub connection: TauriConnection,
     pub process: Box<dyn BrowserProcess>,

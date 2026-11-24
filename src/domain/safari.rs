@@ -23,6 +23,18 @@ pub fn driver_args(driver: &Path, port: u16) -> Vec<String> {
     }
 }
 
+/// The environment variable that gives a Tauri app with an embedded
+/// WebDriver server (`tauri-plugin-wdio-webdriver`, macOS) its port.
+pub fn embedded_port_env(port: u16) -> (String, String) {
+    ("TAURI_WEBDRIVER_PORT".into(), port.to_string())
+}
+
+/// The `POST /session` body for an embedded server: it drives its own
+/// app's web view, so no capabilities are needed.
+pub fn embedded_new_session() -> Value {
+    serde_json::json!({"capabilities": {"alwaysMatch": {}}})
+}
+
 /// The `POST /session` body: Safari by default, or `always_match` as given.
 pub fn new_session(always_match: Option<&Value>) -> Value {
     let always = always_match

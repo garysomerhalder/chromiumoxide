@@ -31,7 +31,9 @@ In:
 
 Out:
 - macOS: WKWebView has no supported automation, and Tauri's own `tauri-driver`
-  does not support macOS either. Recorded as not possible.
+  does not support macOS either. First recorded as not possible; since
+  2026-11-24 the app embeds a W3C WebDriver server
+  (`tauri-plugin-wdio-webdriver`) and chromiumoxide drives it like Linux.
 
 ## Rules
 
@@ -54,7 +56,7 @@ Out:
 - [x] A Tauri app's window runs `goto`, `evaluate`, a locator click and a screenshot on Windows CI.
 - [x] The same test passes on Linux (WebKitGTK).
 - [x] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass, locally and in CI.
-- [x] `docs/PARITY.md` lists Tauri support per platform (macOS as not possible, with the reason).
+- [x] `docs/PARITY.md` lists Tauri support per platform (macOS through the embedded WebDriver plugin).
 - [x] `CHANGELOG.md` has the entry and a draft PR is open.
 
 ## Stop rule
@@ -79,6 +81,10 @@ Linux path if the WebKit goal is not met yet.
   the answer is read up to its Content-Length.
 - 2026-11-24: the full workspace suite passes on Gary's PC (Windows 11):
   224 unit, 257 integration and every other test crate, Tauri included.
+- 2026-11-24: macOS too. The test app embeds `tauri-plugin-wdio-webdriver`
+  (macOS only, started only with `TAURI_WEBDRIVER_PORT`), and
+  `tauri_window_runs_the_page_api` passes on the cloud Mac (macOS 26.6
+  arm64). WebDriver `goto` now waits for the load.
 
 ## Set it
 
