@@ -14,17 +14,17 @@ use serde_json::{Value, json};
 
 use crate::pixel_parity::{compare, mobile_html, playwright_node_path, rich_html, shot_options};
 
-struct Case {
-    name: &'static str,
-    context: ContextOptions,
-    context_json: Value,
-    html: String,
-    style: Option<&'static str>,
-    resize: Option<Viewport>,
-    shots: Vec<(&'static str, Value)>,
+pub(crate) struct Case {
+    pub(crate) name: &'static str,
+    pub(crate) context: ContextOptions,
+    pub(crate) context_json: Value,
+    pub(crate) html: String,
+    pub(crate) style: Option<&'static str>,
+    pub(crate) resize: Option<Viewport>,
+    pub(crate) shots: Vec<(&'static str, Value)>,
 }
 
-fn cases() -> Vec<Case> {
+pub(crate) fn cases() -> Vec<Case> {
     let iphone_ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
     vec![
         Case {
@@ -124,8 +124,19 @@ async fn firefox_screenshots_are_pixel_identical_to_playwright() {
 }
 
 fn render_with_playwright(node_path: &str, executable: &Path, cases: &[Case], out: &Path) {
+    render_with_playwright_as("firefox", node_path, executable, cases, out);
+}
+
+/// Renders the cases with Playwright's `browser` (`firefox` or `webkit`).
+pub(crate) fn render_with_playwright_as(
+    browser: &str,
+    node_path: &str,
+    executable: &Path,
+    cases: &[Case],
+    out: &Path,
+) {
     let job = json!({
-        "browser": "firefox",
+        "browser": browser,
         "executablePath": executable,
         "args": [],
         "outDir": out,
@@ -144,7 +155,7 @@ fn render_with_playwright(node_path: &str, executable: &Path, cases: &[Case], ou
         .env("NODE_PATH", node_path)
         .status()
         .unwrap();
-    assert!(status.success(), "Playwright's Firefox render failed");
+    assert!(status.success(), "Playwright's {browser} render failed");
 }
 
 async fn render_with_chromiumoxide(executable: &Path, cases: &[Case], out: &Path) {
