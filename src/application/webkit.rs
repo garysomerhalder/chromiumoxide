@@ -359,6 +359,7 @@ impl BrowserContext {
             init_scripts: Mutex::new(Vec::new()),
             subscribers: Mutex::new(Vec::new()),
             last_console: Mutex::new(None),
+            routes: Mutex::new(Vec::new()),
             closed: AtomicBool::new(false),
         });
         self.inner
@@ -406,10 +407,10 @@ pub struct Page {
 }
 
 pub(crate) struct PageInner {
-    wk: Arc<dyn WebKitSession>,
+    pub(crate) wk: Arc<dyn WebKitSession>,
     services: Services,
     /// The page proxy id.
-    proxy: String,
+    pub(crate) proxy: String,
     pub(crate) options: Arc<ContextOptions>,
     /// The current page target.
     target: Mutex<String>,
@@ -438,6 +439,8 @@ pub(crate) struct PageInner {
     pub(crate) subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<PageEvent>>>,
     /// The last console message, for `Console.messageRepeatCountUpdated`.
     pub(crate) last_console: Mutex<Option<(ConsoleMessage, u64)>>,
+    /// `page.route` handlers, oldest first.
+    pub(crate) routes: Mutex<Vec<crate::application::webkit_route::RouteEntry>>,
     closed: AtomicBool,
 }
 
@@ -457,7 +460,7 @@ impl Page {
         Ok(())
     }
 
-    fn target(&self) -> String {
+    pub(crate) fn target(&self) -> String {
         self.inner.target.lock().unwrap().clone()
     }
 
@@ -560,6 +563,7 @@ impl Page {
                 self.emit(PageEvent::DomContentLoaded);
             }
             "Console.messageAdded" if current => self.on_console(&p["message"]),
+            "Network.requestIntercepted" => self.on_request_intercepted(target, p),
             "Console.messageRepeatCountUpdated" if current => {
                 let count = p["count"].as_u64().unwrap_or(1);
                 let repeated = {
@@ -692,6 +696,9 @@ impl Page {
         }
         for step in steps {
             let _ = step.await;
+        }
+        if self.has_routes() {
+            let _ = crate::application::webkit_route::interception(self, &target, true).await;
         }
         if first {
             let v = self.effective_viewport();

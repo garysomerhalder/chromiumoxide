@@ -1290,7 +1290,8 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 | `context.cookies(urls?)`, `addCookies`, `clearCookies` (`Playwright.*Cookies`) | ✅ | `webkit_history_cookies_scripts_and_events` |
 | `context/page.addInitScript` (`Page.setBootstrapScript`, with Playwright's Safari shims) | ✅ | `webkit_history_cookies_scripts_and_events` |
 | `page.events()`: console, pageerror, dialog (accept/dismiss; dismissed with no listener), load, domcontentloaded, close | ✅ | `webkit_history_cookies_scripts_and_events` |
-| Network events and routes, frames, `expect`, recording (video, trace, HAR) | ⬜ | Next, as for Firefox |
+| `page.route` (fulfill, continue, abort; newest handler first), `unroute`, `unrouteAll` (`Network.addInterception`, as `WKRouteImpl`) | ✅ | `webkit_routes_requests` |
+| Network events, context routes, frames, `expect`, recording (video, trace, HAR) | ⬜ | Next, as for Firefox |
 
 ## 15. Tauri (M14)
 
