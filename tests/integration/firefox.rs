@@ -1244,9 +1244,12 @@ async fn firefox_popups_workers_and_websockets() {
     );
     assert!(ws.is_closed());
 
-    // Workers.
+    // Workers. Firefox 159's BiDi reports worker realms but only runs code
+    // in window realms (`script.evaluate` looks a realm target up among
+    // window realms only), so worker.evaluate is a clear error; the
+    // worker's console output reaches the page like in Playwright.
     page.evaluate::<()>(
-        "void (window.w = new Worker(URL.createObjectURL(new Blob(['self.x = 7'], {type: 'application/javascript'}))))",
+        "void (window.w = new Worker(URL.createObjectURL(new Blob(['self.x = 7; console.log(\"from worker\")'], {type: 'application/javascript'}))))",
     )
     .await
     .unwrap();
@@ -1261,15 +1264,22 @@ async fn firefox_popups_workers_and_websockets() {
     .unwrap();
     assert!(worker.url().starts_with("blob:"), "{}", worker.url());
     assert_eq!(page.workers().len(), 1);
-    assert_eq!(worker.evaluate::<i32>("1 + 2").await.unwrap(), 3);
-    assert_eq!(worker.evaluate::<i32>("() => self.x").await.unwrap(), 7);
-    assert_eq!(
-        worker
-            .evaluate_with::<i32, _>("a => a * 3", 5)
-            .await
-            .unwrap(),
-        15
-    );
+    let text = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if let Some(PageEvent::Console(m)) = events.next().await {
+                return m.text().to_owned();
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(text, "from worker");
+    let err = worker
+        .evaluate::<i32>("1 + 2")
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("not supported on Firefox"), "{err}");
     page.evaluate::<()>("window.w.terminate()").await.unwrap();
     tokio::time::timeout(Duration::from_secs(10), worker.wait_for_close())
         .await
