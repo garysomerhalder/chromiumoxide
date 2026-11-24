@@ -113,7 +113,7 @@ async fn launch_tauri(command: TauriCommand) -> Result<LaunchedTauri> {
 }
 
 /// `webSocketDebuggerUrl` from `http://127.0.0.1:<port>/json/version`.
-#[cfg(windows)]
+#[cfg_attr(not(windows), allow(dead_code))]
 async fn devtools_browser_url(port: u16) -> Option<String> {
     use tokio::io::AsyncWriteExt;
     let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
@@ -721,5 +721,42 @@ mod unix_pipes {
             let writer = pipe::Sender::from_owned_fd(parent_write).map_err(map)?;
             Ok((reader, writer))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// Chromium's DevTools HTTP server (WebView2's too) closes HTTP/1.0
+    /// requests without an answer; it answers HTTP/1.1 ones.
+    #[tokio::test]
+    async fn devtools_browser_url_speaks_http_1_1() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut s, _)) = listener.accept().await {
+                let mut buf = vec![0u8; 4096];
+                let n = s.read(&mut buf).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]).into_owned();
+                if request.starts_with("GET /json/version HTTP/1.1\r\n") {
+                    let body = r#"{"webSocketDebuggerUrl":"ws://127.0.0.1/devtools/browser/x"}"#;
+                    let _ = s
+                        .write_all(
+                            format!(
+                                "HTTP/1.1 200 OK\r\nContent-Length:{}\r\n\r\n{body}",
+                                body.len()
+                            )
+                            .as_bytes(),
+                        )
+                        .await;
+                }
+            }
+        });
+        assert_eq!(
+            devtools_browser_url(port).await.as_deref(),
+            Some("ws://127.0.0.1/devtools/browser/x")
+        );
     }
 }
