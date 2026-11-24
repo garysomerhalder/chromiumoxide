@@ -582,7 +582,7 @@ pub(crate) struct PageInner {
     /// Targets with request interception on.
     pub(crate) intercepting: Mutex<std::collections::HashSet<String>>,
     /// Requests in flight, by request id (for network events).
-    pub(crate) requests: Mutex<HashMap<String, crate::application::firefox_route::Request>>,
+    pub(crate) requests: Mutex<HashMap<String, crate::application::webkit_network::Request>>,
     /// `page.video()`.
     pub(crate) video: Mutex<Option<crate::application::webkit_record::Video>>,
     closed: AtomicBool,

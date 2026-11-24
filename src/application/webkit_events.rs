@@ -3,8 +3,8 @@
 
 use serde_json::{Value, json};
 
-use crate::application::firefox_route::{Request, Response};
 use crate::application::webkit::{BrowserContext, Page};
+use crate::application::webkit_network::{Request, Response};
 use crate::domain::error::{Error, Result};
 use crate::domain::storage::{Cookie, NewCookie, filter_cookies};
 use crate::domain::webkit::{cookie_from_webkit, cookie_to_webkit};
@@ -19,13 +19,13 @@ pub enum PageEvent {
     Load,
     Close,
     /// A request was issued (`page.on('request')`).
-    Request(crate::application::firefox_route::Request),
+    Request(crate::application::webkit_network::Request),
     /// Response headers arrived (`page.on('response')`).
-    Response(crate::application::firefox_route::Response),
+    Response(crate::application::webkit_network::Response),
     /// The response finished loading (`page.on('requestfinished')`).
-    RequestFinished(crate::application::firefox_route::Request),
+    RequestFinished(crate::application::webkit_network::Request),
     /// The request failed (`page.on('requestfailed')`).
-    RequestFailed(crate::application::firefox_route::Request),
+    RequestFailed(crate::application::webkit_network::Request),
     /// The page opened a pop-up (`page.on('popup')`).
     Popup(Page),
     /// A download started (`page.on('download')`).

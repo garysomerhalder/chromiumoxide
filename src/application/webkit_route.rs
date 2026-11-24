@@ -12,8 +12,9 @@ use futures::FutureExt;
 use futures::future::BoxFuture;
 use serde_json::{Value, json};
 
-use crate::application::firefox_route::{Request, matcher_key};
+use crate::application::firefox_route::matcher_key;
 use crate::application::webkit::Page;
+use crate::application::webkit_network::Request;
 use crate::domain::error::{Error, Result};
 use crate::domain::network::status_text;
 use crate::domain::url_matcher::UrlMatcher;
