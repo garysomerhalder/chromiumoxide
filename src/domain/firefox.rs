@@ -5,6 +5,10 @@ use std::path::Path;
 use serde_json::{Map, Number, Value};
 
 use crate::domain::emulation::{ColorScheme, ContextOptions, ServiceWorkers};
+use crate::domain::har::{
+    Content, Entry, HarRequest, HarResponse, NameValuePair, PostData, Timings, iso_time,
+    query_string, request_cookies, response_cookie,
+};
 use crate::domain::storage::{Cookie, NewCookie, SameSite};
 
 /// Playwright's Firefox arguments with the WebDriver BiDi endpoint instead
@@ -241,6 +245,153 @@ pub fn remote_value_to_json(v: &Value) -> Value {
             Value::Object(map)
         }
         _ => Value::Object(Map::new()),
+    }
+}
+
+/// The BiDi `network.Header` list as HAR pairs (byte values decoded).
+fn har_headers(headers: &Value) -> Vec<NameValuePair> {
+    headers
+        .as_array()
+        .map(|hs| {
+            hs.iter()
+                .map(|h| {
+                    NameValuePair::new(
+                        h["name"].as_str().unwrap_or_default(),
+                        h.pointer("/value/value")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default(),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn header<'a>(headers: &'a [NameValuePair], name: &str) -> Option<&'a str> {
+    headers
+        .iter()
+        .find(|h| h.name.eq_ignore_ascii_case(name))
+        .map(|h| h.value.as_str())
+}
+
+/// Playwright's HAR `httpVersion` for a network protocol name.
+fn http_version(protocol: &str) -> String {
+    match protocol.to_ascii_lowercase().as_str() {
+        "h2" | "http/2" | "http/2.0" => "HTTP/2.0".into(),
+        "h3" | "http/3" | "http/3.0" => "HTTP/3.0".into(),
+        "http/1.0" => "HTTP/1.0".into(),
+        _ => "HTTP/1.1".into(),
+    }
+}
+
+/// A HAR entry from a BiDi `network.RequestData` and (when the request did
+/// not fail) its `network.ResponseData`, with the bodies the page's data
+/// collector kept.
+pub fn har_entry(
+    request: &Value,
+    response: Option<&Value>,
+    post_data: Option<&[u8]>,
+    body: Option<&[u8]>,
+    pageref: Option<&str>,
+) -> Entry {
+    let num = |v: &Value, k: &str| v.pointer(k).and_then(Value::as_f64).unwrap_or(-1.0);
+    let t = &request["timings"];
+    let span = |a: &str, b: &str| {
+        let (a, b) = (num(t, a), num(t, b));
+        if a > 0.0 && b > 0.0 { b - a } else { -1.0 }
+    };
+    let tls = num(t, "/tlsStart");
+    let timings = Timings {
+        dns: span("/dnsStart", "/dnsEnd"),
+        connect: span("/connectStart", "/connectEnd"),
+        ssl: if tls > 0.0 {
+            span("/tlsStart", "/connectEnd")
+        } else {
+            -1.0
+        },
+        send: 0.0,
+        wait: span("/requestStart", "/responseStart"),
+        receive: span("/responseStart", "/responseEnd"),
+    };
+    let started = [num(t, "/requestTime"), num(t, "/timeOrigin")]
+        .into_iter()
+        .find(|v| *v > 0.0)
+        .unwrap_or(0.0);
+    let url = request["url"].as_str().unwrap_or_default();
+    let headers = har_headers(&request["headers"]);
+    let protocol = response
+        .and_then(|r| r["protocol"].as_str())
+        .unwrap_or("http/1.1");
+    let har_request = HarRequest {
+        method: request["method"].as_str().unwrap_or("GET").to_owned(),
+        url: url.to_owned(),
+        http_version: http_version(protocol),
+        cookies: header(&headers, "cookie")
+            .map(request_cookies)
+            .unwrap_or_default(),
+        query_string: query_string(url),
+        post_data: post_data.map(|b| PostData {
+            mime_type: header(&headers, "content-type")
+                .unwrap_or_default()
+                .to_owned(),
+            text: String::from_utf8_lossy(b).into_owned(),
+            params: Vec::new(),
+        }),
+        headers_size: request["headersSize"].as_i64().unwrap_or(-1),
+        body_size: request["bodySize"].as_i64().unwrap_or(-1),
+        headers,
+    };
+    let har_response = match response {
+        None => HarResponse::default(),
+        Some(r) => {
+            let headers = har_headers(&r["headers"]);
+            let mime = r["mimeType"]
+                .as_str()
+                .or_else(|| header(&headers, "content-type"))
+                .unwrap_or("x-unknown");
+            let mime = mime.split(';').next().unwrap_or(mime).trim().to_owned();
+            let mut content = match body {
+                Some(b) => Content::from_body(b, &mime),
+                None => Content {
+                    mime_type: mime,
+                    ..Content::default()
+                },
+            };
+            if let Some(size) = r.pointer("/content/size").and_then(Value::as_i64)
+                && body.is_none()
+            {
+                content.size = size;
+            }
+            HarResponse {
+                status: r["status"].as_i64().unwrap_or(-1),
+                status_text: r["statusText"].as_str().unwrap_or_default().to_owned(),
+                http_version: http_version(protocol),
+                cookies: headers
+                    .iter()
+                    .filter(|h| h.name.eq_ignore_ascii_case("set-cookie"))
+                    .flat_map(|h| {
+                        h.value
+                            .lines()
+                            .filter_map(response_cookie)
+                            .collect::<Vec<_>>()
+                    })
+                    .collect(),
+                redirect_url: header(&headers, "location").unwrap_or_default().to_owned(),
+                headers_size: r["headersSize"].as_i64().unwrap_or(-1),
+                body_size: r["bodySize"].as_i64().unwrap_or(-1),
+                content,
+                headers,
+            }
+        }
+    };
+    Entry {
+        pageref: pageref.map(str::to_owned),
+        started_date_time: iso_time(started),
+        time: timings.total(),
+        request: har_request,
+        response: har_response,
+        timings,
+        ..Entry::default()
     }
 }
 
