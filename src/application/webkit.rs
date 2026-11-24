@@ -349,6 +349,7 @@ impl BrowserContext {
             frame_id: Mutex::new(String::new()),
             url: Mutex::new("about:blank".to_owned()),
             worlds: Mutex::new(HashMap::new()),
+            frame_worlds: Mutex::new(HashMap::new()),
             viewport: Mutex::new(None),
             ready,
             loads,
@@ -424,6 +425,8 @@ pub(crate) struct PageInner {
     url: Mutex<String>,
     /// Execution context ids per target: (main world, utility world).
     worlds: Mutex<HashMap<String, Worlds>>,
+    /// Child frames' execution context ids on the current target, by frame id.
+    pub(crate) frame_worlds: Mutex<HashMap<String, Worlds>>,
     /// `set_viewport_size` (else the context's viewport).
     viewport: Mutex<Option<Viewport>>,
     /// The first page target is set up.
@@ -541,6 +544,7 @@ impl Page {
                         "Target.didCommitProvisionalTarget" => {
                             if let Some(new) = p["newTargetId"].as_str() {
                                 *page.inner.target.lock().unwrap() = new.to_owned();
+                                page.inner.frame_worlds.lock().unwrap().clear();
                             }
                         }
                         "Target.targetDestroyed" => {
@@ -614,12 +618,18 @@ impl Page {
                 let main_frame = c["frameId"].as_str()
                     == Some(self.inner.frame_id.lock().unwrap().as_str())
                     || self.inner.frame_id.lock().unwrap().is_empty();
-                if !main_frame {
-                    return;
-                }
                 let id = c["id"].as_i64();
                 let mut worlds = self.inner.worlds.lock().unwrap();
-                let entry = worlds.entry(target.to_owned()).or_default();
+                let mut frames = self.inner.frame_worlds.lock().unwrap();
+                let entry = if main_frame {
+                    worlds.entry(target.to_owned()).or_default()
+                } else if current {
+                    frames
+                        .entry(c["frameId"].as_str().unwrap_or_default().to_owned())
+                        .or_default()
+                } else {
+                    return;
+                };
                 match (c["type"].as_str(), c["name"].as_str()) {
                     (Some("normal"), _) => entry.0 = id,
                     (_, Some(UTILITY)) => entry.1 = id,
@@ -835,15 +845,42 @@ impl Page {
             .map_err(|e| Error::Evaluation(format!("cannot deserialize result: {e}")))
     }
 
-    /// Runs `expression` in the main world (or the utility world) and
-    /// awaits it when it is a promise; the remote object of the result.
-    async fn run(&self, expression: &str, utility: bool) -> Result<Value> {
-        let target = self.target();
-        let context = {
-            let worlds = self.inner.worlds.lock().unwrap();
-            let w = worlds.get(&target).copied().unwrap_or_default();
-            if utility { w.1 } else { w.0 }
+    /// The execution context of a frame (`None`: the main frame) in the
+    /// main or the utility world, once WebKit has reported it.
+    pub(crate) fn context_of(&self, frame: Option<&str>, utility: bool) -> Option<i64> {
+        let w = match frame {
+            Some(f) if f != self.inner.frame_id.lock().unwrap().as_str() => self
+                .inner
+                .frame_worlds
+                .lock()
+                .unwrap()
+                .get(f)
+                .copied()
+                .unwrap_or_default(),
+            _ => {
+                let target = self.target();
+                let worlds = self.inner.worlds.lock().unwrap();
+                worlds.get(&target).copied().unwrap_or_default()
+            }
         };
+        if utility { w.1 } else { w.0 }
+    }
+
+    /// Runs `expression` in a frame (`None`: the main frame), in its main
+    /// world or the utility world, and awaits it when it is a promise; the
+    /// remote object of the result.
+    pub(crate) async fn run_in(
+        &self,
+        expression: &str,
+        frame: Option<&str>,
+        utility: bool,
+    ) -> Result<Value> {
+        let context = self.context_of(frame, utility);
+        if frame.is_some() && context.is_none() {
+            return Err(Error::TargetClosed(
+                "the frame has no execution context".into(),
+            ));
+        }
         let mut params = json!({"expression": expression, "returnByValue": false,
                                 "emulateUserGesture": true});
         if let Some(id) = context {
@@ -876,6 +913,16 @@ impl Page {
     /// is called with the argument; values come back as JSON. Sources that
     /// are statements rather than one expression run as a script.
     async fn evaluate_value(&self, source: &str, arg: Option<&Value>) -> Result<Value> {
+        self.evaluate_value_in(source, arg, None).await
+    }
+
+    /// [`evaluate_value`](Self::evaluate_value) in a frame's main world.
+    pub(crate) async fn evaluate_value_in(
+        &self,
+        source: &str,
+        arg: Option<&Value>,
+        frame: Option<&str>,
+    ) -> Result<Value> {
         let source = source.trim().trim_end_matches(';');
         let arg = arg
             .map(Value::to_string)
@@ -885,19 +932,18 @@ impl Page {
              const __r = typeof __v === 'function' ? await __v(__chromiumoxide_arg) : await __v; \
              return __r === undefined ? undefined : JSON.stringify(__r); }})({arg})"
         );
-        match self.run(&wrapped, false).await {
+        match self.run_in(&wrapped, frame, false).await {
             Ok(v) => Ok(match v.get("value").and_then(Value::as_str) {
                 Some(json) => serde_json::from_str(json)
                     .map_err(|e| Error::Evaluation(format!("cannot read the result: {e}")))?,
                 None => Value::Null,
             }),
             Err(Error::Evaluation(m)) if m.starts_with("SyntaxError") => {
-                let r = self
-                    .target_call(
-                        "Runtime.evaluate",
-                        json!({"expression": source, "returnByValue": true}),
-                    )
-                    .await?;
+                let mut params = json!({"expression": source, "returnByValue": true});
+                if let Some(id) = self.context_of(frame, false) {
+                    params["contextId"] = json!(id);
+                }
+                let r = self.target_call("Runtime.evaluate", params).await?;
                 if r["wasThrown"].as_bool() == Some(true) {
                     return Err(Error::Evaluation(
                         r["result"]["description"].as_str().unwrap_or(&m).to_owned(),
@@ -916,13 +962,23 @@ impl Page {
     }
 
     async fn call_json_in(&self, function: &str, args: &[Value], utility: bool) -> Result<Value> {
+        self.call_json_frame(function, args, None, utility).await
+    }
+
+    async fn call_json_frame(
+        &self,
+        function: &str,
+        args: &[Value],
+        frame: Option<&str>,
+        utility: bool,
+    ) -> Result<Value> {
         let args: Vec<String> = args.iter().map(Value::to_string).collect();
         let expression = format!(
             "(async () => {{ const __r = await ({function})({}); \
              return __r === undefined ? undefined : JSON.stringify(__r); }})()",
             args.join(", ")
         );
-        let v = self.run(&expression, utility).await?;
+        let v = self.run_in(&expression, frame, utility).await?;
         match v.get("value").and_then(Value::as_str) {
             Some(json) => serde_json::from_str(json)
                 .map_err(|e| Error::Evaluation(format!("cannot read the result: {e}"))),
@@ -1101,15 +1157,21 @@ impl Page {
         self.inner.services.clock.sleep(duration).await
     }
 
-    /// Calls `body(injected, ...args)` in the utility world, installing
-    /// Playwright's injected script first when needed.
-    pub(crate) async fn injected_call(&self, body: &str, args: &[Value]) -> Result<Value> {
+    /// Calls `body(injected, ...args)` in a frame's utility world (`None`:
+    /// the main frame), installing Playwright's injected script first when
+    /// needed.
+    pub(crate) async fn injected_call_in(
+        &self,
+        frame: Option<&str>,
+        body: &str,
+        args: &[Value],
+    ) -> Result<Value> {
         const INJECTED: &str = "__chromiumoxide_injected";
         let call = format!(
             "(...args) => {{ const i = globalThis.{INJECTED}; \
              if (!i) return {{ __chromiumoxide_missing: true }}; return ({body})(i, ...args); }}"
         );
-        let v = self.call_json_in(&call, args, true).await?;
+        let v = self.call_json_frame(&call, args, frame, true).await?;
         if v.get("__chromiumoxide_missing") != Some(&Value::Bool(true)) {
             return Ok(v);
         }
@@ -1123,8 +1185,8 @@ impl Page {
              globalThis.{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); }})()",
             crate::application::locator::INJECTED_SOURCE
         );
-        self.run(&install, true).await?;
-        self.call_json_in(&call, args, true).await
+        self.run_in(&install, frame, true).await?;
+        self.call_json_frame(&call, args, frame, true).await
     }
 
     /// One mouse event (`Input.dispatchMouseEvent`, viewport CSS px).

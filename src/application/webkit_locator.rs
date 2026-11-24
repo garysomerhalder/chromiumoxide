@@ -18,6 +18,7 @@ impl Page {
         Locator {
             page: self.clone(),
             selector: selector.to_owned(),
+            frames: Vec::new(),
         }
     }
     pub fn get_by_role(&self, role: &str, options: RoleOptions) -> Locator {
@@ -46,8 +47,10 @@ impl Page {
 /// A WebKit locator: a selector resolved lazily, strict like Playwright's.
 #[derive(Clone, Debug)]
 pub struct Locator {
-    page: Page,
-    selector: String,
+    pub(crate) page: Page,
+    pub(crate) selector: String,
+    /// `frame_locator` selectors from the page down to the frame.
+    pub(crate) frames: Vec<String>,
 }
 
 impl Locator {
@@ -56,6 +59,7 @@ impl Locator {
         Locator {
             page: self.page.clone(),
             selector: compose::chain(&self.selector, selector),
+            frames: self.frames.clone(),
         }
     }
     /// `locator.nth(index)` (negative counts from the end).
@@ -63,6 +67,7 @@ impl Locator {
         Locator {
             page: self.page.clone(),
             selector: compose::nth(&self.selector, index),
+            frames: self.frames.clone(),
         }
     }
     pub fn first(&self) -> Locator {
@@ -79,6 +84,37 @@ impl Locator {
     }
     pub fn get_by_test_id(&self, id: impl Into<TextMatch>) -> Locator {
         self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
+    }
+
+    /// The frame this locator runs in (`None`: the main frame) and its
+    /// content's offset in the viewport; `None` while a frame is missing.
+    async fn scope(&self) -> Result<Option<(Option<String>, (f64, f64))>> {
+        let mut frame: Option<String> = None;
+        let mut offset = (0.0, 0.0);
+        for selector in &self.frames {
+            match self.page.child_frame(frame.as_deref(), selector).await? {
+                Some((child, (x, y))) => {
+                    frame = Some(child);
+                    offset = (offset.0 + x, offset.1 + y);
+                }
+                None => return Ok(None),
+            }
+        }
+        Ok(Some((frame, offset)))
+    }
+
+    /// `body(injected, ...args)` in the locator's frame; while the frame is
+    /// missing, `{ missing: true }` (callers retry or treat it as no
+    /// element).
+    pub(crate) async fn call(&self, body: &str, args: &[Value]) -> Result<Value> {
+        match self.scope().await? {
+            Some((frame, _)) => {
+                self.page
+                    .injected_call_in(frame.as_deref(), body, args)
+                    .await
+            }
+            None => Ok(json!({"missing": true, "__frame_missing": true})),
+        }
     }
 
     /// The page this locator belongs to.
@@ -105,8 +141,7 @@ impl Locator {
         let mut delay = Duration::from_millis(20);
         loop {
             let r = self
-                .page
-                .injected_call(&function, &[json!(self.selector), json!(args)])
+                .call(&function, &[json!(self.selector), json!(args)])
                 .await?;
             if r["found"] == Value::Bool(true) {
                 return Ok(r["value"].clone());
@@ -128,9 +163,7 @@ impl Locator {
             "(i, selector) => {{ const els = i.querySelectorAll(i.parseSelector(selector), document); \
              return ({body})(i, els); }}"
         );
-        self.page
-            .injected_call(&function, &[json!(self.selector)])
-            .await
+        self.call(&function, &[json!(self.selector)]).await
     }
 
     /// `locator.count()`.
@@ -207,8 +240,7 @@ impl Locator {
     /// `locator.isVisible()`: right away (no waiting), like Playwright.
     pub async fn is_visible(&self) -> Result<bool> {
         let v = self
-            .page
-            .injected_call(
+            .call(
                 "(i, selector) => { const parsed = i.parseSelector(selector); \
                  const els = i.querySelectorAll(parsed, document); \
                  if (els.length > 1) throw i.strictModeViolationError(parsed, els); \
@@ -260,14 +292,23 @@ impl Locator {
         let deadline = self.page.now() + TIMEOUT;
         let mut delay = Duration::from_millis(20);
         loop {
-            let r = self
-                .page
-                .injected_call(PREPARE, &[json!(self.selector), json!(states)])
-                .await?;
+            let (r, offset) = match self.scope().await? {
+                Some((frame, offset)) => (
+                    self.page
+                        .injected_call_in(
+                            frame.as_deref(),
+                            PREPARE,
+                            &[json!(self.selector), json!(states)],
+                        )
+                        .await?,
+                    offset,
+                ),
+                None => (json!({"retry": "waiting for frame"}), (0.0, 0.0)),
+            };
             if let Some(p) = r.get("point") {
                 return Ok((
-                    p["x"].as_f64().unwrap_or_default(),
-                    p["y"].as_f64().unwrap_or_default(),
+                    p["x"].as_f64().unwrap_or_default() + offset.0,
+                    p["y"].as_f64().unwrap_or_default() + offset.1,
                 ));
             }
             let last = r["retry"].as_str().unwrap_or_default();

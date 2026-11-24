@@ -116,8 +116,7 @@ impl Assertion<'_> {
     async fn once(&self) -> Result<Outcome> {
         let r = self
             .locator
-            .page()
-            .injected_call(
+            .call(
                 RUN,
                 &[
                     json!(self.locator.selector()),
