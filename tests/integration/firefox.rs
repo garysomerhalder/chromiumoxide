@@ -3159,3 +3159,82 @@ async fn firefox_har_recording_and_routing() {
     browser.close().await.unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Firefox: page.addLocatorHandler (an overlay closed before actions,
+/// `times`, `noWaitAfter`) and removeLocatorHandler.
+#[tokio::test]
+async fn firefox_locator_handlers() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<div id=overlay style='position:fixed;inset:0;background:#0008'>\
+         <button id=close onclick=\"overlay.style.display='none'\">close</button></div>\
+         <button id=target onclick=\"this.textContent='clicked'\">target</button>\
+         <input id=i>",
+    )
+    .await
+    .unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let c = calls.clone();
+    page.add_locator_handler(&page.locator("#overlay"), move |overlay| {
+        let c = c.clone();
+        async move {
+            c.fetch_add(1, Ordering::SeqCst);
+            overlay.locator("#close").click().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    page.locator("#target").click().await.unwrap();
+    assert_eq!(page.inner_text("#target").await.unwrap(), "clicked");
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+    // The overlay comes back: the handler runs before fill too.
+    page.evaluate::<()>("overlay.style.display = 'block'")
+        .await
+        .unwrap();
+    page.locator("#i").fill("typed").await.unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+    // Removed: the overlay stays and the click times out.
+    page.remove_locator_handler(&page.locator("#overlay"))
+        .await
+        .unwrap();
+    page.evaluate::<()>("overlay.style.display = 'block'")
+        .await
+        .unwrap();
+    page.set_default_timeout(std::time::Duration::from_millis(500));
+    assert!(page.locator("#target").click().await.is_err());
+
+    // times: 1 runs the handler once.
+    page.set_default_timeout(std::time::Duration::from_secs(10));
+    let once = Arc::new(AtomicUsize::new(0));
+    let o = once.clone();
+    page.add_locator_handler_with(
+        &page.locator("#overlay"),
+        move |overlay| {
+            let o = o.clone();
+            async move {
+                o.fetch_add(1, Ordering::SeqCst);
+                overlay.locator("#close").click().await.unwrap();
+            }
+        },
+        Some(1),
+        true,
+    )
+    .await
+    .unwrap();
+    page.locator("#target").click().await.unwrap();
+    page.evaluate::<()>("overlay.style.display = 'block'")
+        .await
+        .unwrap();
+    page.set_default_timeout(std::time::Duration::from_millis(500));
+    assert!(page.locator("#target").click().await.is_err());
+    assert_eq!(once.load(Ordering::SeqCst), 1);
+    browser.close().await.unwrap();
+}
