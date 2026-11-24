@@ -132,11 +132,13 @@ pub struct Browser {
 }
 
 pub(crate) struct BrowserInner {
-    wk: Arc<dyn WebKitSession>,
+    pub(crate) wk: Arc<dyn WebKitSession>,
     pub(crate) services: Services,
     process: Mutex<Option<Box<dyn BrowserProcess>>>,
     /// The contexts made through this browser (`browser.contexts()`).
     pub(crate) contexts: Mutex<Vec<std::sync::Weak<ContextInner>>>,
+    /// `browser.bind()`'s relay.
+    pub(crate) bridge: Mutex<Option<Box<dyn crate::ports::BoundBridge>>>,
     pub(crate) closed: AtomicBool,
 }
 
@@ -185,6 +187,32 @@ impl Browser {
                 services,
                 process: Mutex::new(Some(launched.process)),
                 contexts: Mutex::new(Vec::new()),
+                bridge: Mutex::new(None),
+                closed: AtomicBool::new(false),
+            }),
+        })
+    }
+
+    /// A browser over an existing WebKit connection (`WebKit::connect`).
+    pub async fn connect(services: Services, wk: Arc<dyn WebKitSession>) -> Result<Browser> {
+        let enabled = within(
+            &services,
+            Duration::from_secs(30),
+            "waiting for WebKit",
+            wk.call(None, "Playwright.enable", json!({})),
+        )
+        .await;
+        if let Err(e) = enabled {
+            wk.disconnect();
+            return Err(e);
+        }
+        Ok(Browser {
+            inner: Arc::new(BrowserInner {
+                wk,
+                services,
+                process: Mutex::new(None),
+                contexts: Mutex::new(Vec::new()),
+                bridge: Mutex::new(None),
                 closed: AtomicBool::new(false),
             }),
         })
@@ -245,6 +273,9 @@ impl Browser {
                 credentials: Mutex::new(credentials),
                 clock_installed: AtomicBool::new(false),
                 bindings: Default::default(),
+                ws_routes: Mutex::new(Vec::new()),
+                ws_routing: Mutex::new(Default::default()),
+                ws_installed: AtomicBool::new(false),
                 recorders: Arc::new(crate::application::webkit_trace::Recorders::new(
                     self.inner.services.clone(),
                     BROWSER_VERSION.to_owned(),
@@ -289,9 +320,13 @@ impl Browser {
             self.inner.wk.call(None, "Playwright.close", json!({})),
         )
         .await;
+        if let Some(b) = self.inner.bridge.lock().unwrap().take() {
+            b.stop();
+        }
         let process = self.inner.process.lock().unwrap().take();
-        if let Some(process) = process {
-            process.shutdown().await;
+        match process {
+            Some(process) => process.shutdown().await,
+            None => self.inner.wk.disconnect(),
         }
         Ok(())
     }
@@ -337,6 +372,11 @@ pub(crate) struct ContextInner {
     pub(crate) credentials: Mutex<Option<crate::domain::emulation::HttpCredentials>>,
     /// `context.exposeFunction` / `exposeBinding`.
     pub(crate) bindings: crate::application::webkit_binding::Bindings,
+    /// `context.routeWebSocket` routes, their sockets, and whether the
+    /// mock is installed.
+    pub(crate) ws_routes: crate::application::webkit_ws_route::WkWsRoutes,
+    pub(crate) ws_routing: Mutex<crate::application::webkit_ws_route::WkWsRouting>,
+    pub(crate) ws_installed: AtomicBool,
     /// HAR recording and tracing.
     pub(crate) recorders: Arc<crate::application::webkit_trace::Recorders>,
     /// Playwright's fake timers are installed (`context.clock`).
@@ -477,6 +517,7 @@ impl BrowserContext {
             globals: Mutex::new(HashMap::new()),
             locator_handlers: Mutex::new(Vec::new()),
             bindings: Default::default(),
+            ws_routes: Mutex::new(Vec::new()),
             handling_locator: AtomicBool::new(false),
             workers: Mutex::new(HashMap::new()),
             websockets: Mutex::new(HashMap::new()),
@@ -698,6 +739,8 @@ pub(crate) struct PageInner {
     pub(crate) handling_locator: AtomicBool,
     /// `page.exposeFunction` / `exposeBinding`.
     pub(crate) bindings: crate::application::webkit_binding::Bindings,
+    /// `page.routeWebSocket` routes.
+    pub(crate) ws_routes: crate::application::webkit_ws_route::WkWsRoutes,
     /// Dedicated workers by worker id.
     pub(crate) workers: Mutex<HashMap<String, crate::application::webkit_worker::Worker>>,
     /// Open WebSockets by request id.

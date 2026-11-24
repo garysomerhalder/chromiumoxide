@@ -193,6 +193,14 @@ impl WebKit {
     pub async fn launch(options: webkit::WebKitLaunchOptions) -> Result<webkit::Browser> {
         webkit::Browser::launch(Chromium::services(), options).await
     }
+
+    /// Connects to a WebKit shared with `browser.bind()` (its endpoint).
+    /// Closing it disconnects and leaves the browser running.
+    pub async fn connect(ws_endpoint: &str) -> Result<webkit::Browser> {
+        let transport = adapters::transport::websocket::connect(ws_endpoint).await?;
+        let wk = std::sync::Arc::new(adapters::webkit::WebKitConnection::spawn(transport));
+        webkit::Browser::connect(Chromium::services(), wk).await
+    }
 }
 
 pub use crate::application::safari::{SafariBrowser, SafariLaunchOptions};
@@ -356,6 +364,7 @@ impl Chromium {
             http: Arc::new(adapters::http::TcpHttpClient),
             bridge: Arc::new(adapters::cdp::bridge::WsBridge),
             bidi_bridge: Arc::new(adapters::bidi_bridge::WsBidiBridge),
+            webkit_bridge: Arc::new(adapters::webkit_bridge::WsWebKitBridge),
             signals: Arc::new(adapters::signals::OsSignals),
             adb: Arc::new(adapters::adb::TcpAdb),
         }

@@ -43,6 +43,16 @@ pub trait BidiBridge: Send + Sync {
     ) -> BoxFuture<'static, io::Result<Box<dyn BoundBridge>>>;
 }
 
+/// Starts serving a WebKit inspector connection (Playwright's WebKit
+/// protocol) to other clients.
+pub trait WebKitBridge: Send + Sync {
+    fn serve(
+        &self,
+        wk: Arc<dyn crate::ports::WebKitSession>,
+        address: BridgeAddress,
+    ) -> BoxFuture<'static, io::Result<Box<dyn BoundBridge>>>;
+}
+
 /// A running bridge.
 pub trait BoundBridge: Send + Sync {
     /// The WebSocket URL clients connect to.

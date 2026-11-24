@@ -991,6 +991,7 @@ mod tests {
             http: Arc::new(crate::testing::memory::NoHttp),
             bridge: Arc::new(crate::testing::memory::NoBridge),
             bidi_bridge: Arc::new(crate::testing::memory::NoBridge),
+            webkit_bridge: Arc::new(crate::testing::memory::NoBridge),
             signals: Arc::new(crate::testing::memory::NoSignals),
             adb: Arc::new(crate::testing::memory::NoAdb),
         };

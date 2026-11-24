@@ -1428,3 +1428,48 @@ impl Page {
         Err(chromium_only("page.pdf()"))
     }
 }
+
+impl Browser {
+    /// `browser.bind()`: shares this WebKit with other clients (as
+    /// `WebKit::connect(endpoint)`) over a localhost WebSocket relaying its
+    /// inspector protocol; the same endpoint until `unbind`.
+    pub async fn bind(&self) -> Result<String> {
+        self.bind_with(crate::application::browser::BindOptions::default())
+            .await
+    }
+
+    /// `browser.bind(title, { host, port })`: like [`bind`](Self::bind),
+    /// listening on `host:port`.
+    pub async fn bind_with(
+        &self,
+        options: crate::application::browser::BindOptions,
+    ) -> Result<String> {
+        if let Some(b) = self.inner.bridge.lock().unwrap().as_ref() {
+            return Ok(b.endpoint());
+        }
+        let bound = self
+            .inner
+            .services
+            .webkit_bridge
+            .serve(
+                self.inner.wk.clone(),
+                crate::ports::BridgeAddress {
+                    host: options.host.clone(),
+                    port: options.port,
+                    path: None,
+                },
+            )
+            .await?;
+        let endpoint = bound.endpoint();
+        *self.inner.bridge.lock().unwrap() = Some(bound);
+        Ok(endpoint)
+    }
+
+    /// `browser.unbind()`: stops sharing (connected clients are dropped).
+    pub async fn unbind(&self) -> Result<()> {
+        if let Some(b) = self.inner.bridge.lock().unwrap().take() {
+            b.stop();
+        }
+        Ok(())
+    }
+}

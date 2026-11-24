@@ -13,5 +13,6 @@ pub mod signals;
 pub mod transport;
 pub mod video;
 pub mod webkit;
+pub mod webkit_bridge;
 #[cfg(windows)]
 pub mod win_pipes;

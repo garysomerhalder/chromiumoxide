@@ -88,6 +88,7 @@ pub mod webkit_record;
 pub mod webkit_route;
 pub mod webkit_trace;
 pub mod webkit_worker;
+pub mod webkit_ws_route;
 pub mod webmcp;
 pub mod websocket;
 pub mod websocket_route;
