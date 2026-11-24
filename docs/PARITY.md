@@ -8,7 +8,7 @@ methods (section 8).
 
 Playwright reference: **1.65.1** (`playwright-core/types/types.d.ts`; M1-M6
 were built against 1.63.0, M7 brings everything to 1.65.1).
-Firefox and WebKit are out of scope (this is a CDP client).
+Firefox (WebDriver BiDi) has its own engine since M13; section 13 is its column: what works on Firefox, the test that shows it, or why not. WebKit is not started.
 
 The member tables below track methods; section 8 covers the options, events
 and methods found by the audit of 2026-11-22 ([`BACKLOG.md`](BACKLOG.md)),
@@ -1214,3 +1214,47 @@ Deprecated, raw types only (`page.execute` / `page.cdp_events`), by design: the 
 - [x] `protocol().web_mcp()`: 4 commands, 4 events (experimental domain).
 - [x] Test: `cdp_web_mcp` in `tests/integration/cdp_domains.rs`, on the page target.
 - Note: The test checks Chromium's answer.
+
+## 13. Firefox (M13)
+
+`chromiumoxide::firefox` drives Playwright's Firefox build over WebDriver
+BiDi, with the Playwright method names. Tests are in
+`tests/integration/firefox.rs` and `tests/integration/firefox_parity.rs`,
+against `firefox-1572` (Firefox 159). ✅ works on Firefox (tested) ·
+❌ not possible over BiDi in Firefox 159 (reason given) · ⬜ not done yet on
+Firefox.
+
+| Area | Firefox | Test / reason |
+|---|---|---|
+| `firefox.launch` (Playwright's arguments, `executablePath`, `headless`, `args`, `env`, `timeout`) | ✅ | `firefox_launches_and_runs_a_page` |
+| `browser.version`, `newPage`, `newContext`, `close` | ✅ | `firefox_launches_and_runs_a_page`, `firefox_contexts_emulate_devices` |
+| Context emulation: `viewport`, `deviceScaleFactor`, `userAgent`, `locale`, `timezoneId`, `screen`, `geolocation`, `extraHTTPHeaders`, `ignoreHTTPSErrors` | ✅ | `firefox_contexts_emulate_devices` |
+| Context options `isMobile`, `hasTouch`, `colorScheme` (dark / no-preference), `reducedMotion`, `forcedColors`, `contrast`, `javaScriptEnabled: false`, `offline`, `permissions` | ❌ | No BiDi command in Firefox 159 (Playwright uses its Juggler protocol); creating such a context is an error naming the options |
+| Context options `bypassCSP`, `proxy`, `clientCertificates`, `baseURL`, `serviceWorkers`, `recordHar`, `recordVideo` | ⬜ | An error naming the option for now |
+| `httpCredentials` | ✅ | `firefox_network_events_context_routes_and_auth` |
+| `storageState` (option) and `context.storageState()` | ✅ | `firefox_storage_state_round_trip` |
+| `page.goto`, `setContent`, `title`, `url`, `content`, `reload`, `goBack`, `goForward` | ✅ | `firefox_launches_and_runs_a_page`, `firefox_navigates_and_waits` |
+| `page.evaluate` / `evaluate(fn, arg)` | ✅ | `firefox_launches_and_runs_a_page` |
+| `page.addStyleTag`, `setViewportSize`, `viewportSize` | ✅ | `firefox_contexts_emulate_devices` |
+| `page.screenshot` (viewport, clip, fullPage, JPEG, caret, animations, style) | ✅ | `firefox_screenshots_are_pixel_identical_to_playwright` (pixel-identical to Playwright's Firefox) |
+| `page.screenshot` `omitBackground`, `scale: "css"` at a device scale factor above 1, WebP, `mask` | ⬜ | An error for now (BiDi has no background or scale option) |
+| `page.waitForFunction`, `waitForTimeout`, `locator.waitFor` | ✅ | `firefox_navigates_and_waits` |
+| `page.waitForURL`, `waitForLoadState`, `waitForEvent`, `waitForRequest` / `Response` | ⬜ | |
+| Locators: `locator`, `getBy*`, `nth` / `first` / `last`, chaining, `textContent`, `innerText`, `innerHTML`, `getAttribute`, `inputValue`, `count`, `allTextContents`, `allInnerTexts`, `isVisible`, `isHidden`, `isChecked`, strictness | ✅ | `firefox_locators_query_the_page` |
+| Locator `filter`, `and`, `or`, `all`, `boundingBox`, `evaluate`, `ariaSnapshot`, `screenshot`, `highlight` | ⬜ | |
+| Input: `click`, `hover`, `fill`, `focus`, `press`, `pressSequentially`, `check`, `uncheck` | ✅ | `firefox_locators_act_on_elements` |
+| Input: `dblclick`, `dragTo`, `selectOption`, `setInputFiles`, `tap`, `page.mouse`, `page.keyboard` | ⬜ | |
+| `expect()` locator assertions (state, text, attribute, class, count, CSS, id, role, value) and page `toHaveTitle` / `toHaveURL` | ✅ | `firefox_expect_assertions` |
+| Events: console, page errors, dialogs (auto-dismissed without a listener), load, DOMContentLoaded, close | ✅ | `firefox_page_events` |
+| Events: request, response, requestfinished, requestfailed | ✅ | `firefox_network_events_context_routes_and_auth` |
+| Events: popup, websocket, worker, filechooser, frameattached / framedetached | ⬜ | |
+| Cookies: `context.cookies`, `addCookies`, `clearCookies` | ✅ | `firefox_cookies_and_init_scripts` |
+| `context.addInitScript`, `page.addInitScript` | ✅ | `firefox_cookies_and_init_scripts` |
+| `page.route` / `context.route` (fulfill, continue, abort), `unroute`, `unrouteAll` | ✅ | `firefox_routes_requests`, `firefox_network_events_context_routes_and_auth` |
+| Route `fetch`, `fallback`, continue / fulfill with overrides, `routeFromHAR`, `routeWebSocket` | ⬜ | |
+| Downloads: event, `suggestedFilename`, `url`, `path`, `saveAs`, `failure` | ✅ | `firefox_downloads` |
+| Frames: `frameLocator` (nested), clicks and fills inside iframes, `page.frames()`, `frame.evaluate` | ✅ | `firefox_frames` |
+| `page.pdf` | ⬜ | BiDi has `browsingContext.print`; not wired yet |
+| Video, tracing, HAR recording, clock, aria snapshots, accessibility, `exposeBinding`, element handles | ⬜ | |
+| CDP sessions, coverage, `browser.startTracing`, CDP domain clients (section 12) | ❌ | Chromium-only: Firefox does not speak CDP |
+| `firefox.connect`, `launchPersistentContext`, `launchServer` | ⬜ | |

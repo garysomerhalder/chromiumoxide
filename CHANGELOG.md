@@ -31,10 +31,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - web-first assertions through the shared `expect()`;
   - page events (console messages, page errors, dialogs, load, close);
   - cookies and init scripts;
-  - request routing (`page.route` with fulfil / continue / abort,
-    `unroute`).
+  - request routing (`page.route` and `context.route` with fulfil /
+    continue / abort, `unroute`);
+  - request / response / requestfinished / requestfailed events;
+  - HTTP credentials;
+  - downloads;
+  - iframes (`frame_locator`, `frames`);
+  - storage state (save and restore).
+- `docs/PARITY.md` section 13: the Firefox column (what works, the test,
+  or why not).
 - Over BiDi in Firefox 159 there is no command for isMobile, hasTouch or
-  colorScheme; those context options are an error for now.
+  colorScheme (among others, listed in PARITY section 13); those context
+  options are an error.
 
 ### Milestone 12: every CDP domain
 

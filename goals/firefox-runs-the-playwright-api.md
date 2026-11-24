@@ -108,6 +108,19 @@ uses Juggler).
   Still to do: `context.route`, request/response events, HTTP
   credentials, downloads, frames, storage state, and the PARITY Firefox
   column.
+- 2026-11-24: added on Firefox, each with a passing test (14 Firefox tests
+  in all):
+  - `context.route`;
+  - request / response events;
+  - HTTP credentials;
+  - downloads;
+  - iframes;
+  - storage state.
+
+  `docs/PARITY.md` section 13 is the Firefox column. It lists what still
+  is ⬜ on Firefox: element handles, `dblclick` / drag / `select_option` /
+  file inputs, raw mouse and keyboard, PDF, video, tracing, HAR,
+  popups, workers, WebSockets, `launch_persistent_context`, `connect`.
 
 ## Set it
 
