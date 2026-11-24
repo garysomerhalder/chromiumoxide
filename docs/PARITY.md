@@ -1293,7 +1293,8 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 | `page.route` (fulfill, continue, abort; newest handler first), `unroute`, `unrouteAll` (`Network.addInterception`, as `WKRouteImpl`) | ✅ | `webkit_routes_requests` |
 | `page.events()` request, response, requestfinished, requestfailed | ✅ | `webkit_network_events` |
 | `context.route`, `unroute`, `unrouteAll` (page routes first) | ✅ | `webkit_context_routes` |
-| Frames, `expect`, recording (video, trace, HAR) | ⬜ | Next, as for Firefox |
+| `expect(locator)` (`toHaveText`, `toContainText`, `toHaveAttribute`, `toHaveClass`, `toContainClass`, `toHaveCount`, `toHaveCSS`, `toHaveId`, `toHaveRole`, `toHaveValue`, `toBe*` states, `.not`, timeout) and `expect(page)` (`toHaveTitle`, `toHaveURL`), with Playwright's messages | ✅ | `webkit_expect_assertions` |
+| Frames, recording (video, trace, HAR) | ⬜ | Next, as for Firefox |
 
 ## 15. Tauri (M14)
 

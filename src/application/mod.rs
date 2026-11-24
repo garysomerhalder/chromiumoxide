@@ -59,6 +59,7 @@ pub mod video;
 pub mod wait;
 pub mod webkit;
 pub mod webkit_events;
+pub mod webkit_expect;
 pub mod webkit_locator;
 pub mod webkit_route;
 pub mod webmcp;

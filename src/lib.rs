@@ -159,6 +159,7 @@ pub mod webkit {
         Browser, BrowserContext, Page, Screenshot, WebKitLaunchOptions,
     };
     pub use crate::application::webkit_events::{ConsoleMessage, Dialog, PageError, PageEvent};
+    pub use crate::application::webkit_expect::{Assertion, LocatorAssertions, PageAssertions};
     pub use crate::application::webkit_locator::Locator;
     pub use crate::application::webkit_route::{Fulfill, Route};
 }
