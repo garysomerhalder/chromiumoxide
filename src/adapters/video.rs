@@ -8,7 +8,7 @@ use futures::FutureExt;
 use futures::future::BoxFuture;
 use tokio::io::AsyncWriteExt;
 
-use crate::domain::video::{VideoCodec, ffmpeg_args};
+use crate::domain::video::{VideoCodec, ffmpeg_args_scaled};
 use crate::ports::video::{VideoEncoder, VideoSink};
 
 /// Finds ffmpeg: `FFMPEG_PATH`, Playwright's browser folders, then `PATH`.
@@ -97,6 +97,17 @@ impl VideoEncoder for FfmpegEncoder {
         height: u32,
         fps: u32,
     ) -> BoxFuture<'static, io::Result<Box<dyn VideoSink>>> {
+        self.start_scaled(output, width, height, fps, (width, height))
+    }
+
+    fn start_scaled(
+        &self,
+        output: &Path,
+        width: u32,
+        height: u32,
+        fps: u32,
+        source: (u32, u32),
+    ) -> BoxFuture<'static, io::Result<Box<dyn VideoSink>>> {
         let output = output.to_owned();
         async move {
             let ffmpeg = find_ffmpeg().ok_or_else(|| {
@@ -109,12 +120,13 @@ impl VideoEncoder for FfmpegEncoder {
                 std::fs::create_dir_all(dir)?;
             }
             let mut child = tokio::process::Command::new(&ffmpeg)
-                .args(ffmpeg_args(
+                .args(ffmpeg_args_scaled(
                     codec_of(&ffmpeg),
                     width,
                     height,
                     fps,
                     &output.to_string_lossy(),
+                    source,
                 ))
                 .stdin(Stdio::piped())
                 .stdout(Stdio::null())

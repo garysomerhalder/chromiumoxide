@@ -163,6 +163,28 @@ pub fn ffmpeg_args(
     args
 }
 
+/// [`ffmpeg_args`] for frames of `source` size (Firefox's full-size
+/// screenshots): scaled down to fit first, then padded like the others.
+pub fn ffmpeg_args_scaled(
+    codec: VideoCodec,
+    width: u32,
+    height: u32,
+    fps: u32,
+    output: &str,
+    source: (u32, u32),
+) -> Vec<String> {
+    let mut args = ffmpeg_args(codec, width, height, fps, output);
+    if source != (width, height)
+        && let Some(i) = args.iter().position(|a| a == "-vf")
+    {
+        args[i + 1] = format!(
+            "scale={width}:{height}:force_original_aspect_ratio=decrease,{}",
+            args[i + 1]
+        );
+    }
+    args
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
