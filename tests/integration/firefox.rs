@@ -1421,3 +1421,130 @@ async fn firefox_persistent_context_and_connect() {
     let _ = child.wait();
     let _ = std::fs::remove_dir_all(&profile);
 }
+
+#[tokio::test]
+async fn firefox_trace_snapshots_chunks_and_groups() {
+    use chromiumoxide::TracingStart;
+    use serde_json::Value;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route(
+        "/p.html",
+        "text/html",
+        "<link rel=stylesheet href=\"/s.css\"><button>B</button>",
+        0,
+    );
+    server.route("/s.css", "text/css", "button { color: red; }", 0);
+    server.route("/two", "text/html", "<p>two</p>", 0);
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let tracing = context.tracing();
+    tracing
+        .start(TracingStart {
+            snapshots: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    tracing.group("first group").await.unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+    page.locator("button").click().await.unwrap();
+    tracing.group_end().await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let dir = std::env::temp_dir().join(format!("cox-ff-snap-{}", std::process::id()));
+    let first = dir.join("one.zip");
+    tracing.stop_chunk(Some(&first)).await.unwrap();
+    tracing.start_chunk(Some("second")).await.unwrap();
+    page.goto(&server.url("/two")).await.unwrap();
+    let second = dir.join("two.zip");
+    tracing.stop_chunk(Some(&second)).await.unwrap();
+    tracing.stop(None).await.unwrap();
+
+    let files = crate::tracing::unzip(&first);
+    let lines = |name: &str| -> Vec<Value> {
+        String::from_utf8(crate::tracing::file(&files, name))
+            .unwrap()
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect()
+    };
+    // The stylesheet is stored once, under its hash, as in Playwright.
+    let css = "resources/3fe33742618fac5890c933e5782ff6af7a2f181a.css";
+    assert_eq!(crate::tracing::file(&files, css), b"button { color: red; }");
+    let network = lines("trace.network");
+    let entry = network
+        .iter()
+        .find(|e| e["snapshot"]["request"]["url"] == server.url("/s.css"))
+        .expect("stylesheet entry");
+    assert_eq!(entry["snapshot"]["response"]["content"]["_file"], css);
+
+    let events = lines("trace.trace");
+    let group = events
+        .iter()
+        .find(|e| e["type"] == "before" && e["method"] == "tracingGroup")
+        .expect("group");
+    assert_eq!(group["params"]["name"], "first group");
+    assert!(
+        events
+            .iter()
+            .any(|e| e["type"] == "after" && e["callId"] == group["callId"])
+    );
+    let call = |method: &str| {
+        events
+            .iter()
+            .find(|e| e["type"] == "before" && e["method"] == method)
+            .unwrap_or_else(|| panic!("no {method}"))
+            .clone()
+    };
+    let snaps = |call_id: &Value| -> Vec<Value> {
+        events
+            .iter()
+            .filter(|e| e["type"] == "frame-snapshot" && e["snapshot"]["callId"] == *call_id)
+            .map(|e| e["snapshot"].clone())
+            .collect()
+    };
+    let click = snaps(&call("click")["callId"]);
+    let phases: Vec<&str> = click.iter().map(|s| s["phase"].as_str().unwrap()).collect();
+    assert_eq!(phases, ["before", "after"]);
+    let after = &click[1];
+    assert_eq!(after["frameUrl"], server.url("/p.html"));
+    assert_eq!(after["isMainFrame"], true);
+    assert_eq!(
+        after["viewport"],
+        serde_json::json!({"width": 1280, "height": 720})
+    );
+    assert!(after["frameId"].as_str().unwrap().starts_with("frame@"));
+    let goto_after = snaps(&call("goto")["callId"])
+        .into_iter()
+        .find(|s| s["phase"] == "after")
+        .expect("goto snapshot");
+    assert_eq!(
+        goto_after["html"][3],
+        serde_json::json!(["BODY", {}, ["BUTTON", {}, "B"]]),
+        "{}",
+        goto_after["html"]
+    );
+
+    let two: Vec<Value> = String::from_utf8(crate::tracing::file(
+        &crate::tracing::unzip(&second),
+        "trace.trace",
+    ))
+    .unwrap()
+    .lines()
+    .map(|l| serde_json::from_str(l).unwrap())
+    .collect();
+    assert_eq!(two[0]["type"], "context-options");
+    assert_eq!(two[0]["title"], "second");
+    let gotos: Vec<&str> = two
+        .iter()
+        .filter(|e| e["type"] == "before" && e["method"] == "goto")
+        .map(|e| e["params"]["url"].as_str().unwrap())
+        .collect();
+    assert_eq!(gotos, [server.url("/two")]);
+    let _ = std::fs::remove_dir_all(&dir);
+    browser.close().await.unwrap();
+}
