@@ -2324,7 +2324,8 @@ impl Page {
         });
         let install = format!(
             "(() => {{ if (globalThis.{INJECTED}) return; const module = {{}};\n{INJECTED_SOURCE}\n\
-             globalThis.{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); }})()"
+             globalThis.{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); \
+             globalThis.{INJECTED}.__chromiumoxide_render_aria_yaml = json => renderAriaSnapshotAsYaml(json); }})()"
         );
         let r = self
             .script_evaluate_in(context, &install, Some(UTILITY))

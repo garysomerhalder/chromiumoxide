@@ -19,6 +19,7 @@ pub mod expect;
 pub mod extras;
 pub mod filechooser;
 pub mod firefox;
+pub mod firefox_aria;
 pub mod firefox_context_more;
 pub mod firefox_download;
 pub mod firefox_events;
