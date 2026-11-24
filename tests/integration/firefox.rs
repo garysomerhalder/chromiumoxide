@@ -2538,3 +2538,179 @@ async fn firefox_request_and_response_details() {
     assert!(response.security_details().is_none());
     browser.close().await.unwrap();
 }
+
+/// Firefox: the event objects' details (console message args, location,
+/// page, timestamp; dialog page; download page, delete, read stream; file
+/// chooser), Worker.evaluateHandle / waitForEvent, Frame.waitForNavigation
+/// and the touchscreen.
+#[tokio::test]
+async fn firefox_event_object_details() {
+    use chromiumoxide::firefox::{PageEvent, WorkerEvent};
+    use futures::{AsyncReadExt, StreamExt};
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.respond(
+        "/file.txt",
+        "200 OK",
+        &[
+            ("Content-Type", "text/plain"),
+            ("Content-Disposition", "attachment; filename=file.txt"),
+        ],
+        "downloaded",
+    );
+    server.route(
+        "/w.js",
+        "text/javascript",
+        "onmessage = e => postMessage(e.data * 2);",
+        0,
+    );
+    server.route("/kid.html", "text/html", "<a href='/kid2.html'>next</a>", 0);
+    server.route("/kid2.html", "text/html", "<p>two</p>", 0);
+    server.route(
+        "/p.html",
+        "text/html",
+        "<iframe name=k src='/kid.html'></iframe>",
+        0,
+    );
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser
+        .new_context(chromiumoxide::ContextOptions {
+            accept_downloads: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+    let mut events = page.events();
+
+    // Console message details.
+    page.evaluate::<()>("console.log('hello', 5, { a: 1 })")
+        .await
+        .unwrap();
+    let message = loop {
+        if let Some(PageEvent::Console(m)) = events.next().await {
+            break m;
+        }
+    };
+    assert_eq!(message.args().len(), 3);
+    assert_eq!(message.args()[1].json_value().await.unwrap(), 5);
+    assert_eq!(
+        message.args()[2].json_value().await.unwrap(),
+        serde_json::json!({"a": 1})
+    );
+    assert!(message.timestamp() > 0.0);
+    assert!(message.page().is_some());
+    assert!(message.worker().is_none());
+    let _ = message.location();
+
+    // Dialog page.
+    let dialog = {
+        let page = page.clone();
+        tokio::spawn(async move { page.evaluate::<()>("alert('hi')").await })
+    };
+    let d = loop {
+        if let Some(PageEvent::Dialog(d)) = events.next().await {
+            break d;
+        }
+    };
+    assert!(std::ptr::eq(d.page(), d.page()));
+    d.dismiss().await.unwrap();
+    dialog.await.unwrap().unwrap();
+
+    // Download page, read stream, delete; cancel is not in WebDriver BiDi.
+    page.set_content(&format!("<a href='{}'>dl</a>", server.url("/file.txt")))
+        .await
+        .unwrap();
+    page.locator("a").click().await.unwrap();
+    let download = loop {
+        if let Some(PageEvent::Download(d)) = events.next().await {
+            break d;
+        }
+    };
+    assert!(download.page().is_some());
+    let mut text = String::new();
+    download
+        .create_read_stream()
+        .await
+        .unwrap()
+        .read_to_string(&mut text)
+        .await
+        .unwrap();
+    assert_eq!(text, "downloaded");
+    let path = download.path().await.unwrap();
+    download.delete().await.unwrap();
+    assert!(!path.exists());
+    assert!(
+        download
+            .cancel()
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("BiDi")
+    );
+
+    // File chooser.
+    page.set_content("<input type=file multiple>")
+        .await
+        .unwrap();
+    page.locator("input").click().await.unwrap();
+    let chooser = loop {
+        if let Some(PageEvent::FileChooser(c)) = events.next().await {
+            break c;
+        }
+    };
+    assert!(chooser.is_multiple());
+    assert!(std::ptr::eq(chooser.page(), chooser.page()));
+    let file = std::env::temp_dir().join("cox-ff-chooser.txt");
+    std::fs::write(&file, "x").unwrap();
+    chooser.set_files(&[file.clone()]).await.unwrap();
+    assert_eq!(
+        chooser
+            .element()
+            .evaluate::<String>("e => e.files[0].name")
+            .await
+            .unwrap(),
+        "cox-ff-chooser.txt"
+    );
+
+    // Worker handles and events.
+    page.goto(&server.url("/p.html")).await.unwrap();
+    page.evaluate::<()>("window.w = new Worker('/w.js')")
+        .await
+        .unwrap();
+    page.wait_for_function("true").await.unwrap();
+    let worker = loop {
+        if let Some(w) = page.workers().into_iter().next() {
+            break w;
+        }
+        page.wait_for_timeout(std::time::Duration::from_millis(50))
+            .await;
+    };
+    let h = worker.evaluate_handle("({ x: 1 })").await.unwrap();
+    assert_eq!(h.json_value().await.unwrap(), serde_json::json!({"x": 1}));
+    let closed = worker.wait_for_event(|e| matches!(e, WorkerEvent::Close).then_some(()));
+    page.evaluate::<()>("w.terminate()").await.unwrap();
+    // Firefox reports a terminated worker when its realm goes away.
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(5), closed).await;
+
+    // Frame.waitForNavigation.
+    let kid = page.frame("k").await.unwrap().unwrap();
+    let nav = kid.wait_for_navigation();
+    kid.click("a").await.unwrap();
+    nav.await.unwrap();
+    assert_eq!(kid.inner_text("p").await.unwrap(), "two");
+
+    // Touchscreen needs hasTouch.
+    assert!(
+        page.touchscreen()
+            .tap(1.0, 1.0)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("hasTouch")
+    );
+    browser.close().await.unwrap();
+}

@@ -109,15 +109,16 @@ ENGINES = {
     # WebKit shares Firefox's Request and Response types.
     'webkit': glob.glob(app + 'webkit*.rs'),
 }
-shared = {'webkit': {'Request', 'Response'}}
+# Types an engine re-exports from another module: class -> source files.
+BORROWED = {
+    'firefox': {'WebSocket': [app + 'websocket.rs']},
+}
 
 totals = {}
 for engine, files in ENGINES.items():
     fns = impl_fns(files)
-    if engine in shared:
-        ff = impl_fns(ENGINES['firefox'])
-        for t in shared[engine]:
-            fns[t] = ff.get(t, set())
+    for cls, borrowed in BORROWED.get(engine, {}).items():
+        fns[cls] = impl_fns(borrowed).get(cls, set())
     have = total = 0
     for cls in CLASSES:
         ms = sorted(methods(cls))
