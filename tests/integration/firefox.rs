@@ -621,3 +621,109 @@ async fn firefox_routes_requests() {
     );
     browser.close().await.unwrap();
 }
+
+/// Network on Firefox: context.route (for every page of the context,
+/// page routes first), request / response / requestfinished /
+/// requestfailed events, and HTTP credentials (httpCredentials).
+#[tokio::test]
+async fn firefox_network_events_context_routes_and_auth() {
+    use chromiumoxide::firefox::PageEvent;
+    use chromiumoxide::{ContextOptions, HttpCredentials};
+    use futures::StreamExt;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/n.html", "text/html", "<p>n</p>", 0);
+    server.route("/data.txt", "text/plain", "real data", 0);
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions {
+            http_credentials: Some(HttpCredentials {
+                username: "user".into(),
+                password: "pass".into(),
+                origin: None,
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    context
+        .route("**/ctx/*", |route| async move {
+            route.fulfill().body("from the context").await.unwrap();
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    let mut events = page.events();
+    page.goto(&server.url("/n.html")).await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("fetch('/ctx/a').then(r => r.text())")
+            .await
+            .unwrap(),
+        "from the context"
+    );
+    // A page route wins over the context's.
+    page.route("**/ctx/b", |route| async move {
+        route.fulfill().body("from the page").await.unwrap();
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        page.evaluate::<String>("fetch('/ctx/b').then(r => r.text())")
+            .await
+            .unwrap(),
+        "from the page"
+    );
+    // Context routes also apply to pages opened later.
+    let second = context.new_page().await.unwrap();
+    second.goto(&server.url("/n.html")).await.unwrap();
+    assert_eq!(
+        second
+            .evaluate::<String>("fetch('/ctx/c').then(r => r.text())")
+            .await
+            .unwrap(),
+        "from the context"
+    );
+
+    // Request / response events.
+    assert_eq!(
+        page.evaluate::<String>("fetch('/data.txt').then(r => r.text())")
+            .await
+            .unwrap(),
+        "real data"
+    );
+    let _ = page
+        .evaluate::<String>("fetch('http://127.0.0.1:1/nope').then(() => 'ok', () => 'failed')")
+        .await
+        .unwrap();
+    let (mut request, mut response, mut finished, mut failed) = (false, false, false, false);
+    while !(request && response && finished && failed) {
+        let event = tokio::time::timeout(std::time::Duration::from_secs(10), events.next())
+            .await
+            .expect("network events within 10 s")
+            .unwrap();
+        match event {
+            PageEvent::Request(r) if r.url().ends_with("/data.txt") => {
+                assert_eq!(r.method(), "GET");
+                request = true;
+            }
+            PageEvent::Response(r) if r.url().ends_with("/data.txt") => {
+                assert_eq!(r.status(), 200);
+                assert_eq!(r.header_value("content-type"), Some("text/plain"));
+                response = true;
+            }
+            PageEvent::RequestFinished(r) if r.url().ends_with("/data.txt") => finished = true,
+            PageEvent::RequestFailed(r) if r.url().contains("127.0.0.1:1/") => failed = true,
+            _ => {}
+        }
+    }
+
+    // httpCredentials answer the server's Basic challenge.
+    page.goto(&server.url("/protected")).await.unwrap();
+    assert_eq!(
+        page.locator("body").inner_text().await.unwrap(),
+        "secret ok"
+    );
+    browser.close().await.unwrap();
+}
