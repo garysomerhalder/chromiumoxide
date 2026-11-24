@@ -142,10 +142,10 @@ async fn open_session(bidi: &Arc<dyn BidiSession>) -> Result<String> {
 /// A Firefox browser driven over WebDriver BiDi.
 #[derive(Clone)]
 pub struct Browser {
-    inner: Arc<BrowserInner>,
+    pub(crate) inner: Arc<BrowserInner>,
 }
 
-struct BrowserInner {
+pub(crate) struct BrowserInner {
     bidi: Arc<dyn BidiSession>,
     services: Services,
     process: Mutex<Option<Box<dyn BrowserProcess>>>,
@@ -155,7 +155,9 @@ struct BrowserInner {
     /// User contexts made by this client (removed when a connected
     /// browser closes).
     created: Mutex<Vec<String>>,
-    closed: AtomicBool,
+    /// The contexts made through this object (`browser.contexts()`).
+    pub(crate) contexts: Mutex<Vec<std::sync::Weak<ContextInner>>>,
+    pub(crate) closed: AtomicBool,
 }
 
 impl std::fmt::Debug for Browser {
@@ -242,6 +244,7 @@ impl Browser {
                 profile: None,
                 version,
                 created: Mutex::new(Vec::new()),
+                contexts: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
             }),
         })
@@ -322,6 +325,7 @@ impl Browser {
                 profile: (!keep_profile).then_some(profile),
                 version,
                 created: Mutex::new(Vec::new()),
+                contexts: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
             }),
         })
@@ -388,6 +392,13 @@ impl Browser {
         let viewport = options
             .viewport
             .map_or((1280, 720), |v| (v.width, v.height));
+        let extra_headers: Vec<(String, String)> = options
+            .extra_http_headers
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let credentials = options.http_credentials.clone();
+        let permissions = options.permissions.clone();
         let context = BrowserContext {
             inner: Arc::new(ContextInner {
                 bidi: bidi.clone(),
@@ -416,6 +427,12 @@ impl Browser {
                 persistent: Mutex::new(persistent),
                 timeouts: Mutex::new(Timeouts::default()),
                 paused: tokio::sync::watch::channel(false).0,
+                browser: Arc::downgrade(&self.inner),
+                extra_headers: Mutex::new(extra_headers),
+                credentials: Mutex::new(credentials),
+                granted_any: Mutex::new(permissions),
+                granted: Mutex::new(Vec::new()),
+                subscribers: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
             }),
         };
@@ -437,6 +454,11 @@ impl Browser {
             let _ = context.close().await;
             return Err(e);
         }
+        self.inner
+            .contexts
+            .lock()
+            .unwrap()
+            .push(Arc::downgrade(&context.inner));
         if let Err(e) = context.apply_emulation().await {
             let _ = context.close().await;
             return Err(e);
@@ -495,13 +517,13 @@ impl Browser {
 /// A Firefox browser context (a BiDi user context).
 #[derive(Clone)]
 pub struct BrowserContext {
-    inner: Arc<ContextInner>,
+    pub(crate) inner: Arc<ContextInner>,
 }
 
 pub(crate) struct ContextInner {
-    bidi: Arc<dyn BidiSession>,
-    services: Services,
-    user_context: String,
+    pub(crate) bidi: Arc<dyn BidiSession>,
+    pub(crate) services: Services,
+    pub(crate) user_context: String,
     options: Arc<ContextOptions>,
     /// `context.route` handlers, shared with the context's pages.
     routes: Arc<Mutex<Vec<RouteEntry>>>,
@@ -520,7 +542,25 @@ pub(crate) struct ContextInner {
     pub(crate) timeouts: Mutex<Timeouts>,
     /// `page.pause()` waits while this is true; `context.resume()` clears it.
     pub(crate) paused: tokio::sync::watch::Sender<bool>,
-    closed: AtomicBool,
+    /// The browser object that made this context.
+    pub(crate) browser: std::sync::Weak<BrowserInner>,
+    /// `context.setExtraHTTPHeaders` (starts as the option).
+    pub(crate) extra_headers: Mutex<Vec<(String, String)>>,
+    /// `context.setHTTPCredentials` (starts as the option).
+    pub(crate) credentials: Mutex<Option<crate::domain::emulation::HttpCredentials>>,
+    /// Permissions granted for any origin (applied to each origin a page
+    /// navigates to) and the `(origin, name)` pairs set so far.
+    pub(crate) granted_any: Mutex<Vec<String>>,
+    pub(crate) granted: Mutex<Vec<(String, String)>>,
+    /// `context.events()` subscribers.
+    pub(crate) subscribers: Mutex<
+        Vec<
+            futures::channel::mpsc::UnboundedSender<
+                crate::application::firefox_events::ContextEvent,
+            >,
+        >,
+    >,
+    pub(crate) closed: AtomicBool,
 }
 
 /// Default timeouts set on a page or context (`None`: not set there).
@@ -547,6 +587,15 @@ impl std::fmt::Debug for BrowserContext {
         f.debug_struct("firefox::BrowserContext")
             .field("user_context", &self.inner.user_context)
             .finish()
+    }
+}
+
+impl ContextInner {
+    /// Sends an event to `context.events()` subscribers; false if none.
+    pub(crate) fn emit(&self, event: crate::application::firefox_events::ContextEvent) -> bool {
+        let mut subs = self.subscribers.lock().unwrap();
+        subs.retain(|s| s.unbounded_send(event.clone()).is_ok());
+        !subs.is_empty()
     }
 }
 
@@ -634,6 +683,13 @@ impl BrowserContext {
             json!({"downloadBehavior": behavior, "userContexts": ucs}),
         )
         .await?;
+        if o.offline {
+            bidi.call(
+                "emulation.setNetworkConditions",
+                json!({"networkConditions": {"type": "offline"}, "userContexts": ucs}),
+            )
+            .await?;
+        }
         if !o.extra_http_headers.is_empty() {
             let headers: Vec<Value> = o
                 .extra_http_headers
@@ -649,7 +705,7 @@ impl BrowserContext {
         Ok(())
     }
 
-    fn live_pages(&self) -> Vec<Page> {
+    pub(crate) fn live_pages(&self) -> Vec<Page> {
         let mut pages = self.inner.pages.lock().unwrap();
         pages.retain(|p| !p.closed.load(Ordering::SeqCst));
         pages
@@ -726,7 +782,7 @@ impl BrowserContext {
     /// Playwright's way to restore `storageState`: the cookies, then per
     /// origin a temporary page served a blank document (the site is never
     /// loaded) that writes the localStorage.
-    async fn restore_storage_state(&self, state: &StorageState) -> Result<()> {
+    pub(crate) async fn restore_storage_state(&self, state: &StorageState) -> Result<()> {
         if !state.cookies.is_empty() {
             let cookies: Vec<NewCookie> = state.cookies.iter().map(Cookie::to_new_cookie).collect();
             self.add_cookies(&cookies).await?;
@@ -762,7 +818,7 @@ impl BrowserContext {
         Ok(())
     }
 
-    fn partition(&self) -> Value {
+    pub(crate) fn partition(&self) -> Value {
         json!({"type": "storageKey", "userContext": self.inner.user_context})
     }
 
@@ -866,6 +922,8 @@ impl BrowserContext {
         if self.inner.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
+        self.inner
+            .emit(crate::application::firefox_events::ContextEvent::Close);
         let har = self.inner.recorders.flush_har(&self.live_pages()).await;
         let pages = self.live_pages();
         let persistent = self.inner.persistent.lock().unwrap().take();
@@ -935,6 +993,7 @@ async fn attach_page(
         opener: Mutex::new(None),
         timeouts: Mutex::new(Timeouts::default()),
         picking: AtomicBool::new(false),
+        extra_headers: Mutex::new(Vec::new()),
         closed: AtomicBool::new(false),
     });
     ctx.pages.lock().unwrap().push(inner.clone());
@@ -991,7 +1050,10 @@ async fn attach_page(
     *page.inner.video.lock().unwrap() = video;
     ctx.recorders.page_created(&page);
     page.sync_intercept().await?;
-    if ctx.options.http_credentials.is_some() {
+    ctx.emit(crate::application::firefox_events::ContextEvent::Page(
+        page.clone(),
+    ));
+    if ctx.credentials.lock().unwrap().is_some() {
         page.inner
             .bidi
             .call(
@@ -1056,6 +1118,8 @@ pub(crate) struct PageInner {
     pub(crate) timeouts: Mutex<Timeouts>,
     /// While `page.pickLocator()` runs.
     pub(crate) picking: AtomicBool,
+    /// `page.setExtraHTTPHeaders`.
+    pub(crate) extra_headers: Mutex<Vec<(String, String)>>,
     closed: AtomicBool,
 }
 
@@ -1186,9 +1250,16 @@ impl Page {
                 _ => {}
             }
         }
+        let context_listened = match (
+            crate::application::firefox_events::ContextEvent::from_page(&event),
+            self.inner.owner.upgrade(),
+        ) {
+            (Some(e), Some(ctx)) => ctx.emit(e),
+            _ => false,
+        };
         let mut subs = self.inner.subscribers.lock().unwrap();
         subs.retain(|s| s.unbounded_send(event.clone()).is_ok());
-        !subs.is_empty()
+        !subs.is_empty() || context_listened
     }
 
     /// Turns one BiDi event for this page into page events.
@@ -1326,6 +1397,22 @@ impl Page {
             }
             "browsingContext.load" => {
                 self.emit(PageEvent::Load);
+            }
+            "browsingContext.navigationStarted" => {
+                if let (Some(ctx), Some(origin)) = (
+                    self.inner.owner.upgrade(),
+                    crate::domain::firefox::origin_of(p["url"].as_str().unwrap_or_default()),
+                ) {
+                    let names = ctx.granted_any.lock().unwrap().clone();
+                    if !names.is_empty() {
+                        let context = BrowserContext::from_inner(ctx);
+                        tokio::spawn(async move {
+                            let _ = context
+                                .set_permissions_for(&origin, &names, "granted")
+                                .await;
+                        });
+                    }
+                }
             }
             "browsingContext.contextDestroyed" => {
                 self.emit(PageEvent::Close);
@@ -1556,9 +1643,9 @@ impl Page {
         let first = self.inner.auth_attempts.lock().unwrap().insert(id.clone());
         let credentials = self
             .inner
-            .options
-            .http_credentials
-            .clone()
+            .owner
+            .upgrade()
+            .and_then(|ctx| ctx.credentials.lock().unwrap().clone())
             .filter(|_| first)
             .filter(|c| match &c.origin {
                 None => true,

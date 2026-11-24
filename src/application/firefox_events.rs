@@ -7,6 +7,38 @@ use serde_json::json;
 use crate::application::firefox::Page;
 use crate::domain::error::Result;
 
+/// `context.on(...)` events of a Firefox context (`context.events()`).
+#[derive(Clone, Debug)]
+pub enum ContextEvent {
+    /// A page opened in the context (`context.on('page')`).
+    Page(crate::application::firefox::Page),
+    Console(ConsoleMessage),
+    Dialog(Dialog),
+    Request(crate::application::firefox_route::Request),
+    Response(crate::application::firefox_route::Response),
+    RequestFinished(crate::application::firefox_route::Request),
+    RequestFailed(crate::application::firefox_route::Request),
+    /// An uncaught error in a page (`context.on('weberror')`).
+    WebError(PageError),
+    Close,
+}
+
+impl ContextEvent {
+    /// The context event a page event is also reported as, if any.
+    pub(crate) fn from_page(event: &PageEvent) -> Option<ContextEvent> {
+        Some(match event {
+            PageEvent::Console(m) => ContextEvent::Console(m.clone()),
+            PageEvent::Dialog(d) => ContextEvent::Dialog(d.clone()),
+            PageEvent::Request(r) => ContextEvent::Request(r.clone()),
+            PageEvent::Response(r) => ContextEvent::Response(r.clone()),
+            PageEvent::RequestFinished(r) => ContextEvent::RequestFinished(r.clone()),
+            PageEvent::RequestFailed(r) => ContextEvent::RequestFailed(r.clone()),
+            PageEvent::PageError(e) => ContextEvent::WebError(e.clone()),
+            _ => return None,
+        })
+    }
+}
+
 /// Something that happened on a Firefox page (`page.on(...)` in Playwright).
 #[derive(Debug, Clone)]
 pub enum PageEvent {

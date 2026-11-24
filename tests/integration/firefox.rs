@@ -2187,7 +2187,7 @@ async fn firefox_context_settings_and_events() {
     context
         .grant_permissions(
             &["geolocation"],
-            Some(&server.url("/").trim_end_matches('/').to_owned()),
+            Some(server.url("/").trim_end_matches('/')),
         )
         .await
         .unwrap();
@@ -2228,7 +2228,16 @@ async fn firefox_context_settings_and_events() {
         .unwrap();
     assert!(context.cookies().await.unwrap().is_empty());
     context.set_storage_state(&saved).await.unwrap();
-    assert_eq!(context.cookies().await.unwrap().len(), 1);
+    // `a=1`, and the `from_server` cookie /dump set earlier.
+    assert_eq!(context.cookies().await.unwrap().len(), saved.cookies.len());
+    assert!(
+        context
+            .cookies()
+            .await
+            .unwrap()
+            .iter()
+            .any(|c| c.name == "a")
+    );
     page.reload().await.unwrap();
     assert_eq!(
         page.evaluate::<String>("localStorage.getItem('k')")

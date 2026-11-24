@@ -189,14 +189,19 @@ pub fn unsupported_context_options(o: &ContextOptions) -> Vec<&'static str> {
     check(o.reduced_motion.is_some(), "reducedMotion");
     check(o.forced_colors.is_some(), "forcedColors");
     check(o.contrast.is_some(), "contrast");
-    check(!o.permissions.is_empty(), "permissions");
-    check(o.offline, "offline");
     check(o.proxy.is_some(), "proxy");
     check(!o.client_certificates.is_empty(), "clientCertificates");
     check(!o.java_script_enabled, "javaScriptEnabled");
     check(o.bypass_csp, "bypassCSP");
     check(o.service_workers != ServiceWorkers::Allow, "serviceWorkers");
     out
+}
+
+/// The origin (`scheme://host[:port]`) of an http(s) URL, for BiDi
+/// permissions; `None` for other URLs.
+pub fn origin_of(url: &str) -> Option<String> {
+    let u = url::Url::parse(url).ok()?;
+    matches!(u.scheme(), "http" | "https").then(|| u.origin().ascii_serialization())
 }
 
 /// A BiDi `script.RemoteValue` as JSON, the way Playwright's `evaluate`
