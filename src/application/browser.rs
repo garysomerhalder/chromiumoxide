@@ -41,6 +41,11 @@ pub struct LaunchOptions {
     pub timeout: Duration,
     /// Pipe (default) or WebSocket.
     pub channel: Channel,
+    /// Playwright's `channel`: an installed branded browser by name
+    /// (`chrome`, `chrome-beta`, `chrome-dev`, `chrome-canary`, `msedge`,
+    /// `msedge-beta`, `msedge-dev`, `msedge-canary`) instead of the default
+    /// discovery. `executable_path` wins when both are set.
+    pub browser_channel: Option<String>,
     /// Route the browser's traffic through a proxy (Playwright's `proxy`).
     pub proxy: Option<crate::domain::launch::Proxy>,
     /// Playwright's `slowMo`: wait this long after each action, navigation
@@ -79,6 +84,7 @@ impl Default for LaunchOptions {
             env: Vec::new(),
             timeout: Duration::from_secs(180),
             channel: Channel::Pipe,
+            browser_channel: None,
             proxy: None,
             slow_mo: Duration::ZERO,
             downloads_path: None,
@@ -281,11 +287,18 @@ impl Browser {
         options: LaunchOptions,
         persistent: Option<(PathBuf, ContextOptions)>,
     ) -> Result<(Browser, Option<BrowserContext>)> {
-        let found = discover(
-            &*services.fs,
-            &*services.env,
-            options.executable_path.as_deref(),
-        )?;
+        let found = match (&options.executable_path, &options.browser_channel) {
+            (None, Some(name)) => crate::application::discovery::discover_channel(
+                &*services.fs,
+                &*services.env,
+                name,
+            )?,
+            _ => discover(
+                &*services.fs,
+                &*services.env,
+                options.executable_path.as_deref(),
+            )?,
+        };
         let user_data_dir = match &persistent {
             Some((dir, _)) => dir.clone(),
             None => services.fs.create_temp_dir("chromiumoxide-profile-")?,

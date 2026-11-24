@@ -268,6 +268,71 @@ pub fn executables_within(os: Os) -> Vec<PathBuf> {
     rel.iter().map(PathBuf::from).collect()
 }
 
+/// Where Playwright looks for a branded browser `channel` (`chrome`,
+/// `chrome-beta`, `chrome-dev`, `chrome-canary`, `msedge`, `msedge-beta`,
+/// `msedge-dev`, `msedge-canary`), in order. An unknown name, or a channel
+/// that does not exist on this system (no canary on Linux), is an error.
+pub fn channel_paths(channel: &str, env: &DiscoveryEnv) -> Result<Vec<PathBuf>, String> {
+    let unsupported = || format!("Unsupported chromium channel \"{channel}\"");
+    let (linux, mac, windows): (Option<&str>, &str, &str) = match channel {
+        "chrome" => (
+            Some("/opt/google/chrome/chrome"),
+            "Google Chrome",
+            "Google/Chrome/Application/chrome.exe",
+        ),
+        "chrome-beta" => (
+            Some("/opt/google/chrome-beta/chrome"),
+            "Google Chrome Beta",
+            "Google/Chrome Beta/Application/chrome.exe",
+        ),
+        "chrome-dev" => (
+            Some("/opt/google/chrome-unstable/chrome"),
+            "Google Chrome Dev",
+            "Google/Chrome Dev/Application/chrome.exe",
+        ),
+        "chrome-canary" => (
+            None,
+            "Google Chrome Canary",
+            "Google/Chrome SxS/Application/chrome.exe",
+        ),
+        "msedge" => (
+            Some("/opt/microsoft/msedge/msedge"),
+            "Microsoft Edge",
+            "Microsoft/Edge/Application/msedge.exe",
+        ),
+        "msedge-beta" => (
+            Some("/opt/microsoft/msedge-beta/msedge"),
+            "Microsoft Edge Beta",
+            "Microsoft/Edge Beta/Application/msedge.exe",
+        ),
+        "msedge-dev" => (
+            Some("/opt/microsoft/msedge-dev/msedge"),
+            "Microsoft Edge Dev",
+            "Microsoft/Edge Dev/Application/msedge.exe",
+        ),
+        "msedge-canary" => (
+            None,
+            "Microsoft Edge Canary",
+            "Microsoft/Edge SxS/Application/msedge.exe",
+        ),
+        _ => return Err(unsupported()),
+    };
+    match env.os {
+        Os::Linux => linux
+            .map(|p| vec![PathBuf::from(p)])
+            .ok_or_else(|| format!("Chromium distribution '{channel}' is not supported on Linux")),
+        Os::MacOs => Ok(vec![PathBuf::from(format!(
+            "/Applications/{mac}.app/Contents/MacOS/{mac}"
+        ))]),
+        Os::Windows => Ok(env
+            .local_app_data
+            .iter()
+            .chain(&env.program_files)
+            .map(|root| root.join(windows))
+            .collect()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

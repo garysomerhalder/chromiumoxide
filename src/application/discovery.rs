@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::domain::discovery::{
-    DiscoveryEnv, Os, Probe, Source, executables_within, probes, rank_entries,
+    DiscoveryEnv, Os, Probe, Source, channel_paths, executables_within, probes, rank_entries,
 };
 use crate::domain::error::{Error, Result};
 use crate::domain::launch::BrowserKind;
@@ -96,6 +96,32 @@ pub fn discover(
         }
     }
     Err(Error::BrowserNotFound { tried })
+}
+
+/// Finds the installed browser of a Playwright `channel` (`msedge`,
+/// `chrome-beta`, ...); the default discovery is not consulted.
+pub fn discover_channel(
+    fs: &dyn FileSystem,
+    env: &dyn Environment,
+    channel: &str,
+) -> Result<Discovered> {
+    let snapshot = discovery_env(env, None);
+    let paths = channel_paths(channel, &snapshot).map_err(Error::InvalidArgument)?;
+    match paths.iter().find(|p| fs.is_file(p)) {
+        Some(path) => Ok(Discovered {
+            kind: BrowserKind::from_executable(path),
+            executable: path.clone(),
+            source: Source::System,
+        }),
+        None => Err(Error::Launch(format!(
+            "Chromium distribution '{channel}' is not found at {}",
+            paths
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))),
+    }
 }
 
 #[cfg(test)]
