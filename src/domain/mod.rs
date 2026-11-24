@@ -19,6 +19,7 @@ pub mod image;
 pub mod input;
 pub mod launch;
 pub mod locator_gen;
+pub mod mac_editing;
 pub mod network;
 pub mod pdf;
 pub mod registry;
