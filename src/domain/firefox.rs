@@ -427,6 +427,50 @@ pub fn playwright_dirs(
 #[cfg(test)]
 mod tests {
     #[test]
+    fn resource_types_from_bidi_destination_and_initiator() {
+        use super::resource_type;
+        assert_eq!(resource_type("document", None), "document");
+        assert_eq!(resource_type("iframe", None), "document");
+        assert_eq!(resource_type("style", Some("link")), "stylesheet");
+        assert_eq!(resource_type("script", Some("script")), "script");
+        assert_eq!(resource_type("image", Some("img")), "image");
+        assert_eq!(resource_type("font", None), "font");
+        assert_eq!(resource_type("video", None), "media");
+        assert_eq!(resource_type("track", None), "texttrack");
+        assert_eq!(resource_type("manifest", None), "manifest");
+        assert_eq!(resource_type("", Some("fetch")), "fetch");
+        assert_eq!(resource_type("", Some("xmlhttprequest")), "xhr");
+        assert_eq!(resource_type("", Some("beacon")), "ping");
+        assert_eq!(resource_type("", None), "other");
+    }
+
+    #[test]
+    fn timing_from_bidi_is_relative_to_the_request_time() {
+        use serde_json::json;
+        let t = super::timing_from_bidi(&json!({
+            "requestTime": 1000.0, "fetchStart": 1001.0, "dnsStart": 1002.0, "dnsEnd": 1003.0,
+            "connectStart": 1004.0, "connectEnd": 1006.0, "tlsStart": 0, "tlsEnd": 1006.0,
+            "requestStart": 1007.0, "responseStart": 1010.0, "responseEnd": 1012.0}));
+        assert_eq!(t.start_time, 1000.0);
+        assert_eq!(t.domain_lookup_start, 2.0);
+        assert_eq!(t.domain_lookup_end, 3.0);
+        assert_eq!(t.connect_start, 4.0);
+        assert_eq!(t.secure_connection_start, -1.0);
+        assert_eq!(t.connect_end, 6.0);
+        assert_eq!(t.request_start, 7.0);
+        assert_eq!(t.response_start, 10.0);
+        assert_eq!(t.response_end, 12.0);
+    }
+
+    #[test]
+    fn http_versions_from_bidi_protocols() {
+        assert_eq!(super::http_version_of("http/1.1"), "HTTP/1.1");
+        assert_eq!(super::http_version_of("h2"), "HTTP/2.0");
+        assert_eq!(super::http_version_of("h3"), "HTTP/3.0");
+        assert_eq!(super::http_version_of(""), "HTTP/1.1");
+    }
+
+    #[test]
     fn playwright_folders_on_every_system() {
         use std::path::PathBuf;
         let p = PathBuf::from;

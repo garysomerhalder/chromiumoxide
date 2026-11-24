@@ -2423,3 +2423,118 @@ async fn firefox_js_and_element_handles() {
     );
     browser.close().await.unwrap();
 }
+
+/// Firefox: Request and Response details (post data, resource type,
+/// navigation, frame, redirects, response() / finished(), bodies, headers,
+/// timing, sizes, HTTP version).
+#[tokio::test]
+async fn firefox_request_and_response_details() {
+    use chromiumoxide::firefox::PageEvent;
+    use futures::StreamExt;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/page.html", "text/html", "<title>p</title>", 0);
+    server.route("/data.json", "application/json", r#"{"a":1}"#, 0);
+    server.respond("/redirect", "302 Found", &[("Location", "/page.html")], "");
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+
+    // A navigation through a redirect.
+    let mut events = page.events();
+    page.goto(&server.url("/redirect")).await.unwrap();
+    let mut requests = Vec::new();
+    let mut responses = Vec::new();
+    while responses.len() < 2 {
+        match events.next().await.unwrap() {
+            PageEvent::Request(r) => requests.push(r),
+            PageEvent::Response(r) => responses.push(r),
+            _ => {}
+        }
+    }
+    let final_request = requests.last().unwrap().clone();
+    assert!(final_request.url().ends_with("/page.html"));
+    assert!(final_request.is_navigation_request());
+    assert_eq!(final_request.resource_type(), "document");
+    let first = final_request.redirected_from().expect("redirected from");
+    assert!(first.url().ends_with("/redirect"));
+    assert!(first.redirected_to().unwrap().url().ends_with("/page.html"));
+    assert_eq!(first.existing_response().unwrap().status(), 302);
+    let response = final_request.response().await.unwrap().unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.text().await.unwrap(), "<title>p</title>");
+    assert_eq!(response.http_version(), "HTTP/1.1");
+    assert!(response.request().url().ends_with("/page.html"));
+    assert!(response.frame().await.unwrap().is_some());
+    assert!(final_request.frame().await.unwrap().is_some());
+    assert!(response.finished().await.unwrap().is_none());
+    assert_eq!(
+        response
+            .all_headers()
+            .await
+            .unwrap()
+            .get("content-type")
+            .map(String::as_str),
+        Some("text/html")
+    );
+    assert!(
+        response
+            .headers_array()
+            .iter()
+            .any(|(k, _)| k.eq_ignore_ascii_case("content-length"))
+    );
+    assert_eq!(response.header_values("content-type"), ["text/html"]);
+    assert!(!response.from_service_worker());
+    assert!(final_request.service_worker().is_none());
+    let timing = final_request.timing();
+    assert!(
+        timing.start_time > 0.0 && timing.response_end >= 0.0,
+        "{timing:?}"
+    );
+    let sizes = final_request.sizes().await.unwrap();
+    assert!(sizes.response_body_size > 0, "{sizes:?}");
+    assert!(
+        final_request
+            .all_headers()
+            .await
+            .unwrap()
+            .contains_key("user-agent")
+    );
+    assert!(!final_request.headers_array().is_empty());
+
+    // A fetch with a body, and its JSON response.
+    let request = page.wait_for_request("**/data.json");
+    let body: serde_json::Value = page
+        .evaluate("fetch('/data.json', { method: 'POST', body: JSON.stringify({ q: 2 }) }).then(r => r.json())")
+        .await
+        .unwrap();
+    assert_eq!(body["a"], 1);
+    let request = request.await.unwrap();
+    assert_eq!(request.method(), "POST");
+    assert_eq!(request.resource_type(), "fetch");
+    assert!(!request.is_navigation_request());
+    assert_eq!(
+        request.post_data().await.unwrap().as_deref(),
+        Some(r#"{"q":2}"#)
+    );
+    assert_eq!(
+        request.post_data_buffer().await.unwrap().unwrap(),
+        br#"{"q":2}"#
+    );
+    assert_eq!(
+        request
+            .post_data_json::<serde_json::Value>()
+            .await
+            .unwrap()
+            .unwrap()["q"],
+        2
+    );
+    let response = request.response().await.unwrap().unwrap();
+    assert_eq!(response.json::<serde_json::Value>().await.unwrap()["a"], 1);
+    assert_eq!(response.body().await.unwrap(), br#"{"a":1}"#);
+    // BiDi does not report the server address or TLS details.
+    assert!(response.server_addr().is_none());
+    assert!(response.security_details().is_none());
+    browser.close().await.unwrap();
+}
