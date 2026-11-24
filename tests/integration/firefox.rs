@@ -783,3 +783,46 @@ async fn firefox_downloads() {
     std::fs::remove_file(&copy).unwrap();
     browser.close().await.unwrap();
 }
+
+/// Iframes on Firefox: frame_locator (reads, clicks and fills inside an
+/// offset iframe, assertions), page.frames() and frame.evaluate.
+#[tokio::test]
+async fn firefox_frames() {
+    use chromiumoxide::expect;
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<p>top</p><iframe id=f style='margin: 60px 0 0 80px; border: 7px solid red; padding: 5px'
+           srcdoc=\"<button onclick='this.textContent=&quot;clicked&quot;'>in frame</button><input id=i>\"></iframe>",
+    )
+    .await
+    .unwrap();
+    let frame = page.frame_locator("#f");
+    assert_eq!(
+        frame.locator("button").inner_text().await.unwrap(),
+        "in frame"
+    );
+    frame.locator("button").click().await.unwrap();
+    expect(&frame.get_by_text("clicked"))
+        .to_be_visible()
+        .await
+        .unwrap();
+    frame.locator("#i").fill("typed").await.unwrap();
+    assert_eq!(frame.locator("#i").input_value().await.unwrap(), "typed");
+    assert_eq!(page.locator("button").count().await.unwrap(), 0);
+
+    let frames = page.frames().await.unwrap();
+    assert_eq!(frames.len(), 2);
+    assert_eq!(frames[1].url(), "about:srcdoc");
+    assert_eq!(
+        frames[1]
+            .evaluate::<String>("document.querySelector('button').textContent")
+            .await
+            .unwrap(),
+        "clicked"
+    );
+    browser.close().await.unwrap();
+}
