@@ -693,10 +693,20 @@ async fn firefox_network_events_context_routes_and_auth() {
             .unwrap(),
         "real data"
     );
+    // A closed port (port 1 would be refused by Firefox before any request).
+    let closed = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
     let _ = page
-        .evaluate::<String>("fetch('http://127.0.0.1:1/nope').then(() => 'ok', () => 'failed')")
+        .evaluate_with::<String, _>(
+            "port => fetch(`http://127.0.0.1:${port}/nope`).then(() => 'ok', () => 'failed')",
+            closed,
+        )
         .await
         .unwrap();
+    let closed_url = format!("127.0.0.1:{closed}/nope");
     let (mut request, mut response, mut finished, mut failed) = (false, false, false, false);
     while !(request && response && finished && failed) {
         let event = tokio::time::timeout(std::time::Duration::from_secs(10), events.next())
@@ -714,7 +724,10 @@ async fn firefox_network_events_context_routes_and_auth() {
                 response = true;
             }
             PageEvent::RequestFinished(r) if r.url().ends_with("/data.txt") => finished = true,
-            PageEvent::RequestFailed(r) if r.url().contains("127.0.0.1:1/") => failed = true,
+            PageEvent::RequestFailed(r) if r.url().contains(&closed_url) => {
+                assert!(r.failure().is_some());
+                failed = true;
+            }
             _ => {}
         }
     }

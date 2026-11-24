@@ -19,7 +19,7 @@ use crate::application::actions::{ADD_STYLE, StyleTag};
 use crate::application::firefox_events::{
     ConsoleMessage, Dialog, PageError, PageEvent, console_kind, prompt_params,
 };
-use crate::application::firefox_route::{Route, RouteEntry, RouteRequest};
+use crate::application::firefox_route::{Request, Response, Route, RouteEntry};
 use crate::application::locator::INJECTED_SOURCE;
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
 use crate::application::services::Services;
@@ -196,7 +196,7 @@ impl Browser {
             .bidi
             .call(
                 "session.subscribe",
-                json!({"events": ["browsingContext", "log.entryAdded", "network.beforeRequestSent"]}),
+                json!({"events": ["browsingContext", "log.entryAdded", "network"]}),
             )
             .await
         {
@@ -256,6 +256,8 @@ impl Browser {
                 services: self.inner.services.clone(),
                 user_context: user_context.clone(),
                 options: Arc::new(options),
+                routes: Arc::default(),
+                pages: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
             }),
         };
@@ -302,6 +304,10 @@ struct ContextInner {
     services: Services,
     user_context: String,
     options: Arc<ContextOptions>,
+    /// `context.route` handlers, shared with the context's pages.
+    routes: Arc<Mutex<Vec<RouteEntry>>>,
+    /// The context's pages (to add network intercepts for new routes).
+    pages: Mutex<Vec<std::sync::Weak<PageInner>>>,
     closed: AtomicBool,
 }
 
@@ -377,6 +383,34 @@ impl BrowserContext {
                 json!({"headers": headers, "userContexts": ucs}),
             )
             .await?;
+        }
+        Ok(())
+    }
+
+    fn live_pages(&self) -> Vec<Page> {
+        let mut pages = self.inner.pages.lock().unwrap();
+        pages.retain(|w| w.strong_count() > 0);
+        pages
+            .iter()
+            .filter_map(std::sync::Weak::upgrade)
+            .map(|inner| Page { inner })
+            .collect()
+    }
+
+    /// Registers a context route; every page gets its network intercept.
+    pub(crate) async fn add_route(&self, entry: RouteEntry) -> Result<()> {
+        self.inner.routes.lock().unwrap().push(entry);
+        for page in self.live_pages() {
+            page.sync_intercept().await?;
+        }
+        Ok(())
+    }
+
+    /// Removes context routes (and intercepts no page needs any more).
+    pub(crate) async fn remove_routes(&self, remove: impl Fn(&RouteEntry) -> bool) -> Result<()> {
+        self.inner.routes.lock().unwrap().retain(|e| !remove(e));
+        for page in self.live_pages() {
+            page.sync_intercept().await?;
         }
         Ok(())
     }
@@ -482,9 +516,16 @@ impl BrowserContext {
             url: Mutex::new("about:blank".to_owned()),
             subscribers: Mutex::new(Vec::new()),
             routes: Mutex::new(Vec::new()),
+            context_routes: self.inner.routes.clone(),
+            auth_attempts: Mutex::new(std::collections::HashSet::new()),
             intercept: tokio::sync::Mutex::new(None),
             closed: AtomicBool::new(false),
         });
+        self.inner
+            .pages
+            .lock()
+            .unwrap()
+            .push(Arc::downgrade(&inner));
         let weak = Arc::downgrade(&inner);
         tokio::spawn(async move {
             use futures::StreamExt;
@@ -520,7 +561,18 @@ impl BrowserContext {
                 }
             }
         });
-        Ok(Page { inner })
+        let page = Page { inner };
+        page.sync_intercept().await?;
+        if self.inner.options.http_credentials.is_some() {
+            page.inner
+                .bidi
+                .call(
+                    "network.addIntercept",
+                    json!({"phases": ["authRequired"], "contexts": [page.inner.context]}),
+                )
+                .await?;
+        }
+        Ok(page)
     }
 
     /// `context.close()`: closes its pages and the user context.
@@ -559,6 +611,11 @@ struct PageInner {
     url: Mutex<String>,
     /// `page.route` handlers, oldest first.
     routes: Mutex<Vec<RouteEntry>>,
+    /// The context's `context.route` handlers (shared).
+    context_routes: Arc<Mutex<Vec<RouteEntry>>>,
+    /// Requests already answered with credentials (a second challenge is
+    /// cancelled, like Playwright).
+    auth_attempts: Mutex<std::collections::HashSet<String>>,
     /// The BiDi network intercept while routes exist.
     intercept: tokio::sync::Mutex<Option<String>>,
     /// `page.events()` subscribers.
@@ -669,8 +726,35 @@ impl Page {
                     });
                 }
             }
-            "network.beforeRequestSent" if p["isBlocked"] == Value::Bool(true) => {
-                self.route_request(p);
+            "network.beforeRequestSent" => {
+                self.emit(PageEvent::Request(Request::from_bidi(&p["request"])));
+                if p["isBlocked"] == Value::Bool(true) {
+                    self.route_request(p);
+                }
+            }
+            "network.responseStarted" => {
+                let mut response = Response::from_bidi(&p["response"]);
+                if response.url.is_empty() {
+                    response.url = p
+                        .pointer("/request/url")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned();
+                }
+                self.emit(PageEvent::Response(response));
+            }
+            "network.responseCompleted" => {
+                self.emit(PageEvent::RequestFinished(Request::from_bidi(
+                    &p["request"],
+                )));
+            }
+            "network.fetchError" => {
+                let mut request = Request::from_bidi(&p["request"]);
+                request.failure = Some(text("errorText"));
+                self.emit(PageEvent::RequestFailed(request));
+            }
+            "network.authRequired" if p["isBlocked"] == Value::Bool(true) => {
+                self.answer_auth(p);
             }
             "browsingContext.domContentLoaded" => {
                 self.emit(PageEvent::DomContentLoaded);
@@ -699,16 +783,17 @@ impl Page {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
-        let request = RouteRequest::from_bidi(&p["request"]);
-        let handler = self
-            .inner
-            .routes
-            .lock()
-            .unwrap()
-            .iter()
-            .rev()
-            .find(|e| e.matcher.matches(&request.url))
-            .map(|e| e.handler.clone());
+        let request = Request::from_bidi(&p["request"]);
+        let find = |routes: &Mutex<Vec<RouteEntry>>| {
+            routes
+                .lock()
+                .unwrap()
+                .iter()
+                .rev()
+                .find(|e| e.matcher.matches(&request.url))
+                .map(|e| e.handler.clone())
+        };
+        let handler = find(&self.inner.routes).or_else(|| find(&self.inner.context_routes));
         let page = self.clone();
         tokio::spawn(async move {
             match handler {
@@ -730,43 +815,88 @@ impl Page {
         });
     }
 
-    /// Registers a route; the first one adds the page's network intercept.
+    /// Registers a page route.
     pub(crate) async fn add_route(&self, entry: RouteEntry) -> Result<()> {
         self.check_open()?;
-        let mut intercept = self.inner.intercept.lock().await;
-        if intercept.is_none() {
-            let r = self
-                .inner
-                .bidi
-                .call(
-                    "network.addIntercept",
-                    json!({"phases": ["beforeRequestSent"], "contexts": [self.inner.context]}),
-                )
-                .await?;
-            *intercept = r
-                .get("intercept")
-                .and_then(Value::as_str)
-                .map(str::to_owned);
-        }
         self.inner.routes.lock().unwrap().push(entry);
+        self.sync_intercept().await
+    }
+
+    /// Removes page routes.
+    pub(crate) async fn remove_routes(&self, remove: impl Fn(&RouteEntry) -> bool) -> Result<()> {
+        self.inner.routes.lock().unwrap().retain(|e| !remove(e));
+        self.sync_intercept().await
+    }
+
+    /// The page has a `beforeRequestSent` network intercept exactly while
+    /// it or its context has routes.
+    pub(crate) async fn sync_intercept(&self) -> Result<()> {
+        let wanted = !self.inner.routes.lock().unwrap().is_empty()
+            || !self.inner.context_routes.lock().unwrap().is_empty();
+        let mut intercept = self.inner.intercept.lock().await;
+        match (wanted, intercept.is_some()) {
+            (true, false) => {
+                let r = self
+                    .bidi_call(
+                        "network.addIntercept",
+                        json!({"phases": ["beforeRequestSent"], "contexts": [self.inner.context]}),
+                    )
+                    .await?;
+                *intercept = r
+                    .get("intercept")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned);
+            }
+            (false, true) => {
+                if let Some(id) = intercept.take() {
+                    self.bidi_call("network.removeIntercept", json!({"intercept": id}))
+                        .await?;
+                }
+            }
+            _ => {}
+        }
         Ok(())
     }
 
-    /// Removes routes; with none left the network intercept goes too.
-    pub(crate) async fn remove_routes(&self, remove: impl Fn(&RouteEntry) -> bool) -> Result<()> {
-        let mut intercept = self.inner.intercept.lock().await;
-        let empty = {
-            let mut routes = self.inner.routes.lock().unwrap();
-            routes.retain(|e| !remove(e));
-            routes.is_empty()
+    /// Answers a `network.authRequired` with the context's
+    /// `httpCredentials` (once per request, for their origin if set), or
+    /// cancels it.
+    fn answer_auth(&self, p: &Value) {
+        let id = p
+            .pointer("/request/request")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        let url = p
+            .pointer("/request/url")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let first = self.inner.auth_attempts.lock().unwrap().insert(id.clone());
+        let credentials = self
+            .inner
+            .options
+            .http_credentials
+            .clone()
+            .filter(|_| first)
+            .filter(|c| match &c.origin {
+                None => true,
+                Some(origin) => url::Url::parse(url)
+                    .map(|u| {
+                        u.origin()
+                            .ascii_serialization()
+                            .eq_ignore_ascii_case(origin)
+                    })
+                    .unwrap_or(false),
+            });
+        let params = match credentials {
+            Some(c) => json!({"request": id, "action": "provideCredentials",
+                "credentials": {"type": "password", "username": c.username, "password": c.password}}),
+            None => json!({"request": id, "action": "cancel"}),
         };
-        if empty && let Some(id) = intercept.take() {
-            self.inner
-                .bidi
-                .call("network.removeIntercept", json!({"intercept": id}))
-                .await?;
-        }
-        Ok(())
+        let page = self.clone();
+        tokio::spawn(async move {
+            let _ = page.bidi_call("network.continueWithAuth", params).await;
+        });
     }
 
     /// Accepts or dismisses the open dialog.

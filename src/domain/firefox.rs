@@ -187,7 +187,6 @@ pub fn unsupported_context_options(o: &ContextOptions) -> Vec<&'static str> {
     check(o.contrast.is_some(), "contrast");
     check(!o.permissions.is_empty(), "permissions");
     check(o.offline, "offline");
-    check(o.http_credentials.is_some(), "httpCredentials");
     check(o.proxy.is_some(), "proxy");
     check(!o.client_certificates.is_empty(), "clientCertificates");
     check(!o.java_script_enabled, "javaScriptEnabled");

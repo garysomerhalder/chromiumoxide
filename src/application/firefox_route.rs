@@ -63,15 +63,118 @@ impl Page {
     }
 }
 
-/// The request a route intercepted.
+impl crate::application::firefox::BrowserContext {
+    /// `context.route(url, handler)`: for every page of this context, also
+    /// pages opened later; page routes run before the context's.
+    pub async fn route<F, Fut>(&self, url: impl Into<UrlMatcher>, handler: F) -> Result<()>
+    where
+        F: Fn(Route) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        let matcher = url.into();
+        let handler: Handler = Arc::new(move |route| handler(route).boxed());
+        self.add_route(RouteEntry {
+            key: matcher_key(&matcher),
+            matcher,
+            handler,
+        })
+        .await
+    }
+
+    /// `context.unroute(url)`.
+    pub async fn unroute(&self, url: impl Into<UrlMatcher>) -> Result<()> {
+        let key = matcher_key(&url.into());
+        self.remove_routes(|e| e.key == key).await
+    }
+
+    /// `context.unrouteAll()`.
+    pub async fn unroute_all(&self) -> Result<()> {
+        self.remove_routes(|_| true).await
+    }
+}
+
+/// A network request (from a route, or `PageEvent::Request` and friends).
 #[derive(Debug, Clone)]
-pub struct RouteRequest {
+pub struct Request {
     pub(crate) url: String,
     pub(crate) method: String,
     pub(crate) headers: Vec<(String, String)>,
+    pub(crate) failure: Option<String>,
 }
 
-impl RouteRequest {
+/// The request a route intercepted (same type as [`Request`]).
+pub type RouteRequest = Request;
+
+/// A response's status line and headers (`PageEvent::Response`).
+#[derive(Debug, Clone)]
+pub struct Response {
+    pub(crate) url: String,
+    pub(crate) status: u16,
+    pub(crate) status_text: String,
+    pub(crate) headers: Vec<(String, String)>,
+}
+
+impl Response {
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+    pub fn status(&self) -> u16 {
+        self.status
+    }
+    pub fn status_text(&self) -> &str {
+        &self.status_text
+    }
+    /// `response.ok()`: status 200..=299 (or 0 for non-HTTP URLs).
+    pub fn ok(&self) -> bool {
+        self.status == 0 || (200..300).contains(&self.status)
+    }
+    pub fn headers(&self) -> &[(String, String)] {
+        &self.headers
+    }
+    /// The first header with this name (case-insensitive).
+    pub fn header_value(&self, name: &str) -> Option<&str> {
+        self.headers
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(name))
+            .map(|(_, v)| v.as_str())
+    }
+
+    /// From a BiDi `network.ResponseData`.
+    pub(crate) fn from_bidi(r: &Value) -> Self {
+        Response {
+            url: r["url"].as_str().unwrap_or_default().to_owned(),
+            status: r["status"].as_u64().unwrap_or_default() as u16,
+            status_text: r["statusText"].as_str().unwrap_or_default().to_owned(),
+            headers: bidi_headers(&r["headers"]),
+        }
+    }
+}
+
+/// BiDi `network.Header`s as name / value pairs.
+fn bidi_headers(v: &Value) -> Vec<(String, String)> {
+    v.as_array()
+        .map(|hs| {
+            hs.iter()
+                .map(|h| {
+                    (
+                        h["name"].as_str().unwrap_or_default().to_owned(),
+                        h.pointer("/value/value")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned(),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+impl Request {
+    /// `request.failure()`: the error text of a failed request.
+    pub fn failure(&self) -> Option<&str> {
+        self.failure.as_deref()
+    }
+
     pub fn url(&self) -> &str {
         &self.url
     }
@@ -92,26 +195,11 @@ impl RouteRequest {
 
     /// From a BiDi `network.RequestData`.
     pub(crate) fn from_bidi(r: &Value) -> Self {
-        let headers = r["headers"]
-            .as_array()
-            .map(|hs| {
-                hs.iter()
-                    .map(|h| {
-                        (
-                            h["name"].as_str().unwrap_or_default().to_owned(),
-                            h.pointer("/value/value")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default()
-                                .to_owned(),
-                        )
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        RouteRequest {
+        Request {
             url: r["url"].as_str().unwrap_or_default().to_owned(),
             method: r["method"].as_str().unwrap_or("GET").to_owned(),
-            headers,
+            headers: bidi_headers(&r["headers"]),
+            failure: None,
         }
     }
 }
