@@ -8,7 +8,7 @@ use serde_json::Value;
 use crate::server::TestServer;
 
 /// Lists and reads the zip with Python's zipfile (which also checks CRCs).
-fn unzip(path: &std::path::Path) -> Value {
+pub(crate) fn unzip(path: &std::path::Path) -> Value {
     let script = "import sys, zipfile, json, base64\n\
                   z = zipfile.ZipFile(sys.argv[1])\n\
                   assert z.testzip() is None\n\
@@ -26,7 +26,7 @@ fn unzip(path: &std::path::Path) -> Value {
     serde_json::from_slice(&out.stdout).unwrap()
 }
 
-fn file(files: &Value, name: &str) -> Vec<u8> {
+pub(crate) fn file(files: &Value, name: &str) -> Vec<u8> {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD
         .decode(

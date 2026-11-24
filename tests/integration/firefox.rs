@@ -996,3 +996,191 @@ async fn firefox_more_input() {
     );
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn firefox_pdf_and_har() {
+    use chromiumoxide::{ContextOptions, RecordHar};
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/page", "text/html", "<p>page</p>", 0);
+    let dir = std::env::temp_dir().join(format!("cox-ff-har-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let har_path = dir.join("out.har");
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions {
+            record_har: Some(RecordHar::new(&har_path)),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/page")).await.unwrap();
+    let echoed = page
+        .evaluate::<String>("fetch('/echo', {method: 'POST', body: 'x=1'}).then(r => r.text())")
+        .await
+        .unwrap();
+    assert!(!echoed.is_empty());
+
+    let pdf_path = dir.join("page.pdf");
+    let pdf = page.pdf().path(&pdf_path).await.unwrap();
+    assert_eq!(&pdf[..5], b"%PDF-");
+    assert_eq!(std::fs::read(&pdf_path).unwrap(), pdf);
+
+    context.close().await.unwrap();
+    let har: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&har_path).unwrap()).unwrap();
+    let log = &har["log"];
+    assert_eq!(log["version"], "1.2");
+    assert_eq!(log["browser"]["name"], "firefox");
+    let pages = log["pages"].as_array().unwrap();
+    assert_eq!(pages.len(), 1);
+    let entries = log["entries"].as_array().unwrap();
+    let find = |p: &str| {
+        entries
+            .iter()
+            .find(|e| e["request"]["url"] == server.url(p))
+            .unwrap_or_else(|| panic!("no entry for {p}: {entries:#?}"))
+    };
+    let doc = find("/page");
+    assert_eq!(doc["pageref"], pages[0]["id"]);
+    assert_eq!(doc["request"]["method"], "GET");
+    assert_eq!(doc["response"]["status"], 200);
+    assert_eq!(doc["response"]["content"]["text"], "<p>page</p>");
+    assert_eq!(doc["response"]["content"]["mimeType"], "text/html");
+    assert!(doc["startedDateTime"].as_str().unwrap().ends_with('Z'));
+    let post = find("/echo");
+    assert_eq!(post["request"]["method"], "POST");
+    assert_eq!(post["request"]["postData"]["text"], "x=1");
+    std::fs::remove_dir_all(&dir).unwrap();
+    browser.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn firefox_records_video() {
+    use chromiumoxide::{ContextOptions, RecordVideo};
+    let Some(options) = options() else {
+        return;
+    };
+    if chromiumoxide::adapters::video::find_ffmpeg().is_none() {
+        eprintln!("no ffmpeg; skipping");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("cox-ff-video-{}", std::process::id()));
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions {
+            record_video: Some(RecordVideo::new(&dir)),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.set_content(
+        "<style>@keyframes c{from{background:red}to{background:blue}} body{animation:c .3s infinite}</style><h1>video</h1>",
+    )
+    .await
+    .unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+    let video = page.video().expect("recording");
+    page.close().await.unwrap();
+    let path = video.path().await.unwrap();
+    assert!(path.starts_with(&dir), "{path:?}");
+    assert_eq!(path.extension().unwrap(), "webm");
+    let bytes = std::fs::read(&path).unwrap();
+    assert_eq!(&bytes[..4], &[0x1a, 0x45, 0xdf, 0xa3], "EBML header");
+    assert!(bytes.len() > 1000, "{} bytes", bytes.len());
+    context.close().await.unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    browser.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn firefox_tracing() {
+    use chromiumoxide::TracingStart;
+    use serde_json::Value;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/page", "text/html", "<p>traced</p>", 0);
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    context
+        .tracing()
+        .start(TracingStart {
+            screenshots: true,
+            title: Some("ff trace".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.set_content("<button onclick=\"console.log(1)\">B</button>")
+        .await
+        .unwrap();
+    page.locator("button").click().await.unwrap();
+    page.goto(&server.url("/page")).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let dir = std::env::temp_dir().join(format!("cox-ff-trace-{}", std::process::id()));
+    let path = dir.join("trace.zip");
+    context.tracing().stop(Some(&path)).await.unwrap();
+
+    let files = crate::tracing::unzip(&path);
+    let names: Vec<String> = files.as_object().unwrap().keys().cloned().collect();
+    for required in ["trace.trace", "trace.network", "trace.stacks"] {
+        assert!(names.iter().any(|n| n == required), "{names:?}");
+    }
+    let events: Vec<Value> = String::from_utf8(crate::tracing::file(&files, "trace.trace"))
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(events[0]["type"], "context-options");
+    assert_eq!(events[0]["browserName"], "firefox");
+    assert_eq!(events[0]["title"], "ff trace");
+    let action = |method: &str| {
+        events
+            .iter()
+            .find(|e| e["type"] == "before" && e["method"] == method)
+            .unwrap_or_else(|| panic!("no {method} action in {events:#?}"))
+            .clone()
+    };
+    let click = action("click");
+    assert_eq!(click["class"], "Frame");
+    assert_eq!(click["params"]["selector"], "button");
+    assert!(
+        events
+            .iter()
+            .any(|e| e["type"] == "after" && e["callId"] == click["callId"])
+    );
+    action("setContent");
+    assert_eq!(action("goto")["params"]["url"], server.url("/page"));
+    assert!(
+        events
+            .iter()
+            .any(|e| e["type"] == "console" && e["text"] == "1"),
+        "{events:#?}"
+    );
+    let frames: Vec<&Value> = events
+        .iter()
+        .filter(|e| e["type"] == "screencast-frame")
+        .collect();
+    assert!(!frames.is_empty(), "no screencast frames");
+    let jpeg = crate::tracing::file(&files, frames[0]["file"].as_str().unwrap());
+    assert_eq!(&jpeg[..2], &[0xff, 0xd8]);
+    let network: Vec<Value> = String::from_utf8(crate::tracing::file(&files, "trace.network"))
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert!(
+        network.iter().any(|e| e["type"] == "resource-snapshot"
+            && e["snapshot"]["request"]["url"] == server.url("/page")),
+        "{network:?}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+    browser.close().await.unwrap();
+}

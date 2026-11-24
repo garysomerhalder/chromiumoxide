@@ -134,6 +134,48 @@ mod tests {
     use super::*;
 
     #[test]
+    fn bidi_print_parameters() {
+        let d = PdfOptions::default().to_bidi().unwrap();
+        assert_eq!(
+            d,
+            json!({"background": false, "orientation": "portrait", "scale": 1.0,
+                   "shrinkToFit": false,
+                   "page": {"width": 21.59, "height": 27.94},
+                   "margin": {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}})
+        );
+        let o = PdfOptions {
+            format: Some("A4".into()),
+            landscape: true,
+            print_background: true,
+            scale: 0.5,
+            page_ranges: "1-2, 4".into(),
+            margin: Margin {
+                top: Some("1in".into()),
+                left: Some("10mm".into()),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+        .to_bidi()
+        .unwrap();
+        assert_eq!(o["orientation"], "landscape");
+        assert_eq!(o["background"], true);
+        assert_eq!(o["scale"], 0.5);
+        assert_eq!(o["pageRanges"], json!(["1-2", "4"]));
+        assert!((o["page"]["width"].as_f64().unwrap() - 21.0058).abs() < 1e-6);
+        assert!((o["page"]["height"].as_f64().unwrap() - 29.718).abs() < 1e-6);
+        assert!((o["margin"]["top"].as_f64().unwrap() - 2.54).abs() < 1e-9);
+        assert!((o["margin"]["left"].as_f64().unwrap() - 1.0).abs() < 1e-2);
+        let err = PdfOptions {
+            display_header_footer: true,
+            ..Default::default()
+        }
+        .to_bidi()
+        .unwrap_err();
+        assert!(err.contains("displayHeaderFooter"), "{err}");
+    }
+
+    #[test]
     fn units_convert_to_inches_like_playwright() {
         assert_eq!(to_inches("96px").unwrap(), 1.0);
         assert_eq!(to_inches("192").unwrap(), 2.0);
