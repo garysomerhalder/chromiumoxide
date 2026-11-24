@@ -3313,3 +3313,33 @@ async fn firefox_route_web_socket() {
     );
     browser.close().await.unwrap();
 }
+
+/// Firefox: browser.bind() shares the browser with other clients (one
+/// WebDriver BiDi session, relayed); unbind() stops it.
+#[tokio::test]
+async fn firefox_bind_shares_the_browser() {
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/p.html", "text/html", "<title>shared</title>", 0);
+    let browser = Firefox::launch(options).await.unwrap();
+    let endpoint = browser.bind().await.unwrap();
+    assert!(endpoint.starts_with("ws://127.0.0.1:"), "{endpoint}");
+    assert_eq!(browser.bind().await.unwrap(), endpoint);
+
+    let other = Firefox::connect(&endpoint).await.unwrap();
+    let page = other.new_page().await.unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "shared");
+    other.close().await.unwrap();
+
+    // The first client still works.
+    let mine = browser.new_page().await.unwrap();
+    mine.goto(&server.url("/p.html")).await.unwrap();
+    assert_eq!(mine.title().await.unwrap(), "shared");
+
+    browser.unbind().await.unwrap();
+    assert!(Firefox::connect(&endpoint).await.is_err());
+    browser.close().await.unwrap();
+}
