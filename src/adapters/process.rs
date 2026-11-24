@@ -756,12 +756,17 @@ mod tests {
                             .as_bytes(),
                         )
                         .await;
+                    // WebView2 keeps the connection open after answering.
+                    tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
                 }
             }
         });
-        assert_eq!(
-            devtools_browser_url(port).await.as_deref(),
-            Some("ws://127.0.0.1/devtools/browser/x")
-        );
+        let url = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            devtools_browser_url(port),
+        )
+        .await
+        .expect("an answer within 5 s, without waiting for the server to close");
+        assert_eq!(url.as_deref(), Some("ws://127.0.0.1/devtools/browser/x"));
     }
 }
