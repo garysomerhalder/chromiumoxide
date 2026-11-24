@@ -1668,3 +1668,141 @@ async fn firefox_base_url_and_locator_screenshot() {
     assert_eq!(&rgba[..4], &[255, 0, 0, 255]);
     browser.close().await.unwrap();
 }
+
+/// Firefox: the rest of Playwright's Locator (states, blur, clear,
+/// dispatchEvent, evaluateAll, selectText, setChecked, scrollIntoView,
+/// describe, normalize, visible, within, contentFrame, drop, tap).
+#[tokio::test]
+async fn firefox_locator_helpers() {
+    use chromiumoxide::DropPayload;
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<input id=t value=hello><input id=ro readonly value=r><button id=off disabled>off</button>\
+         <input id=c type=checkbox><p id=p>para</p><ul><li>a</li><li>b</li></ul>\
+         <img alt='Logo' title='Tip' src='data:,'><label>Name <input id=n placeholder=Your></label>\
+         <div style='height:3000px'></div><div id=far>far</div>\
+         <div id=drop style='width:100px;height:50px'>drop</div>\
+         <iframe srcdoc='<b>inner</b>'></iframe>\
+         <script>window.events = [];\
+         document.getElementById('t').addEventListener('blur', () => events.push('blur'));\
+         document.getElementById('p').addEventListener('custom', e => events.push(e.type));\
+         const d = document.getElementById('drop');\
+         d.addEventListener('dragover', e => e.preventDefault());\
+         d.addEventListener('drop', e => { e.preventDefault(); events.push('drop:' + e.dataTransfer.getData('text/plain')); });\
+         </script>",
+    )
+    .await
+    .unwrap();
+
+    // States.
+    assert!(page.locator("#t").is_enabled().await.unwrap());
+    assert!(page.locator("#off").is_disabled().await.unwrap());
+    assert!(page.locator("#t").is_editable().await.unwrap());
+    assert!(!page.locator("#ro").is_editable().await.unwrap());
+
+    // Focus, blur, clear, selectText.
+    page.locator("#t").focus().await.unwrap();
+    page.locator("#t").blur().await.unwrap();
+    page.locator("#t").select_text().await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("String(getSelection()) || (document.activeElement.value.substring(document.activeElement.selectionStart, document.activeElement.selectionEnd))")
+            .await
+            .unwrap(),
+        "hello"
+    );
+    page.locator("#t").clear().await.unwrap();
+    assert_eq!(page.locator("#t").input_value().await.unwrap(), "");
+
+    // setChecked, dispatchEvent, evaluateAll.
+    page.locator("#c").set_checked(true).await.unwrap();
+    assert!(page.locator("#c").is_checked().await.unwrap());
+    page.locator("#c").set_checked(false).await.unwrap();
+    assert!(!page.locator("#c").is_checked().await.unwrap());
+    page.locator("#p").dispatch_event("custom").await.unwrap();
+    assert_eq!(
+        page.locator("li")
+            .evaluate_all::<Vec<String>>("els => els.map(e => e.textContent)")
+            .await
+            .unwrap(),
+        ["a", "b"]
+    );
+
+    // Scrolling.
+    page.locator("#far")
+        .scroll_into_view_if_needed()
+        .await
+        .unwrap();
+    assert!(page.evaluate::<f64>("scrollY").await.unwrap() > 1000.0);
+
+    // get_by_* inside a locator, describe, visible, within, normalize.
+    let body = page.locator("body");
+    assert_eq!(body.get_by_alt_text("Logo", true).count().await.unwrap(), 1);
+    assert_eq!(body.get_by_title("Tip", true).count().await.unwrap(), 1);
+    assert_eq!(body.get_by_label("Name", false).count().await.unwrap(), 1);
+    assert_eq!(
+        body.get_by_placeholder("Your", true).count().await.unwrap(),
+        1
+    );
+    let described = page.locator("#p").describe("the paragraph");
+    assert_eq!(described.description().as_deref(), Some("the paragraph"));
+    assert_eq!(described.inner_text().await.unwrap(), "para");
+    assert_eq!(page.locator("li").visible(true).count().await.unwrap(), 2);
+    assert_eq!(
+        page.locator("li")
+            .within(&page.locator("ul"))
+            .count()
+            .await
+            .unwrap(),
+        2
+    );
+    let normal = page.get_by_text("para", true).normalize().await.unwrap();
+    assert_eq!(normal.inner_text().await.unwrap(), "para");
+    assert!(!format!("{}", page.locator("#p")).is_empty());
+    page.locator("#p")
+        .wait_for_function("e => e.textContent === 'para'")
+        .await
+        .unwrap();
+
+    // contentFrame and frameLocator from a locator.
+    assert_eq!(
+        page.locator("iframe")
+            .content_frame()
+            .locator("b")
+            .inner_text()
+            .await
+            .unwrap(),
+        "inner"
+    );
+    assert_eq!(
+        page.locator("body")
+            .frame_locator("iframe")
+            .locator("b")
+            .count()
+            .await
+            .unwrap(),
+        1
+    );
+
+    // Highlight (no visible result to check beyond not failing).
+    page.locator("#p").highlight().await.unwrap();
+    page.locator("#p").hide_highlight().await.unwrap();
+
+    // External drop.
+    page.locator("#drop")
+        .drop(DropPayload::default().data("text/plain", "dropped"))
+        .await
+        .unwrap();
+    assert_eq!(
+        page.evaluate::<Vec<String>>("events").await.unwrap(),
+        ["blur", "custom", "drop:dropped"]
+    );
+
+    // tap needs a touch context, which BiDi cannot create.
+    let err = page.locator("#p").tap().await.unwrap_err().to_string();
+    assert!(err.contains("hasTouch"), "{err}");
+    browser.close().await.unwrap();
+}
