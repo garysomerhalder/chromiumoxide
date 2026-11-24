@@ -2823,3 +2823,53 @@ async fn firefox_api_request_context() {
     assert!(request.get(&server.url("/p.html")).await.is_err());
     browser.close().await.unwrap();
 }
+
+/// Firefox: ARIA snapshots (YAML, JSON, AI mode with refs into iframes)
+/// and page.getByRef.
+#[tokio::test]
+async fn firefox_aria_snapshots_and_refs() {
+    use chromiumoxide::{AriaSnapshotMode, AriaSnapshotOptions};
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<h1>Title</h1><button>Go</button><iframe srcdoc='<button>Inner</button>'></iframe>",
+    )
+    .await
+    .unwrap();
+    page.wait_for_function("frames[0] && frames[0].document.readyState === 'complete'")
+        .await
+        .unwrap();
+    let yaml = page.aria_snapshot().await.unwrap();
+    assert!(yaml.contains("- heading \"Title\" [level=1]"), "{yaml}");
+    assert!(yaml.contains("- button \"Go\""), "{yaml}");
+    assert_eq!(
+        page.locator("button").aria_snapshot().await.unwrap(),
+        "- button \"Go\""
+    );
+    let json = page.locator("button").aria_snapshot_json().await.unwrap();
+    assert_eq!(json[0]["role"], "button", "{json}");
+    assert!(page.aria_snapshot_json().await.unwrap().is_array());
+
+    let ai = page
+        .aria_snapshot_with(AriaSnapshotOptions {
+            mode: AriaSnapshotMode::Ai,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(ai.contains("[ref=e"), "{ai}");
+    assert!(ai.contains("button \"Inner\""), "{ai}");
+    let go = ai
+        .lines()
+        .find(|l| l.contains("button \"Go\""))
+        .and_then(|l| l.split("[ref=").nth(1))
+        .and_then(|r| r.split(']').next())
+        .unwrap()
+        .to_owned();
+    page.get_by_ref(&go).click().await.unwrap();
+    assert_eq!(page.get_by_ref(&go).inner_text().await.unwrap(), "Go");
+    browser.close().await.unwrap();
+}
