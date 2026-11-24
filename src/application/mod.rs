@@ -77,6 +77,7 @@ pub mod webkit_frame;
 pub mod webkit_locator;
 pub mod webkit_locator_more;
 pub mod webkit_network;
+pub mod webkit_page_more;
 pub mod webkit_record;
 pub mod webkit_route;
 pub mod webmcp;

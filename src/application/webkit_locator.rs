@@ -138,11 +138,12 @@ impl Locator {
     /// locator resolves to, waiting until there is one (strict).
     pub(crate) async fn read(&self, body: &str, args: &[Value]) -> Result<Value> {
         let function = format!(
-            "(i, selector, args) => {{ const parsed = i.parseSelector(selector); \
+            "async (i, selector, args) => {{ const parsed = i.parseSelector(selector); \
              const els = i.querySelectorAll(parsed, document); \
              if (els.length > 1) throw i.strictModeViolationError(parsed, els); \
              if (!els.length) return {{ found: false }}; \
-             return {{ found: true, value: ({body})(i, els[0], ...args) }}; }}"
+             const value = await ({body})(i, els[0], ...args); \
+             return {{ found: true, value: value === undefined ? null : value }}; }}"
         );
         let deadline = self.page.now() + self.page.timeout();
         let mut delay = Duration::from_millis(20);
@@ -165,7 +166,7 @@ impl Locator {
     }
 
     /// `body(injected, elements)` over every match, right away.
-    async fn all(&self, body: &str) -> Result<Value> {
+    async fn all_eval(&self, body: &str) -> Result<Value> {
         let function = format!(
             "(i, selector) => {{ const els = i.querySelectorAll(i.parseSelector(selector), document); \
              return ({body})(i, els); }}"
@@ -176,7 +177,7 @@ impl Locator {
     /// `locator.count()`.
     pub async fn count(&self) -> Result<usize> {
         Ok(self
-            .all("(i, els) => els.length")
+            .all_eval("(i, els) => els.length")
             .await?
             .as_u64()
             .unwrap_or(0) as usize)
@@ -185,7 +186,7 @@ impl Locator {
     /// `locator.allTextContents()`.
     pub async fn all_text_contents(&self) -> Result<Vec<String>> {
         let v = self
-            .all("(i, els) => els.map(e => e.textContent || '')")
+            .all_eval("(i, els) => els.map(e => e.textContent || '')")
             .await?;
         Ok(serde_json::from_value(v).unwrap_or_default())
     }
@@ -193,7 +194,7 @@ impl Locator {
     /// `locator.allInnerTexts()`.
     pub async fn all_inner_texts(&self) -> Result<Vec<String>> {
         let v = self
-            .all("(i, els) => els.map(e => e.innerText || '')")
+            .all_eval("(i, els) => els.map(e => e.innerText || '')")
             .await?;
         Ok(serde_json::from_value(v).unwrap_or_default())
     }

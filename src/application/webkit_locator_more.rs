@@ -132,24 +132,12 @@ impl Locator {
         Ok(serde_json::from_value(v)?)
     }
 
-    /// Like [`read`](Self::read), awaiting `body`'s result (which may be a
-    /// promise).
-    pub(crate) async fn read_value(&self, body: &str, args: &[Value]) -> Result<Value> {
-        self.read(
-            &format!(
-                "(i, node, ...args) => Promise.resolve(({body})(i, node, ...args)).then(v => v === undefined ? null : v)"
-            ),
-            args,
-        )
-        .await
-    }
-
     /// `locator.waitForFunction(fn)`: until `fn(element)` is truthy.
     pub async fn wait_for_function(&self, function: &str) -> Result<()> {
         let deadline = self.page.now() + self.page.timeout();
         loop {
             let v: Value = self
-                .read_value(&format!("(i, node) => ({function})(node)"), &[])
+                .read(&format!("(i, node) => ({function})(node)"), &[])
                 .await?;
             if !matches!(v, Value::Null | Value::Bool(false)) && v != json!(0) && v != json!("") {
                 return Ok(());

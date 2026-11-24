@@ -617,7 +617,9 @@ async fn webkit_context_settings_and_events() {
         .await
         .unwrap();
     assert_eq!(lat, 10.0);
+    // WebKit keeps a document's geolocation decision until it reloads.
     context.clear_permissions().await.unwrap();
+    page.reload().await.unwrap();
     let denied: bool = page
         .evaluate(
             "new Promise(ok => navigator.geolocation.getCurrentPosition(() => ok(false), () => ok(true)))",
@@ -632,6 +634,7 @@ async fn webkit_context_settings_and_events() {
         )
         .await
         .unwrap();
+    page.reload().await.unwrap();
     let lat: f64 = page
         .evaluate(
             "new Promise((ok, err) => navigator.geolocation.getCurrentPosition(p => ok(p.coords.latitude), err))",

@@ -32,6 +32,38 @@ pub enum PageEvent {
     Download(crate::application::firefox_download::Download),
 }
 
+/// Something that happened in a WebKit context (`context.on(...)`).
+#[derive(Debug, Clone)]
+pub enum ContextEvent {
+    /// A page opened in the context (`context.on('page')`).
+    Page(Page),
+    Console(ConsoleMessage),
+    Dialog(Dialog),
+    Request(Request),
+    Response(Response),
+    RequestFinished(Request),
+    RequestFailed(Request),
+    /// An uncaught error in a page (`context.on('weberror')`).
+    WebError(PageError),
+    Close,
+}
+
+impl ContextEvent {
+    /// The context event a page event is also reported as, if any.
+    pub(crate) fn from_page(event: &PageEvent) -> Option<ContextEvent> {
+        Some(match event {
+            PageEvent::Console(m) => ContextEvent::Console(m.clone()),
+            PageEvent::Dialog(d) => ContextEvent::Dialog(d.clone()),
+            PageEvent::Request(r) => ContextEvent::Request(r.clone()),
+            PageEvent::Response(r) => ContextEvent::Response(r.clone()),
+            PageEvent::RequestFinished(r) => ContextEvent::RequestFinished(r.clone()),
+            PageEvent::RequestFailed(r) => ContextEvent::RequestFailed(r.clone()),
+            PageEvent::PageError(e) => ContextEvent::WebError(e.clone()),
+            _ => return None,
+        })
+    }
+}
+
 /// `page.on('console')`.
 #[derive(Debug, Clone)]
 pub struct ConsoleMessage {
@@ -180,9 +212,16 @@ impl Page {
 
     /// Sends an event to the live listeners; false when there are none.
     pub(crate) fn emit(&self, event: PageEvent) -> bool {
+        self.inner.history.lock().unwrap().record(&event);
+        let mut heard = false;
+        if let Some(ctx) = self.inner.context.upgrade()
+            && let Some(e) = ContextEvent::from_page(&event)
+        {
+            heard = ctx.emit(e);
+        }
         let mut subs = self.inner.subscribers.lock().unwrap();
         subs.retain(|s| s.unbounded_send(event.clone()).is_ok());
-        !subs.is_empty()
+        heard || !subs.is_empty()
     }
 
     /// `Console.messageAdded` (`WKPage._onConsoleMessage`).

@@ -165,11 +165,14 @@ pub mod webkit {
     pub use crate::application::webkit::{
         Browser, BrowserContext, Page, Screenshot, WebKitLaunchOptions,
     };
-    pub use crate::application::webkit_events::{ConsoleMessage, Dialog, PageError, PageEvent};
+    pub use crate::application::webkit_events::{
+        ConsoleMessage, ContextEvent, Dialog, PageError, PageEvent,
+    };
     pub use crate::application::webkit_expect::{Assertion, LocatorAssertions, PageAssertions};
     pub use crate::application::webkit_frame::{Frame, FrameLocator};
     pub use crate::application::webkit_locator::Locator;
     pub use crate::application::webkit_network::{Request, Response};
+    pub use crate::application::webkit_page_more::{BrowserType, Keyboard, Mouse, Worker};
     pub use crate::application::webkit_record::Video;
     pub use crate::application::webkit_route::{Fulfill, Route};
 }

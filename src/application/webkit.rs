@@ -128,14 +128,16 @@ async fn within<T>(
 /// A WebKit browser (Playwright's WebKit build).
 #[derive(Clone)]
 pub struct Browser {
-    inner: Arc<BrowserInner>,
+    pub(crate) inner: Arc<BrowserInner>,
 }
 
-struct BrowserInner {
+pub(crate) struct BrowserInner {
     wk: Arc<dyn WebKitSession>,
-    services: Services,
+    pub(crate) services: Services,
     process: Mutex<Option<Box<dyn BrowserProcess>>>,
-    closed: AtomicBool,
+    /// The contexts made through this browser (`browser.contexts()`).
+    pub(crate) contexts: Mutex<Vec<std::sync::Weak<ContextInner>>>,
+    pub(crate) closed: AtomicBool,
 }
 
 impl std::fmt::Debug for Browser {
@@ -182,6 +184,7 @@ impl Browser {
                 wk: launched.session,
                 services,
                 process: Mutex::new(Some(launched.process)),
+                contexts: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
             }),
         })
@@ -212,6 +215,14 @@ impl Browser {
         } else {
             None
         };
+        let options_headers = options.extra_http_headers.clone();
+        let offline = options.offline;
+        let granted = if options.permissions.is_empty() {
+            Vec::new()
+        } else {
+            vec![("*".to_owned(), options.permissions.clone())]
+        };
+        let credentials = options.http_credentials.clone();
         let context = BrowserContext {
             inner: Arc::new(ContextInner {
                 browser: self.clone(),
@@ -222,9 +233,20 @@ impl Browser {
                 routes: Mutex::new(Vec::new()),
                 downloads_dir,
                 timeouts: Mutex::new(Timeouts::default()),
+                subscribers: Mutex::new(Vec::new()),
+                paused: watch::channel(false).0,
+                extra_headers: Mutex::new(options_headers.into_iter().collect()),
+                offline: AtomicBool::new(offline),
+                granted: Mutex::new(granted),
+                credentials: Mutex::new(credentials),
                 closed: AtomicBool::new(false),
             }),
         };
+        self.inner
+            .contexts
+            .lock()
+            .unwrap()
+            .push(Arc::downgrade(&context.inner));
         context.watch_popups();
         if let Err(e) = context.initialize().await {
             let _ = context.close().await;
@@ -268,9 +290,9 @@ pub struct BrowserContext {
 }
 
 pub(crate) struct ContextInner {
-    browser: Browser,
+    pub(crate) browser: Browser,
     pub(crate) id: String,
-    options: Arc<ContextOptions>,
+    pub(crate) options: Arc<ContextOptions>,
     /// `context.addInitScript` sources.
     pub(crate) init_scripts: Mutex<Vec<String>>,
     /// The context's pages (to update their bootstrap script).
@@ -281,7 +303,25 @@ pub(crate) struct ContextInner {
     downloads_dir: Option<PathBuf>,
     /// `context.setDefault(Navigation)Timeout`.
     pub(crate) timeouts: Mutex<Timeouts>,
-    closed: AtomicBool,
+    /// `context.events()` listeners.
+    pub(crate) subscribers: Mutex<
+        Vec<
+            futures::channel::mpsc::UnboundedSender<
+                crate::application::webkit_events::ContextEvent,
+            >,
+        >,
+    >,
+    /// `page.pause()` until `context.resume()`.
+    pub(crate) paused: watch::Sender<bool>,
+    /// Extra HTTP headers for every page (`setExtraHTTPHeaders`).
+    pub(crate) extra_headers: Mutex<Vec<(String, String)>>,
+    /// `context.setOffline`.
+    pub(crate) offline: AtomicBool,
+    /// Granted permissions by origin (`*`: every origin).
+    pub(crate) granted: Mutex<Vec<(String, Vec<String>)>>,
+    /// `context.setHTTPCredentials`.
+    pub(crate) credentials: Mutex<Option<crate::domain::emulation::HttpCredentials>>,
+    pub(crate) closed: AtomicBool,
 }
 
 impl std::fmt::Debug for BrowserContext {
@@ -368,6 +408,10 @@ impl BrowserContext {
                 .map_err(|_| Error::TargetClosed("page closed while opening".into()))
         })
         .await?;
+        self.inner
+            .emit(crate::application::webkit_events::ContextEvent::Page(
+                page.clone(),
+            ));
         Ok(page)
     }
 
@@ -405,6 +449,11 @@ impl BrowserContext {
             requests: Mutex::new(HashMap::new()),
             video: Mutex::new(None),
             timeouts: Mutex::new(Timeouts::default()),
+            opener: Mutex::new(None),
+            history: Mutex::new(Default::default()),
+            picking: AtomicBool::new(false),
+            extra_headers: Mutex::new(Vec::new()),
+            media: Mutex::new(Default::default()),
             closed: AtomicBool::new(false),
         });
         self.inner
@@ -492,10 +541,18 @@ impl BrowserContext {
                             .find(|o| o.inner.proxy == opener);
                         tokio::spawn(async move {
                             let mut ready = page.inner.ready.subscribe();
-                            if ready.wait_for(|r| *r).await.is_ok()
-                                && let Some(opener) = opener
-                            {
-                                opener.emit(PageEvent::Popup(page));
+                            if ready.wait_for(|r| *r).await.is_ok() {
+                                if let Some(ctx) = page.inner.context.upgrade() {
+                                    ctx.emit(
+                                        crate::application::webkit_events::ContextEvent::Page(
+                                            page.clone(),
+                                        ),
+                                    );
+                                }
+                                if let Some(opener) = opener {
+                                    *page.inner.opener.lock().unwrap() = Some(opener.clone());
+                                    opener.emit(PageEvent::Popup(page));
+                                }
                             }
                         });
                     }
@@ -574,7 +631,7 @@ pub(crate) struct PageInner {
     owned_context: Mutex<Option<BrowserContext>>,
     /// The keyboard and mouse models (`page.keyboard`, `page.mouse`).
     keyboard: tokio::sync::Mutex<crate::domain::input::Keyboard>,
-    mouse: Mutex<crate::domain::input::Mouse>,
+    pub(crate) mouse: Mutex<crate::domain::input::Mouse>,
     /// The context (for its init scripts).
     pub(crate) context: std::sync::Weak<ContextInner>,
     /// `page.addInitScript` sources.
@@ -593,6 +650,16 @@ pub(crate) struct PageInner {
     pub(crate) video: Mutex<Option<crate::application::webkit_record::Video>>,
     /// `page.setDefault(Navigation)Timeout`.
     pub(crate) timeouts: Mutex<Timeouts>,
+    /// The page that opened this pop-up.
+    pub(crate) opener: Mutex<Option<Page>>,
+    /// Recent console messages, errors and requests.
+    pub(crate) history: Mutex<crate::application::webkit_page_more::History>,
+    /// `page.pickLocator()` is running.
+    pub(crate) picking: AtomicBool,
+    /// The page's own extra HTTP headers.
+    pub(crate) extra_headers: Mutex<Vec<(String, String)>>,
+    /// `page.emulateMedia` overrides.
+    pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
     closed: AtomicBool,
 }
 
@@ -823,8 +890,17 @@ impl Page {
         steps.push(call("Console.enable", json!({})));
         steps.push(call(
             "Network.setExtraHTTPHeaders",
-            json!({"headers": o.extra_http_headers}),
+            json!({"headers": self.merged_headers()}),
         ));
+        for (method, params) in self.media_commands() {
+            steps.push(call(method, params));
+        }
+        if self.offline() {
+            steps.push(call(
+                "Network.setEmulateOfflineState",
+                json!({"offline": true}),
+            ));
+        }
         steps.push(call(
             "Page.setTouchEmulationEnabled",
             json!({"enabled": o.has_touch}),
@@ -876,6 +952,7 @@ impl Page {
         if first {
             let v = self.effective_viewport();
             let _ = self.proxy_call("Dialog.enable", json!({})).await;
+            let _ = self.apply_context_settings().await;
             let _ = self
                 .proxy_call("Emulation.setActiveAndFocused", json!({"active": true}))
                 .await;
@@ -905,6 +982,8 @@ impl Page {
         let before = *loads.borrow_and_update();
         *self.inner.load_error.lock().unwrap() = None;
         let frame_id = self.inner.frame_id.lock().unwrap().clone();
+        let url =
+            crate::domain::url_matcher::resolve_url(self.inner.options.base_url.as_deref(), url);
         let mut params = json!({"url": url, "pageProxyId": self.inner.proxy});
         if !frame_id.is_empty() {
             params["frameId"] = json!(frame_id);
