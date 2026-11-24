@@ -547,3 +547,57 @@ async fn webkit_network_events() {
     }
     browser.close().await.unwrap();
 }
+
+/// context.route on WebKit: for the context's pages, also ones opened
+/// later; a page's own routes run first; unroute.
+#[tokio::test]
+async fn webkit_context_routes() {
+    use chromiumoxide::ContextOptions;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/c.html", "text/html", "<p>c</p>", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    let early = context.new_page().await.unwrap();
+    context
+        .route("**/api/*", |route| async move {
+            route.fulfill().body("from the context").await.unwrap();
+        })
+        .await
+        .unwrap();
+    let late = context.new_page().await.unwrap();
+    late.route("**/api/own", |route| async move {
+        route.fulfill().body("from the page").await.unwrap();
+    })
+    .await
+    .unwrap();
+    for page in [&early, &late] {
+        page.goto(&server.url("/c.html")).await.unwrap();
+        assert_eq!(
+            page.evaluate::<String>("fetch('/api/x').then(r => r.text())")
+                .await
+                .unwrap(),
+            "from the context"
+        );
+    }
+    assert_eq!(
+        late.evaluate::<String>("fetch('/api/own').then(r => r.text())")
+            .await
+            .unwrap(),
+        "from the page"
+    );
+    context.unroute("**/api/*").await.unwrap();
+    assert_eq!(
+        early
+            .evaluate::<u16>("fetch('/api/x').then(r => r.status)")
+            .await
+            .unwrap(),
+        404
+    );
+    browser.close().await.unwrap();
+}

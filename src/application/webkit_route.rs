@@ -176,6 +176,27 @@ pub(crate) async fn interception(page: &Page, target: &str, enabled: bool) -> Re
     .map(drop)
 }
 
+impl crate::application::webkit::BrowserContext {
+    /// `context.route(url, handler)`: for every page of this context, also
+    /// pages opened later; page routes run before the context's.
+    pub async fn route<F, Fut>(&self, _url: impl Into<UrlMatcher>, _handler: F) -> Result<()>
+    where
+        F: Fn(Route) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        Err(Error::InvalidArgument(
+            "not implemented on WebKit yet".into(),
+        ))
+    }
+
+    /// `context.unroute(url)`.
+    pub async fn unroute(&self, _url: impl Into<UrlMatcher>) -> Result<()> {
+        Err(Error::InvalidArgument(
+            "not implemented on WebKit yet".into(),
+        ))
+    }
+}
+
 impl Route {
     pub fn request(&self) -> Request {
         self.request.clone()
