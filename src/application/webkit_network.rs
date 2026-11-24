@@ -399,6 +399,50 @@ impl Request {
     }
 }
 
+impl Request {
+    /// The request (and response) in WebDriver BiDi's shape, for the HAR
+    /// entry builder shared with Firefox.
+    pub(crate) fn har_json(&self, response: Option<&Response>) -> (Value, Option<Value>) {
+        let headers = |h: &[(String, String)]| -> Vec<Value> {
+            h.iter()
+                .map(|(k, v)| json!({"name": k, "value": {"type": "string", "value": v}}))
+                .collect()
+        };
+        let t = self.timing();
+        let start = t.start_time;
+        let at = |rel: f64| if rel >= 0.0 { start + rel } else { 0.0 };
+        let m = self.inner.state.lock().unwrap().metrics.clone();
+        let num = |k: &str| m[k].as_f64().map_or(-1, |v| v as i64);
+        let request = json!({
+            "url": self.inner.url,
+            "method": self.inner.method,
+            "headers": headers(&self.inner.headers),
+            "headersSize": num("requestHeaderBytesSent"),
+            "bodySize": self.inner.post_data.as_ref().map_or(0, |b| b.len() as i64),
+            "timings": {
+                "requestTime": start,
+                "dnsStart": at(t.domain_lookup_start), "dnsEnd": at(t.domain_lookup_end),
+                "connectStart": at(t.connect_start), "connectEnd": at(t.connect_end),
+                "tlsStart": at(t.secure_connection_start),
+                "requestStart": at(t.request_start), "responseStart": at(t.response_start),
+                "responseEnd": at(t.response_end),
+            },
+        });
+        let response = response.map(|r| {
+            json!({
+                "status": r.status(),
+                "statusText": r.status_text(),
+                "headers": headers(r.headers()),
+                "mimeType": r.header_value("content-type").unwrap_or_default(),
+                "protocol": m["protocol"].as_str().unwrap_or("http/1.1"),
+                "headersSize": num("responseHeaderBytesReceived"),
+                "bodySize": num("responseBodyBytesReceived"),
+            })
+        });
+        (request, response)
+    }
+}
+
 /// A response (`PageEvent::Response`, `request.response()`).
 #[derive(Clone)]
 pub struct Response {

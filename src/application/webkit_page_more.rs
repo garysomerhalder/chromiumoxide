@@ -749,6 +749,9 @@ impl FrameLocator {
 impl ContextInner {
     /// Sends an event to `context.events()` subscribers; false if none.
     pub(crate) fn emit(&self, event: ContextEvent) -> bool {
+        if let ContextEvent::Page(p) = &event {
+            self.recorders.page_created(p);
+        }
         let mut subs = self.subscribers.lock().unwrap();
         subs.retain(|s| s.unbounded_send(event.clone()).is_ok());
         !subs.is_empty()

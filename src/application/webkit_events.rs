@@ -276,6 +276,9 @@ impl Page {
     /// Sends an event to the live listeners; false when there are none.
     pub(crate) fn emit(&self, event: PageEvent) -> bool {
         self.inner.history.lock().unwrap().record(&event);
+        if let Some(ctx) = self.inner.context.upgrade() {
+            ctx.recorders.on_event(self, &event);
+        }
         let mut heard = false;
         if let Some(ctx) = self.inner.context.upgrade()
             && let Some(e) = ContextEvent::from_page(&event)

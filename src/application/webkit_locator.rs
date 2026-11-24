@@ -334,6 +334,17 @@ impl Locator {
 
     /// `locator.click()`.
     pub async fn click(&self) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "click",
+                json!({"selector": self.to_string(), "strict": true}),
+                self.click_untraced(),
+            )
+            .await
+    }
+
+    async fn click_untraced(&self) -> Result<()> {
         let (x, y) = self
             .actionable_point(&["visible", "enabled", "stable"])
             .await?;
@@ -342,6 +353,17 @@ impl Locator {
 
     /// `locator.dblclick()`.
     pub async fn dblclick(&self) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "dblclick",
+                json!({"selector": self.to_string(), "strict": true}),
+                self.dblclick_untraced(),
+            )
+            .await
+    }
+
+    async fn dblclick_untraced(&self) -> Result<()> {
         let (x, y) = self
             .actionable_point(&["visible", "enabled", "stable"])
             .await?;
@@ -350,6 +372,17 @@ impl Locator {
 
     /// `locator.hover()`.
     pub async fn hover(&self) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "hover",
+                json!({"selector": self.to_string(), "strict": true}),
+                self.hover_untraced(),
+            )
+            .await
+    }
+
+    async fn hover_untraced(&self) -> Result<()> {
         let (x, y) = self.actionable_point(&["visible", "stable"]).await?;
         self.page.move_mouse(x, y).await
     }
@@ -364,6 +397,17 @@ impl Locator {
     /// `locator.fill(value)`: Playwright's injected `fill`, then the text
     /// inserted (or the selection deleted for an empty value).
     pub async fn fill(&self, value: &str) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "fill",
+                json!({"selector": self.to_string(), "strict": true, "value": value}),
+                self.fill_untraced(value),
+            )
+            .await
+    }
+
+    async fn fill_untraced(&self, value: &str) -> Result<()> {
         self.page.run_locator_handlers().await;
         let r = self
             .read("(i, node, value) => i.fill(node, value)", &[json!(value)])
@@ -383,6 +427,17 @@ impl Locator {
 
     /// `locator.press(key)`: focuses the element, then presses `key`.
     pub async fn press(&self, key: &str) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "press",
+                json!({"selector": self.to_string(), "strict": true, "key": key}),
+                self.press_untraced(key),
+            )
+            .await
+    }
+
+    async fn press_untraced(&self, key: &str) -> Result<()> {
         self.page.run_locator_handlers().await;
         self.focus().await?;
         self.page.press_shortcut(key).await

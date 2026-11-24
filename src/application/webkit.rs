@@ -223,6 +223,10 @@ impl Browser {
             vec![("*".to_owned(), options.permissions.clone())]
         };
         let credentials = options.http_credentials.clone();
+        let options_viewport = options
+            .viewport
+            .map_or((1280, 720), |v| (v.width, v.height));
+        let record_har = options.record_har.clone();
         let context = BrowserContext {
             inner: Arc::new(ContextInner {
                 browser: self.clone(),
@@ -241,6 +245,11 @@ impl Browser {
                 credentials: Mutex::new(credentials),
                 clock_installed: AtomicBool::new(false),
                 bindings: Default::default(),
+                recorders: Arc::new(crate::application::webkit_trace::Recorders::new(
+                    self.inner.services.clone(),
+                    BROWSER_VERSION.to_owned(),
+                    options_viewport,
+                )),
                 closed: AtomicBool::new(false),
             }),
         };
@@ -249,6 +258,9 @@ impl Browser {
             .lock()
             .unwrap()
             .push(Arc::downgrade(&context.inner));
+        if let Some(har) = record_har {
+            context.inner.recorders.start_har(har).await?;
+        }
         context.watch_popups();
         if let Err(e) = context.initialize().await {
             let _ = context.close().await;
@@ -325,6 +337,8 @@ pub(crate) struct ContextInner {
     pub(crate) credentials: Mutex<Option<crate::domain::emulation::HttpCredentials>>,
     /// `context.exposeFunction` / `exposeBinding`.
     pub(crate) bindings: crate::application::webkit_binding::Bindings,
+    /// HAR recording and tracing.
+    pub(crate) recorders: Arc<crate::application::webkit_trace::Recorders>,
     /// Playwright's fake timers are installed (`context.clock`).
     pub(crate) clock_installed: AtomicBool,
     pub(crate) closed: AtomicBool,
@@ -586,17 +600,23 @@ impl BrowserContext {
 
     /// `context.close()`.
     pub async fn close(&self) -> Result<()> {
-        if self.inner.closed.swap(true, Ordering::SeqCst) {
+        if self.inner.closed.load(Ordering::SeqCst) {
             return Ok(());
         }
-        self.wk()
+        let har = self.inner.recorders.flush_har(&self.live_pages()).await;
+        self.inner.closed.store(true, Ordering::SeqCst);
+        self.inner
+            .emit(crate::application::webkit_events::ContextEvent::Close);
+        let deleted = self
+            .wk()
             .call(
                 None,
                 "Playwright.deleteContext",
                 json!({"browserContextId": self.inner.id}),
             )
-            .await?;
-        Ok(())
+            .await;
+        deleted?;
+        har
     }
 }
 
@@ -1026,6 +1046,16 @@ impl Page {
 
     /// `page.goto(url)`: navigates and waits for the `load` event.
     pub async fn goto(&self, url: &str) -> Result<()> {
+        self.traced(
+            "Frame",
+            "goto",
+            json!({"url": url}),
+            self.goto_untraced(url),
+        )
+        .await
+    }
+
+    async fn goto_untraced(&self, url: &str) -> Result<()> {
         self.check_open()?;
         let mut loads = self.inner.loads.subscribe();
         let before = *loads.borrow_and_update();
@@ -1077,7 +1107,13 @@ impl Page {
     /// `page.setContent(html)`: replaces the document and waits for it to
     /// finish loading.
     pub async fn set_content(&self, html: &str) -> Result<()> {
-        self.set_content_in(None, html).await
+        self.traced(
+            "Frame",
+            "setContent",
+            json!({"html": html}),
+            self.set_content_in(None, html),
+        )
+        .await
     }
 
     /// `setContent` in a frame (`None`: the main frame).
