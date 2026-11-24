@@ -601,3 +601,58 @@ async fn webkit_context_routes() {
     );
     browser.close().await.unwrap();
 }
+
+/// Web-first assertions on WebKit (`expect(&locator)`, `expect(&page)`),
+/// retried until they match, with Playwright's failure message.
+#[tokio::test]
+async fn webkit_expect_assertions() {
+    use chromiumoxide::expect;
+    use std::time::Duration;
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = WebKit::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<title>Kit page</title><h1 id=t class='big title'>Loading</h1>
+         <ul><li>a</li><li>b</li></ul><input id=v value=val><input type=checkbox id=c checked>
+         <p id=gone hidden>x</p>
+         <script>setTimeout(() => t.textContent = 'Ready', 300)</script>",
+    )
+    .await
+    .unwrap();
+    let h1 = page.locator("h1");
+    expect(&h1).to_have_text("Ready").await.unwrap();
+    expect(&h1).to_contain_text("ead").await.unwrap();
+    expect(&h1).to_have_attribute("id", "t").await.unwrap();
+    expect(&h1).to_contain_class("title").await.unwrap();
+    expect(&h1).to_be_visible().await.unwrap();
+    expect(&page.locator("#gone"))
+        .not()
+        .to_be_visible()
+        .await
+        .unwrap();
+    expect(&page.locator("#gone")).to_be_hidden().await.unwrap();
+    expect(&page.locator("li")).to_have_count(2).await.unwrap();
+    expect(&page.locator("li"))
+        .to_have_texts(["a", "b"])
+        .await
+        .unwrap();
+    expect(&page.locator("#v"))
+        .to_have_value("val")
+        .await
+        .unwrap();
+    expect(&page.locator("#c")).to_be_checked().await.unwrap();
+    expect(&page).to_have_title("Kit page").await.unwrap();
+
+    let err = expect(&h1)
+        .to_have_text("Never")
+        .timeout(Duration::from_millis(300))
+        .await
+        .unwrap_err();
+    let message = err.to_string();
+    assert!(message.contains("toHaveText"), "{message}");
+    assert!(message.contains("\"Never\""), "{message}");
+    assert!(message.contains("\"Ready\""), "{message}");
+    browser.close().await.unwrap();
+}
