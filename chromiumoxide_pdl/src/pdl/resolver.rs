@@ -22,6 +22,8 @@ pub fn resolve_pdl(path: &Path, input: &str) -> Result<String, Error> {
             let Ok(content) = fs::read_to_string(dir.join(name)) else {
                 bail!("Failed to read file {}", name);
             };
+            // Git on Windows may check the file out with CRLF line ends.
+            let content = content.replace("\r\n", "\n");
 
             // Remove the license header
             let Some((_, content)) = content.split_once("\n\n") else {
