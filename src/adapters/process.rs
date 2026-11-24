@@ -120,7 +120,12 @@ async fn devtools_browser_url(port: u16) -> Option<String> {
         .await
         .ok()?;
     stream
-        .write_all(b"GET /json/version HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n")
+        .write_all(
+            format!(
+                "GET /json/version HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
+            )
+            .as_bytes(),
+        )
         .await
         .ok()?;
     let mut body = Vec::new();
