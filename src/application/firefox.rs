@@ -435,6 +435,9 @@ impl Browser {
                 granted: Mutex::new(Vec::new()),
                 subscribers: Mutex::new(Vec::new()),
                 clock_installed: AtomicBool::new(false),
+                ws_routes: Mutex::new(Vec::new()),
+                ws_routing: Mutex::new(Default::default()),
+                ws_installed: AtomicBool::new(false),
                 bindings: Mutex::new(HashMap::new()),
                 binding_calls: Mutex::new(std::collections::HashSet::new()),
                 closed: AtomicBool::new(false),
@@ -564,6 +567,11 @@ pub(crate) struct ContextInner {
     pub(crate) granted: Mutex<Vec<(String, String)>>,
     /// Playwright's clock script is in the context's pages.
     pub(crate) clock_installed: AtomicBool,
+    /// `context.routeWebSocket` routes, their sockets, and whether the
+    /// mock is installed.
+    pub(crate) ws_routes: crate::application::firefox_ws_route::FfWsRoutes,
+    pub(crate) ws_routing: Mutex<crate::application::firefox_ws_route::FfWsRouting>,
+    pub(crate) ws_installed: AtomicBool,
     /// `context.exposeBinding` callbacks, and the call ids answered.
     pub(crate) bindings: crate::application::firefox_binding::Bindings,
     pub(crate) binding_calls: Mutex<std::collections::HashSet<String>>,
@@ -1012,6 +1020,7 @@ async fn attach_page(
         requests: Mutex::new(HashMap::new()),
         pending_post: Mutex::new(HashMap::new()),
         bindings: Mutex::new(HashMap::new()),
+        ws_routes: Mutex::new(Vec::new()),
         locator_handlers: Mutex::new(Vec::new()),
         handling_locator: AtomicBool::new(false),
         closed: AtomicBool::new(false),
@@ -1166,6 +1175,8 @@ pub struct PageInner {
     pub(crate) pending_post: Mutex<HashMap<String, Vec<u8>>>,
     /// `page.exposeBinding` callbacks.
     pub(crate) bindings: crate::application::firefox_binding::Bindings,
+    /// `page.routeWebSocket` routes.
+    pub(crate) ws_routes: crate::application::firefox_ws_route::FfWsRoutes,
     /// `page.addLocatorHandler` registrations, and whether they are running.
     pub(crate) locator_handlers: Mutex<Vec<crate::application::firefox_page_more::LocatorHandler>>,
     pub(crate) handling_locator: AtomicBool,

@@ -13,7 +13,6 @@ use futures::future::BoxFuture;
 use serde_json::{Value, json};
 
 use crate::application::context::{BrowserContext, ContextInner};
-use crate::application::frame::Frame;
 use crate::application::page::Page;
 use crate::application::scripts::BindingSource;
 use crate::application::websocket::WsPayload;
@@ -21,15 +20,18 @@ use crate::domain::error::Result;
 use crate::domain::url_matcher::UrlMatcher;
 
 const MOCK: &str = include_str!("scripts/websocket_mock.js");
-const BINDING: &str = "__pwWebSocketBinding";
+pub(crate) const BINDING: &str = "__pwWebSocketBinding";
 
-fn mock_init_script() -> String {
+/// Runs a `__pwWebSocketDispatch(...)` source in the socket's frame.
+pub(crate) type Dispatcher = Arc<dyn Fn(String) -> BoxFuture<'static, ()> + Send + Sync>;
+
+pub(crate) fn mock_init_script() -> String {
     format!(
         "(() => {{\nconst module = {{}};\n{MOCK}\n(module.exports.inject())(globalThis);\n}})();"
     )
 }
 
-type RouteHandler = Arc<dyn Fn(WebSocketRoute) -> BoxFuture<'static, ()> + Send + Sync>;
+pub(crate) type RouteHandler = Arc<dyn Fn(WebSocketRoute) -> BoxFuture<'static, ()> + Send + Sync>;
 type MessageHandler = Arc<dyn Fn(WsPayload) -> BoxFuture<'static, ()> + Send + Sync>;
 type CloseHandler = Arc<dyn Fn(Option<u16>, String) -> BoxFuture<'static, ()> + Send + Sync>;
 
@@ -88,7 +90,7 @@ pub struct WebSocketRoute {
 }
 
 struct WsRouteInner {
-    frame: Frame,
+    dispatcher: Dispatcher,
     id: String,
     url: String,
     protocols: Vec<String>,
@@ -143,10 +145,33 @@ impl WebSocketRoute {
         &self.inner.protocols
     }
 
-    async fn dispatch(&self, mut request: Value) {
+    /// A routed socket of the mock with this id (any engine's frame).
+    pub(crate) fn new(
+        dispatcher: Dispatcher,
+        id: String,
+        url: String,
+        protocols: Vec<String>,
+    ) -> Self {
+        WebSocketRoute {
+            inner: Arc::new(WsRouteInner {
+                dispatcher,
+                id,
+                url,
+                protocols,
+                state: Mutex::new(WsRouteState::default()),
+            }),
+        }
+    }
+
+    /// Whether `connect_to_server` ran.
+    pub(crate) fn is_connected(&self) -> bool {
+        self.inner.state.lock().unwrap().connected
+    }
+
+    pub(crate) async fn dispatch(&self, mut request: Value) {
         request["id"] = json!(self.inner.id);
         let source = format!("() => globalThis.__pwWebSocketDispatch({request})");
-        let _ = self.inner.frame.evaluate::<Value>(&source).await;
+        (self.inner.dispatcher)(source).await;
     }
 
     /// Sends a message to the page.
@@ -200,7 +225,7 @@ impl WebSocketRoute {
         })
     }
 
-    async fn on_binding(&self, payload: &Value) {
+    pub(crate) async fn on_binding(&self, payload: &Value) {
         let kind = payload
             .get("type")
             .and_then(Value::as_str)
@@ -316,6 +341,20 @@ pub(crate) struct WsRouting {
     sockets: HashMap<String, WebSocketRoute>,
 }
 
+/// The `protocols` of an `onCreate` binding payload.
+pub(crate) fn protocols_of(payload: &Value) -> Vec<String> {
+    payload
+        .get("protocols")
+        .and_then(Value::as_array)
+        .map(|p| {
+            p.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn find_handler(routes: &WsRoutes, url: &str) -> Option<RouteHandler> {
     routes
         .lock()
@@ -352,24 +391,19 @@ async fn on_binding(context: Arc<ContextInner>, source: BindingSource, payload: 
             let _ = source.frame.evaluate::<Value>(&src).await;
             return;
         };
-        let route = WebSocketRoute {
-            inner: Arc::new(WsRouteInner {
-                frame: source.frame.clone(),
-                id: id.clone(),
-                url,
-                protocols: payload
-                    .get("protocols")
-                    .and_then(Value::as_array)
-                    .map(|p| {
-                        p.iter()
-                            .filter_map(Value::as_str)
-                            .map(str::to_owned)
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-                state: Mutex::new(WsRouteState::default()),
+        let frame = source.frame.clone();
+        let route = WebSocketRoute::new(
+            Arc::new(move |src: String| {
+                let frame = frame.clone();
+                async move {
+                    let _ = frame.evaluate::<Value>(&src).await;
+                }
+                .boxed()
             }),
-        };
+            id.clone(),
+            url,
+            protocols_of(&payload),
+        );
         context
             .ws_routing
             .lock()

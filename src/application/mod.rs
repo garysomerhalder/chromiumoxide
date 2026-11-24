@@ -38,6 +38,7 @@ pub mod firefox_record;
 pub mod firefox_route;
 pub mod firefox_waits;
 pub mod firefox_worker;
+pub mod firefox_ws_route;
 pub mod frame;
 pub mod frame_actions;
 pub mod handle;
