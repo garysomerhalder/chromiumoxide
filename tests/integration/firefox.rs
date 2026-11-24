@@ -3087,3 +3087,75 @@ async fn firefox_route_fallback_and_fetch() {
     assert_eq!(*order.lock().unwrap(), ["context"]);
     browser.close().await.unwrap();
 }
+
+/// Firefox: tracing.startHar / stopHar, and routeFromHAR (serving, the
+/// not-found modes, and update) on pages and contexts.
+#[tokio::test]
+async fn firefox_har_recording_and_routing() {
+    use chromiumoxide::HarNotFound;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route(
+        "/a.html",
+        "text/html",
+        "<title>a</title><p>from server</p>",
+        0,
+    );
+    let dir = std::env::temp_dir().join(format!("cox-ff-har-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let har = dir.join("rec.har");
+    let browser = Firefox::launch(options).await.unwrap();
+
+    // Record a HAR with tracing.startHar / stopHar.
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    context.tracing().start_har(&har).await.unwrap();
+    assert!(context.tracing().start_har(&har).await.is_err());
+    page.goto(&server.url("/a.html")).await.unwrap();
+    context.tracing().stop_har().await.unwrap();
+    let text = std::fs::read_to_string(&har).unwrap();
+    assert!(text.contains("/a.html"), "{text}");
+    context.close().await.unwrap();
+
+    // Serve from it: the server is not asked again.
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    page.route_from_har(&har).await.unwrap();
+    server.route("/a.html", "text/html", "<title>changed</title>", 0);
+    page.goto(&server.url("/a.html")).await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "a");
+    // Not in the HAR: aborted by default, or sent on with Fallback.
+    assert!(page.goto(&server.url("/missing.html")).await.is_err());
+    context.close().await.unwrap();
+
+    let context = browser.new_context(Default::default()).await.unwrap();
+    context
+        .route_from_har(&har)
+        .not_found(HarNotFound::Fallback)
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/a.html")).await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "a");
+    server.route("/b.html", "text/html", "<title>b</title>", 0);
+    page.goto(&server.url("/b.html")).await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "b");
+    context.close().await.unwrap();
+
+    // update: records into the HAR (written when the context closes).
+    let updated = dir.join("updated.har");
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    page.route_from_har(&updated).update(true).await.unwrap();
+    page.goto(&server.url("/b.html")).await.unwrap();
+    context.close().await.unwrap();
+    assert!(
+        std::fs::read_to_string(&updated)
+            .unwrap()
+            .contains("/b.html")
+    );
+    browser.close().await.unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
