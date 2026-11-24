@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.0] (in progress)
 
+### Milestone 14: every browser on every system
+
+- `chromiumoxide::WebKit` and `chromiumoxide::webkit::{Browser,
+  BrowserContext, Page}`: Playwright's WebKit build over its own protocol
+  (`--inspector-pipe`). Contexts with emulation, goto, set_content,
+  evaluate, style tags, resize, waits and screenshots pixel-identical to
+  Playwright's WebKit.
+- `LaunchOptions::browser_channel`: Playwright's `channel` (`chrome`,
+  `msedge`, betas, devs, canaries), looked up where Playwright looks on
+  each system. Tested with Microsoft Edge on Linux and Windows.
+- Windows: launches use `--remote-debugging-pipe` like Playwright (the
+  pipes travel on the C runtime's fds 3 and 4), so browsers quit with their
+  parent; Firefox and the test helpers find Playwright's Windows and macOS
+  folders; a reused profile's old DevTools port file is removed; the
+  debugger finds call sites in Windows backtraces.
+- `chromiumoxide::Tauri`: Tauri apps on Windows (WebView2 over CDP) and
+  Linux (WebKitGTK through WebKitWebDriver); macOS is an error naming why.
+- The whole suite runs on Windows 11 (Gary's PC).
+
 ### Milestone 13: Firefox (in progress)
 
 - `chromiumoxide::Firefox::launch` and `chromiumoxide::firefox::{Browser,

@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| Status | proposed |
+| Status | active |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
-| Started | — |
+| Started | 2026-11-24 |
 | Finished | — |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (WebKitGTK; `webkit2gtk-driver` 2.52 installable); a Windows CI runner for WebView2 |
@@ -65,6 +65,14 @@ Linux path if the WebKit goal is not met yet.
 ## Status
 
 - 2026-11-23: proposed.
+- 2026-11-24: active. `chromiumoxide::Tauri` with a test app
+  (`tests/fixtures/tauri-app`). Linux: WebKitGTK through WebKitWebDriver
+  (`TAURI_WEBVIEW_AUTOMATION=true`); the test passes (goto, evaluate, click,
+  screenshot). Windows: WebView2 over CDP. Finding: Tauri always sets its
+  own WebView2 arguments, and WebView2 then ignores
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` (and the per-app policy key), so
+  the app has to pass the variable on itself (the test app does). The
+  Windows CI runner is Gary's PC (GitHub skipped at his request).
 
 ## Set it
 

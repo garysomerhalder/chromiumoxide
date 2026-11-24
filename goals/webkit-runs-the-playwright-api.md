@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| Status | proposed |
+| Status | active |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
-| Started | — |
+| Started | 2026-11-24 |
 | Finished | — |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (Playwright's WebKit 27.2, `webkit-2388`, GTK and WPE); CI ubuntu-latest |
@@ -68,6 +68,15 @@ the WebKit build needs system libraries CI cannot install.
 ## Status
 
 - 2026-11-23: proposed.
+- 2026-11-24: active. `chromiumoxide::WebKit` drives Playwright's WebKit
+  build over its own protocol (`--inspector-pipe`): contexts with emulation,
+  goto, set_content, evaluate, style tags, resize, waits and screenshots.
+  The WebKit pixel-parity test passes: every shot matches Playwright's
+  WebKit, except a pixelated `<img>` that headless WebKit paints only in
+  some runs (Playwright's too), left out of the cases. Runs on Linux and
+  Windows (pipe on the C runtime's fds 3 and 4). Real Safari needs a Mac:
+  the Daytona key given for the cloud Mac is rejected ("Invalid
+  credentials"). Next: locators, input, events, network, as for Firefox.
 
 ## Set it
 

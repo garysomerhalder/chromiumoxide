@@ -68,6 +68,8 @@ Chrome for Testing and chrome-headless-shell.
 | `--headless` (old) for headless shell, `--headless=new` for full Chrome | M1 | ✅ |
 | Unique temporary user-data-dir per launch, removed on close | M1 | ✅ |
 | Parallel launches do not interfere | M1 | ✅ |
+| Playwright's `channel` (`chrome`, `chrome-beta`, `chrome-dev`, `chrome-canary`, `msedge`, `msedge-beta`, `msedge-dev`, `msedge-canary`) as `LaunchOptions::browser_channel`; default discovery unchanged | M14 | ✅ `edge_channel_runs_the_installed_edge` (Edge 158 on Linux and Windows) |
+| Windows: `--remote-debugging-pipe` on the C runtime's fds 3 and 4 (as Node passes them for Playwright); the browser quits when its parent goes away | M14 | ✅ the whole suite on Windows 11 |
 
 ## 3. Browser context options
 
@@ -1266,3 +1268,32 @@ Firefox.
 | CDP sessions, coverage, `browser.startTracing`, CDP domain clients (section 12) | ❌ | Chromium-only: Firefox does not speak CDP |
 | `firefox.connect` (a running Firefox's BiDi endpoint; `close` leaves it running), `launchPersistentContext` (kept profile) | ✅ | `firefox_persistent_context_and_connect` |
 | `launchServer` | ⬜ | |
+
+## 14. WebKit (M14)
+
+`chromiumoxide::webkit` drives Playwright's WebKit build (Safari's engine)
+over its own protocol through `--inspector-pipe`, with the Playwright method
+names. Tests: `tests/integration/webkit.rs`, `tests/integration/webkit_parity.rs`,
+against `webkit-2388` (Playwright 1.65.1) on Linux and `webkit-2359` on
+Windows. Real Safari needs a Mac (not reachable yet: see the goal).
+
+| Area | WebKit | Test / reason |
+|---|---|---|
+| `webkit.launch` (Playwright's arguments, `executablePath`, `headless`, `args`, `env`, `timeout`); Linux, macOS and Windows (pipe) | ✅ | `webkit_launches_and_runs_a_page` (Linux, Windows) |
+| `browser.version`, `newPage`, `newContext`, `close` | ✅ | `webkit_launches_and_runs_a_page` |
+| Context options `viewport`, `deviceScaleFactor`, `screen`, `userAgent` (default: Playwright's Safari 27.2 one), `locale`, `timezoneId`, `geolocation`, `ignoreHTTPSErrors`, `extraHTTPHeaders`, `hasTouch` | ✅ | `webkit_contexts_emulate_devices` |
+| `page.goto`, `setContent`, `title`, `url`, `content`, `evaluate`, `addStyleTag`, `setViewportSize`, `waitForFunction`, `waitForTimeout` | ✅ | `webkit_launches_and_runs_a_page`, `webkit_contexts_emulate_devices` |
+| `page.screenshot` (viewport, clip, fullPage, JPEG, scale) | ✅ | `webkit_screenshots_are_pixel_identical_to_playwright`: pixel-identical to Playwright's WebKit (desktop, mobile 3x, mockup 2x) |
+| Pixelated `<img>` in parity pages | ❌ | Headless WebKit paints it in some runs only, in Playwright's own runs too; left out of the parity cases |
+| Locators, input, events, network, storage, frames, recording | ⬜ | Next, as for Firefox |
+
+## 15. Tauri (M14)
+
+`chromiumoxide::Tauri` drives Tauri apps. Test:
+`tests/integration/tauri.rs` with the app in `tests/fixtures/tauri-app`.
+
+| System | How | Status |
+|---|---|---|
+| Windows | WebView2 over CDP: the app passes `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` on to its WebView2 arguments (Tauri sets its own, and WebView2 then ignores the variable); each window is a Chromium `Page` | ✅ see the goal for the Windows run |
+| Linux | WebKitGTK through `WebKitWebDriver` (`webkit2gtk-driver`), with `TAURI_WEBVIEW_AUTOMATION=true` like `tauri-driver`; goto, title, evaluate, waits, screenshot, CSS locators (click, inner text) | ✅ `tauri_window_runs_the_page_api` (Xvfb) |
+| macOS | ❌ WKWebView has no WebDriver or DevTools interface for embedding apps (Tauri's `tauri-driver` has no macOS support either) | error naming the reason |
