@@ -95,7 +95,24 @@ pub fn newest_playwright_install(prefix: &str, exe: &str) -> Option<std::path::P
 
 /// The newest full Chromium Playwright installed (`chromium-<revision>`).
 pub fn full_chromium() -> Option<std::path::PathBuf> {
-    newest_playwright_install("chromium-", "chrome-linux64/chrome")
+    const MAC_APP: &str = "Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
+    let candidates: &[String] = &if cfg!(windows) {
+        vec![
+            "chrome-win64/chrome.exe".into(),
+            "chrome-win/chrome.exe".into(),
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec![
+            format!("chrome-mac-arm64/{MAC_APP}"),
+            format!("chrome-mac-x64/{MAC_APP}"),
+            format!("chrome-mac/{MAC_APP}"),
+        ]
+    } else {
+        vec!["chrome-linux64/chrome".into()]
+    };
+    candidates
+        .iter()
+        .find_map(|exe| newest_playwright_install("chromium-", exe))
 }
 
 /// A running process's command line (`None` once it has ended), on Linux,

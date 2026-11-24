@@ -4,11 +4,19 @@
 use chromiumoxide::Firefox;
 use chromiumoxide::firefox::FirefoxLaunchOptions;
 
-/// Playwright's newest Firefox (`firefox-<revision>/firefox/firefox`). With
+/// Playwright's newest Firefox (`firefox-<revision>/firefox/firefox`, the
+/// `Nightly.app` on macOS, `firefox.exe` on Windows). With
 /// `CHROMIUMOXIDE_REQUIRE_FIREFOX` set, a missing Firefox fails the test
 /// instead of skipping it.
 pub fn firefox_executable() -> Option<std::path::PathBuf> {
-    let found = crate::newest_playwright_install("firefox-", "firefox/firefox");
+    let exe = if cfg!(windows) {
+        "firefox/firefox.exe"
+    } else if cfg!(target_os = "macos") {
+        "firefox/Nightly.app/Contents/MacOS/firefox"
+    } else {
+        "firefox/firefox"
+    };
+    let found = crate::newest_playwright_install("firefox-", exe);
     if found.is_none() && std::env::var_os("CHROMIUMOXIDE_REQUIRE_FIREFOX").is_some() {
         panic!("no Playwright Firefox installed (CHROMIUMOXIDE_REQUIRE_FIREFOX is set)");
     }
