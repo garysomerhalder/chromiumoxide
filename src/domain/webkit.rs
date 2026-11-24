@@ -41,6 +41,17 @@ pub fn command_line(
     out
 }
 
+/// WebKit's `Input` modifier bits (Shift 1, Control 2, Alt 4, Meta 8) from
+/// the CDP bits the shared keyboard model uses.
+pub fn modifiers(cdp: u32) -> u32 {
+    use crate::domain::input::{ALT, CONTROL, META, SHIFT};
+    [(SHIFT, 1), (CONTROL, 2), (ALT, 4), (META, 8)]
+        .iter()
+        .filter(|(bit, _)| cdp & bit != 0)
+        .map(|(_, wk)| wk)
+        .sum()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
