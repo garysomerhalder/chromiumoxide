@@ -1009,6 +1009,11 @@ impl std::fmt::Debug for Page {
 }
 
 impl Page {
+    /// `page.isClosed()`.
+    pub fn is_closed(&self) -> bool {
+        self.inner.closed.load(Ordering::SeqCst)
+    }
+
     fn check_open(&self) -> Result<()> {
         if self.inner.closed.load(Ordering::SeqCst) {
             return Err(Error::TargetClosed("page has been closed".into()));
@@ -1028,12 +1033,18 @@ impl Page {
     }
 
     async fn goto_untraced(&self, url: &str) -> Result<()> {
+        let context = self.inner.context.clone();
+        self.goto_in(&context, url).await
+    }
+
+    /// Navigates a frame's browsing context and waits for its `load`.
+    pub(crate) async fn goto_in(&self, context: &str, url: &str) -> Result<()> {
         self.check_open()?;
         self.inner
             .bidi
             .call(
                 "browsingContext.navigate",
-                json!({"context": self.inner.context, "wait": "complete",
+                json!({"context": context, "wait": "complete",
                        "url": crate::domain::url_matcher::resolve_url(
                            self.inner.options.base_url.as_deref(), url)}),
             )
@@ -1486,18 +1497,20 @@ impl Page {
             )
             .await?;
         let mut out = Vec::new();
-        fn walk(page: &Page, node: &Value, out: &mut Vec<Frame>) {
-            out.push(Frame {
+        fn walk(page: &Page, node: &Value, parent: Option<&Frame>, out: &mut Vec<Frame>) {
+            let frame = Frame {
                 page: page.clone(),
                 context: node["context"].as_str().unwrap_or_default().to_owned(),
                 url: node["url"].as_str().unwrap_or_default().to_owned(),
-            });
+                parent: parent.map(|p| Box::new(p.clone())),
+            };
+            out.push(frame.clone());
             for child in node["children"].as_array().into_iter().flatten() {
-                walk(page, child, out);
+                walk(page, child, Some(&frame), out);
             }
         }
         for root in tree["contexts"].as_array().into_iter().flatten() {
-            walk(self, root, &mut out);
+            walk(self, root, None, &mut out);
         }
         Ok(out)
     }
@@ -1575,8 +1588,15 @@ impl Page {
 
     /// `page.content()`: the doctype and `documentElement.outerHTML`.
     pub async fn content(&self) -> Result<String> {
+        let context = self.inner.context.clone();
+        self.content_in(&context).await
+    }
+
+    /// `frame.content()` of a browsing context.
+    pub(crate) async fn content_in(&self, context: &str) -> Result<String> {
         let v = self
-            .call_json(
+            .call_json_in(
+                context,
                 "() => { let r = ''; if (document.doctype) r = new XMLSerializer().serializeToString(document.doctype); \
                  if (document.documentElement) r += document.documentElement.outerHTML; return r; }",
                 &[],
@@ -1673,10 +1693,19 @@ impl Page {
     /// `page.waitForFunction(fn | expression)`: polls until it returns a
     /// truthy value (Playwright's 30 s default timeout) and resolves with it.
     pub async fn wait_for_function(&self, source: &str) -> Result<Value> {
+        let context = self.inner.context.clone();
+        self.wait_for_function_in(&context, source).await
+    }
+
+    /// `frame.waitForFunction(...)` in a browsing context.
+    pub(crate) async fn wait_for_function_in(&self, context: &str, source: &str) -> Result<Value> {
         let timeout = Duration::from_secs(30);
         let deadline = self.now() + timeout;
         loop {
-            match self.evaluate_value(source, None).await {
+            match self
+                .evaluate_value_in(json!({"context": context}), source, None)
+                .await
+            {
                 Ok(v) if truthy(&v) => return Ok(v),
                 Ok(_) => {}
                 // A navigation can destroy the realm mid-poll; try again.
@@ -1804,7 +1833,7 @@ impl Page {
         }
     }
 
-    async fn script_evaluate_in(
+    pub(crate) async fn script_evaluate_in(
         &self,
         context: &str,
         expression: &str,
@@ -1969,7 +1998,14 @@ impl Page {
     }
 
     async fn set_content_untraced(&self, html: &str) -> Result<()> {
-        self.call_json(
+        let context = self.inner.context.clone();
+        self.set_content_in(&context, html).await
+    }
+
+    /// `frame.setContent(html)` in a browsing context.
+    pub(crate) async fn set_content_in(&self, context: &str, html: &str) -> Result<()> {
+        self.call_json_in(
+            context,
             "(html) => new Promise(resolve => { document.open(); \
              addEventListener('load', () => resolve(), { once: true }); \
              document.write(html); document.close(); \
@@ -1983,6 +2019,12 @@ impl Page {
 
     /// `page.addStyleTag({ content | url | path })`.
     pub async fn add_style_tag(&self, tag: StyleTag) -> Result<()> {
+        let context = self.inner.context.clone();
+        self.add_style_tag_in(&context, tag).await
+    }
+
+    /// `frame.addStyleTag(...)` in a browsing context.
+    pub(crate) async fn add_style_tag_in(&self, context: &str, tag: StyleTag) -> Result<()> {
         let (content, url) = match tag {
             StyleTag::Content(css) => (Value::String(css), Value::Null),
             StyleTag::Url(u) => (Value::Null, Value::String(u)),
@@ -1996,7 +2038,8 @@ impl Page {
                 (Value::String(css), Value::Null)
             }
         };
-        self.call_json(ADD_STYLE, &[content, url], None).await?;
+        self.call_json_in(context, ADD_STYLE, &[content, url], None)
+            .await?;
         Ok(())
     }
 
@@ -2176,9 +2219,10 @@ impl Page {
 /// A frame of a Firefox page (`page.frames()`).
 #[derive(Clone, Debug)]
 pub struct Frame {
-    page: Page,
-    context: String,
-    url: String,
+    pub(crate) page: Page,
+    pub(crate) context: String,
+    pub(crate) url: String,
+    pub(crate) parent: Option<Box<Frame>>,
 }
 
 impl Frame {
@@ -2190,21 +2234,6 @@ impl Frame {
     /// The frame's URL when it was listed.
     pub fn url(&self) -> &str {
         &self.url
-    }
-
-    /// `frame.evaluate(expression)` (JSON result).
-    pub async fn evaluate<T: DeserializeOwned>(&self, expression: &str) -> Result<T> {
-        let v = self
-            .page
-            .call_json_in(
-                &self.context,
-                &format!("() => (\n{}\n)", expression.trim().trim_end_matches(';')),
-                &[],
-                None,
-            )
-            .await?;
-        serde_json::from_value(v)
-            .map_err(|e| Error::Evaluation(format!("cannot deserialize result: {e}")))
     }
 }
 

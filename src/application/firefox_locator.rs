@@ -16,6 +16,7 @@ impl Page {
     pub fn locator(&self, selector: &str) -> Locator {
         Locator {
             page: self.clone(),
+            root: None,
             frames: Vec::new(),
             selector: selector.to_owned(),
         }
@@ -25,6 +26,7 @@ impl Page {
     pub fn frame_locator(&self, selector: &str) -> FrameLocator {
         FrameLocator {
             page: self.clone(),
+            root: None,
             frames: vec![selector.to_owned()],
         }
     }
@@ -55,7 +57,9 @@ impl Page {
 #[derive(Clone, Debug)]
 pub struct Locator {
     pub(crate) page: Page,
-    /// Iframe selectors from the main frame down to the locator's frame.
+    /// The browsing context the lookup starts in (`None`: the main frame).
+    pub(crate) root: Option<String>,
+    /// Iframe selectors from the root frame down to the locator's frame.
     pub(crate) frames: Vec<String>,
     pub(crate) selector: String,
 }
@@ -64,6 +68,7 @@ pub struct Locator {
 #[derive(Clone, Debug)]
 pub struct FrameLocator {
     pub(crate) page: Page,
+    pub(crate) root: Option<String>,
     pub(crate) frames: Vec<String>,
 }
 
@@ -71,6 +76,7 @@ impl FrameLocator {
     pub fn locator(&self, selector: &str) -> Locator {
         Locator {
             page: self.page.clone(),
+            root: self.root.clone(),
             frames: self.frames.clone(),
             selector: selector.to_owned(),
         }
@@ -81,6 +87,7 @@ impl FrameLocator {
         frames.push(selector.to_owned());
         FrameLocator {
             page: self.page.clone(),
+            root: self.root.clone(),
             frames,
         }
     }
@@ -146,6 +153,7 @@ impl Locator {
     pub(crate) fn with(&self, selector: String) -> Locator {
         Locator {
             page: self.page.clone(),
+            root: self.root.clone(),
             frames: self.frames.clone(),
             selector,
         }
@@ -176,8 +184,13 @@ impl Locator {
     /// The locator's frame: its browsing context and the offset of its
     /// viewport in the page's; `None` while an iframe on the way is missing.
     pub(crate) async fn scope(&self) -> Result<Option<(String, (f64, f64))>> {
-        let mut context = self.page.main_context();
-        let mut offset = (0.0, 0.0);
+        let (mut context, mut offset) = match &self.root {
+            None => (self.page.main_context(), (0.0, 0.0)),
+            Some(root) => match self.page.context_offset(root).await? {
+                Some(offset) => (root.clone(), offset),
+                None => return Ok(None),
+            },
+        };
         for frame in &self.frames {
             match self.page.child_frame(&context, frame).await? {
                 Some((child, (x, y))) => {

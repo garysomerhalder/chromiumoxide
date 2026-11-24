@@ -227,6 +227,7 @@ impl Locator {
         frames.push(self.selector.clone());
         FrameLocator {
             page: self.page.clone(),
+            root: self.root.clone(),
             frames,
         }
     }

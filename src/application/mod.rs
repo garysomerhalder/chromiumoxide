@@ -22,6 +22,7 @@ pub mod firefox;
 pub mod firefox_download;
 pub mod firefox_events;
 pub mod firefox_expect;
+pub mod firefox_frame;
 pub mod firefox_input;
 pub mod firefox_locator;
 pub mod firefox_locator_more;
