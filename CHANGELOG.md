@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Milestone 14: every browser on every system
 
+- Runs on Linux, Windows and macOS: the full suite passes on each with
+  every browser required (Chromium, Chrome, Edge, Firefox, Playwright's
+  WebKit, Electron; Tauri on Windows and Linux; real Safari on macOS).
+- macOS editing commands (`domain::mac_editing`, Playwright's
+  `macEditingCommands`): Backspace, Meta+A and the rest work in Chromium
+  and WebKit on a Mac as under Playwright.
+
 - `chromiumoxide::WebKit` and `chromiumoxide::webkit::{Browser,
   BrowserContext, Page}`: Playwright's WebKit build over its own protocol
   (`--inspector-pipe`). Contexts with emulation, goto, set_content,

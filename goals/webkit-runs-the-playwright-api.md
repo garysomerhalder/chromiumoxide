@@ -87,6 +87,12 @@ the WebKit build needs system libraries CI cannot install.
   parity cases also leave out `autofocus`: its focus ring races in
   Playwright's own WebKit shots under load. Next: tracing, HAR, workers;
   real Safari needs the Mac.
+- 2026-11-24: on a real Mac (Daytona, macOS 26.6.2 arm64) the whole
+  suite passes with every browser required: real Safari through
+  safaridriver, Playwright's WebKit, Firefox and Chromium (all three pixel
+  parity tests), Edge, Chrome and Electron. The Mac found one real bug:
+  editing keys (Backspace, Meta+A) need Playwright's macOS editing
+  commands, now sent to Chromium (`commands`) and WebKit (`macCommands`).
 
 ## Set it
 
