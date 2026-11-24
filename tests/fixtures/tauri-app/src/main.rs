@@ -4,10 +4,18 @@
 // WebView2 then ignores WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, so the app
 // passes that variable on itself (chromiumoxide sets it to open a DevTools
 // port). On Linux, Tauri's own opt-in is TAURI_WEBVIEW_AUTOMATION=true.
+// On macOS the app embeds a WebDriver server (tauri-plugin-wdio-webdriver)
+// when chromiumoxide sets TAURI_WEBDRIVER_PORT.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    if std::env::var_os("TAURI_WEBDRIVER_PORT").is_some() {
+        builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
+    }
+    builder
         .setup(|app| {
             #[allow(unused_mut)]
             let mut window =

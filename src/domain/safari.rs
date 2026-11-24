@@ -49,6 +49,20 @@ mod tests {
     }
 
     #[test]
+    fn a_tauri_app_on_macos_embeds_its_webdriver_server() {
+        // The app is the server: its port goes in TAURI_WEBDRIVER_PORT
+        // (tauri-plugin-wdio-webdriver), not in arguments.
+        assert_eq!(
+            embedded_port_env(4445),
+            ("TAURI_WEBDRIVER_PORT".to_owned(), "4445".to_owned())
+        );
+        assert_eq!(
+            embedded_new_session(),
+            json!({"capabilities": {"alwaysMatch": {}}})
+        );
+    }
+
+    #[test]
     fn session_capabilities() {
         assert_eq!(
             new_session(None),
