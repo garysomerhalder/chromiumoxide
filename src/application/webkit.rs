@@ -800,7 +800,7 @@ impl Page {
             "Network.requestWillBeSent"
             | "Network.responseReceived"
             | "Network.loadingFinished"
-            | "Network.loadingFailed" => self.on_network_event(method, p),
+            | "Network.loadingFailed" => self.on_network_event(target, method, p),
             "Console.messageRepeatCountUpdated" if current => {
                 let count = p["count"].as_u64().unwrap_or(1);
                 let repeated = {

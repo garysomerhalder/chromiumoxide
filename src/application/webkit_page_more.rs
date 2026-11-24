@@ -1102,3 +1102,113 @@ impl Browser {
         Err(chromium_only("browser.stopTracing()"))
     }
 }
+
+/// A WebKit context as an API request context's cookie jar.
+struct WebKitJar(std::sync::Weak<ContextInner>);
+
+impl WebKitJar {
+    fn context(&self) -> Result<BrowserContext> {
+        self.0
+            .upgrade()
+            .filter(|c| !c.closed.load(Ordering::SeqCst))
+            .map(|inner| BrowserContext { inner })
+            .ok_or_else(|| Error::Request("Request context disposed.".into()))
+    }
+}
+
+impl crate::application::request::CookieStore for WebKitJar {
+    fn is_open(&self) -> bool {
+        self.context().is_ok()
+    }
+    fn cookies_for<'a>(
+        &'a self,
+        urls: &'a [&'a str],
+    ) -> futures::future::BoxFuture<'a, Result<Vec<Cookie>>> {
+        Box::pin(async move { self.context()?.cookies_for(urls).await })
+    }
+    fn add_cookies<'a>(
+        &'a self,
+        cookies: &'a [NewCookie],
+    ) -> futures::future::BoxFuture<'a, Result<()>> {
+        Box::pin(async move { self.context()?.add_cookies(cookies).await })
+    }
+    fn clear_cookies_matching(
+        &self,
+        filter: crate::domain::storage::ClearCookies,
+    ) -> futures::future::BoxFuture<'_, Result<()>> {
+        Box::pin(async move { self.context()?.clear_cookies_matching(filter).await })
+    }
+    fn storage_state(&self) -> futures::future::BoxFuture<'_, Result<StorageState>> {
+        Box::pin(async move { self.context()?.storage_state().await })
+    }
+    fn user_agent(&self) -> futures::future::BoxFuture<'_, Option<String>> {
+        Box::pin(async move {
+            let ctx = self.context().ok()?;
+            for page in ctx.pages() {
+                if let Ok(ua) = page.evaluate::<String>("navigator.userAgent").await {
+                    return Some(ua);
+                }
+            }
+            Some(crate::domain::webkit::default_user_agent())
+        })
+    }
+}
+
+impl BrowserContext {
+    /// `context.request`: API requests with this context's cookies,
+    /// headers, credentials and base URL (Playwright's APIRequestContext).
+    pub fn request(&self) -> crate::application::request::ApiRequestContext {
+        let o = &self.inner.options;
+        crate::application::request::ApiRequestContext::with_store(
+            self.inner.browser.inner.services.clone(),
+            crate::application::request::ApiRequestOptions {
+                base_url: o.base_url.clone(),
+                extra_http_headers: self
+                    .inner
+                    .extra_headers
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .cloned()
+                    .collect(),
+                http_credentials: self.inner.credentials.lock().unwrap().clone(),
+                user_agent: o.user_agent.clone(),
+                ignore_https_errors: o.ignore_https_errors,
+                timeout: None,
+                fail_on_status_code: false,
+                storage_state: None,
+                client_certificates: o.client_certificates.clone(),
+            },
+            std::sync::Arc::new(WebKitJar(std::sync::Arc::downgrade(&self.inner))),
+        )
+    }
+
+    /// `context.clearCookies({ name, domain, path })`: only matching
+    /// cookies (the others are put back).
+    pub async fn clear_cookies_matching(
+        &self,
+        filter: crate::domain::storage::ClearCookies,
+    ) -> Result<()> {
+        let keep: Vec<NewCookie> = self
+            .cookies()
+            .await?
+            .iter()
+            .filter(|c| !filter.matches(c))
+            .map(Cookie::to_new_cookie)
+            .collect();
+        self.clear_cookies().await?;
+        if !keep.is_empty() {
+            self.add_cookies(&keep).await?;
+        }
+        Ok(())
+    }
+}
+
+impl Page {
+    /// `page.request`: the context's API request context.
+    pub fn request(&self) -> crate::application::request::ApiRequestContext {
+        self.context()
+            .expect("a page belongs to a context while it is open")
+            .request()
+    }
+}
