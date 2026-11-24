@@ -93,6 +93,35 @@ fn opt_inches(v: &Option<String>) -> Result<Option<f64>, String> {
 }
 
 impl PdfOptions {
+    /// WebDriver BiDi `browsingContext.print` parameters (centimetres).
+    /// BiDi prints no header or footer, so those options are refused.
+    pub fn to_bidi(&self) -> Result<Value, String> {
+        if self.display_header_footer {
+            return Err("displayHeaderFooter is not supported on Firefox".into());
+        }
+        let p = self.to_protocol()?;
+        let cm = |key: &str| p[key].as_f64().unwrap_or(0.0) * 2.54;
+        let mut out = json!({
+            "background": self.print_background,
+            "orientation": if self.landscape { "landscape" } else { "portrait" },
+            "scale": self.scale,
+            "shrinkToFit": false,
+            "page": {"width": cm("paperWidth"), "height": cm("paperHeight")},
+            "margin": {"top": cm("marginTop"), "bottom": cm("marginBottom"),
+                       "left": cm("marginLeft"), "right": cm("marginRight")},
+        });
+        let ranges: Vec<&str> = self
+            .page_ranges
+            .split(',')
+            .map(str::trim)
+            .filter(|r| !r.is_empty())
+            .collect();
+        if !ranges.is_empty() {
+            out["pageRanges"] = json!(ranges);
+        }
+        Ok(out)
+    }
+
     /// `Page.printToPDF` parameters, exactly as Playwright sends them.
     pub fn to_protocol(&self) -> Result<Value, String> {
         let (width, height) = match &self.format {

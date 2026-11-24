@@ -246,6 +246,65 @@ pub fn remote_value_to_json(v: &Value) -> Value {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn har_entries_from_bidi_network_events() {
+        let request = serde_json::json!({
+            "request": "7", "url": "http://h:1/p?a=1", "method": "POST",
+            "headers": [{"name": "Content-Type", "value": {"type": "string", "value": "text/plain"}},
+                        {"name": "Cookie", "value": {"type": "string", "value": "k=v"}}],
+            "headersSize": 120, "bodySize": 3,
+            "timings": {"timeOrigin": 1000.0, "requestTime": 1000.0, "dnsStart": 1.0, "dnsEnd": 2.0,
+                        "connectStart": 2.0, "connectEnd": 4.0, "tlsStart": 0.0,
+                        "requestStart": 5.0, "responseStart": 15.0, "responseEnd": 20.0}
+        });
+        let response = serde_json::json!({
+            "url": "http://h:1/p?a=1", "protocol": "http/1.1", "status": 200, "statusText": "OK",
+            "mimeType": "text/html;charset=utf-8",
+            "headers": [{"name": "Content-Type", "value": {"type": "string", "value": "text/html; charset=utf-8"}},
+                        {"name": "Set-Cookie", "value": {"type": "string", "value": "s=1; Path=/"}}],
+            "headersSize": 80, "bodySize": 5, "content": {"size": 5}
+        });
+        let e = har_entry(
+            &request,
+            Some(&response),
+            Some(b"x=1"),
+            Some(b"hello"),
+            Some("page@1"),
+        );
+        assert_eq!(e.pageref.as_deref(), Some("page@1"));
+        assert_eq!(e.started_date_time, "1970-01-01T00:00:01.000Z");
+        assert_eq!(e.request.method, "POST");
+        assert_eq!(e.request.http_version, "HTTP/1.1");
+        assert_eq!(e.request.query_string, [NameValuePair::new("a", "1")]);
+        assert_eq!(e.request.cookies, [NameValuePair::new("k", "v")]);
+        let post = e.request.post_data.as_ref().unwrap();
+        assert_eq!(
+            (post.mime_type.as_str(), post.text.as_str()),
+            ("text/plain", "x=1")
+        );
+        assert_eq!(e.response.status, 200);
+        assert_eq!(e.response.status_text, "OK");
+        assert_eq!(e.response.cookies, [NameValuePair::new("s", "1")]);
+        assert_eq!(e.response.content.mime_type, "text/html");
+        assert_eq!(e.response.content.text.as_deref(), Some("hello"));
+        assert_eq!(e.response.content.size, 5);
+        assert_eq!(
+            (
+                e.timings.dns,
+                e.timings.connect,
+                e.timings.wait,
+                e.timings.receive
+            ),
+            (1.0, 2.0, 10.0, 5.0)
+        );
+        assert_eq!(e.time, 18.0);
+
+        // A request that failed has no response.
+        let failed = har_entry(&request, None, None, None, None);
+        assert_eq!(failed.response.status, -1);
+        assert_eq!(failed.pageref, None);
+    }
+
     use super::*;
     use serde_json::json;
 
