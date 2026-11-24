@@ -25,12 +25,14 @@ use crate::application::services::Services;
 use crate::domain::emulation::{ContextOptions, Viewport};
 use crate::domain::error::{Error, Result};
 use crate::domain::firefox::{
-    command_line, profile_files, remote_value_to_json, unsupported_context_options,
+    command_line, cookie_from_bidi, cookie_to_bidi, init_script_function, profile_files,
+    remote_value_to_json, unsupported_context_options,
 };
 use crate::domain::screenshot::{
     Animations, Caret, ImageFormat, Rect, ScreenshotOptions, ScreenshotScale, Size, Target,
     plan_page, validate,
 };
+use crate::domain::storage::{Cookie, NewCookie, filter_cookies};
 use crate::ports::{BidiSession, BrowserProcess, FirefoxCommand};
 
 /// The sandbox (BiDi's isolated world) for Playwright's utility scripts.
@@ -378,6 +380,75 @@ impl BrowserContext {
         Ok(())
     }
 
+    fn partition(&self) -> Value {
+        json!({"type": "storageKey", "userContext": self.inner.user_context})
+    }
+
+    /// `context.cookies()`: every cookie of this context.
+    pub async fn cookies(&self) -> Result<Vec<Cookie>> {
+        self.cookies_for(&[]).await
+    }
+
+    /// `context.cookies(urls)`: the cookies sent to any of `urls`.
+    pub async fn cookies_for(&self, urls: &[&str]) -> Result<Vec<Cookie>> {
+        let r = self
+            .inner
+            .bidi
+            .call("storage.getCookies", json!({"partition": self.partition()}))
+            .await?;
+        let cookies = r
+            .get("cookies")
+            .and_then(Value::as_array)
+            .map(|list| list.iter().map(cookie_from_bidi).collect())
+            .unwrap_or_default();
+        Ok(filter_cookies(cookies, urls))
+    }
+
+    /// `context.addCookies(cookies)` (checked like Playwright's).
+    pub async fn add_cookies(&self, cookies: &[NewCookie]) -> Result<()> {
+        let resolved = cookies
+            .iter()
+            .map(NewCookie::resolve)
+            .collect::<std::result::Result<Vec<_>, String>>()
+            .map_err(Error::InvalidArgument)?;
+        for c in &resolved {
+            self.inner
+                .bidi
+                .call(
+                    "storage.setCookie",
+                    json!({"cookie": cookie_to_bidi(c), "partition": self.partition()}),
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// `context.clearCookies()`.
+    pub async fn clear_cookies(&self) -> Result<()> {
+        self.inner
+            .bidi
+            .call(
+                "storage.deleteCookies",
+                json!({"partition": self.partition()}),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// `context.addInitScript(source)`: runs before any page script in
+    /// every document of this context.
+    pub async fn add_init_script(&self, source: &str) -> Result<()> {
+        self.inner
+            .bidi
+            .call(
+                "script.addPreloadScript",
+                json!({"functionDeclaration": init_script_function(source),
+                       "userContexts": [self.inner.user_context]}),
+            )
+            .await?;
+        Ok(())
+    }
+
     /// `context.newPage()`: a new window in this user context.
     pub async fn new_page(&self) -> Result<Page> {
         if self.inner.closed.load(Ordering::SeqCst) {
@@ -611,6 +682,21 @@ impl Page {
             .call(
                 "browsingContext.handleUserPrompt",
                 prompt_params(&self.inner.context, accept, text),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// `page.addInitScript(source)`: runs before any page script in every
+    /// later document of this page.
+    pub async fn add_init_script(&self, source: &str) -> Result<()> {
+        self.check_open()?;
+        self.inner
+            .bidi
+            .call(
+                "script.addPreloadScript",
+                json!({"functionDeclaration": init_script_function(source),
+                       "contexts": [self.inner.context]}),
             )
             .await?;
         Ok(())

@@ -5,6 +5,7 @@ use std::path::Path;
 use serde_json::{Map, Number, Value};
 
 use crate::domain::emulation::{ColorScheme, ContextOptions, ServiceWorkers};
+use crate::domain::storage::{Cookie, NewCookie, SameSite};
 
 /// Playwright's Firefox arguments with the WebDriver BiDi endpoint instead
 /// of Juggler's pipe. Playwright passes `-silent` (no window) because its
@@ -87,6 +88,79 @@ pub fn webdriver_key(name: &str) -> Option<String> {
         _ => return None,
     };
     Some(code.to_string())
+}
+
+/// A BiDi `network.Cookie` as Playwright's cookie (`expiry` absent: a
+/// session cookie, `-1`; BiDi's `default` same-site reads as `Lax`, like
+/// Chromium's missing value).
+pub fn cookie_from_bidi(c: &Value) -> Cookie {
+    let s = |k: &str| {
+        c.get(k)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    Cookie {
+        name: s("name"),
+        value: c
+            .pointer("/value/value")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned(),
+        domain: s("domain"),
+        path: s("path"),
+        expires: c.get("expiry").and_then(Value::as_f64).unwrap_or(-1.0),
+        http_only: c.get("httpOnly").and_then(Value::as_bool).unwrap_or(false),
+        secure: c.get("secure").and_then(Value::as_bool).unwrap_or(false),
+        same_site: match c.get("sameSite").and_then(Value::as_str) {
+            Some("strict") => SameSite::Strict,
+            Some("none") => SameSite::None,
+            _ => SameSite::Lax,
+        },
+        partition_key: None,
+    }
+}
+
+/// `storage.setCookie`'s `cookie` for a cookie already checked and filled
+/// by [`NewCookie::resolve`].
+pub fn cookie_to_bidi(c: &NewCookie) -> Value {
+    let mut v = serde_json::json!({
+        "name": c.name,
+        "value": {"type": "string", "value": c.value},
+        "domain": c.domain.clone().unwrap_or_default(),
+        "path": c.path.clone().unwrap_or_else(|| "/".to_owned()),
+    });
+    if let Some(h) = c.http_only {
+        v["httpOnly"] = Value::Bool(h);
+    }
+    if let Some(sec) = c.secure {
+        v["secure"] = Value::Bool(sec);
+    }
+    if let Some(ss) = c.same_site {
+        v["sameSite"] = Value::String(
+            match ss {
+                SameSite::Strict => "strict",
+                SameSite::Lax => "lax",
+                SameSite::None => "none",
+            }
+            .to_owned(),
+        );
+    }
+    if let Some(e) = c.expires.filter(|e| *e > 0.0) {
+        v["expiry"] = Value::Number(Number::from(e as u64));
+    }
+    v
+}
+
+/// A BiDi preload script (a function) that runs Playwright's init script
+/// source as a script: through global `eval`, so top-level `var` and
+/// function declarations become globals, like Chromium's
+/// `Page.addScriptToEvaluateOnNewDocument`.
+pub fn init_script_function(source: &str) -> String {
+    format!(
+        "() => {{ (0, eval)({}); }}",
+        Value::String(source.to_owned())
+    )
 }
 
 /// Context options Firefox 159 cannot honour over WebDriver BiDi (no
@@ -204,6 +278,38 @@ mod tests {
         assert!(files.iter().any(|(p, c)| *p == "user.js"
             && c.contains("toolkit.legacyUserProfileCustomizations.stylesheets")));
         assert!(profile_files(false).is_empty());
+    }
+
+    #[test]
+    fn cookies_to_and_from_bidi() {
+        let c = cookie_from_bidi(
+            &json!({"name": "a", "value": {"type": "string", "value": "1"},
+            "domain": "x.test", "path": "/", "httpOnly": true, "secure": false, "sameSite": "none",
+            "size": 2}),
+        );
+        assert_eq!(
+            (c.name.as_str(), c.value.as_str(), c.expires),
+            ("a", "1", -1.0)
+        );
+        assert!(c.http_only);
+        assert_eq!(c.same_site, SameSite::None);
+        let resolved = NewCookie::new("a", "1")
+            .url("http://x.test/p/q")
+            .expires(2_000_000_000.0)
+            .resolve()
+            .unwrap();
+        let v = cookie_to_bidi(&resolved);
+        assert_eq!(v["value"], json!({"type": "string", "value": "1"}));
+        assert_eq!(v["domain"], "x.test");
+        assert_eq!(v["expiry"], 2_000_000_000u64);
+    }
+
+    #[test]
+    fn init_scripts_run_as_scripts() {
+        assert_eq!(
+            init_script_function("var a = \"x\";"),
+            r#"() => { (0, eval)("var a = \"x\";"); }"#
+        );
     }
 
     #[test]
