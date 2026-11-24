@@ -31,7 +31,7 @@ async fn webkit_screenshots_are_pixel_identical_to_playwright() {
     let cases: Vec<Case> = cases()
         .into_iter()
         .map(|mut c| {
-            c.html = without_images(&c.html);
+            c.html = unfocused(&without_images(&c.html));
             c
         })
         .collect();
@@ -89,6 +89,14 @@ async fn render_with_chromiumoxide(executable: &Path, cases: &[Case], out: &Path
 }
 
 /// The HTML without its `<img ...>` tags.
+/// Without `autofocus`: whether WebKit paints the focused input's ring in a
+/// shot depends on timing, on both sides (Playwright's own shots had it in
+/// 3 of 6 runs under load, and focusing from a script raced the same way),
+/// so no client can match it reliably.
+fn unfocused(html: &str) -> String {
+    html.replace(" autofocus ", " ")
+}
+
 fn without_images(html: &str) -> String {
     let mut out = String::new();
     let mut rest = html;

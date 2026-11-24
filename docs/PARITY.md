@@ -1284,7 +1284,7 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 | Context options `viewport`, `deviceScaleFactor`, `screen`, `userAgent` (default: Playwright's Safari 27.2 one), `locale`, `timezoneId`, `geolocation`, `ignoreHTTPSErrors`, `extraHTTPHeaders`, `hasTouch` | ✅ | `webkit_contexts_emulate_devices` |
 | `page.goto`, `setContent`, `title`, `url`, `content`, `evaluate`, `addStyleTag`, `setViewportSize`, `waitForFunction`, `waitForTimeout` | ✅ | `webkit_launches_and_runs_a_page`, `webkit_contexts_emulate_devices` |
 | `page.screenshot` (viewport, clip, fullPage, JPEG, scale) | ✅ | `webkit_screenshots_are_pixel_identical_to_playwright`: pixel-identical to Playwright's WebKit (desktop, mobile 3x, mockup 2x) |
-| Pixelated `<img>` in parity pages | ❌ | Headless WebKit paints it in some runs only, in Playwright's own runs too; left out of the parity cases |
+| Pixelated `<img>` and the `autofocus` focus ring in parity pages | ❌ | Headless WebKit paints them in some runs only, in Playwright's own runs too; left out of the parity cases |
 | `page.locator`, `getBy*`, `nth/first/last`, reads (`textContent`, `innerText`, `innerHTML`, `getAttribute`, `inputValue`, `isVisible/Hidden/Checked`, `count`, `all*`), actions (`click`, `dblclick`, `hover`, `focus`, `fill`, `press`, `pressSequentially`, `check`, `uncheck`) | ✅ | `webkit_locators_query_the_page`, `webkit_locators_act_on_elements` |
 | `page.reload`, `goBack`, `goForward` | ✅ | `webkit_history_cookies_scripts_and_events` |
 | `context.cookies(urls?)`, `addCookies`, `clearCookies` (`Playwright.*Cookies`) | ✅ | `webkit_history_cookies_scripts_and_events` |
