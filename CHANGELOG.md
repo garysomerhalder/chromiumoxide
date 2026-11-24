@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`--inspector-pipe`). Contexts with emulation, goto, set_content,
   evaluate, style tags, resize, waits and screenshots pixel-identical to
   Playwright's WebKit.
+- WebKit locators and input; `reload`, `goBack`, `goForward`; context
+  cookies; `addInitScript` (context and page); `page.events()` with
+  console messages, page errors and dialogs.
 - `LaunchOptions::browser_channel`: Playwright's `channel` (`chrome`,
   `msedge`, betas, devs, canaries), looked up where Playwright looks on
   each system. Tested with Microsoft Edge on Linux and Windows.

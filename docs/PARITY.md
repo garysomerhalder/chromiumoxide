@@ -1285,7 +1285,12 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 | `page.goto`, `setContent`, `title`, `url`, `content`, `evaluate`, `addStyleTag`, `setViewportSize`, `waitForFunction`, `waitForTimeout` | ✅ | `webkit_launches_and_runs_a_page`, `webkit_contexts_emulate_devices` |
 | `page.screenshot` (viewport, clip, fullPage, JPEG, scale) | ✅ | `webkit_screenshots_are_pixel_identical_to_playwright`: pixel-identical to Playwright's WebKit (desktop, mobile 3x, mockup 2x) |
 | Pixelated `<img>` in parity pages | ❌ | Headless WebKit paints it in some runs only, in Playwright's own runs too; left out of the parity cases |
-| Locators, input, events, network, storage, frames, recording | ⬜ | Next, as for Firefox |
+| `page.locator`, `getBy*`, `nth/first/last`, reads (`textContent`, `innerText`, `innerHTML`, `getAttribute`, `inputValue`, `isVisible/Hidden/Checked`, `count`, `all*`), actions (`click`, `dblclick`, `hover`, `focus`, `fill`, `press`, `pressSequentially`, `check`, `uncheck`) | ✅ | `webkit_locators_query_the_page`, `webkit_locators_act_on_elements` |
+| `page.reload`, `goBack`, `goForward` | ✅ | `webkit_history_cookies_scripts_and_events` |
+| `context.cookies(urls?)`, `addCookies`, `clearCookies` (`Playwright.*Cookies`) | ✅ | `webkit_history_cookies_scripts_and_events` |
+| `context/page.addInitScript` (`Page.setBootstrapScript`, with Playwright's Safari shims) | ✅ | `webkit_history_cookies_scripts_and_events` |
+| `page.events()`: console, pageerror, dialog (accept/dismiss; dismissed with no listener), load, domcontentloaded, close | ✅ | `webkit_history_cookies_scripts_and_events` |
+| Network events and routes, frames, `expect`, recording (video, trace, HAR) | ⬜ | Next, as for Firefox |
 
 ## 15. Tauri (M14)
 
