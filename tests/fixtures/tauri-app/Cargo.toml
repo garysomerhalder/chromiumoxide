@@ -1,0 +1,15 @@
+# A minimal Tauri 2 app for tests/integration/tauri.rs. Build it with
+# `cargo build` in this folder (its own workspace).
+[package]
+name = "cox-tauri-app"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

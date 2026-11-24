@@ -47,6 +47,7 @@ mod server;
 mod shortcuts;
 mod snapshots;
 mod storage;
+mod tauri;
 mod tracing;
 mod video;
 mod webkit;
