@@ -1,6 +1,6 @@
 //! Firefox: launch arguments and WebDriver BiDi value conversion (pure).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Number, Value};
 
@@ -393,6 +393,33 @@ pub fn har_entry(
     }
 }
 
+/// Where Playwright keeps its browsers, in lookup order, like the Chromium
+/// discovery: `PLAYWRIGHT_BROWSERS_PATH` (unless empty or `"0"`), the
+/// container's `/opt/pw-browsers` (not on Windows), the Linux and macOS
+/// caches under the home directory, and `%LOCALAPPDATA%\ms-playwright`.
+pub fn playwright_dirs(
+    browsers_path: Option<PathBuf>,
+    home: Option<PathBuf>,
+    local_app_data: Option<PathBuf>,
+    windows: bool,
+) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(p) = browsers_path.filter(|p| !p.as_os_str().is_empty() && p.as_os_str() != "0") {
+        dirs.push(p);
+    }
+    if !windows {
+        dirs.push(PathBuf::from("/opt/pw-browsers"));
+    }
+    if let Some(home) = home {
+        dirs.push(home.join(".cache/ms-playwright"));
+        dirs.push(home.join("Library/Caches/ms-playwright"));
+    }
+    if let Some(local) = local_app_data {
+        dirs.push(local.join("ms-playwright"));
+    }
+    dirs
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -422,7 +449,10 @@ mod tests {
             ]
         );
         // "0" and an empty value mean "the default folders" to Playwright.
-        assert_eq!(playwright_dirs(Some(p("0")), None, None, false), [p("/opt/pw-browsers")]);
+        assert_eq!(
+            playwright_dirs(Some(p("0")), None, None, false),
+            [p("/opt/pw-browsers")]
+        );
     }
 
     #[test]

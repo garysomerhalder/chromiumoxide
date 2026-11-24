@@ -54,7 +54,7 @@ const INJECTED: &str = "__chromiumoxide_injected";
 #[derive(Debug, Clone)]
 pub struct FirefoxLaunchOptions {
     /// The Firefox binary; `None` finds Playwright's newest Firefox
-    /// (`PLAYWRIGHT_BROWSERS_PATH`, then `~/.cache/ms-playwright`).
+    /// (Playwright's folders, see `domain::firefox::playwright_dirs`).
     pub executable_path: Option<PathBuf>,
     /// Headless (default `true`).
     pub headless: bool,
@@ -80,13 +80,15 @@ impl Default for FirefoxLaunchOptions {
 
 /// The newest `firefox-<revision>/firefox/firefox` Playwright installed.
 fn find_firefox(services: &Services) -> Option<PathBuf> {
-    let mut dirs = Vec::new();
-    if let Some(p) = services.env.var("PLAYWRIGHT_BROWSERS_PATH") {
-        dirs.push(PathBuf::from(p));
-    }
-    if let Some(home) = services.env.home_dir() {
-        dirs.push(home.join(".cache/ms-playwright"));
-    }
+    let dirs = crate::domain::firefox::playwright_dirs(
+        services
+            .env
+            .var("PLAYWRIGHT_BROWSERS_PATH")
+            .map(PathBuf::from),
+        services.env.home_dir(),
+        services.env.var("LOCALAPPDATA").map(PathBuf::from),
+        cfg!(windows),
+    );
     let exe = if cfg!(windows) {
         "firefox/firefox.exe"
     } else if cfg!(target_os = "macos") {
