@@ -1947,3 +1947,150 @@ async fn firefox_frames_and_selector_shortcuts() {
     assert!(gone.is_detached().await.unwrap());
     browser.close().await.unwrap();
 }
+
+/// Firefox: the rest of Page (recent console messages, errors and
+/// requests, default timeouts, opener, context, bringToFront,
+/// waitForNavigation, pickLocator, pause, and the methods BiDi cannot do)
+/// and FrameLocator's nth/first/last/owner.
+#[tokio::test]
+async fn firefox_page_details_and_frame_locator_nth() {
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/a.html", "text/html", "<a href='/b.html'>b</a>", 0);
+    server.route("/b.html", "text/html", "<title>b</title>", 0);
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    assert!(page.context().is_some());
+    assert!(page.opener().is_none());
+    page.bring_to_front().await.unwrap();
+
+    // Recent console messages, page errors and requests.
+    page.goto(&server.url("/a.html")).await.unwrap();
+    page.evaluate::<()>("console.log('one'); setTimeout(() => { throw new Error('boom'); })")
+        .await
+        .unwrap();
+    page.wait_for_function("true").await.unwrap();
+    page.wait_for_timeout(std::time::Duration::from_millis(200))
+        .await;
+    assert!(page.console_messages().iter().any(|m| m.text() == "one"));
+    assert!(
+        page.page_errors()
+            .iter()
+            .any(|e| e.message().contains("boom"))
+    );
+    assert!(page.requests().iter().any(|r| r.url().ends_with("/a.html")));
+    page.clear_console_messages();
+    page.clear_page_errors();
+    assert!(page.console_messages().is_empty());
+    assert!(page.page_errors().is_empty());
+
+    // waitForNavigation: listens from the call on.
+    let nav = page.wait_for_navigation();
+    page.locator("a").click().await.unwrap();
+    nav.await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "b");
+
+    // Default timeouts apply to locator actions.
+    page.set_default_timeout(std::time::Duration::from_millis(300));
+    let started = std::time::Instant::now();
+    let err = page.locator("#missing").click().await.unwrap_err();
+    assert!(
+        matches!(err, chromiumoxide::Error::Timeout { ms: 300, .. }),
+        "{err}"
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    page.set_default_navigation_timeout(std::time::Duration::from_secs(30));
+    context.set_default_timeout(std::time::Duration::from_secs(30));
+    context.set_default_navigation_timeout(std::time::Duration::from_secs(30));
+
+    // Opener of a pop-up.
+    page.set_content("<a target=_blank href='about:blank'>pop</a>")
+        .await
+        .unwrap();
+    let mut events = page.events();
+    page.locator("a").click().await.unwrap();
+    let popup = loop {
+        use futures::StreamExt;
+        if let Some(chromiumoxide::firefox::PageEvent::Popup(p)) = events.next().await {
+            break p;
+        }
+    };
+    assert!(popup.opener().is_some());
+
+    // FrameLocator nth / first / last / owner, get_by_alt_text / title.
+    page.set_content(
+        "<iframe srcdoc=\"<img alt=A title=T src='data:,'>\"></iframe><iframe srcdoc='<p>2</p>'></iframe>",
+    )
+    .await
+    .unwrap();
+    let frames = page.frame_locator("iframe");
+    assert_eq!(
+        frames
+            .first()
+            .get_by_alt_text("A", true)
+            .count()
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        frames
+            .first()
+            .get_by_title("T", true)
+            .count()
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(frames.last().locator("p").inner_text().await.unwrap(), "2");
+    assert_eq!(frames.nth(1).locator("p").count().await.unwrap(), 1);
+    assert_eq!(frames.nth(1).owner().count().await.unwrap(), 1);
+
+    // pickLocator: a click in the page picks the element; cancel stops it.
+    page.set_content("<button id=pick>pick me</button>")
+        .await
+        .unwrap();
+    let picking = {
+        let page = page.clone();
+        tokio::spawn(async move { page.pick_locator().await })
+    };
+    page.wait_for_timeout(std::time::Duration::from_millis(300))
+        .await;
+    page.mouse().click(10.0, 10.0).await.unwrap();
+    let picked = picking.await.unwrap().unwrap();
+    assert_eq!(picked.inner_text().await.unwrap(), "pick me");
+    let cancelled = {
+        let page = page.clone();
+        tokio::spawn(async move { page.pick_locator().await })
+    };
+    page.wait_for_timeout(std::time::Duration::from_millis(200))
+        .await;
+    page.cancel_pick_locator().await.unwrap();
+    assert!(cancelled.await.unwrap().is_err());
+
+    // pause() waits for context.resume().
+    let paused = {
+        let page = page.clone();
+        tokio::spawn(async move { page.pause().await })
+    };
+    page.wait_for_timeout(std::time::Duration::from_millis(100))
+        .await;
+    assert!(!paused.is_finished());
+    context.resume();
+    paused.await.unwrap().unwrap();
+
+    // What WebDriver BiDi cannot do in Firefox: an error that says so.
+    for err in [
+        page.request_gc().await.unwrap_err().to_string(),
+        page.emulate_media(Default::default())
+            .await
+            .unwrap_err()
+            .to_string(),
+    ] {
+        assert!(err.contains("BiDi"), "{err}");
+    }
+    browser.close().await.unwrap();
+}
