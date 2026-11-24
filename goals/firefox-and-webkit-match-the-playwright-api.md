@@ -13,13 +13,13 @@
 ## Outcome
 
 `chromiumoxide::firefox` and `chromiumoxide::webkit` have every public method
-of Playwright 1.65.1's classes that Chromium has (419 of 419 by name). Each
+of Playwright 1.65.1's classes (453, counted per class by `scripts/api_coverage.py`). Each
 works, or fails with an error that names why the engine cannot do it.
 
 ## Why
 
 Gary asked for every browser to match Playwright ("do all"). Chromium covers
-all 419 methods. On 2026-11-24 Firefox had 251 and WebKit 199.
+448 of the 453 (the 5 others are added here too). On 2026-11-24 Firefox had 147 and WebKit 102.
 
 ## Scope
 
@@ -68,7 +68,7 @@ Out:
 
 ## Done when
 
-- [ ] `scripts/api_coverage.py` reports 419/419 for firefox and webkit.
+- [ ] `scripts/api_coverage.py` reports 453/453 for chromium, firefox and webkit.
 - [ ] Every new method has an integration test against the real browser.
 - [ ] PARITY 13 and 14 list each method as ✅ or ❌ with the reason.
 - [ ] fmt, clippy `-D warnings` and the full suite pass on Linux; the full
@@ -82,11 +82,11 @@ discovery, launch or rendering, or a browser build other than Playwright's.
 
 ## Status
 
-- 2026-11-24: active. Baseline by name: chromium 419/419, firefox 251/419,
-  webkit 199/419.
+- 2026-11-24: active. Baseline per class: chromium 448/453, firefox 147/453,
+  webkit 102/453.
 
 ## Set it
 
 ```
-/goal Firefox and WebKit offer every Playwright method Chromium does (goals/firefox-and-webkit-match-the-playwright-api.md): scripts/api_coverage.py reports 419/419 for firefox and webkit; each new method has an integration test; PARITY 13 and 14 updated; fmt, clippy and the full suite pass on Linux, Windows and macOS; CHANGELOG and PR updated.
+/goal Firefox and WebKit offer every Playwright method Chromium does (goals/firefox-and-webkit-match-the-playwright-api.md): scripts/api_coverage.py reports 453/453 for chromium, firefox and webkit; each new method has an integration test; PARITY 13 and 14 updated; fmt, clippy and the full suite pass on Linux, Windows and macOS; CHANGELOG and PR updated.
 ```

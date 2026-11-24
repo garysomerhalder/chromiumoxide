@@ -1,35 +1,112 @@
 #!/usr/bin/env python3
-"""Playwright API coverage per engine, by method name."""
-import re,glob,sys
-import os
-# Usage: python3 scripts/api_coverage.py [path/to/playwright-core/types/types.d.ts]
-# Compares Playwright's public methods with each engine's pub fns (by name).
-TYPES=sys.argv[1] if len(sys.argv)>1 else os.environ.get('PLAYWRIGHT_TYPES','node_modules/playwright-core/types/types.d.ts')
-src=open(TYPES).read()
-def methods(iface):
-    m=re.search(r'\nexport interface '+iface+r'\b[^{]*\{',src)
-    if not m: return set()
-    i=m.end(); depth=1; j=i
-    while depth:
-        c=src[j]; depth+= (c=='{')-(c=='}'); j+=1
-    body=src[i:j]
-    names=set()
-    for line in body.split('\n'):
-        mm=re.match(r'  (\w+)(<[^>]*>)?\(',line)
-        if mm: names.add(mm.group(1))
-    names|=set(re.findall(r'\n  on\(event: \'(\w+)\'',body) and [])
-    return names
-def snake(n):
-    s=re.sub(r'([A-Z]+)([A-Z][a-z])',r'\1_\2',n); s=re.sub(r'([a-z0-9])([A-Z])',r'\1_\2',s); return s.lower()
-engines={'firefox':glob.glob('src/application/firefox*.rs'),'webkit':glob.glob('src/application/webkit*.rs'),'chromium':[f for f in glob.glob('src/application/*.rs') if not re.search('firefox|webkit|safari|tauri|android',f)]}
-skip={'on','once','off','addListener','removeListener','prependListener','removeAllListeners','waitForEvent','_'}
-for iface in ['Page','Locator','BrowserContext','Browser','Frame','Route','Request','Response','ElementHandle','Keyboard','Mouse','Worker','Download','Dialog','FrameLocator','JSHandle','APIRequestContext','Tracing','Clock']:
-    ms=sorted(methods(iface)-skip)
-    for eng,files in engines.items():
-        text=''.join(open(f).read() for f in files)
-        fns=set(re.findall(r'pub(?:\(crate\))? (?:async )?fn (\w+)',text))|set(re.findall(r'fn (fmt)\(',text))
-        alias={'type':['type_text','kind','dialog_type'],'continue':['continue_'],'move':['move_to'],'toString':['fmt']}
-        miss=[m for m in ms if snake(m) not in fns and m.lower() not in fns and not any(a in fns for a in alias.get(m,[]))]
-        if 'toString' in miss and re.search(r'impl (std::)?fmt::Display for Locator',text): miss.remove('toString')
-        print(f"{iface:18} {eng:8} {len(ms)-len(miss):3}/{len(ms):3} missing: {' '.join(miss)}")
+"""Playwright API coverage per engine and class.
 
+Usage: python3 scripts/api_coverage.py [path/to/playwright-core/types/types.d.ts] [-v]
+
+For each Playwright class, lists the public methods that the engine's Rust
+type of the same name has no `pub fn` for (inside `impl <Type>` blocks).
+Names compare in snake_case; a few Rust spellings stand in for keywords.
+"""
+import glob
+import os
+import re
+import sys
+
+args = [a for a in sys.argv[1:] if not a.startswith('-')]
+VERBOSE = '-v' in sys.argv
+TYPES = args[0] if args else os.environ.get(
+    'PLAYWRIGHT_TYPES', 'node_modules/playwright-core/types/types.d.ts')
+src = open(TYPES).read()
+
+CLASSES = ['Page', 'Frame', 'Locator', 'FrameLocator', 'ElementHandle', 'JSHandle',
+           'BrowserContext', 'Browser', 'Route', 'Request', 'Response', 'Keyboard',
+           'Mouse', 'Touchscreen', 'Worker', 'Download', 'Dialog', 'Tracing', 'Clock',
+           'APIRequestContext', 'APIResponse', 'ConsoleMessage', 'FileChooser',
+           'WebSocket', 'Video']
+RUST_NAME = {'JSHandle': 'JsHandle', 'APIRequestContext': 'ApiRequestContext',
+             'APIResponse': 'ApiResponse'}
+SKIP = {'on', 'once', 'off', 'addListener', 'removeListener', 'prependListener',
+        'removeAllListeners', '[Symbol.asyncDispose]'}
+ALIAS = {'type': ['type_text', 'kind', 'dialog_type'], 'continue': ['continue_'],
+         'move': ['move_to'], 'toString': ['fmt'], 'waitForEvent': ['wait_for_event', 'events']}
+
+
+def methods(iface):
+    m = re.search(r'\nexport interface ' + iface + r'\b[^{]*\{', src)
+    if not m:
+        return set()
+    i = j = m.end()
+    depth = 1
+    while depth:
+        depth += (src[j] == '{') - (src[j] == '}')
+        j += 1
+    names = set()
+    for line in src[i:j].split('\n'):
+        mm = re.match(r'  (\w+)(<[^>]*>)?\(', line)
+        if mm:
+            names.add(mm.group(1))
+    return names - SKIP
+
+
+def snake(n):
+    s = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', n)
+    return re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', s).lower()
+
+
+def impl_fns(files):
+    """type name -> set of pub fn names in its impl blocks (and Display)."""
+    out = {}
+    for f in files:
+        text = open(f).read()
+        for m in re.finditer(r'\npub struct (\w+)(?:<[^>]*>)?\s*\{([^}]*)\}', text):
+            out.setdefault(m.group(1), set()).update(
+                re.findall(r'\n    pub (\w+):', m.group(2)))
+        for m in re.finditer(r'\nimpl(?:<[^>]*>)?\s+(?:(?:[\w:]+)\s+for\s+)?(\w+)(?:<[^>]*>)?\s*\{', text):
+            trait = re.match(r'\nimpl(?:<[^>]*>)?\s+([\w:]+)\s+for', m.group(0))
+            i = j = m.end()
+            depth = 1
+            while depth and j < len(text):
+                depth += (text[j] == '{') - (text[j] == '}')
+                j += 1
+            fns = out.setdefault(m.group(1), set())
+            if trait:
+                if trait.group(1).endswith('Display'):
+                    fns.add('fmt')
+                continue
+            fns |= set(re.findall(r'\n    pub(?:\(crate\))? (?:async )?fn (\w+)', text[i:j]))
+    return out
+
+
+app = 'src/application/'
+ENGINES = {
+    'chromium': [f for f in glob.glob(app + '*.rs')
+                 if not re.search(r'firefox|webkit|safari|tauri|android|electron', f)],
+    'firefox': glob.glob(app + 'firefox*.rs'),
+    # WebKit shares Firefox's Request and Response types.
+    'webkit': glob.glob(app + 'webkit*.rs'),
+}
+shared = {'webkit': {'Request', 'Response'}}
+
+totals = {}
+for engine, files in ENGINES.items():
+    fns = impl_fns(files)
+    if engine in shared:
+        ff = impl_fns(ENGINES['firefox'])
+        for t in shared[engine]:
+            fns[t] = ff.get(t, set())
+    have = total = 0
+    for cls in CLASSES:
+        ms = sorted(methods(cls))
+        rust = RUST_NAME.get(cls, cls)
+        if engine == 'chromium' and cls == 'ElementHandle':
+            rust = 'JsHandle'  # one handle type, as Playwright's ElementHandle extends JSHandle
+        got = fns.get(rust, set())
+        miss = [m for m in ms if snake(m) not in got
+                and not any(a in got for a in ALIAS.get(m, []))]
+        have += len(ms) - len(miss)
+        total += len(ms)
+        if VERBOSE or (miss and engine != 'chromium') or (miss and '-c' in sys.argv):
+            print(f"{cls:18} {engine:8} {len(ms) - len(miss):3}/{len(ms):3} missing: {' '.join(miss)}")
+    totals[engine] = (have, total)
+for e, (h, t) in totals.items():
+    print(f"TOTAL {e}: {h}/{t}")
