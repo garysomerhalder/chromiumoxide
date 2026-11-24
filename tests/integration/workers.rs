@@ -9,7 +9,7 @@ use futures::StreamExt;
 use crate::server::TestServer;
 
 /// Echoes `echo:<text>` plus a binary [1, 2, 3] for each text message.
-async fn ws_server() -> u16 {
+pub(crate) async fn ws_server() -> u16 {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {

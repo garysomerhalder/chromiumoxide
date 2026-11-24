@@ -1184,3 +1184,140 @@ async fn firefox_tracing() {
     let _ = std::fs::remove_dir_all(&dir);
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn firefox_popups_workers_and_websockets() {
+    use chromiumoxide::firefox::PageEvent;
+    use chromiumoxide::{WebSocketEvent, WsPayload};
+    use futures::StreamExt;
+    use std::time::Duration;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/", "text/html", "<p>ws</p>", 0);
+    server.route("/one.html", "text/html", "<title>one</title><p>one</p>", 0);
+    let port = crate::workers::ws_server().await;
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/")).await.unwrap();
+
+    // WebSockets: frames both ways, then close.
+    let mut events = page.events();
+    page.evaluate::<()>(&format!(
+        "void (() => {{ const ws = new WebSocket('ws://127.0.0.1:{port}/sock'); ws.onopen = () => ws.send('hello'); \
+         let n = 0; ws.onmessage = () => {{ if (++n === 2) ws.close(); }}; }})()"
+    ))
+    .await
+    .unwrap();
+    let ws = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if let Some(PageEvent::WebSocket(ws)) = events.next().await {
+                return ws;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(ws.url(), format!("ws://127.0.0.1:{port}/sock"));
+    let mut ws_events = ws.events();
+    let mut log = Vec::new();
+    while let Some(e) = tokio::time::timeout(Duration::from_secs(10), ws_events.next())
+        .await
+        .unwrap()
+    {
+        match e {
+            WebSocketEvent::FrameSent(WsPayload::Text(t)) => log.push(format!("sent {t}")),
+            WebSocketEvent::FrameReceived(WsPayload::Text(t)) => log.push(format!("recv {t}")),
+            WebSocketEvent::FrameReceived(WsPayload::Binary(b)) => log.push(format!("recv {b:?}")),
+            WebSocketEvent::Close => {
+                log.push("close".into());
+                break;
+            }
+            other => log.push(format!("{other:?}")),
+        }
+    }
+    assert_eq!(
+        log,
+        ["sent hello", "recv echo:hello", "recv [1, 2, 3]", "close"]
+    );
+    assert!(ws.is_closed());
+
+    // Workers.
+    page.evaluate::<()>(
+        "void (window.w = new Worker(URL.createObjectURL(new Blob(['self.x = 7'], {type: 'application/javascript'}))))",
+    )
+    .await
+    .unwrap();
+    let worker = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if let Some(PageEvent::Worker(w)) = events.next().await {
+                return w;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert!(worker.url().starts_with("blob:"), "{}", worker.url());
+    assert_eq!(page.workers().len(), 1);
+    assert_eq!(worker.evaluate::<i32>("1 + 2").await.unwrap(), 3);
+    assert_eq!(worker.evaluate::<i32>("() => self.x").await.unwrap(), 7);
+    assert_eq!(
+        worker
+            .evaluate_with::<i32, _>("a => a * 3", 5)
+            .await
+            .unwrap(),
+        15
+    );
+    page.evaluate::<()>("window.w.terminate()").await.unwrap();
+    tokio::time::timeout(Duration::from_secs(10), worker.wait_for_close())
+        .await
+        .unwrap();
+    assert!(worker.is_closed());
+    assert!(page.workers().is_empty());
+
+    // Pop-ups: a target=_blank link and window.open.
+    page.set_content(&format!(
+        "<a target=_blank href='{}'>open</a>",
+        server.url("/one.html")
+    ))
+    .await
+    .unwrap();
+    page.locator("a").click().await.unwrap();
+    let popup = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if let Some(PageEvent::Popup(p)) = events.next().await {
+                return p;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    popup
+        .wait_for_function(
+            "location.href.endsWith('/one.html') && document.readyState === 'complete'",
+        )
+        .await
+        .unwrap();
+    assert_eq!(popup.url(), server.url("/one.html"));
+    assert_eq!(popup.title().await.unwrap(), "one");
+    assert_eq!(context.pages().len(), 2);
+    page.evaluate::<()>("void window.open('about:blank')")
+        .await
+        .unwrap();
+    let second = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if let Some(PageEvent::Popup(p)) = events.next().await {
+                return p;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(second.evaluate::<i32>("1 + 1").await.unwrap(), 2);
+    popup.close().await.unwrap();
+    second.close().await.unwrap();
+    assert_eq!(context.pages().len(), 1);
+    browser.close().await.unwrap();
+}
