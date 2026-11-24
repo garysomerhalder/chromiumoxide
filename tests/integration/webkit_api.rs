@@ -1708,3 +1708,346 @@ async fn webkit_expose_function_and_binding() {
     );
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn webkit_tracing() {
+    use chromiumoxide::TracingStart;
+    use serde_json::Value;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/page", "text/html", "<p>traced</p>", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    context
+        .tracing()
+        .start(TracingStart {
+            screenshots: true,
+            title: Some("wk trace".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.set_content("<button onclick=\"console.log(1)\">B</button>")
+        .await
+        .unwrap();
+    page.locator("button").click().await.unwrap();
+    page.goto(&server.url("/page")).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let dir = std::env::temp_dir().join(format!("cox-wk-trace-{}", std::process::id()));
+    let path = dir.join("trace.zip");
+    context.tracing().stop(Some(&path)).await.unwrap();
+
+    let files = crate::tracing::unzip(&path);
+    let names: Vec<String> = files.as_object().unwrap().keys().cloned().collect();
+    for required in ["trace.trace", "trace.network", "trace.stacks"] {
+        assert!(names.iter().any(|n| n == required), "{names:?}");
+    }
+    let events: Vec<Value> = String::from_utf8(crate::tracing::file(&files, "trace.trace"))
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(events[0]["type"], "context-options");
+    assert_eq!(events[0]["browserName"], "webkit");
+    assert_eq!(events[0]["title"], "wk trace");
+    let action = |method: &str| {
+        events
+            .iter()
+            .find(|e| e["type"] == "before" && e["method"] == method)
+            .unwrap_or_else(|| panic!("no {method} action in {events:#?}"))
+            .clone()
+    };
+    let click = action("click");
+    assert_eq!(click["class"], "Frame");
+    assert_eq!(click["params"]["selector"], "button");
+    assert!(
+        events
+            .iter()
+            .any(|e| e["type"] == "after" && e["callId"] == click["callId"])
+    );
+    action("setContent");
+    assert_eq!(action("goto")["params"]["url"], server.url("/page"));
+    assert!(
+        events
+            .iter()
+            .any(|e| e["type"] == "console" && e["text"] == "1"),
+        "{events:#?}"
+    );
+    let frames: Vec<&Value> = events
+        .iter()
+        .filter(|e| e["type"] == "screencast-frame")
+        .collect();
+    assert!(!frames.is_empty(), "no screencast frames");
+    let jpeg = crate::tracing::file(&files, frames[0]["file"].as_str().unwrap());
+    assert_eq!(&jpeg[..2], &[0xff, 0xd8]);
+    let network: Vec<Value> = String::from_utf8(crate::tracing::file(&files, "trace.network"))
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert!(
+        network.iter().any(|e| e["type"] == "resource-snapshot"
+            && e["snapshot"]["request"]["url"] == server.url("/page")),
+        "{network:?}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+    browser.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn webkit_trace_snapshots_chunks_and_groups() {
+    use chromiumoxide::TracingStart;
+    use serde_json::Value;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route(
+        "/p.html",
+        "text/html",
+        "<link rel=stylesheet href=\"/s.css\"><button>B</button>",
+        0,
+    );
+    server.route("/s.css", "text/css", "button { color: red; }", 0);
+    server.route("/two", "text/html", "<p>two</p>", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let tracing = context.tracing();
+    tracing
+        .start(TracingStart {
+            snapshots: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    tracing.group("first group").await.unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+    page.locator("button").click().await.unwrap();
+    tracing.group_end().await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let dir = std::env::temp_dir().join(format!("cox-wk-snap-{}", std::process::id()));
+    let first = dir.join("one.zip");
+    tracing.stop_chunk(Some(&first)).await.unwrap();
+    tracing.start_chunk(Some("second")).await.unwrap();
+    page.goto(&server.url("/two")).await.unwrap();
+    let second = dir.join("two.zip");
+    tracing.stop_chunk(Some(&second)).await.unwrap();
+    tracing.stop(None).await.unwrap();
+
+    let files = crate::tracing::unzip(&first);
+    let lines = |name: &str| -> Vec<Value> {
+        String::from_utf8(crate::tracing::file(&files, name))
+            .unwrap()
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect()
+    };
+    // The stylesheet is stored once, under its hash, as in Playwright.
+    let css = "resources/3fe33742618fac5890c933e5782ff6af7a2f181a.css";
+    assert_eq!(crate::tracing::file(&files, css), b"button { color: red; }");
+    let network = lines("trace.network");
+    let entry = network
+        .iter()
+        .find(|e| e["snapshot"]["request"]["url"] == server.url("/s.css"))
+        .expect("stylesheet entry");
+    assert_eq!(entry["snapshot"]["response"]["content"]["_file"], css);
+
+    let events = lines("trace.trace");
+    let group = events
+        .iter()
+        .find(|e| e["type"] == "before" && e["method"] == "tracingGroup")
+        .expect("group");
+    assert_eq!(group["params"]["name"], "first group");
+    assert!(
+        events
+            .iter()
+            .any(|e| e["type"] == "after" && e["callId"] == group["callId"])
+    );
+    let call = |method: &str| {
+        events
+            .iter()
+            .find(|e| e["type"] == "before" && e["method"] == method)
+            .unwrap_or_else(|| panic!("no {method}"))
+            .clone()
+    };
+    let snaps = |call_id: &Value| -> Vec<Value> {
+        events
+            .iter()
+            .filter(|e| e["type"] == "frame-snapshot" && e["snapshot"]["callId"] == *call_id)
+            .map(|e| e["snapshot"].clone())
+            .collect()
+    };
+    let click = snaps(&call("click")["callId"]);
+    let phases: Vec<&str> = click.iter().map(|s| s["phase"].as_str().unwrap()).collect();
+    assert_eq!(phases, ["before", "after"]);
+    let after = &click[1];
+    assert_eq!(after["frameUrl"], server.url("/p.html"));
+    assert_eq!(after["isMainFrame"], true);
+    assert_eq!(
+        after["viewport"],
+        serde_json::json!({"width": 1280, "height": 720})
+    );
+    assert!(after["frameId"].as_str().unwrap().starts_with("frame@"));
+    let goto_after = snaps(&call("goto")["callId"])
+        .into_iter()
+        .find(|s| s["phase"] == "after")
+        .expect("goto snapshot");
+    assert_eq!(
+        goto_after["html"][3],
+        serde_json::json!(["BODY", {}, ["BUTTON", {}, "B"]]),
+        "{}",
+        goto_after["html"]
+    );
+
+    let two: Vec<Value> = String::from_utf8(crate::tracing::file(
+        &crate::tracing::unzip(&second),
+        "trace.trace",
+    ))
+    .unwrap()
+    .lines()
+    .map(|l| serde_json::from_str(l).unwrap())
+    .collect();
+    assert_eq!(two[0]["type"], "context-options");
+    assert_eq!(two[0]["title"], "second");
+    let gotos: Vec<&str> = two
+        .iter()
+        .filter(|e| e["type"] == "before" && e["method"] == "goto")
+        .map(|e| e["params"]["url"].as_str().unwrap())
+        .collect();
+    assert_eq!(gotos, [server.url("/two")]);
+    let _ = std::fs::remove_dir_all(&dir);
+    browser.close().await.unwrap();
+}
+
+/// WebKit: tracing.startHar / stopHar, and routeFromHAR (serving, the
+/// not-found modes, and update) on pages and contexts.
+#[tokio::test]
+async fn webkit_har_recording_and_routing() {
+    use chromiumoxide::HarNotFound;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route(
+        "/a.html",
+        "text/html",
+        "<title>a</title><p>from server</p>",
+        0,
+    );
+    let dir = std::env::temp_dir().join(format!("cox-wk-har-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let har = dir.join("rec.har");
+    let browser = WebKit::launch(options).await.unwrap();
+
+    // Record a HAR with tracing.startHar / stopHar.
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    context.tracing().start_har(&har).await.unwrap();
+    assert!(context.tracing().start_har(&har).await.is_err());
+    page.goto(&server.url("/a.html")).await.unwrap();
+    context.tracing().stop_har().await.unwrap();
+    let text = std::fs::read_to_string(&har).unwrap();
+    assert!(text.contains("/a.html"), "{text}");
+    context.close().await.unwrap();
+
+    // Serve from it: the server is not asked again.
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    page.route_from_har(&har).await.unwrap();
+    server.route("/a.html", "text/html", "<title>changed</title>", 0);
+    page.goto(&server.url("/a.html")).await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "a");
+    // Not in the HAR: aborted by default, or sent on with Fallback.
+    assert!(page.goto(&server.url("/missing.html")).await.is_err());
+    context.close().await.unwrap();
+
+    let context = browser.new_context(Default::default()).await.unwrap();
+    context
+        .route_from_har(&har)
+        .not_found(HarNotFound::Fallback)
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/a.html")).await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "a");
+    server.route("/b.html", "text/html", "<title>b</title>", 0);
+    page.goto(&server.url("/b.html")).await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "b");
+    context.close().await.unwrap();
+
+    // update: records into the HAR (written when the context closes).
+    let updated = dir.join("updated.har");
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    page.route_from_har(&updated).update(true).await.unwrap();
+    page.goto(&server.url("/b.html")).await.unwrap();
+    context.close().await.unwrap();
+    assert!(
+        std::fs::read_to_string(&updated)
+            .unwrap()
+            .contains("/b.html")
+    );
+    browser.close().await.unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn webkit_record_har_option() {
+    use chromiumoxide::{ContextOptions, RecordHar};
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/page", "text/html", "<p>page</p>", 0);
+    let dir = std::env::temp_dir().join(format!("cox-wk-har-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let har_path = dir.join("out.har");
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions {
+            record_har: Some(RecordHar::new(&har_path)),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/page")).await.unwrap();
+    let echoed = page
+        .evaluate::<String>("fetch('/echo', {method: 'POST', body: 'x=1'}).then(r => r.text())")
+        .await
+        .unwrap();
+    assert!(!echoed.is_empty());
+
+    context.close().await.unwrap();
+    let har: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&har_path).unwrap()).unwrap();
+    let log = &har["log"];
+    assert_eq!(log["version"], "1.2");
+    assert_eq!(log["browser"]["name"], "webkit");
+    let pages = log["pages"].as_array().unwrap();
+    assert_eq!(pages.len(), 1);
+    let entries = log["entries"].as_array().unwrap();
+    let find = |p: &str| {
+        entries
+            .iter()
+            .find(|e| e["request"]["url"] == server.url(p))
+            .unwrap_or_else(|| panic!("no entry for {p}: {entries:#?}"))
+    };
+    let doc = find("/page");
+    assert_eq!(doc["pageref"], pages[0]["id"]);
+    assert_eq!(doc["request"]["method"], "GET");
+    assert_eq!(doc["response"]["status"], 200);
+    assert_eq!(doc["response"]["content"]["text"], "<p>page</p>");
+    assert_eq!(doc["response"]["content"]["mimeType"], "text/html");
+    assert!(doc["startedDateTime"].as_str().unwrap().ends_with('Z'));
+    let post = find("/echo");
+    assert_eq!(post["request"]["method"], "POST");
+    assert_eq!(post["request"]["postData"]["text"], "x=1");
+    std::fs::remove_dir_all(&dir).unwrap();
+    browser.close().await.unwrap();
+}
