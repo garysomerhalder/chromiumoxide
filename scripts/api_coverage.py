@@ -111,14 +111,16 @@ ENGINES = {
 }
 # Types an engine re-exports from another module: class -> source files.
 BORROWED = {
-    'firefox': {'WebSocket': [app + 'websocket.rs']},
+    'firefox': {'WebSocket': [app + 'websocket.rs'],
+                'APIRequestContext': [app + 'request.rs'],
+                'APIResponse': [app + 'request.rs']},
 }
 
 totals = {}
 for engine, files in ENGINES.items():
     fns = impl_fns(files)
     for cls, borrowed in BORROWED.get(engine, {}).items():
-        fns[cls] = impl_fns(borrowed).get(cls, set())
+        fns[RUST_NAME.get(cls, cls)] = impl_fns(borrowed).get(RUST_NAME.get(cls, cls), set())
     have = total = 0
     for cls in CLASSES:
         ms = sorted(methods(cls))

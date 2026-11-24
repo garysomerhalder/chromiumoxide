@@ -351,3 +351,114 @@ impl Page {
         .map(drop)
     }
 }
+
+/// A Firefox context as an API request context's cookie jar.
+struct FirefoxJar(std::sync::Weak<crate::application::firefox::ContextInner>);
+
+impl FirefoxJar {
+    fn context(&self) -> Result<BrowserContext> {
+        self.0
+            .upgrade()
+            .filter(|c| !c.closed.load(Ordering::SeqCst))
+            .map(BrowserContext::from_inner)
+            .ok_or_else(|| Error::Request("Request context disposed.".into()))
+    }
+}
+
+impl crate::application::request::CookieStore for FirefoxJar {
+    fn is_open(&self) -> bool {
+        self.context().is_ok()
+    }
+    fn cookies_for<'a>(
+        &'a self,
+        urls: &'a [&'a str],
+    ) -> futures::future::BoxFuture<'a, Result<Vec<crate::domain::storage::Cookie>>> {
+        Box::pin(async move { self.context()?.cookies_for(urls).await })
+    }
+    fn add_cookies<'a>(
+        &'a self,
+        cookies: &'a [crate::domain::storage::NewCookie],
+    ) -> futures::future::BoxFuture<'a, Result<()>> {
+        Box::pin(async move { self.context()?.add_cookies(cookies).await })
+    }
+    fn clear_cookies_matching(
+        &self,
+        filter: crate::domain::storage::ClearCookies,
+    ) -> futures::future::BoxFuture<'_, Result<()>> {
+        Box::pin(async move { self.context()?.clear_cookies_matching(filter).await })
+    }
+    fn storage_state(&self) -> futures::future::BoxFuture<'_, Result<StorageState>> {
+        Box::pin(async move { self.context()?.storage_state().await })
+    }
+    fn user_agent(&self) -> futures::future::BoxFuture<'_, Option<String>> {
+        Box::pin(async move {
+            let ctx = self.context().ok()?;
+            for page in ctx.live_pages() {
+                if let Ok(ua) = page.evaluate::<String>("navigator.userAgent").await {
+                    return Some(ua);
+                }
+            }
+            None
+        })
+    }
+}
+
+impl BrowserContext {
+    /// `context.request`: API requests with this context's cookies,
+    /// headers, credentials and base URL (Playwright's APIRequestContext).
+    pub fn request(&self) -> crate::application::request::ApiRequestContext {
+        let o = &self.inner.options;
+        crate::application::request::ApiRequestContext::with_store(
+            self.inner.services.clone(),
+            crate::application::request::ApiRequestOptions {
+                base_url: o.base_url.clone(),
+                extra_http_headers: self
+                    .inner
+                    .extra_headers
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .cloned()
+                    .collect(),
+                http_credentials: self.inner.credentials.lock().unwrap().clone(),
+                user_agent: o.user_agent.clone(),
+                ignore_https_errors: o.ignore_https_errors,
+                timeout: None,
+                fail_on_status_code: false,
+                storage_state: None,
+                client_certificates: o.client_certificates.clone(),
+            },
+            std::sync::Arc::new(FirefoxJar(std::sync::Arc::downgrade(&self.inner))),
+        )
+    }
+
+    /// `context.clearCookies({ name, domain, path })`: only matching cookies.
+    pub async fn clear_cookies_matching(
+        &self,
+        filter: crate::domain::storage::ClearCookies,
+    ) -> Result<()> {
+        for cookie in self.cookies().await? {
+            if !filter.matches(&cookie) {
+                continue;
+            }
+            self.inner
+                .bidi
+                .call(
+                    "storage.deleteCookies",
+                    json!({"partition": self.partition(),
+                           "filter": {"name": cookie.name, "domain": cookie.domain, "path": cookie.path}}),
+                )
+                .await?;
+        }
+        Ok(())
+    }
+}
+
+impl Page {
+    /// `page.request`: the page's context's API request context.
+    pub fn request(&self) -> crate::application::request::ApiRequestContext {
+        self.context()
+            .expect("a page belongs to a context while it is open")
+            .request()
+    }
+}

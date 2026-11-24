@@ -2758,8 +2758,11 @@ async fn firefox_api_request_context() {
     assert!(!response.text().await.unwrap().is_empty());
     assert!(!response.body().await.unwrap().is_empty());
     let _ = response.timing();
-    assert!(response.server_addr().is_some() || response.server_addr().is_none());
-    assert!(response.security_details().is_none());
+    assert_eq!(
+        response.server_addr().await.unwrap().unwrap().ip_address,
+        "127.0.0.1"
+    );
+    assert!(response.security_details().await.unwrap().is_none());
     response.dispose().await;
     assert!(
         context
@@ -2778,7 +2781,7 @@ async fn firefox_api_request_context() {
     let echoed: serde_json::Value = page
         .request()
         .post(&server.url("/dump"))
-        .data("body")
+        .data_text("body")
         .await
         .unwrap()
         .json()

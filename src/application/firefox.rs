@@ -531,7 +531,7 @@ pub(crate) struct ContextInner {
     pub(crate) bidi: Arc<dyn BidiSession>,
     pub(crate) services: Services,
     pub(crate) user_context: String,
-    options: Arc<ContextOptions>,
+    pub(crate) options: Arc<ContextOptions>,
     /// `context.route` handlers, shared with the context's pages.
     routes: Arc<Mutex<Vec<RouteEntry>>>,
     /// The context's pages (to add network intercepts for new routes).
