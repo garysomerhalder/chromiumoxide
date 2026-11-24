@@ -130,3 +130,56 @@ async fn child_frame_wait_for_navigation() {
     assert!(err.to_string().contains("waiting for navigation"), "{err}");
     browser.close().await.unwrap();
 }
+
+/// The last Playwright methods Chromium lacked: frame.addScriptTag /
+/// addStyleTag, frameLocator.getByAltText / getByTitle and
+/// worker.waitForEvent.
+#[tokio::test]
+async fn frame_tags_frame_locator_alt_and_title_and_worker_wait_for_event() {
+    use chromiumoxide::{ScriptTag, StyleTag, WorkerEvent};
+    let browser = Chromium::launch(LaunchOptions::default()).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<iframe srcdoc=\"<img alt=Logo title=Tip src='data:,'><p id=p>x</p>\"></iframe>",
+    )
+    .await
+    .unwrap();
+    let frames = page.frame_locator("iframe");
+    assert_eq!(
+        frames.get_by_alt_text("Logo", true).count().await.unwrap(),
+        1
+    );
+    assert_eq!(frames.get_by_title("Tip", true).count().await.unwrap(), 1);
+    let frame = page.frames().into_iter().nth(1).unwrap();
+    frame
+        .add_script_tag(ScriptTag::content("window.tagged = 3;"))
+        .await
+        .unwrap();
+    assert_eq!(frame.evaluate::<i64>("window.tagged").await.unwrap(), 3);
+    frame
+        .add_style_tag(StyleTag::Content("#p { color: rgb(9, 8, 7) }".into()))
+        .await
+        .unwrap();
+    assert_eq!(
+        frame
+            .evaluate::<String>("getComputedStyle(document.getElementById('p')).color")
+            .await
+            .unwrap(),
+        "rgb(9, 8, 7)"
+    );
+
+    let worker = page
+        .wait_for_worker()
+        .run(page.evaluate::<()>(
+            "() => { window.w = new Worker(URL.createObjectURL(new Blob(['1'], {type: 'application/javascript'}))); }",
+        ))
+        .await
+        .unwrap();
+    let closed = worker.wait_for_event(|e| matches!(e, WorkerEvent::Close).then_some(()));
+    page.evaluate::<()>("() => w.terminate()").await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(10), closed)
+        .await
+        .unwrap()
+        .unwrap();
+    browser.close().await.unwrap();
+}
