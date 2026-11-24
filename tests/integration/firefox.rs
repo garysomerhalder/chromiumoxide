@@ -2666,7 +2666,10 @@ async fn firefox_event_object_details() {
     assert!(std::ptr::eq(chooser.page(), chooser.page()));
     let file = std::env::temp_dir().join("cox-ff-chooser.txt");
     std::fs::write(&file, "x").unwrap();
-    chooser.set_files(std::slice::from_ref(&file)).await.unwrap();
+    chooser
+        .set_files(std::slice::from_ref(&file))
+        .await
+        .unwrap();
     assert_eq!(
         chooser
             .element()
@@ -2717,5 +2720,103 @@ async fn firefox_event_object_details() {
             .to_string()
             .contains("hasTouch")
     );
+    browser.close().await.unwrap();
+}
+
+/// Firefox: `context.request` / `page.request` (Playwright's
+/// APIRequestContext), sharing cookies with the browser context.
+#[tokio::test]
+async fn firefox_api_request_context() {
+    use chromiumoxide::NewCookie;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/p.html", "text/html", "<title>p</title>", 0);
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+
+    let request = context.request();
+    // /dump sets a cookie, which lands in the browser context.
+    let response = request.get(&server.url("/dump")).await.unwrap();
+    assert!(response.ok());
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.status_text(), "OK");
+    assert!(response.url().ends_with("/dump"));
+    let json: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(json["method"], "GET");
+    assert!(
+        json["headers"]["user-agent"]
+            .as_str()
+            .unwrap()
+            .contains("Firefox")
+    );
+    assert!(!response.headers_array().is_empty());
+    assert!(response.headers().contains_key("content-type"));
+    assert!(!response.text().await.unwrap().is_empty());
+    assert!(!response.body().await.unwrap().is_empty());
+    let _ = response.timing();
+    assert!(response.server_addr().is_some() || response.server_addr().is_none());
+    assert!(response.security_details().is_none());
+    response.dispose().await;
+    assert!(
+        context
+            .cookies()
+            .await
+            .unwrap()
+            .iter()
+            .any(|c| c.name == "from_server")
+    );
+
+    // Browser cookies go out with API requests.
+    context
+        .add_cookies(&[NewCookie::new("sent", "yes").url(&server.url("/"))])
+        .await
+        .unwrap();
+    let echoed: serde_json::Value = page
+        .request()
+        .post(&server.url("/dump"))
+        .data("body")
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(
+        echoed["headers"]["cookie"]
+            .as_str()
+            .unwrap()
+            .contains("sent=yes")
+    );
+    assert_eq!(echoed["body"], "body");
+    for r in [
+        request.head(&server.url("/p.html")).await.unwrap(),
+        request.put(&server.url("/dump")).await.unwrap(),
+        request.patch(&server.url("/dump")).await.unwrap(),
+        request.delete(&server.url("/dump")).await.unwrap(),
+        request.fetch(&server.url("/p.html")).await.unwrap(),
+    ] {
+        assert!(r.ok());
+    }
+    assert!(!request.cookies().await.unwrap().is_empty());
+    request
+        .add_cookies(&[NewCookie::new("api", "1").url(&server.url("/"))])
+        .await
+        .unwrap();
+    assert!(
+        context
+            .cookies()
+            .await
+            .unwrap()
+            .iter()
+            .any(|c| c.name == "api")
+    );
+    assert!(!request.storage_state().await.unwrap().cookies.is_empty());
+    request.clear_cookies().await.unwrap();
+    assert!(context.cookies().await.unwrap().is_empty());
+    request.dispose().await;
+    assert!(request.get(&server.url("/p.html")).await.is_err());
     browser.close().await.unwrap();
 }
