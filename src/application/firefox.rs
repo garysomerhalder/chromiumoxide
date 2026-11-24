@@ -21,6 +21,7 @@ use crate::application::firefox_events::{
     ConsoleMessage, Dialog, PageError, PageEvent, console_kind, prompt_params,
 };
 use crate::application::firefox_input::{InputState, Keyboard, Mouse};
+use crate::application::firefox_record::{Recorders, Tracing, Video};
 use crate::application::firefox_route::{Request, Response, Route, RouteEntry};
 use crate::application::locator::INJECTED_SOURCE;
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
@@ -249,6 +250,10 @@ impl Browser {
             create["acceptInsecureCerts"] = json!(true);
         }
         let options_accept_downloads = options.accept_downloads;
+        let record_har = options.record_har.clone();
+        let viewport = options
+            .viewport
+            .map_or((1280, 720), |v| (v.width, v.height));
         let user_context = bidi
             .call("browser.createUserContext", create)
             .await?
@@ -273,9 +278,22 @@ impl Browser {
                 } else {
                     None
                 },
+                recorders: Arc::new(Recorders::new(
+                    bidi.clone(),
+                    self.inner.services.clone(),
+                    user_context.clone(),
+                    self.inner.version.clone(),
+                    viewport,
+                )),
                 closed: AtomicBool::new(false),
             }),
         };
+        if let Some(har) = record_har
+            && let Err(e) = context.inner.recorders.start_har(har).await
+        {
+            let _ = context.close().await;
+            return Err(e);
+        }
         if let Err(e) = context.apply_emulation().await {
             let _ = context.close().await;
             return Err(e);
@@ -331,6 +349,8 @@ struct ContextInner {
     pages: Mutex<Vec<std::sync::Weak<PageInner>>>,
     /// Where this context's downloads go (removed with the context).
     downloads_dir: Option<PathBuf>,
+    /// HAR and tracing recorders (shared with the pages).
+    recorders: Arc<Recorders>,
     closed: AtomicBool,
 }
 
@@ -636,6 +656,8 @@ impl BrowserContext {
             auth_attempts: Mutex::new(std::collections::HashSet::new()),
             downloads: Mutex::new(HashMap::new()),
             input: Arc::default(),
+            recorders: self.inner.recorders.clone(),
+            video: Mutex::new(None),
             intercept: tokio::sync::Mutex::new(None),
             closed: AtomicBool::new(false),
         });
@@ -661,6 +683,9 @@ impl BrowserContext {
                 };
                 let page = Page { inner: page };
                 page.dispatch(&event.method, &event.params);
+                page.inner
+                    .recorders
+                    .on_event(&page, &event.method, &event.params);
                 let page = page.inner;
                 match event.method.as_str() {
                     "browsingContext.navigationCommitted"
@@ -680,6 +705,8 @@ impl BrowserContext {
             }
         });
         let page = Page { inner };
+        *page.inner.video.lock().unwrap() = Video::start(&page);
+        self.inner.recorders.page_created(&page);
         page.sync_intercept().await?;
         if self.inner.options.http_credentials.is_some() {
             page.inner
@@ -698,6 +725,8 @@ impl BrowserContext {
         if self.inner.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
+        let har = self.inner.recorders.flush_har(&self.live_pages()).await;
+        let pages = self.live_pages();
         self.inner
             .bidi
             .call(
@@ -708,7 +737,18 @@ impl BrowserContext {
         if let Some(dir) = &self.inner.downloads_dir {
             let _ = self.inner.services.fs.remove_dir_all(dir);
         }
-        Ok(())
+        // Like Playwright, close resolves once the pages' videos are written.
+        for page in pages {
+            if let Some(video) = page.video() {
+                let _ = video.path().await;
+            }
+        }
+        har
+    }
+
+    /// `context.tracing()`.
+    pub fn tracing(&self) -> Tracing {
+        Tracing::new(self.inner.recorders.clone(), self.live_pages())
     }
 }
 
@@ -743,6 +783,10 @@ struct PageInner {
     auth_attempts: Mutex<std::collections::HashSet<String>>,
     /// The BiDi network intercept while routes exist.
     intercept: tokio::sync::Mutex<Option<String>>,
+    /// The context's recorders.
+    recorders: Arc<Recorders>,
+    /// `page.video()`.
+    video: Mutex<Option<Video>>,
     /// `page.events()` subscribers.
     subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<PageEvent>>>,
     closed: AtomicBool,
@@ -766,6 +810,16 @@ impl Page {
 
     /// `page.goto(url)`: navigates and waits for the `load` event.
     pub async fn goto(&self, url: &str) -> Result<()> {
+        self.traced(
+            "Frame",
+            "goto",
+            serde_json::json!({"url": url, "waitUntil": "load"}),
+            self.goto_untraced(url),
+        )
+        .await
+    }
+
+    async fn goto_untraced(&self, url: &str) -> Result<()> {
         self.check_open()?;
         self.inner
             .bidi
@@ -1106,6 +1160,36 @@ impl Page {
         Ok(out)
     }
 
+    /// `page.video()`: the recording, when the context records video.
+    pub fn video(&self) -> Option<Video> {
+        self.inner.video.lock().unwrap().clone()
+    }
+
+    /// The trace and HAR id of this page (`page@<context>`).
+    pub(crate) fn page_id(&self) -> String {
+        format!("page@{}", self.inner.context.to_lowercase())
+    }
+
+    pub(crate) fn services(&self) -> &Services {
+        &self.inner.services
+    }
+
+    pub(crate) fn options(&self) -> &ContextOptions {
+        &self.inner.options
+    }
+
+    /// Runs an API call, recorded in the context's trace when tracing.
+    pub(crate) async fn traced<T>(
+        &self,
+        class: &str,
+        method: &str,
+        params: Value,
+        f: impl std::future::Future<Output = Result<T>>,
+    ) -> Result<T> {
+        let recorders = self.inner.recorders.clone();
+        recorders.traced(self, class, method, params, f).await
+    }
+
     /// `page.keyboard()`.
     pub fn keyboard(&self) -> Keyboard {
         Keyboard::new(self.clone(), self.inner.input.clone())
@@ -1162,6 +1246,16 @@ impl Page {
 
     /// `page.reload()`: reloads and waits for `load`.
     pub async fn reload(&self) -> Result<()> {
+        self.traced(
+            "Page",
+            "reload",
+            serde_json::json!({"waitUntil": "load"}),
+            self.reload_untraced(),
+        )
+        .await
+    }
+
+    async fn reload_untraced(&self) -> Result<()> {
         self.check_open()?;
         self.inner
             .bidi
@@ -1201,11 +1295,31 @@ impl Page {
 
     /// `page.goBack()` (nothing happens when there is no previous entry).
     pub async fn go_back(&self) -> Result<()> {
+        self.traced(
+            "Page",
+            "goBack",
+            serde_json::json!({"waitUntil": "load"}),
+            self.go_back_untraced(),
+        )
+        .await
+    }
+
+    async fn go_back_untraced(&self) -> Result<()> {
         self.traverse(-1).await
     }
 
     /// `page.goForward()` (nothing happens when there is no next entry).
     pub async fn go_forward(&self) -> Result<()> {
+        self.traced(
+            "Page",
+            "goForward",
+            serde_json::json!({"waitUntil": "load"}),
+            self.go_forward_untraced(),
+        )
+        .await
+    }
+
+    async fn go_forward_untraced(&self) -> Result<()> {
         self.traverse(1).await
     }
 
@@ -1490,6 +1604,16 @@ impl Page {
     /// `page.setContent(html)`: replaces the document and waits for `load`
     /// (Playwright's `document.open/write/close`).
     pub async fn set_content(&self, html: &str) -> Result<()> {
+        self.traced(
+            "Frame",
+            "setContent",
+            serde_json::json!({"html": html, "waitUntil": "load"}),
+            self.set_content_untraced(html),
+        )
+        .await
+    }
+
+    async fn set_content_untraced(&self, html: &str) -> Result<()> {
         self.call_json(
             "(html) => new Promise(resolve => { document.open(); \
              addEventListener('load', () => resolve(), { once: true }); \

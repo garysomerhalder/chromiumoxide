@@ -256,26 +256,40 @@ impl BrowserContext {
                 ..Default::default()
             },
         };
-        let json = serde_json::to_vec_pretty(&har)?;
-        let fs = &self.inner.shared.services.fs;
-        if rec.options.is_zip() {
-            let mut files: Vec<(&str, Vec<u8>)> = vec![("har.har", json)];
-            files.extend(attachments.iter().map(|(n, b)| (n.as_str(), b.clone())));
-            fs.write(&rec.options.path, &crate::domain::trace::zip_stored(&files))?;
-            return Ok(());
-        }
-        fs.write(&rec.options.path, &json)?;
-        let dir = rec
-            .options
-            .resources_dir
-            .clone()
-            .or_else(|| rec.options.path.parent().map(PathBuf::from))
-            .unwrap_or_default();
-        for (name, body) in &attachments {
-            fs.write(&dir.join(name), body)?;
-        }
-        Ok(())
+        write_har(
+            &*self.inner.shared.services.fs,
+            &rec.options,
+            &har,
+            &attachments,
+        )
     }
+}
+
+/// Writes a recorded HAR: as a zip with `har.har` and the attached bodies,
+/// or as a `.har` with the bodies next to it (or in `resources_dir`).
+pub(crate) fn write_har(
+    fs: &dyn crate::ports::FileSystem,
+    options: &RecordHar,
+    har: &Har,
+    attachments: &[Attachment],
+) -> Result<()> {
+    let json = serde_json::to_vec_pretty(har)?;
+    if options.is_zip() {
+        let mut files: Vec<(&str, Vec<u8>)> = vec![("har.har", json)];
+        files.extend(attachments.iter().map(|(n, b)| (n.as_str(), b.clone())));
+        fs.write(&options.path, &crate::domain::trace::zip_stored(&files))?;
+        return Ok(());
+    }
+    fs.write(&options.path, &json)?;
+    let dir = options
+        .resources_dir
+        .clone()
+        .or_else(|| options.path.parent().map(PathBuf::from))
+        .unwrap_or_default();
+    for (name, body) in attachments {
+        fs.write(&dir.join(name), body)?;
+    }
+    Ok(())
 }
 
 /// A pending `routeFromHAR`.

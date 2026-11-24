@@ -345,6 +345,17 @@ impl Locator {
 
     /// `locator.click()`.
     pub async fn click(&self) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "click",
+                serde_json::json!({"selector": self.trace_selector(), "strict": true}),
+                self.click_untraced(),
+            )
+            .await
+    }
+
+    async fn click_untraced(&self) -> Result<()> {
         let (x, y) = self
             .actionable_point(&["visible", "enabled", "stable"])
             .await?;
@@ -357,8 +368,30 @@ impl Locator {
             .await
     }
 
+    /// The selector as Playwright's traces show it (frames entered with
+    /// `internal:control=enter-frame`).
+    fn trace_selector(&self) -> String {
+        self.frames
+            .iter()
+            .map(|f| format!("{f} >> internal:control=enter-frame"))
+            .chain(std::iter::once(self.selector.clone()))
+            .collect::<Vec<_>>()
+            .join(" >> ")
+    }
+
     /// `locator.dblclick()`.
     pub async fn dblclick(&self) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "dblclick",
+                serde_json::json!({"selector": self.trace_selector(), "strict": true}),
+                self.dblclick_untraced(),
+            )
+            .await
+    }
+
+    async fn dblclick_untraced(&self) -> Result<()> {
         let (x, y) = self
             .actionable_point(&["visible", "enabled", "stable"])
             .await?;
@@ -368,6 +401,16 @@ impl Locator {
     /// `locator.dragTo(target)`: press on this element's centre, move to the
     /// target's centre (in steps, so drag and drop starts) and release.
     pub async fn drag_to(&self, target: &Locator) -> Result<()> {
+        self.page.traced(
+            "Frame",
+            "dragAndDrop",
+            serde_json::json!({"source": self.trace_selector(), "target": target.trace_selector(), "strict": true}),
+            self.drag_to_untraced(target),
+        )
+        .await
+    }
+
+    async fn drag_to_untraced(&self, target: &Locator) -> Result<()> {
         let (x, y) = self.actionable_point(&["visible", "stable"]).await?;
         let (tx, ty) = target.actionable_point(&["visible", "stable"]).await?;
         let Some((context, offset)) = self.scope().await? else {
@@ -391,6 +434,16 @@ impl Locator {
     /// `locator.selectOption(values)`: each value matches an option's value
     /// or label; resolves with the selected values.
     pub async fn select_option(&self, values: &[&str]) -> Result<Vec<String>> {
+        self.page.traced(
+            "Frame",
+            "selectOption",
+            serde_json::json!({"selector": self.trace_selector(), "strict": true, "options": values}),
+            self.select_option_untraced(values),
+        )
+        .await
+    }
+
+    async fn select_option_untraced(&self, values: &[&str]) -> Result<Vec<String>> {
         let options: Vec<Value> = values.iter().map(|v| json!({"valueOrLabel": v})).collect();
         let deadline = self.page.now() + TIMEOUT;
         loop {
@@ -422,6 +475,16 @@ impl Locator {
 
     /// `locator.setInputFiles(files)` (BiDi `input.setFiles`).
     pub async fn set_input_files(&self, files: &[std::path::PathBuf]) -> Result<()> {
+        self.page.traced(
+            "Frame",
+            "setInputFiles",
+            serde_json::json!({"selector": self.trace_selector(), "strict": true, "localPaths": files}),
+            self.set_input_files_untraced(files),
+        )
+        .await
+    }
+
+    async fn set_input_files_untraced(&self, files: &[std::path::PathBuf]) -> Result<()> {
         // Waits for the element first.
         self.read("(i, node) => node.nodeName", &[]).await?;
         let Some((context, _)) = self.scope().await? else {
@@ -454,6 +517,17 @@ impl Locator {
 
     /// `locator.hover()`.
     pub async fn hover(&self) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "hover",
+                serde_json::json!({"selector": self.trace_selector(), "strict": true}),
+                self.hover_untraced(),
+            )
+            .await
+    }
+
+    async fn hover_untraced(&self) -> Result<()> {
         let (x, y) = self.actionable_point(&["visible", "stable"]).await?;
         self.page
             .perform_actions(Self::pointer(vec![json!({
@@ -464,6 +538,17 @@ impl Locator {
 
     /// `locator.focus()`.
     pub async fn focus(&self) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "focus",
+                serde_json::json!({"selector": self.trace_selector(), "strict": true}),
+                self.focus_untraced(),
+            )
+            .await
+    }
+
+    async fn focus_untraced(&self) -> Result<()> {
         self.read("(i, node) => { i.focusNode(node); }", &[])
             .await
             .map(drop)
@@ -472,6 +557,16 @@ impl Locator {
     /// `locator.fill(value)`: Playwright's injected `fill`, then the text
     /// typed in (or the selection deleted for an empty value).
     pub async fn fill(&self, value: &str) -> Result<()> {
+        self.page.traced(
+            "Frame",
+            "fill",
+            serde_json::json!({"selector": self.trace_selector(), "strict": true, "value": value}),
+            self.fill_untraced(value),
+        )
+        .await
+    }
+
+    async fn fill_untraced(&self, value: &str) -> Result<()> {
         let r = self
             .read("(i, node, value) => i.fill(node, value)", &[json!(value)])
             .await?;
@@ -521,6 +616,17 @@ impl Locator {
     /// `locator.press(key)`: focuses the element, then presses `key`
     /// (`"Enter"`, `"Control+a"`, ...).
     pub async fn press(&self, key: &str) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "press",
+                serde_json::json!({"selector": self.trace_selector(), "strict": true, "key": key}),
+                self.press_untraced(key),
+            )
+            .await
+    }
+
+    async fn press_untraced(&self, key: &str) -> Result<()> {
         self.focus().await?;
         self.press_keys(key).await
     }
@@ -528,6 +634,16 @@ impl Locator {
     /// `locator.pressSequentially(text)`: focuses the element and types
     /// `text` key by key.
     pub async fn press_sequentially(&self, text: &str) -> Result<()> {
+        self.page.traced(
+            "Frame",
+            "type",
+            serde_json::json!({"selector": self.trace_selector(), "strict": true, "text": text}),
+            self.press_sequentially_untraced(text),
+        )
+        .await
+    }
+
+    async fn press_sequentially_untraced(&self, text: &str) -> Result<()> {
         self.focus().await?;
         let mut actions = Vec::new();
         for c in text.chars() {
@@ -574,11 +690,33 @@ impl Locator {
 
     /// `locator.check()`.
     pub async fn check(&self) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "check",
+                serde_json::json!({"selector": self.trace_selector(), "strict": true}),
+                self.check_untraced(),
+            )
+            .await
+    }
+
+    async fn check_untraced(&self) -> Result<()> {
         self.set_checked(true).await
     }
 
     /// `locator.uncheck()`.
     pub async fn uncheck(&self) -> Result<()> {
+        self.page
+            .traced(
+                "Frame",
+                "uncheck",
+                serde_json::json!({"selector": self.trace_selector(), "strict": true}),
+                self.uncheck_untraced(),
+            )
+            .await
+    }
+
+    async fn uncheck_untraced(&self) -> Result<()> {
         self.set_checked(false).await
     }
 

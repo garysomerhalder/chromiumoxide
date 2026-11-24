@@ -197,8 +197,6 @@ pub fn unsupported_context_options(o: &ContextOptions) -> Vec<&'static str> {
     check(o.bypass_csp, "bypassCSP");
     check(o.base_url.is_some(), "baseURL");
     check(o.service_workers != ServiceWorkers::Allow, "serviceWorkers");
-    check(o.record_har.is_some(), "recordHar");
-    check(o.record_video.is_some(), "recordVideo");
     out
 }
 
