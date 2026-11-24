@@ -142,7 +142,8 @@ async fn electron_app_windows_main_process_and_close() {
     // `browserWindow(page)`: the BrowserWindow of a page.
     let bw = app.browser_window(&window).await.unwrap();
     assert_eq!(
-        bw.evaluate::<i64>("w => w.getBounds().width")
+        // Content bounds: the outer bounds include the window frame on Windows.
+        bw.evaluate::<i64>("w => w.getContentBounds().width")
             .await
             .unwrap(),
         400
