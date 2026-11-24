@@ -262,6 +262,10 @@ async fn launch(command: LaunchCommand) -> Result<Launched> {
         ));
     }
 
+    if command.channel == Channel::WebSocket {
+        // A reused profile still has the previous browser's port file.
+        let _ = std::fs::remove_file(command.user_data_dir.join("DevToolsActivePort"));
+    }
     let mut child = cmd
         .spawn()
         .map_err(|e| Error::Launch(format!("{}: {e}", command.program.display())))?;

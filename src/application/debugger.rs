@@ -192,17 +192,17 @@ fn caller_location(env: &dyn crate::ports::Environment) -> Option<SourceLocation
     let own_src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     env.call_stack().into_iter().find(|loc| {
         let path = std::path::Path::new(&loc.file);
-        let toolchain = [
-            "/rustc/",
-            "/.cargo/",
-            "/.rustup/",
-            "\\rustc\\",
-            "\\.cargo\\",
-        ]
-        .iter()
-        .any(|p| loc.file.contains(p));
-        path.is_absolute() && !toolchain && !path.starts_with(&own_src)
+        path.is_absolute() && !is_toolchain_file(&loc.file) && !path.starts_with(&own_src)
     })
+}
+
+/// A frame in the Rust toolchain or a registry crate, with Unix or Windows
+/// separators.
+fn is_toolchain_file(file: &str) -> bool {
+    let file = file.replace('\\', "/");
+    ["/rustc/", "/.cargo/", "/.rustup/"]
+        .iter()
+        .any(|p| file.contains(p))
 }
 
 /// Picking mode in one frame: hover highlights the element with its
