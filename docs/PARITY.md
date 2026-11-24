@@ -1297,7 +1297,8 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 | `page.frameLocator` (nested too; reads, actions, `expect`, clicks offset to the frame), `page.frames()` with `url` and `evaluate` | ✅ | `webkit_frames` |
 | `PageEvent::Popup` (`window.open`, `target=_blank`): a working page | ✅ | `webkit_popups` |
 | `PageEvent::Download` (`suggested_filename`, `url`, `path`, `read`, `save_as`, `failure`); `acceptDownloads` | ✅ | `webkit_downloads` |
-| Recording (video, trace, HAR), workers | ⬜ | Next, as for Firefox |
+| `recordVideo`: one `.webm` per page from WebKit's screencast (`Screencast.startScreencast`), `page.video()` with `path`, `save_as`, `delete` | ✅ | `webkit_records_video` |
+| Tracing, HAR, workers | ⬜ | Next, as for Firefox |
 
 ## 15. Tauri (M14)
 

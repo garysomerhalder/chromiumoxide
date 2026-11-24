@@ -162,6 +162,7 @@ pub mod webkit {
     pub use crate::application::webkit_expect::{Assertion, LocatorAssertions, PageAssertions};
     pub use crate::application::webkit_frame::{Frame, FrameLocator};
     pub use crate::application::webkit_locator::Locator;
+    pub use crate::application::webkit_record::Video;
     pub use crate::application::webkit_route::{Fulfill, Route};
 }
 

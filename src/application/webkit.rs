@@ -399,6 +399,7 @@ impl BrowserContext {
             routes: Mutex::new(Vec::new()),
             intercepting: Mutex::new(std::collections::HashSet::new()),
             requests: Mutex::new(HashMap::new()),
+            video: Mutex::new(None),
             closed: AtomicBool::new(false),
         });
         self.inner
@@ -543,7 +544,7 @@ pub struct Page {
 
 pub(crate) struct PageInner {
     pub(crate) wk: Arc<dyn WebKitSession>,
-    services: Services,
+    pub(crate) services: Services,
     /// The page proxy id.
     pub(crate) proxy: String,
     pub(crate) options: Arc<ContextOptions>,
@@ -582,6 +583,8 @@ pub(crate) struct PageInner {
     pub(crate) intercepting: Mutex<std::collections::HashSet<String>>,
     /// Requests in flight, by request id (for network events).
     pub(crate) requests: Mutex<HashMap<String, crate::application::firefox_route::Request>>,
+    /// `page.video()`.
+    pub(crate) video: Mutex<Option<crate::application::webkit_record::Video>>,
     closed: AtomicBool,
 }
 
@@ -625,7 +628,7 @@ impl Page {
 
     /// The viewport Playwright gives a page: the page's, else the
     /// context's, else 1280x720.
-    fn effective_viewport(&self) -> Viewport {
+    pub(crate) fn effective_viewport(&self) -> Viewport {
         self.inner
             .viewport
             .lock()
@@ -872,6 +875,7 @@ impl Page {
                 .await;
         }
         if first {
+            self.start_video();
             self.inner.ready.send_replace(true);
         }
     }
