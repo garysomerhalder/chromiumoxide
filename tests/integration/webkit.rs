@@ -246,3 +246,159 @@ async fn webkit_locators_act_on_elements() {
     );
     browser.close().await.unwrap();
 }
+
+/// History (back, forward, reload), cookies, init scripts and page events
+/// (console, uncaught errors, dialogs) on WebKit.
+#[tokio::test]
+async fn webkit_history_cookies_scripts_and_events() {
+    use chromiumoxide::webkit::PageEvent;
+    use chromiumoxide::{ContextOptions, NewCookie};
+    use futures::StreamExt;
+    use std::time::Duration;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route(
+        "/one.html",
+        "text/html",
+        "<title>one</title><a href='/two.html'>next</a>",
+        0,
+    );
+    server.route("/two.html", "text/html", "<title>two</title>", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+
+    // Cookies, per context.
+    let url = server.url("/one.html");
+    context
+        .add_cookies(&[NewCookie::new("flavour", "oat").url(&url)])
+        .await
+        .unwrap();
+    let cookies = context.cookies().await.unwrap();
+    assert_eq!(cookies.len(), 1, "{cookies:?}");
+    assert_eq!(
+        (cookies[0].name.as_str(), cookies[0].value.as_str()),
+        ("flavour", "oat")
+    );
+    assert_eq!(cookies[0].domain, "127.0.0.1");
+    assert!(
+        context
+            .cookies_for(&["https://example.com"])
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    // Init scripts, for the context and for one page.
+    context
+        .add_init_script("window.fromInit = 7; var initVar = 8;")
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.add_init_script("window.pageInit = 'yes'")
+        .await
+        .unwrap();
+    page.goto(&url).await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("document.cookie").await.unwrap(),
+        "flavour=oat"
+    );
+    assert_eq!(page.evaluate::<i64>("window.fromInit").await.unwrap(), 7);
+    assert_eq!(page.evaluate::<i64>("window.initVar").await.unwrap(), 8);
+    assert_eq!(
+        page.evaluate::<String>("window.pageInit").await.unwrap(),
+        "yes"
+    );
+
+    // History.
+    page.locator("a").click().await.unwrap();
+    page.wait_for_function("document.title === 'two'")
+        .await
+        .unwrap();
+    assert!(page.url().ends_with("/two.html"), "{}", page.url());
+    page.go_back().await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "one");
+    assert!(page.url().ends_with("/one.html"), "{}", page.url());
+    page.go_forward().await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "two");
+    page.evaluate::<String>("document.body.dataset.mark = 'x'")
+        .await
+        .unwrap();
+    page.reload().await.unwrap();
+    assert_eq!(
+        page.evaluate::<Option<String>>("document.body.dataset.mark ?? null")
+            .await
+            .unwrap(),
+        None
+    );
+
+    // Events.
+    let mut events = page.events();
+    let mut next = async || loop {
+        let e = tokio::time::timeout(Duration::from_secs(10), events.next())
+            .await
+            .expect("event within 10 s")
+            .expect("stream open");
+        if !matches!(e, PageEvent::Load | PageEvent::DomContentLoaded) {
+            return e;
+        }
+    };
+    page.evaluate::<()>("console.log('hello', 42); console.warn('careful')")
+        .await
+        .unwrap();
+    match next().await {
+        PageEvent::Console(m) => {
+            assert_eq!(m.kind(), "log");
+            assert_eq!(m.text(), "hello 42");
+        }
+        other => panic!("{other:?}"),
+    }
+    match next().await {
+        PageEvent::Console(m) => {
+            assert_eq!(m.kind(), "warning");
+            assert_eq!(m.text(), "careful");
+        }
+        other => panic!("{other:?}"),
+    }
+    page.evaluate::<()>("void setTimeout(() => { throw new Error('boom') })")
+        .await
+        .unwrap();
+    match next().await {
+        PageEvent::PageError(e) => {
+            assert_eq!(e.message(), "boom");
+            assert_eq!(e.name(), "Error");
+        }
+        other => panic!("{other:?}"),
+    }
+    let answer = {
+        let page = page.clone();
+        tokio::spawn(async move { page.evaluate::<String>("prompt('name?', 'anon')").await })
+    };
+    match next().await {
+        PageEvent::Dialog(d) => {
+            assert_eq!(d.kind(), "prompt");
+            assert_eq!(d.message(), "name?");
+            assert_eq!(d.default_value(), "anon");
+            d.accept(Some("Kit")).await.unwrap();
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(answer.await.unwrap().unwrap(), "Kit");
+    // Nobody listening: Playwright dismisses the dialog.
+    drop(events);
+    assert!(!page.evaluate::<bool>("confirm('ok?')").await.unwrap());
+
+    // Another context does not see the cookies; clearing empties them.
+    let other = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    assert!(other.cookies().await.unwrap().is_empty());
+    context.clear_cookies().await.unwrap();
+    assert!(context.cookies().await.unwrap().is_empty());
+    browser.close().await.unwrap();
+}

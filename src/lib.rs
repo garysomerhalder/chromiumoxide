@@ -157,6 +157,7 @@ pub mod webkit {
     pub use crate::application::webkit::{
         Browser, BrowserContext, Page, Screenshot, WebKitLaunchOptions,
     };
+    pub use crate::application::webkit_events::{ConsoleMessage, Dialog, PageError, PageEvent};
     pub use crate::application::webkit_locator::Locator;
 }
 

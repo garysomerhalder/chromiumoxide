@@ -52,6 +52,17 @@ pub fn modifiers(cdp: u32) -> u32 {
         .sum()
 }
 
+/// A resolved cookie as `Playwright.setCookies` takes it (`WKBrowserContext.addCookies`):
+/// `expires` in milliseconds, `session` when it has none.
+pub fn cookie_to_webkit(_c: &crate::domain::storage::NewCookie) -> serde_json::Value {
+    serde_json::Value::Null
+}
+
+/// A `Playwright.getAllCookies` cookie (`expires` in milliseconds, `-1` for session).
+pub fn cookie_from_webkit(_c: &serde_json::Value) -> crate::domain::storage::Cookie {
+    unimplemented!()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,5 +106,47 @@ mod tests {
             default_user_agent(),
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15"
         );
+    }
+
+    #[test]
+    fn cookies_to_webkit_like_playwright() {
+        use crate::domain::storage::{NewCookie, SameSite};
+        let c = NewCookie::new("a", "b")
+            .url("http://127.0.0.1:8000/x/y.html")
+            .resolve()
+            .unwrap();
+        assert_eq!(
+            cookie_to_webkit(&c),
+            serde_json::json!({"name": "a", "value": "b", "domain": "127.0.0.1",
+                "path": "/x/", "secure": false, "session": true})
+        );
+        let c = NewCookie::new("a", "b")
+            .domain("x.test")
+            .path("/")
+            .expires(1_700_000_000.0)
+            .http_only(true)
+            .same_site(SameSite::Strict);
+        assert_eq!(
+            cookie_to_webkit(&c),
+            serde_json::json!({"name": "a", "value": "b", "domain": "x.test", "path": "/",
+                "expires": 1_700_000_000_000.0, "httpOnly": true, "sameSite": "Strict",
+                "session": false})
+        );
+    }
+
+    #[test]
+    fn cookies_from_webkit_like_playwright() {
+        use crate::domain::storage::SameSite;
+        let c = cookie_from_webkit(&serde_json::json!({"name": "a", "value": "b",
+            "domain": "x.test", "path": "/", "expires": 1_700_000_000_000.0_f64,
+            "httpOnly": true, "secure": true, "sameSite": "None", "session": false}));
+        assert_eq!((c.name.as_str(), c.value.as_str()), ("a", "b"));
+        assert_eq!(c.expires, 1_700_000_000.0);
+        assert!(c.http_only && c.secure);
+        assert_eq!(c.same_site, SameSite::None);
+        let c = cookie_from_webkit(&serde_json::json!({"name": "s", "value": "", "domain": "d",
+            "path": "/", "expires": -1, "httpOnly": false, "secure": false,
+            "sameSite": "Lax", "session": true}));
+        assert_eq!(c.expires, -1.0);
     }
 }
