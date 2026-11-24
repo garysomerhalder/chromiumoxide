@@ -95,6 +95,19 @@ uses Juggler).
     profile's `userContent.css`;
   - BiDi in Firefox 159 has no command for isMobile, hasTouch or
     colorScheme; these are errors for now.
+- 2026-11-24: on Firefox now too, each with a passing test against
+  Playwright's Firefox (10 Firefox tests in all):
+  - locators;
+  - input;
+  - navigation and waits;
+  - `expect()` assertions;
+  - page events (console, errors, dialogs);
+  - cookies and init scripts;
+  - `page.route`.
+
+  Still to do: `context.route`, request/response events, HTTP
+  credentials, downloads, frames, storage state, and the PARITY Firefox
+  column.
 
 ## Set it
 

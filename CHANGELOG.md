@@ -24,7 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - locators (`locator`, `get_by_*`, `nth`, reads, visibility, waiting,
     strictness);
   - input (`click`, `hover`, `fill`, `press`, `press_sequentially`,
-    `check`, `uncheck`).
+    `check`, `uncheck`);
+  - navigation and waits (`url`, `content`, `reload`, `go_back`,
+    `go_forward`, `wait_for_function`, `wait_for_timeout`,
+    `locator.wait_for`);
+  - web-first assertions through the shared `expect()`;
+  - page events (console messages, page errors, dialogs, load, close);
+  - cookies and init scripts;
+  - request routing (`page.route` with fulfil / continue / abort,
+    `unroute`).
 - Over BiDi in Firefox 159 there is no command for isMobile, hasTouch or
   colorScheme; those context options are an error for now.
 
