@@ -9,7 +9,7 @@ use crate::domain::clock::{ClockTime, Ticks, parse_ticks, parse_time};
 use crate::domain::error::{Error, Result};
 use crate::domain::frame::World;
 
-const CLOCK: &str = include_str!("scripts/clock.js");
+pub(crate) const CLOCK: &str = include_str!("scripts/clock.js");
 
 /// Controls time in a browser context (Playwright's `Clock`). Cheap to clone.
 #[derive(Clone, Debug)]

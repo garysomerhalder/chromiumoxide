@@ -2895,7 +2895,7 @@ async fn firefox_clock_controls_time() {
             .unwrap(),
         "2024-01-01"
     );
-    page.evaluate::<()>("window.fired = 0; setTimeout(() => window.fired++, 5000)")
+    page.evaluate::<()>("void (window.fired = 0, setTimeout(() => window.fired++, 5000))")
         .await
         .unwrap();
     clock.run_for(1000).await.unwrap();

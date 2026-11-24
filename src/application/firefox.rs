@@ -434,6 +434,7 @@ impl Browser {
                 granted_any: Mutex::new(permissions),
                 granted: Mutex::new(Vec::new()),
                 subscribers: Mutex::new(Vec::new()),
+                clock_installed: AtomicBool::new(false),
                 closed: AtomicBool::new(false),
             }),
         };
@@ -559,6 +560,8 @@ pub(crate) struct ContextInner {
     /// navigates to) and the `(origin, name)` pairs set so far.
     pub(crate) granted_any: Mutex<Vec<String>>,
     pub(crate) granted: Mutex<Vec<(String, String)>>,
+    /// Playwright's clock script is in the context's pages.
+    pub(crate) clock_installed: AtomicBool,
     /// `context.events()` subscribers.
     pub(crate) subscribers: Mutex<
         Vec<
