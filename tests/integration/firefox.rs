@@ -468,3 +468,73 @@ async fn firefox_page_events() {
     assert!(!page.evaluate::<bool>("confirm('ok?')").await.unwrap());
     browser.close().await.unwrap();
 }
+
+/// Cookies (per context, over BiDi `storage.*`) and init scripts (BiDi
+/// preload scripts, with script semantics: top-level `var` is global).
+#[tokio::test]
+async fn firefox_cookies_and_init_scripts() {
+    use chromiumoxide::{ContextOptions, NewCookie};
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/c.html", "text/html", "<p>c</p>", 0);
+    let url = server.url("/c.html");
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    context
+        .add_cookies(&[NewCookie::new("flavour", "oat").url(&url)])
+        .await
+        .unwrap();
+    let cookies = context.cookies().await.unwrap();
+    assert_eq!(cookies.len(), 1, "{cookies:?}");
+    assert_eq!(
+        (cookies[0].name.as_str(), cookies[0].value.as_str()),
+        ("flavour", "oat")
+    );
+    assert_eq!(cookies[0].domain, "127.0.0.1");
+    assert_eq!(cookies[0].path, "/");
+    assert!(
+        context
+            .cookies_for(&["https://example.com"])
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    context
+        .add_init_script("window.fromInit = 7; var initVar = 8;")
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto(&url).await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("document.cookie").await.unwrap(),
+        "flavour=oat"
+    );
+    assert_eq!(page.evaluate::<i64>("window.fromInit").await.unwrap(), 7);
+    assert_eq!(page.evaluate::<i64>("window.initVar").await.unwrap(), 8);
+
+    page.add_init_script("window.pageInit = 'yes'")
+        .await
+        .unwrap();
+    page.reload().await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("window.pageInit").await.unwrap(),
+        "yes"
+    );
+
+    // Another context does not see these cookies.
+    let other = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    assert!(other.cookies().await.unwrap().is_empty());
+
+    context.clear_cookies().await.unwrap();
+    assert!(context.cookies().await.unwrap().is_empty());
+    browser.close().await.unwrap();
+}
