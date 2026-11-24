@@ -40,6 +40,7 @@ mod protocol;
 mod pw165;
 mod request;
 mod routing;
+mod safari;
 mod screencast;
 mod screenshot;
 mod scripts;
