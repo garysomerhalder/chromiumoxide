@@ -9,14 +9,12 @@ use crate::application::webkit::Page;
 use crate::domain::error::{Error, Result};
 use crate::domain::selectors::{self, RoleOptions, TextMatch, compose};
 
-/// Default action timeout (Playwright's 30 s).
-const TIMEOUT: Duration = Duration::from_secs(30);
-
 /// `page.locator(selector)` and the `get_by_*` builders on a WebKit page.
 impl Page {
     pub fn locator(&self, selector: &str) -> Locator {
         Locator {
             page: self.clone(),
+            root: None,
             selector: selector.to_owned(),
             frames: Vec::new(),
         }
@@ -48,6 +46,8 @@ impl Page {
 #[derive(Clone, Debug)]
 pub struct Locator {
     pub(crate) page: Page,
+    /// The frame the lookup starts in (`None`: the main frame).
+    pub(crate) root: Option<String>,
     pub(crate) selector: String,
     /// `frame_locator` selectors from the page down to the frame.
     pub(crate) frames: Vec<String>,
@@ -58,6 +58,7 @@ impl Locator {
     pub fn locator(&self, selector: &str) -> Locator {
         Locator {
             page: self.page.clone(),
+            root: self.root.clone(),
             selector: compose::chain(&self.selector, selector),
             frames: self.frames.clone(),
         }
@@ -66,6 +67,7 @@ impl Locator {
     pub fn nth(&self, index: i64) -> Locator {
         Locator {
             page: self.page.clone(),
+            root: self.root.clone(),
             selector: compose::nth(&self.selector, index),
             frames: self.frames.clone(),
         }
@@ -88,9 +90,14 @@ impl Locator {
 
     /// The frame this locator runs in (`None`: the main frame) and its
     /// content's offset in the viewport; `None` while a frame is missing.
-    async fn scope(&self) -> Result<Option<(Option<String>, (f64, f64))>> {
-        let mut frame: Option<String> = None;
-        let mut offset = (0.0, 0.0);
+    pub(crate) async fn scope(&self) -> Result<Option<(Option<String>, (f64, f64))>> {
+        let (mut frame, mut offset) = match &self.root {
+            None => (None, (0.0, 0.0)),
+            Some(root) => match self.page.frame_offset(root).await? {
+                Some(offset) => (Some(root.clone()), offset),
+                None => return Ok(None),
+            },
+        };
         for selector in &self.frames {
             match self.page.child_frame(frame.as_deref(), selector).await? {
                 Some((child, (x, y))) => {
@@ -129,7 +136,7 @@ impl Locator {
 
     /// Runs `body(injected, element, ...args)` on the single element the
     /// locator resolves to, waiting until there is one (strict).
-    async fn read(&self, body: &str, args: &[Value]) -> Result<Value> {
+    pub(crate) async fn read(&self, body: &str, args: &[Value]) -> Result<Value> {
         let function = format!(
             "(i, selector, args) => {{ const parsed = i.parseSelector(selector); \
              const els = i.querySelectorAll(parsed, document); \
@@ -137,7 +144,7 @@ impl Locator {
              if (!els.length) return {{ found: false }}; \
              return {{ found: true, value: ({body})(i, els[0], ...args) }}; }}"
         );
-        let deadline = self.page.now() + TIMEOUT;
+        let deadline = self.page.now() + self.page.timeout();
         let mut delay = Duration::from_millis(20);
         loop {
             let r = self
@@ -148,7 +155,7 @@ impl Locator {
             }
             if self.page.now() >= deadline {
                 return Err(Error::Timeout {
-                    ms: TIMEOUT.as_millis() as u64,
+                    ms: self.page.timeout().as_millis() as u64,
                     action: format!("waiting for locator('{}')", self.selector),
                 });
             }
@@ -272,7 +279,7 @@ impl Locator {
     /// Playwright's actionability for pointer actions: waits until the
     /// single element is in `states`, scrolls it into view if needed and
     /// checks the centre hits it; returns that point (viewport CSS px).
-    async fn actionable_point(&self, states: &[&str]) -> Result<(f64, f64)> {
+    pub(crate) async fn actionable_point(&self, states: &[&str]) -> Result<(f64, f64)> {
         const PREPARE: &str = "async (i, selector, states) => { const parsed = i.parseSelector(selector); \
              const els = i.querySelectorAll(parsed, document); \
              if (els.length > 1) throw i.strictModeViolationError(parsed, els); \
@@ -289,7 +296,7 @@ impl Locator {
              const hit = i.expectHitTarget(point, node); \
              if (hit !== 'done') return { retry: hit.hitTargetDescription + ' intercepts pointer events' }; \
              return { point }; }";
-        let deadline = self.page.now() + TIMEOUT;
+        let deadline = self.page.now() + self.page.timeout();
         let mut delay = Duration::from_millis(20);
         loop {
             let (r, offset) = match self.scope().await? {
@@ -314,7 +321,7 @@ impl Locator {
             let last = r["retry"].as_str().unwrap_or_default();
             if self.page.now() >= deadline {
                 return Err(Error::Timeout {
-                    ms: TIMEOUT.as_millis() as u64,
+                    ms: self.page.timeout().as_millis() as u64,
                     action: format!("waiting for locator('{}'): {last}", self.selector),
                 });
             }
@@ -391,7 +398,8 @@ impl Locator {
         Ok(())
     }
 
-    async fn set_checked(&self, checked: bool) -> Result<()> {
+    /// `locator.setChecked(checked)`.
+    pub async fn set_checked(&self, checked: bool) -> Result<()> {
         if self.is_checked().await? == checked {
             return Ok(());
         }

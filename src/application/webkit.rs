@@ -23,6 +23,7 @@ use serde_json::{Value, json};
 use tokio::sync::watch;
 
 use crate::application::actions::{ADD_STYLE, StyleTag};
+use crate::application::firefox::Timeouts;
 use crate::application::firefox_download::Download;
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
 use crate::application::services::Services;
@@ -220,6 +221,7 @@ impl Browser {
                 pages: Mutex::new(Vec::new()),
                 routes: Mutex::new(Vec::new()),
                 downloads_dir,
+                timeouts: Mutex::new(Timeouts::default()),
                 closed: AtomicBool::new(false),
             }),
         };
@@ -277,6 +279,8 @@ pub(crate) struct ContextInner {
     pub(crate) routes: Mutex<Vec<crate::application::webkit_route::RouteEntry>>,
     /// Where WebKit saves downloads (named by uuid), when accepted.
     downloads_dir: Option<PathBuf>,
+    /// `context.setDefault(Navigation)Timeout`.
+    pub(crate) timeouts: Mutex<Timeouts>,
     closed: AtomicBool,
 }
 
@@ -400,6 +404,7 @@ impl BrowserContext {
             intercepting: Mutex::new(std::collections::HashSet::new()),
             requests: Mutex::new(HashMap::new()),
             video: Mutex::new(None),
+            timeouts: Mutex::new(Timeouts::default()),
             closed: AtomicBool::new(false),
         });
         self.inner
@@ -586,6 +591,8 @@ pub(crate) struct PageInner {
     pub(crate) requests: Mutex<HashMap<String, crate::application::webkit_network::Request>>,
     /// `page.video()`.
     pub(crate) video: Mutex<Option<crate::application::webkit_record::Video>>,
+    /// `page.setDefault(Navigation)Timeout`.
+    pub(crate) timeouts: Mutex<Timeouts>,
     closed: AtomicBool,
 }
 
@@ -603,6 +610,16 @@ impl Page {
             return Err(Error::TargetClosed("page has been closed".into()));
         }
         Ok(())
+    }
+
+    /// `page.isClosed()`.
+    pub fn is_closed(&self) -> bool {
+        self.inner.closed.load(Ordering::SeqCst)
+    }
+
+    /// The main frame's id.
+    pub(crate) fn main_frame_id(&self) -> String {
+        self.inner.frame_id.lock().unwrap().clone()
     }
 
     pub(crate) fn target(&self) -> String {
@@ -912,7 +929,7 @@ impl Page {
     ) -> Result<()> {
         within(
             &self.inner.services,
-            TIMEOUT,
+            self.navigation_timeout(),
             "waiting for the load event",
             async {
                 loads
@@ -932,13 +949,21 @@ impl Page {
     /// `page.setContent(html)`: replaces the document and waits for it to
     /// finish loading.
     pub async fn set_content(&self, html: &str) -> Result<()> {
-        self.call_json(
+        self.set_content_in(None, html).await
+    }
+
+    /// `setContent` in a frame (`None`: the main frame).
+    pub(crate) async fn set_content_in(&self, frame: Option<&str>, html: &str) -> Result<()> {
+        self.call_json_frame(
             "(html) => { document.open(); document.write(html); document.close(); }",
             &[json!(html)],
+            frame,
+            false,
         )
         .await?;
-        self.wait_for_function("document.readyState === 'complete'")
+        self.wait_for_function_in(frame, "document.readyState === 'complete'")
             .await
+            .map(drop)
     }
 
     /// `page.title()`.
@@ -953,11 +978,19 @@ impl Page {
 
     /// `page.content()`.
     pub async fn content(&self) -> Result<String> {
-        self.evaluate(
+        self.content_in(None).await
+    }
+
+    /// `content()` of a frame (`None`: the main frame).
+    pub(crate) async fn content_in(&self, frame: Option<&str>) -> Result<String> {
+        let v = self.evaluate_value_in(
             "(() => { let r = ''; if (document.doctype) r = new XMLSerializer().serializeToString(document.doctype); \
              if (document.documentElement) r += document.documentElement.outerHTML; return r; })()",
+            None,
+            frame,
         )
-        .await
+        .await?;
+        Ok(v.as_str().unwrap_or_default().to_owned())
     }
 
     /// `page.evaluate(expression or function)` with a JSON result.
@@ -1089,17 +1122,11 @@ impl Page {
         }
     }
 
-    /// Calls a function source with JSON arguments (main world); its JSON
-    /// result.
-    async fn call_json(&self, function: &str, args: &[Value]) -> Result<Value> {
-        self.call_json_in(function, args, false).await
-    }
-
     async fn call_json_in(&self, function: &str, args: &[Value], utility: bool) -> Result<Value> {
         self.call_json_frame(function, args, None, utility).await
     }
 
-    async fn call_json_frame(
+    pub(crate) async fn call_json_frame(
         &self,
         function: &str,
         args: &[Value],
@@ -1122,6 +1149,11 @@ impl Page {
 
     /// `page.addStyleTag({ content | url | path })`.
     pub async fn add_style_tag(&self, tag: StyleTag) -> Result<()> {
+        self.add_style_tag_in(None, tag).await
+    }
+
+    /// `addStyleTag` in a frame (`None`: the main frame).
+    pub(crate) async fn add_style_tag_in(&self, frame: Option<&str>, tag: StyleTag) -> Result<()> {
         let (content, url) = match tag {
             StyleTag::Content(css) => (Value::String(css), Value::Null),
             StyleTag::Url(u) => (Value::Null, Value::String(u)),
@@ -1135,7 +1167,8 @@ impl Page {
                 (Value::String(css), Value::Null)
             }
         };
-        self.call_json(ADD_STYLE, &[content, url]).await?;
+        self.call_json_frame(ADD_STYLE, &[content, url], frame, false)
+            .await?;
         Ok(())
     }
 
@@ -1166,16 +1199,27 @@ impl Page {
     /// `page.waitForFunction(expression)`: polls until the expression (or
     /// function) is truthy.
     pub async fn wait_for_function(&self, source: &str) -> Result<()> {
-        let deadline = self.inner.services.clock.now_ms() + TIMEOUT.as_millis() as u64;
+        self.wait_for_function_in(None, source).await.map(drop)
+    }
+
+    /// `waitForFunction` in a frame (`None`: the main frame): its first
+    /// truthy value.
+    pub(crate) async fn wait_for_function_in(
+        &self,
+        frame: Option<&str>,
+        source: &str,
+    ) -> Result<Value> {
+        let timeout = self.timeout();
+        let deadline = self.inner.services.clock.now_ms() + timeout.as_millis() as u64;
         loop {
-            if let Ok(v) = self.evaluate_value(source, None).await
+            if let Ok(v) = self.evaluate_value_in(source, None, frame).await
                 && truthy(&v)
             {
-                return Ok(());
+                return Ok(v);
             }
             if self.inner.services.clock.now_ms() >= deadline {
                 return Err(Error::Timeout {
-                    ms: TIMEOUT.as_millis() as u64,
+                    ms: timeout.as_millis() as u64,
                     action: format!("waiting for function: {source}"),
                 });
             }
@@ -1283,6 +1327,36 @@ impl Page {
             .map_err(|e| Error::Serde(format!("screenshot data: {e}")))
     }
 
+    /// The action timeout: the page's default, else the context's, else
+    /// Playwright's 30 s.
+    pub(crate) fn timeout(&self) -> Duration {
+        let own = self.inner.timeouts.lock().unwrap().action;
+        own.or_else(|| {
+            self.inner
+                .context
+                .upgrade()
+                .and_then(|c| c.timeouts.lock().unwrap().action)
+        })
+        .unwrap_or(TIMEOUT)
+    }
+
+    /// The navigation timeout: the page's or context's navigation default,
+    /// else their action default, else 30 s.
+    pub(crate) fn navigation_timeout(&self) -> Duration {
+        let own = *self.inner.timeouts.lock().unwrap();
+        let ctx = self
+            .inner
+            .context
+            .upgrade()
+            .map(|c| *c.timeouts.lock().unwrap())
+            .unwrap_or_default();
+        own.navigation
+            .or(ctx.navigation)
+            .or(own.action)
+            .or(ctx.action)
+            .unwrap_or(TIMEOUT)
+    }
+
     pub(crate) fn now(&self) -> Duration {
         Duration::from_millis(self.inner.services.clock.now_ms())
     }
@@ -1372,6 +1446,33 @@ impl Page {
             self.dispatch_mouse(up).await?;
         }
         Ok(())
+    }
+
+    /// Presses at `(x, y)`, moves to `(tx, ty)` in steps and releases
+    /// (a drag).
+    pub(crate) async fn drag(&self, x: f64, y: f64, tx: f64, ty: f64) -> Result<()> {
+        use crate::domain::input::MouseButton;
+        self.move_mouse(x, y).await?;
+        let down = self.inner.mouse.lock().unwrap().down(MouseButton::Left, 1);
+        self.dispatch_mouse(down).await?;
+        let moves = self.inner.mouse.lock().unwrap().move_to(tx, ty, 10);
+        for m in moves {
+            self.dispatch_mouse(m).await?;
+        }
+        let up = self.inner.mouse.lock().unwrap().up(MouseButton::Left, 1);
+        self.dispatch_mouse(up).await
+    }
+
+    /// A touch tap at `(x, y)` (`Input.dispatchTapEvent`).
+    pub(crate) async fn tap_at(&self, x: f64, y: f64) -> Result<()> {
+        let modifiers =
+            crate::domain::webkit::modifiers(self.inner.keyboard.lock().await.modifiers());
+        self.proxy_call(
+            "Input.dispatchTapEvent",
+            json!({"x": x.round() as i64, "y": y.round() as i64, "modifiers": modifiers}),
+        )
+        .await
+        .map(drop)
     }
 
     /// Moves the mouse to `(x, y)`.
