@@ -169,6 +169,22 @@ mod tests {
     use crate::domain::emulation::Viewport;
 
     #[test]
+    fn scaled_frames_fit_the_video_before_padding() {
+        let plain = ffmpeg_args(VideoCodec::Vp8, 800, 450, 25, "o.webm");
+        assert_eq!(
+            ffmpeg_args_scaled(VideoCodec::Vp8, 800, 450, 25, "o.webm", (800, 450)),
+            plain
+        );
+        let scaled = ffmpeg_args_scaled(VideoCodec::Vp8, 800, 450, 25, "o.webm", (1280, 720));
+        let vf = scaled.iter().position(|a| a == "-vf").unwrap();
+        assert_eq!(
+            scaled[vf + 1],
+            "scale=800:450:force_original_aspect_ratio=decrease,pad=800:450:0:0:gray,crop=800:450:0:0"
+        );
+        assert_eq!(scaled.last().unwrap(), "o.webm");
+    }
+
+    #[test]
     fn default_size_fits_800_like_playwright() {
         assert_eq!(video_size(Some(Viewport::new(1280, 720)), None), (800, 450));
         assert_eq!(video_size(Some(Viewport::new(390, 844)), None), (368, 800));
