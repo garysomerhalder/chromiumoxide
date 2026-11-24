@@ -474,3 +474,26 @@ mod persistent_tests {
         assert!(!args.iter().any(|a| a == "--no-startup-window"));
     }
 }
+
+#[cfg(test)]
+mod windows_command_line_tests {
+    use super::*;
+
+    #[test]
+    fn arguments_are_quoted_like_the_msvc_runtime_reads_them() {
+        assert_eq!(
+            windows_command_line(
+                Path::new("C:/Program Files/App/app.exe"),
+                &[
+                    "--plain".into(),
+                    "--user-data-dir=C:\\Users\\a b\\p".into(),
+                    "".into(),
+                    "say \"hi\"".into(),
+                    "C:\\dir with space\\".into(),
+                    "back\\\\slash".into(),
+                ]
+            ),
+            r#""C:/Program Files/App/app.exe" --plain "--user-data-dir=C:\Users\a b\p" "" "say \"hi\"" "C:\dir with space\\" back\\slash"#
+        );
+    }
+}
