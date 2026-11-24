@@ -826,3 +826,68 @@ async fn firefox_frames() {
     );
     browser.close().await.unwrap();
 }
+
+/// Saving and restoring a logged-in state on Firefox: storage_state()
+/// collects cookies and localStorage; a new context with that state sees
+/// both before any page script runs.
+#[tokio::test]
+async fn firefox_storage_state_round_trip() {
+    use chromiumoxide::ContextOptions;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/s.html", "text/html", "<p>s</p>", 0);
+    server.route(
+        "/check.html",
+        "text/html",
+        "<script>window.seen = localStorage.getItem('token')</script>",
+        0,
+    );
+    let url = server.url("/s.html");
+    let origin = url.trim_end_matches("/s.html").to_owned();
+    let browser = Firefox::launch(options).await.unwrap();
+    let first = browser
+        .new_context(ContextOptions::default())
+        .await
+        .unwrap();
+    let page = first.new_page().await.unwrap();
+    page.goto(&url).await.unwrap();
+    page.evaluate::<()>("localStorage.setItem('token', 'abc'); document.cookie = 'session=s1'")
+        .await
+        .unwrap();
+    let state = first.storage_state().await.unwrap();
+    assert!(
+        state
+            .cookies
+            .iter()
+            .any(|c| c.name == "session" && c.value == "s1")
+    );
+    let saved = state
+        .origins
+        .iter()
+        .find(|o| o.origin == origin)
+        .expect("origin saved");
+    assert!(
+        saved
+            .local_storage
+            .iter()
+            .any(|kv| kv.name == "token" && kv.value == "abc")
+    );
+
+    let second = browser
+        .new_context(ContextOptions {
+            storage_state: Some(state),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = second.new_page().await.unwrap();
+    page.goto(&server.url("/check.html")).await.unwrap();
+    assert_eq!(page.evaluate::<String>("window.seen").await.unwrap(), "abc");
+    assert_eq!(
+        page.evaluate::<String>("document.cookie").await.unwrap(),
+        "session=s1"
+    );
+    browser.close().await.unwrap();
+}
