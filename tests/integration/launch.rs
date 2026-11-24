@@ -156,3 +156,27 @@ async fn bind_shares_a_launched_browser() {
     );
     owner.close().await.unwrap();
 }
+
+/// Playwright's `channel: 'msedge'`: the installed Edge, by name.
+#[tokio::test]
+async fn edge_channel_runs_the_installed_edge() {
+    let options = LaunchOptions {
+        browser_channel: Some("msedge".into()),
+        ..Default::default()
+    };
+    let browser = match Chromium::launch(options).await {
+        Ok(b) => b,
+        Err(e) if std::env::var_os("CHROMIUMOXIDE_REQUIRE_EDGE").is_none() => {
+            eprintln!("skipping: no Edge installed ({e})");
+            return;
+        }
+        Err(e) => panic!("{e}"),
+    };
+    let page = browser.new_page().await.unwrap();
+    page.set_content("<h1>edge</h1>").await.unwrap();
+    let ua: String = page.evaluate("navigator.userAgent").await.unwrap();
+    assert!(ua.contains("Edg/"), "{ua}");
+    let png = page.screenshot().await.unwrap();
+    assert_eq!(&png[1..4], b"PNG");
+    browser.close().await.unwrap();
+}
