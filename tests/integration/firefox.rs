@@ -2096,3 +2096,170 @@ async fn firefox_page_details_and_frame_locator_nth() {
     }
     browser.close().await.unwrap();
 }
+
+/// Firefox: context settings after creation (extra headers, offline,
+/// geolocation, permissions, HTTP credentials, storage state), context
+/// events, and the rest of Browser and BrowserContext.
+#[tokio::test]
+async fn firefox_context_settings_and_events() {
+    use chromiumoxide::firefox::ContextEvent;
+    use chromiumoxide::{ContextOptions, Geolocation, HttpCredentials, StorageState};
+    use futures::StreamExt;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/p.html", "text/html", "<title>p</title>", 0);
+    let browser = Firefox::launch(options).await.unwrap();
+    assert_eq!(browser.browser_type().name(), "firefox");
+    assert!(browser.is_connected());
+    let context = browser
+        .new_context(ContextOptions {
+            permissions: vec!["geolocation".into()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(browser.contexts().len(), 1);
+    assert!(context.browser().is_some());
+    assert!(!context.is_closed());
+    assert!(context.background_pages().is_empty());
+    assert!(context.service_workers().is_empty());
+
+    // Context events: a new page, then its console messages.
+    let mut events = context.events();
+    let page = context.new_page().await.unwrap();
+    assert!(matches!(events.next().await, Some(ContextEvent::Page(_))));
+    page.evaluate::<()>("console.log('from page')")
+        .await
+        .unwrap();
+    let console = context.wait_for_event(|e| match e {
+        ContextEvent::Console(m) => Some(m.text().to_owned()),
+        _ => None,
+    });
+    page.evaluate::<()>("console.log('waited')").await.unwrap();
+    assert_eq!(console.await.unwrap(), "waited");
+
+    // Extra headers on the context and the page.
+    context
+        .set_extra_http_headers(&[("x-ctx", "1")])
+        .await
+        .unwrap();
+    page.set_extra_http_headers(&[("x-page", "2")])
+        .await
+        .unwrap();
+    page.goto(&server.url("/dump")).await.unwrap();
+    let echoed: serde_json::Value = page
+        .evaluate("JSON.parse(document.body.innerText)")
+        .await
+        .unwrap();
+    assert_eq!(echoed["headers"]["x-ctx"], "1", "{echoed}");
+    assert_eq!(echoed["headers"]["x-page"], "2", "{echoed}");
+
+    // Geolocation and permissions.
+    page.goto(&server.url("/p.html")).await.unwrap();
+    context
+        .set_geolocation(Some(Geolocation {
+            latitude: 10.0,
+            longitude: 20.0,
+            accuracy: 1.0,
+        }))
+        .await
+        .unwrap();
+    let state: String = page
+        .evaluate("navigator.permissions.query({ name: 'geolocation' }).then(s => s.state)")
+        .await
+        .unwrap();
+    assert_eq!(state, "granted");
+    let lat: f64 = page
+        .evaluate(
+            "new Promise((ok, err) => navigator.geolocation.getCurrentPosition(p => ok(p.coords.latitude), err))",
+        )
+        .await
+        .unwrap();
+    assert_eq!(lat, 10.0);
+    context.clear_permissions().await.unwrap();
+    let state: String = page
+        .evaluate("navigator.permissions.query({ name: 'geolocation' }).then(s => s.state)")
+        .await
+        .unwrap();
+    assert_eq!(state, "prompt");
+    context
+        .grant_permissions(
+            &["geolocation"],
+            Some(&server.url("/").trim_end_matches('/').to_owned()),
+        )
+        .await
+        .unwrap();
+    let state: String = page
+        .evaluate("navigator.permissions.query({ name: 'geolocation' }).then(s => s.state)")
+        .await
+        .unwrap();
+    assert_eq!(state, "granted");
+
+    // Offline.
+    context.set_offline(true).await.unwrap();
+    assert!(page.goto(&server.url("/p.html")).await.is_err());
+    assert!(!page.evaluate::<bool>("navigator.onLine").await.unwrap());
+    context.set_offline(false).await.unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+
+    // HTTP credentials set later.
+    context
+        .set_http_credentials(Some(HttpCredentials {
+            username: "user".into(),
+            password: "pass".into(),
+            origin: None,
+        }))
+        .await
+        .unwrap();
+    page.goto(&server.url("/protected")).await.unwrap();
+    assert_eq!(page.inner_text("body").await.unwrap(), "secret ok");
+
+    // setStorageState replaces cookies and localStorage.
+    page.goto(&server.url("/p.html")).await.unwrap();
+    page.evaluate::<()>("document.cookie = 'a=1'; localStorage.setItem('k', 'v')")
+        .await
+        .unwrap();
+    let saved = context.storage_state().await.unwrap();
+    context
+        .set_storage_state(&StorageState::default())
+        .await
+        .unwrap();
+    assert!(context.cookies().await.unwrap().is_empty());
+    context.set_storage_state(&saved).await.unwrap();
+    assert_eq!(context.cookies().await.unwrap().len(), 1);
+    page.reload().await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("localStorage.getItem('k')")
+            .await
+            .unwrap(),
+        "v"
+    );
+
+    // Chromium-only parts: an error that says so.
+    for err in [
+        context
+            .new_cdp_session(&page)
+            .await
+            .unwrap_err()
+            .to_string(),
+        browser
+            .new_browser_cdp_session()
+            .await
+            .unwrap_err()
+            .to_string(),
+        browser
+            .start_tracing(None, &[])
+            .await
+            .unwrap_err()
+            .to_string(),
+        browser.stop_tracing().await.unwrap_err().to_string(),
+    ] {
+        assert!(err.contains("Chromium"), "{err}");
+    }
+    context.close().await.unwrap();
+    assert!(context.is_closed());
+    browser.close().await.unwrap();
+    assert!(!browser.is_connected());
+}
