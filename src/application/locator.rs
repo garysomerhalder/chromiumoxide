@@ -1891,6 +1891,12 @@ impl FrameLocator {
             &id.into(),
         ))
     }
+    pub fn get_by_alt_text(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_alt_text(&text.into(), exact))
+    }
+    pub fn get_by_title(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_title(&text.into(), exact))
+    }
     /// The `<iframe>` element itself.
     pub fn owner(&self) -> Locator {
         Locator::in_frame(&self.page, self.frame.clone(), self.selector.clone())

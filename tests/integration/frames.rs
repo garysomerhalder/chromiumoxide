@@ -150,7 +150,16 @@ async fn frame_tags_frame_locator_alt_and_title_and_worker_wait_for_event() {
         1
     );
     assert_eq!(frames.get_by_title("Tip", true).count().await.unwrap(), 1);
-    let frame = page.frames().into_iter().nth(1).unwrap();
+    let frame = page
+        .frames()
+        .into_iter()
+        .find(|f| f.url() == "about:srcdoc")
+        .unwrap();
+    // The srcdoc document replaces the initial about:blank one.
+    frame
+        .wait_for_function("document.getElementById('p')")
+        .await
+        .unwrap();
     frame
         .add_script_tag(ScriptTag::content("window.tagged = 3;"))
         .await

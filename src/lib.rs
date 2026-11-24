@@ -86,7 +86,7 @@ pub use application::video::Video;
 pub use application::webmcp::WebMcp;
 pub use application::websocket::{WebSocket, WebSocketEvent, WsPayload};
 pub use application::websocket_route::{WebSocketRoute, WebSocketServer};
-pub use application::worker::Worker;
+pub use application::worker::{Worker, WorkerEvent};
 pub use domain::client_cert::ClientCertificate;
 pub use domain::clock::{ClockTime, Ticks};
 pub use domain::console::{Location, PageError};
