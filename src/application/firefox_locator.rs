@@ -16,7 +16,16 @@ impl Page {
     pub fn locator(&self, selector: &str) -> Locator {
         Locator {
             page: self.clone(),
+            frames: Vec::new(),
             selector: selector.to_owned(),
+        }
+    }
+
+    /// `page.frameLocator(selector)`: locators inside that iframe.
+    pub fn frame_locator(&self, selector: &str) -> FrameLocator {
+        FrameLocator {
+            page: self.clone(),
+            frames: vec![selector.to_owned()],
         }
     }
     pub fn get_by_role(&self, role: &str, options: RoleOptions) -> Locator {
@@ -46,7 +55,50 @@ impl Page {
 #[derive(Clone, Debug)]
 pub struct Locator {
     page: Page,
+    /// Iframe selectors from the main frame down to the locator's frame.
+    frames: Vec<String>,
     selector: String,
+}
+
+/// `page.frameLocator(selector)`: locators inside an iframe.
+#[derive(Clone, Debug)]
+pub struct FrameLocator {
+    page: Page,
+    frames: Vec<String>,
+}
+
+impl FrameLocator {
+    pub fn locator(&self, selector: &str) -> Locator {
+        Locator {
+            page: self.page.clone(),
+            frames: self.frames.clone(),
+            selector: selector.to_owned(),
+        }
+    }
+    /// `frameLocator.frameLocator(selector)`: an iframe inside this one.
+    pub fn frame_locator(&self, selector: &str) -> FrameLocator {
+        let mut frames = self.frames.clone();
+        frames.push(selector.to_owned());
+        FrameLocator {
+            page: self.page.clone(),
+            frames,
+        }
+    }
+    pub fn get_by_role(&self, role: &str, options: RoleOptions) -> Locator {
+        self.locator(&selectors::get_by_role(role, &options))
+    }
+    pub fn get_by_text(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_text(&text.into(), exact))
+    }
+    pub fn get_by_label(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_label(&text.into(), exact))
+    }
+    pub fn get_by_placeholder(&self, text: impl Into<TextMatch>, exact: bool) -> Locator {
+        self.locator(&selectors::get_by_placeholder(&text.into(), exact))
+    }
+    pub fn get_by_test_id(&self, id: impl Into<TextMatch>) -> Locator {
+        self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
+    }
 }
 
 /// Default action timeout (Playwright's 30 s).
@@ -56,6 +108,7 @@ impl Locator {
     fn with(&self, selector: String) -> Locator {
         Locator {
             page: self.page.clone(),
+            frames: self.frames.clone(),
             selector,
         }
     }
@@ -80,6 +133,32 @@ impl Locator {
     }
     pub fn get_by_test_id(&self, id: impl Into<TextMatch>) -> Locator {
         self.locator(&selectors::get_by_test_id("data-testid", &id.into()))
+    }
+
+    /// The locator's frame: its browsing context and the offset of its
+    /// viewport in the page's; `None` while an iframe on the way is missing.
+    async fn scope(&self) -> Result<Option<(String, (f64, f64))>> {
+        let mut context = self.page.main_context();
+        let mut offset = (0.0, 0.0);
+        for frame in &self.frames {
+            match self.page.child_frame(&context, frame).await? {
+                Some((child, (x, y))) => {
+                    context = child;
+                    offset = (offset.0 + x, offset.1 + y);
+                }
+                None => return Ok(None),
+            }
+        }
+        Ok(Some((context, offset)))
+    }
+
+    /// `body(injected, ...args)` in the locator's frame; while the frame is
+    /// missing, `{ missing: true }` (callers treat it as no element).
+    pub(crate) async fn call(&self, body: &str, args: &[Value]) -> Result<Value> {
+        match self.scope().await? {
+            Some((context, _)) => self.page.injected_call_in(&context, body, args).await,
+            None => Ok(json!({"missing": true, "__frame_missing": true})),
+        }
     }
 
     /// The page this locator belongs to.
@@ -107,8 +186,7 @@ impl Locator {
         let mut delay = Duration::from_millis(20);
         loop {
             let r = self
-                .page
-                .injected_call(&function, &[json!(self.selector), json!(args)])
+                .call(&function, &[json!(self.selector), json!(args)])
                 .await?;
             if r["found"] == Value::Bool(true) {
                 return Ok(r["value"].clone());
@@ -193,14 +271,21 @@ impl Locator {
         let deadline = self.page.now() + TIMEOUT;
         let mut delay = Duration::from_millis(20);
         loop {
-            let r = self
-                .page
-                .injected_call(PREPARE, &[json!(self.selector), json!(states)])
-                .await?;
+            // The point is in the locator's frame; add the frames' offsets
+            // for the page's viewport.
+            let (r, offset) = match self.scope().await? {
+                Some((context, offset)) => (
+                    self.page
+                        .injected_call_in(&context, PREPARE, &[json!(self.selector), json!(states)])
+                        .await?,
+                    offset,
+                ),
+                None => (json!({"retry": "waiting for the frame"}), (0.0, 0.0)),
+            };
             if let Some(p) = r.get("point") {
                 return Ok((
-                    p["x"].as_f64().unwrap_or_default(),
-                    p["y"].as_f64().unwrap_or_default(),
+                    p["x"].as_f64().unwrap_or_default() + offset.0,
+                    p["y"].as_f64().unwrap_or_default() + offset.1,
                 ));
             }
             let last = r["retry"].as_str().unwrap_or_default();
@@ -263,7 +348,11 @@ impl Locator {
                 if value.is_empty() {
                     self.press_keys("Delete").await
                 } else {
-                    self.page.insert_text(value).await
+                    let context = match self.scope().await? {
+                        Some((context, _)) => context,
+                        None => self.page.main_context(),
+                    };
+                    self.page.insert_text_in(&context, value).await
                 }
             }
             Some(other) => Err(Error::Evaluation(other.to_owned())),
@@ -374,8 +463,7 @@ impl Locator {
         let deadline = self.page.now() + TIMEOUT;
         loop {
             let v = self
-                .page
-                .injected_call(
+                .call(
                     "(i, selector, wanted) => { const parsed = i.parseSelector(selector); \
                      const els = i.querySelectorAll(parsed, document); \
                      if (els.length > 1) throw i.strictModeViolationError(parsed, els); \
@@ -404,8 +492,7 @@ impl Locator {
     /// `locator.isVisible()` (does not wait).
     pub async fn is_visible(&self) -> Result<bool> {
         let v = self
-            .page
-            .injected_call(
+            .call(
                 "(i, selector) => { const parsed = i.parseSelector(selector); \
                  const els = i.querySelectorAll(parsed, document); \
                  if (els.length > 1) throw i.strictModeViolationError(parsed, els); \
@@ -424,8 +511,7 @@ impl Locator {
     /// `locator.count()` (does not wait).
     pub async fn count(&self) -> Result<usize> {
         let v = self
-            .page
-            .injected_call(
+            .call(
                 "(i, selector) => i.querySelectorAll(i.parseSelector(selector), document).length",
                 &[json!(self.selector)],
             )
@@ -435,8 +521,7 @@ impl Locator {
 
     async fn all_strings(&self, map: &str) -> Result<Vec<String>> {
         let v = self
-            .page
-            .injected_call(
+            .call(
                 &format!(
                     "(i, selector) => i.querySelectorAll(i.parseSelector(selector), document).map({map})"
                 ),

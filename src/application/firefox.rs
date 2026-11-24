@@ -985,6 +985,31 @@ impl Page {
         Ok(())
     }
 
+    /// `page.frames()`: the main frame and every iframe, depth first.
+    pub async fn frames(&self) -> Result<Vec<Frame>> {
+        let tree = self
+            .bidi_call(
+                "browsingContext.getTree",
+                json!({"root": self.inner.context}),
+            )
+            .await?;
+        let mut out = Vec::new();
+        fn walk(page: &Page, node: &Value, out: &mut Vec<Frame>) {
+            out.push(Frame {
+                page: page.clone(),
+                context: node["context"].as_str().unwrap_or_default().to_owned(),
+                url: node["url"].as_str().unwrap_or_default().to_owned(),
+            });
+            for child in node["children"].as_array().into_iter().flatten() {
+                walk(page, child, out);
+            }
+        }
+        for root in tree["contexts"].as_array().into_iter().flatten() {
+            walk(self, root, &mut out);
+        }
+        Ok(out)
+    }
+
     /// `page.url()`: the main frame's URL.
     pub fn url(&self) -> String {
         self.inner.url.lock().unwrap().clone()
@@ -1145,6 +1170,18 @@ impl Page {
         args: &[Value],
         sandbox: Option<&str>,
     ) -> Result<Value> {
+        let context = self.inner.context.clone();
+        self.call_json_in(&context, function, args, sandbox).await
+    }
+
+    /// [`Page::call_json`] in a given browsing context (a frame).
+    async fn call_json_in(
+        &self,
+        context: &str,
+        function: &str,
+        args: &[Value],
+        sandbox: Option<&str>,
+    ) -> Result<Value> {
         self.check_open()?;
         let args: Vec<String> = args.iter().map(Value::to_string).collect();
         let expression = format!(
@@ -1152,7 +1189,9 @@ impl Page {
              return __r === undefined ? undefined : JSON.stringify(__r); }})()",
             args.join(", ")
         );
-        let r = self.script_evaluate(&expression, sandbox).await?;
+        let r = self
+            .script_evaluate_in(context, &expression, sandbox)
+            .await?;
         if r.get("type").and_then(Value::as_str) == Some("exception") {
             return Err(Error::Evaluation(exception_text(&r)));
         }
@@ -1164,7 +1203,17 @@ impl Page {
     }
 
     async fn script_evaluate(&self, expression: &str, sandbox: Option<&str>) -> Result<Value> {
-        let mut target = json!({"context": self.inner.context});
+        let context = self.inner.context.clone();
+        self.script_evaluate_in(&context, expression, sandbox).await
+    }
+
+    async fn script_evaluate_in(
+        &self,
+        context: &str,
+        expression: &str,
+        sandbox: Option<&str>,
+    ) -> Result<Value> {
+        let mut target = json!({"context": context});
         if let Some(sandbox) = sandbox {
             target["sandbox"] = json!(sandbox);
         }
@@ -1198,14 +1247,67 @@ impl Page {
 
     /// Inserts text at the caret like typing it without key events
     /// (Playwright's `keyboard.insertText`; BiDi has no command for it).
-    pub(crate) async fn insert_text(&self, text: &str) -> Result<()> {
-        self.call_json(
+    pub(crate) async fn insert_text_in(&self, context: &str, text: &str) -> Result<()> {
+        self.call_json_in(
+            context,
             "(text) => { document.execCommand('insertText', false, text); }",
             &[json!(text)],
             None,
         )
         .await?;
         Ok(())
+    }
+
+    /// The main frame's browsing context id.
+    pub(crate) fn main_context(&self) -> String {
+        self.inner.context.clone()
+    }
+
+    /// The browsing context of the iframe `selector` matches inside
+    /// `context`, and the offset of its content box in that frame's
+    /// viewport; `None` while there is no such iframe.
+    pub(crate) async fn child_frame(
+        &self,
+        context: &str,
+        selector: &str,
+    ) -> Result<Option<(String, (f64, f64))>> {
+        let offset = self
+            .injected_call_in(
+                context,
+                "(i, selector) => { const parsed = i.parseSelector(selector); \
+                 const els = i.querySelectorAll(parsed, document); \
+                 if (els.length > 1) throw i.strictModeViolationError(parsed, els); \
+                 const f = els[0]; if (!f || !f.contentWindow) return null; \
+                 const r = f.getBoundingClientRect(); const s = getComputedStyle(f); \
+                 return { x: r.left + f.clientLeft + parseFloat(s.paddingLeft), \
+                          y: r.top + f.clientTop + parseFloat(s.paddingTop) }; }",
+                &[json!(selector)],
+            )
+            .await?;
+        if offset.is_null() {
+            return Ok(None);
+        }
+        let expression = format!(
+            "(() => {{ const i = globalThis.{INJECTED}; const parsed = i.parseSelector({}); \
+             const f = i.querySelectorAll(parsed, document)[0]; return f ? f.contentWindow : null; }})()",
+            Value::String(selector.to_owned())
+        );
+        let r = self
+            .script_evaluate_in(context, &expression, Some(UTILITY))
+            .await?;
+        let child = r
+            .pointer("/result/value/context")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        Ok(child.map(|c| {
+            (
+                c,
+                (
+                    offset["x"].as_f64().unwrap_or_default(),
+                    offset["y"].as_f64().unwrap_or_default(),
+                ),
+            )
+        }))
     }
 
     pub(crate) fn now(&self) -> Duration {
@@ -1216,14 +1318,22 @@ impl Page {
         self.inner.services.clock.sleep(duration).await
     }
 
-    /// Calls `body(injected, ...args)` in the utility sandbox, installing
-    /// Playwright's injected script first when the document has none yet.
-    pub(crate) async fn injected_call(&self, body: &str, args: &[Value]) -> Result<Value> {
+    /// Calls `body(injected, ...args)` in the utility sandbox of a browsing
+    /// context (a frame), installing Playwright's injected script first when
+    /// the document has none yet.
+    pub(crate) async fn injected_call_in(
+        &self,
+        context: &str,
+        body: &str,
+        args: &[Value],
+    ) -> Result<Value> {
         let call = format!(
             "(...args) => {{ const i = globalThis.{INJECTED}; \
              if (!i) return {{ __chromiumoxide_missing: true }}; return ({body})(i, ...args); }}"
         );
-        let v = self.call_json(&call, args, Some(UTILITY)).await?;
+        let v = self
+            .call_json_in(context, &call, args, Some(UTILITY))
+            .await?;
         if v.get("__chromiumoxide_missing") != Some(&Value::Bool(true)) {
             return Ok(v);
         }
@@ -1236,11 +1346,13 @@ impl Page {
             "(() => {{ if (globalThis.{INJECTED}) return; const module = {{}};\n{INJECTED_SOURCE}\n\
              globalThis.{INJECTED} = new (module.exports.InjectedScript())(globalThis, {options}); }})()"
         );
-        let r = self.script_evaluate(&install, Some(UTILITY)).await?;
+        let r = self
+            .script_evaluate_in(context, &install, Some(UTILITY))
+            .await?;
         if r.get("type").and_then(Value::as_str) == Some("exception") {
             return Err(Error::Evaluation(exception_text(&r)));
         }
-        self.call_json(&call, args, Some(UTILITY)).await
+        self.call_json_in(context, &call, args, Some(UTILITY)).await
     }
 
     /// `page.setContent(html)`: replaces the document and waits for `load`
@@ -1447,6 +1559,36 @@ impl Page {
             context.close().await?;
         }
         Ok(())
+    }
+}
+
+/// A frame of a Firefox page (`page.frames()`).
+#[derive(Clone, Debug)]
+pub struct Frame {
+    page: Page,
+    context: String,
+    url: String,
+}
+
+impl Frame {
+    /// The frame's URL when it was listed.
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+
+    /// `frame.evaluate(expression)` (JSON result).
+    pub async fn evaluate<T: DeserializeOwned>(&self, expression: &str) -> Result<T> {
+        let v = self
+            .page
+            .call_json_in(
+                &self.context,
+                &format!("() => (\n{}\n)", expression.trim().trim_end_matches(';')),
+                &[],
+                None,
+            )
+            .await?;
+        serde_json::from_value(v)
+            .map_err(|e| Error::Evaluation(format!("cannot deserialize result: {e}")))
     }
 }
 

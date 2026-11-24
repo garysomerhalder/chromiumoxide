@@ -806,7 +806,7 @@ async fn firefox_frames() {
         "in frame"
     );
     frame.locator("button").click().await.unwrap();
-    expect(&frame.get_by_text("clicked"))
+    expect(&frame.get_by_text("clicked", true))
         .to_be_visible()
         .await
         .unwrap();

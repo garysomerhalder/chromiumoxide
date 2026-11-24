@@ -138,12 +138,12 @@ pub fn android_chrome_command_line(args: &[String], socket_name: &str) -> String
 /// Playwright method names of the Chromium ones.
 pub mod firefox {
     pub use crate::application::firefox::{
-        Browser, BrowserContext, FirefoxLaunchOptions, Page, Screenshot,
+        Browser, BrowserContext, FirefoxLaunchOptions, Frame, Page, Screenshot,
     };
     pub use crate::application::firefox_download::Download;
     pub use crate::application::firefox_events::{ConsoleMessage, Dialog, PageError, PageEvent};
     pub use crate::application::firefox_expect::{Assertion, LocatorAssertions, PageAssertions};
-    pub use crate::application::firefox_locator::Locator;
+    pub use crate::application::firefox_locator::{FrameLocator, Locator};
     pub use crate::application::firefox_route::{Fulfill, Request, Response, Route, RouteRequest};
 }
 
