@@ -964,13 +964,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn windows_launches_over_the_devtools_port() {
+    fn every_system_launches_over_the_requested_channel() {
         assert_eq!(effective_channel(Channel::Pipe, false), Channel::Pipe);
         assert_eq!(
             effective_channel(Channel::WebSocket, false),
             Channel::WebSocket
         );
-        assert_eq!(effective_channel(Channel::Pipe, true), Channel::WebSocket);
+        // Windows has the pipe too now (fds 3 and 4 via the C runtime).
+        assert_eq!(effective_channel(Channel::Pipe, true), Channel::Pipe);
         assert_eq!(
             effective_channel(Channel::WebSocket, true),
             Channel::WebSocket

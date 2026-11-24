@@ -475,6 +475,44 @@ mod persistent_tests {
     }
 }
 
+/// A Windows command line for `CreateProcessW`: the program, then each
+/// argument quoted the way the MSVC runtime (`CommandLineToArgvW`) splits
+/// it back (backslashes doubled only before a quote).
+pub fn windows_command_line(program: &Path, args: &[String]) -> String {
+    fn quote(arg: &str, out: &mut String) {
+        if !arg.is_empty() && !arg.contains([' ', '\t', '\n', '\x0b', '"']) {
+            out.push_str(arg);
+            return;
+        }
+        out.push('"');
+        let mut backslashes = 0;
+        for c in arg.chars() {
+            match c {
+                '\\' => backslashes += 1,
+                '"' => {
+                    out.extend(std::iter::repeat_n('\\', backslashes * 2 + 1));
+                    out.push('"');
+                    backslashes = 0;
+                }
+                _ => {
+                    out.extend(std::iter::repeat_n('\\', backslashes));
+                    out.push(c);
+                    backslashes = 0;
+                }
+            }
+        }
+        out.extend(std::iter::repeat_n('\\', backslashes * 2));
+        out.push('"');
+    }
+    let mut out = String::new();
+    quote(&program.display().to_string(), &mut out);
+    for arg in args {
+        out.push(' ');
+        quote(arg, &mut out);
+    }
+    out
+}
+
 #[cfg(test)]
 mod windows_command_line_tests {
     use super::*;

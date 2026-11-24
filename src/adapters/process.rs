@@ -80,12 +80,60 @@ async fn launch_webkit(command: WebKitCommand) -> Result<LaunchedWebKit> {
     })
 }
 
-#[cfg(not(unix))]
+/// Windows: WebKit's inspector pipe on its runtime's fds 3 and 4.
+#[cfg(windows)]
 async fn launch_webkit(command: WebKitCommand) -> Result<LaunchedWebKit> {
-    let _ = command;
-    Err(Error::Launch(
-        "WebKit's inspector pipe is not supported on this system yet".into(),
-    ))
+    let (transport, process) = windows_pipe_transport(
+        &command.program,
+        &command.args,
+        &command.env,
+        "chromiumoxide::webkit",
+    )?;
+    Ok(LaunchedWebKit {
+        session: Arc::new(crate::adapters::webkit::WebKitConnection::spawn(transport)),
+        process,
+    })
+}
+
+/// Windows: Chromium's `--remote-debugging-pipe` on fds 3 and 4, like
+/// Playwright (Node passes them the same way).
+#[cfg(windows)]
+fn launch_windows_pipe(command: LaunchCommand) -> Result<Launched> {
+    let (transport, process) = windows_pipe_transport(
+        &command.program,
+        &command.args,
+        &command.env,
+        "chromiumoxide::browser",
+    )?;
+    Ok(Launched {
+        cdp: Arc::new(Connection::spawn(transport)),
+        process,
+        ws_endpoint: None,
+    })
+}
+
+/// Starts `program` with pipes on its fds 3 and 4; the transport over them
+/// and the process. Stderr goes to the log.
+#[cfg(windows)]
+fn windows_pipe_transport(
+    program: &std::path::Path,
+    args: &[String],
+    env: &[(String, String)],
+    log_target: &'static str,
+) -> Result<(Transport, Box<dyn BrowserProcess>)> {
+    let spawned = crate::adapters::win_pipes::spawn(program, args, env)?;
+    let stderr = tokio::fs::File::from_std(spawned.stderr);
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            tracing::debug!(target: "chromiumoxide::browser", "[{log_target}] {line}");
+        }
+    });
+    let transport = crate::adapters::transport::pipe::pipe_transport(
+        tokio::fs::File::from_std(spawned.from_child),
+        tokio::fs::File::from_std(spawned.to_child),
+    );
+    Ok((transport, Box::new(spawned.child)))
 }
 
 /// Firefox prints `WebDriver BiDi listening on ws://127.0.0.1:<port>` on
@@ -301,11 +349,9 @@ async fn launch(command: LaunchCommand) -> Result<Launched> {
         Channel::Pipe => Some(unix_pipes::attach(&mut cmd)?),
         Channel::WebSocket => None,
     };
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     if command.channel == Channel::Pipe {
-        return Err(Error::Launch(
-            "the pipe channel is only supported on unix; use Channel::WebSocket".into(),
-        ));
+        return launch_windows_pipe(command);
     }
 
     if command.channel == Channel::WebSocket {
@@ -343,7 +389,7 @@ async fn launch(command: LaunchCommand) -> Result<Launched> {
             ))
         }
         #[cfg(not(unix))]
-        Channel::Pipe => unreachable!(),
+        Channel::Pipe => unreachable!("handled above"),
         Channel::WebSocket => {
             match wait_for_ws_endpoint(&command.user_data_dir, &child, command.timeout_ms).await {
                 Ok(url) => crate::adapters::transport::websocket::connect(&url)
