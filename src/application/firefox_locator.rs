@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use crate::application::firefox::Page;
+use crate::application::firefox::{Page, UTILITY};
 use crate::domain::error::{Error, Result};
 use crate::domain::firefox::webdriver_key;
 use crate::domain::input::{resolve_smart_modifier, split_shortcut};
@@ -103,6 +103,44 @@ impl FrameLocator {
 
 /// Default action timeout (Playwright's 30 s).
 const TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Records the drag session the next pointer actions start: Firefox's
+/// WebDriver actions run `dragstart`/`dragover` but end the session on
+/// release without a `drop` (a TODO in its `EventUtils.js`).
+const DRAG_WATCH: &str = "() => {
+  globalThis.__chromiumoxide_drag?.stop();
+  const w = { started: false, source: null, data: [], accepted: false, dropped: false, ended: false };
+  const on = {
+    dragstart: e => {
+      if (e.defaultPrevented) return;
+      w.started = true; w.source = e.target;
+      w.data = [...e.dataTransfer.types].map(t => [t, e.dataTransfer.getData(t)]);
+    },
+    dragover: e => { w.accepted = e.defaultPrevented; },
+    drop: () => { w.dropped = true; },
+    dragend: () => { w.ended = true; },
+  };
+  for (const [t, f] of Object.entries(on)) window.addEventListener(t, f);
+  w.stop = () => { for (const [t, f] of Object.entries(on)) window.removeEventListener(t, f); };
+  globalThis.__chromiumoxide_drag = w;
+  return true;
+}";
+
+/// Finishes a recorded drag the way a browser does: `drop` on the element
+/// under the pointer when its last `dragover` accepted it, then `dragend`.
+const DRAG_FINISH: &str = "(x, y) => {
+  const w = globalThis.__chromiumoxide_drag;
+  delete globalThis.__chromiumoxide_drag;
+  w?.stop();
+  if (!w || !w.started || w.dropped) return false;
+  const dt = new DataTransfer();
+  for (const [t, v] of w.data) dt.setData(t, v);
+  const init = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, dataTransfer: dt };
+  const target = document.elementFromPoint(x, y);
+  if (w.accepted && target) target.dispatchEvent(new DragEvent('drop', init));
+  if (!w.ended && w.source) w.source.dispatchEvent(new DragEvent('dragend', init));
+  return true;
+}";
 
 impl Locator {
     fn with(&self, selector: String) -> Locator {
@@ -317,6 +355,101 @@ impl Locator {
                 json!({"type": "pointerUp", "button": 0}),
             ]))
             .await
+    }
+
+    /// `locator.dblclick()`.
+    pub async fn dblclick(&self) -> Result<()> {
+        let (x, y) = self
+            .actionable_point(&["visible", "enabled", "stable"])
+            .await?;
+        self.page.mouse().dblclick(x, y).await
+    }
+
+    /// `locator.dragTo(target)`: press on this element's centre, move to the
+    /// target's centre (in steps, so drag and drop starts) and release.
+    pub async fn drag_to(&self, target: &Locator) -> Result<()> {
+        let (x, y) = self.actionable_point(&["visible", "stable"]).await?;
+        let (tx, ty) = target.actionable_point(&["visible", "stable"]).await?;
+        let Some((context, offset)) = self.scope().await? else {
+            return Err(Error::Evaluation("the frame went away".into()));
+        };
+        self.page
+            .call_json_in(&context, DRAG_WATCH, &[], Some(UTILITY))
+            .await?;
+        self.page.mouse().drag(x, y, tx, ty).await?;
+        self.page
+            .call_json_in(
+                &context,
+                DRAG_FINISH,
+                &[json!(tx - offset.0), json!(ty - offset.1)],
+                Some(UTILITY),
+            )
+            .await
+            .map(drop)
+    }
+
+    /// `locator.selectOption(values)`: each value matches an option's value
+    /// or label; resolves with the selected values.
+    pub async fn select_option(&self, values: &[&str]) -> Result<Vec<String>> {
+        let options: Vec<Value> = values.iter().map(|v| json!({"valueOrLabel": v})).collect();
+        let deadline = self.page.now() + TIMEOUT;
+        loop {
+            let r = self
+                .read(
+                    "(i, node, options) => i.selectOptions(node, options)",
+                    &[json!(options)],
+                )
+                .await?;
+            if let Some(values) = r.as_array() {
+                return Ok(values
+                    .iter()
+                    .map(|v| v.as_str().unwrap_or_default().to_owned())
+                    .collect());
+            }
+            if self.page.now() >= deadline {
+                return Err(Error::Timeout {
+                    ms: TIMEOUT.as_millis() as u64,
+                    action: format!(
+                        "selecting options in locator('{}'): {}",
+                        self.selector,
+                        r.as_str().unwrap_or_default()
+                    ),
+                });
+            }
+            self.page.sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    /// `locator.setInputFiles(files)` (BiDi `input.setFiles`).
+    pub async fn set_input_files(&self, files: &[std::path::PathBuf]) -> Result<()> {
+        // Waits for the element first.
+        self.read("(i, node) => node.nodeName", &[]).await?;
+        let Some((context, _)) = self.scope().await? else {
+            return Err(Error::Evaluation("the frame went away".into()));
+        };
+        let node = self
+            .page
+            .shared_node_in(&context, &self.selector)
+            .await?
+            .ok_or_else(|| {
+                Error::Evaluation(format!("no element for locator('{}')", self.selector))
+            })?;
+        let files: Vec<String> = files
+            .iter()
+            .map(|f| {
+                std::path::absolute(f)
+                    .unwrap_or_else(|_| f.clone())
+                    .display()
+                    .to_string()
+            })
+            .collect();
+        self.page
+            .bidi_call(
+                "input.setFiles",
+                json!({"context": context, "element": {"sharedId": node}, "files": files}),
+            )
+            .await
+            .map(drop)
     }
 
     /// `locator.hover()`.

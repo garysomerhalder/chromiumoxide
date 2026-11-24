@@ -20,6 +20,7 @@ use crate::application::firefox_download::Download;
 use crate::application::firefox_events::{
     ConsoleMessage, Dialog, PageError, PageEvent, console_kind, prompt_params,
 };
+use crate::application::firefox_input::{InputState, Keyboard, Mouse};
 use crate::application::firefox_route::{Request, Response, Route, RouteEntry};
 use crate::application::locator::INJECTED_SOURCE;
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
@@ -41,7 +42,7 @@ use crate::ports::{BidiSession, BrowserProcess, FirefoxCommand};
 use std::collections::HashMap;
 
 /// The sandbox (BiDi's isolated world) for Playwright's utility scripts.
-const UTILITY: &str = "__chromiumoxide_utility";
+pub(crate) const UTILITY: &str = "__chromiumoxide_utility";
 
 /// The global holding Playwright's injected script in the sandbox.
 const INJECTED: &str = "__chromiumoxide_injected";
@@ -634,6 +635,7 @@ impl BrowserContext {
             context_routes: self.inner.routes.clone(),
             auth_attempts: Mutex::new(std::collections::HashSet::new()),
             downloads: Mutex::new(HashMap::new()),
+            input: Arc::default(),
             intercept: tokio::sync::Mutex::new(None),
             closed: AtomicBool::new(false),
         });
@@ -732,6 +734,8 @@ struct PageInner {
     routes: Mutex<Vec<RouteEntry>>,
     /// The context's `context.route` handlers (shared).
     context_routes: Arc<Mutex<Vec<RouteEntry>>>,
+    /// Keyboard and mouse state (`page.keyboard()`, `page.mouse()`).
+    input: Arc<InputState>,
     /// Downloads in progress, by BiDi navigation id.
     downloads: Mutex<HashMap<String, Download>>,
     /// Requests already answered with credentials (a second challenge is
@@ -1102,6 +1106,42 @@ impl Page {
         Ok(out)
     }
 
+    /// `page.keyboard()`.
+    pub fn keyboard(&self) -> Keyboard {
+        Keyboard::new(self.clone(), self.inner.input.clone())
+    }
+
+    /// `page.mouse()`.
+    pub fn mouse(&self) -> Mouse {
+        Mouse::new(self.clone(), self.inner.input.clone())
+    }
+
+    /// The node `selector` matches in `context` as a BiDi shared reference
+    /// (`None` when nothing matches; strict).
+    pub(crate) async fn shared_node_in(
+        &self,
+        context: &str,
+        selector: &str,
+    ) -> Result<Option<String>> {
+        // Installs the injected script in that frame first.
+        self.injected_call_in(context, "() => 0", &[]).await?;
+        let expression = format!(
+            "(() => {{ const i = globalThis.{INJECTED}; const parsed = i.parseSelector({}); \
+             const els = i.querySelectorAll(parsed, document); \
+             if (els.length > 1) throw i.strictModeViolationError(parsed, els); return els[0] || null; }})()",
+            Value::String(selector.to_owned())
+        );
+        let r = self
+            .script_evaluate_in(context, &expression, Some(UTILITY))
+            .await?;
+        if r.get("type").and_then(Value::as_str) == Some("exception") {
+            return Err(Error::Evaluation(exception_text(&r)));
+        }
+        Ok(r.pointer("/result/sharedId")
+            .and_then(Value::as_str)
+            .map(str::to_owned))
+    }
+
     /// `page.url()`: the main frame's URL.
     pub fn url(&self) -> String {
         self.inner.url.lock().unwrap().clone()
@@ -1267,7 +1307,7 @@ impl Page {
     }
 
     /// [`Page::call_json`] in a given browsing context (a frame).
-    async fn call_json_in(
+    pub(crate) async fn call_json_in(
         &self,
         context: &str,
         function: &str,

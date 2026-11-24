@@ -143,6 +143,7 @@ pub mod firefox {
     pub use crate::application::firefox_download::Download;
     pub use crate::application::firefox_events::{ConsoleMessage, Dialog, PageError, PageEvent};
     pub use crate::application::firefox_expect::{Assertion, LocatorAssertions, PageAssertions};
+    pub use crate::application::firefox_input::{Keyboard, Mouse};
     pub use crate::application::firefox_locator::{FrameLocator, Locator};
     pub use crate::application::firefox_route::{Fulfill, Request, Response, Route, RouteRequest};
 }
