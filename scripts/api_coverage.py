@@ -114,6 +114,8 @@ BORROWED = {
     'firefox': {'WebSocket': [app + 'websocket.rs'],
                 'APIRequestContext': [app + 'request.rs'],
                 'APIResponse': [app + 'request.rs']},
+    'webkit': {'APIRequestContext': [app + 'request.rs'],
+               'APIResponse': [app + 'request.rs']},
 }
 
 totals = {}
