@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   continue, abort), `context.route` and `unroute`; network events;
   `expect()` web-first assertions; frames (`frame_locator`, `frames()`);
   pop-ups; downloads; `recordVideo`.
+- Firefox: `wait_for_url`, `wait_for_load_state`, `wait_for_request`,
+  `wait_for_response`; locator `filter`, `and`, `or`, `all`,
+  `bounding_box`, `evaluate`.
 - `chromiumoxide::Safari`: Safari through `safaridriver` (WebDriver):
   goto, title, url, evaluate, waits, screenshots and CSS locators. Tested
   against WebKitGTK's WebDriver on Linux; Tauri on Linux shares the code

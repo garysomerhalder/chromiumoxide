@@ -955,12 +955,12 @@ async fn attach_page(
 /// A Firefox page (a top-level browsing context in its own window).
 #[derive(Clone)]
 pub struct Page {
-    inner: Arc<PageInner>,
+    pub(crate) inner: Arc<PageInner>,
 }
 
-struct PageInner {
+pub(crate) struct PageInner {
     bidi: Arc<dyn BidiSession>,
-    services: Services,
+    pub(crate) services: Services,
     /// The browsing context id.
     context: String,
     options: Arc<ContextOptions>,

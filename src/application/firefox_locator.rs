@@ -143,7 +143,7 @@ const DRAG_FINISH: &str = "(x, y) => {
 }";
 
 impl Locator {
-    fn with(&self, selector: String) -> Locator {
+    pub(crate) fn with(&self, selector: String) -> Locator {
         Locator {
             page: self.page.clone(),
             frames: self.frames.clone(),
@@ -238,6 +238,42 @@ impl Locator {
             self.page.sleep(delay).await;
             delay = (delay * 2).min(Duration::from_millis(100));
         }
+    }
+
+    /// Like [`read`](Self::read), awaiting `body`'s result (which may be a
+    /// promise).
+    pub(crate) async fn read_value(&self, body: &str, args: &[Value]) -> Result<Value> {
+        let function = format!(
+            "async (i, selector, args) => {{ const parsed = i.parseSelector(selector); \
+             const els = i.querySelectorAll(parsed, document); \
+             if (els.length > 1) throw i.strictModeViolationError(parsed, els); \
+             if (!els.length) return {{ found: false }}; \
+             const value = await ({body})(i, els[0], ...args); \
+             return {{ found: true, value: value === undefined ? null : value }}; }}"
+        );
+        let deadline = self.page.now() + TIMEOUT;
+        let mut delay = Duration::from_millis(20);
+        loop {
+            let r = self
+                .call(&function, &[json!(self.selector), json!(args)])
+                .await?;
+            if r["found"] == Value::Bool(true) {
+                return Ok(r["value"].clone());
+            }
+            if self.page.now() >= deadline {
+                return Err(Error::Timeout {
+                    ms: TIMEOUT.as_millis() as u64,
+                    action: format!("waiting for locator('{}')", self.selector),
+                });
+            }
+            self.page.sleep(delay).await;
+            delay = (delay * 2).min(Duration::from_millis(100));
+        }
+    }
+
+    /// The locator's frame content offset in the page's viewport.
+    pub(crate) async fn frame_offset(&self) -> Result<(f64, f64)> {
+        Ok(self.scope().await?.map(|(_, o)| o).unwrap_or_default())
     }
 
     /// `locator.textContent()`.

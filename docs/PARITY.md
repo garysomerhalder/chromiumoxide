@@ -1243,9 +1243,11 @@ Firefox.
 | `page.screenshot` (viewport, clip, fullPage, JPEG, caret, animations, style) | ✅ | `firefox_screenshots_are_pixel_identical_to_playwright` (pixel-identical to Playwright's Firefox) |
 | `page.screenshot` `omitBackground`, `scale: "css"` at a device scale factor above 1, WebP, `mask` | ⬜ | An error for now (BiDi has no background or scale option) |
 | `page.waitForFunction`, `waitForTimeout`, `locator.waitFor` | ✅ | `firefox_navigates_and_waits` |
-| `page.waitForURL`, `waitForLoadState`, `waitForEvent`, `waitForRequest` / `Response` | ⬜ | |
+| `page.waitForURL`, `waitForLoadState` (`domcontentloaded`, `load`, `networkidle`), `waitForRequest` / `Response` | ✅ | `firefox_waits_and_locator_extras` |
+| `page.waitForEvent` | ⬜ | `page.events()` covers it for now |
 | Locators: `locator`, `getBy*`, `nth` / `first` / `last`, chaining, `textContent`, `innerText`, `innerHTML`, `getAttribute`, `inputValue`, `count`, `allTextContents`, `allInnerTexts`, `isVisible`, `isHidden`, `isChecked`, strictness | ✅ | `firefox_locators_query_the_page` |
-| Locator `filter`, `and`, `or`, `all`, `boundingBox`, `evaluate`, `ariaSnapshot`, `screenshot`, `highlight` | ⬜ | |
+| Locator `filter`, `and`, `or`, `all`, `boundingBox`, `evaluate` | ✅ | `firefox_waits_and_locator_extras` |
+| Locator `ariaSnapshot`, `screenshot`, `highlight` | ⬜ | |
 | Input: `click`, `hover`, `fill`, `focus`, `press`, `pressSequentially`, `check`, `uncheck` | ✅ | `firefox_locators_act_on_elements` |
 | Input: `dblclick`, `dragTo`, `selectOption`, `setInputFiles`, `page.mouse` (`move`, `down`, `up`, `click`, `dblclick`, `wheel`), `page.keyboard` (`down`, `up`, `press`, `type`, `insertText`) | ✅ | `firefox_more_input`. Firefox's WebDriver actions start a drag but end it without a `drop`, so `dragTo` finishes the drop in the page the way the browser does |
 | Input: `tap` | ❌ | `hasTouch` cannot be set over BiDi in Firefox 159 |
