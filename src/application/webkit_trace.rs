@@ -35,11 +35,17 @@ async fn entry(
     request: Request,
     pageref: String,
     policy: HarContent,
+    clock: Arc<dyn crate::ports::Clock>,
 ) -> (Entry, Option<Attachment>) {
     // A request that never ends is recorded as it is.
-    let failure = tokio::time::timeout(Duration::from_secs(10), request.settled())
-        .await
-        .unwrap_or(Some("not finished".into()));
+    let failure = crate::application::wait::with_timeout(
+        &*clock,
+        Duration::from_secs(10),
+        "waiting for the request to end",
+        async { Ok(request.settled().await) },
+    )
+    .await
+    .unwrap_or(Some("not finished".into()));
     let post = request.post_data_buffer().await.ok().flatten();
     let response = request.existing_response();
     let mut body = None;
@@ -191,12 +197,18 @@ impl Recorders {
                 request.clone(),
                 page_id.clone(),
                 rec.options.content_policy(),
+                self.services.clock.clone(),
             );
             rec.pending.push(tokio::spawn(task.map(Some)));
         }
         if let Some(rec) = self.trace.lock().unwrap().as_mut() {
             let weak = Arc::downgrade(self);
-            let task = entry(request, page_id, HarContent::Embed);
+            let task = entry(
+                request,
+                page_id,
+                HarContent::Embed,
+                self.services.clock.clone(),
+            );
             rec.network.push(tokio::spawn(async move {
                 let (mut entry, _) = task.await;
                 // Bodies go to resources/ (`_file`), like Playwright's traces.
