@@ -1622,3 +1622,89 @@ async fn webkit_pdf_is_chromium_only() {
     assert!(err.contains("Chromium"), "{err}");
     browser.close().await.unwrap();
 }
+
+/// WebKit: page / context exposeFunction and exposeBinding over WebKit's
+/// Runtime.addBinding (new documents, open frames, iframes, errors).
+#[tokio::test]
+async fn webkit_expose_function_and_binding() {
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    page.set_content("<p>open</p>").await.unwrap();
+
+    // On a page that is already open.
+    page.expose_function("add", |args: Vec<serde_json::Value>| async move {
+        Ok(serde_json::json!(
+            args[0].as_i64().unwrap() + args[1].as_i64().unwrap()
+        ))
+    })
+    .await
+    .unwrap();
+    assert_eq!(page.evaluate::<i64>("add(2, 3)").await.unwrap(), 5);
+    page.expose_function("fail", |_| async move {
+        Err::<serde_json::Value, _>("nope".to_owned())
+    })
+    .await
+    .unwrap();
+    let err = page
+        .evaluate::<String>("fail().catch(e => 'caught: ' + e.message)")
+        .await
+        .unwrap();
+    assert_eq!(err, "caught: nope");
+    assert!(
+        page.expose_function("add", |_| async move { Ok(serde_json::Value::Null) })
+            .await
+            .is_err()
+    );
+
+    // A binding sees the calling page and frame; it survives navigation.
+    page.expose_binding("where", |source, _args| async move {
+        Ok(serde_json::json!(source.frame.url().to_owned()))
+    })
+    .await
+    .unwrap();
+    page.goto("data:text/html,<iframe srcdoc='<p>kid</p>'></iframe>")
+        .await
+        .unwrap();
+    assert!(
+        page.evaluate::<String>("where()")
+            .await
+            .unwrap()
+            .starts_with("data:")
+    );
+    assert_eq!(page.evaluate::<i64>("add(1, 1)").await.unwrap(), 2);
+
+    // Context functions reach new pages and their iframes.
+    context
+        .expose_function("twice", |args: Vec<serde_json::Value>| async move {
+            Ok(serde_json::json!(args[0].as_i64().unwrap() * 2))
+        })
+        .await
+        .unwrap();
+    let other = context.new_page().await.unwrap();
+    other
+        .set_content("<iframe srcdoc='<p>in</p>'></iframe>")
+        .await
+        .unwrap();
+    assert_eq!(other.evaluate::<i64>("twice(21)").await.unwrap(), 42);
+    let frame = other.frames().await.unwrap().into_iter().nth(1).unwrap();
+    frame
+        .wait_for_function("typeof twice === 'function'")
+        .await
+        .unwrap();
+    assert_eq!(frame.evaluate::<i64>("twice(4)").await.unwrap(), 8);
+    context
+        .expose_binding("ctxWhere", |source, _| async move {
+            Ok(serde_json::json!(source.page.url()))
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        page.evaluate::<String>("ctxWhere()").await.unwrap(),
+        page.url()
+    );
+    browser.close().await.unwrap();
+}
