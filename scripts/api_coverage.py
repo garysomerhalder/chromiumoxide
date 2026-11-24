@@ -53,6 +53,24 @@ def snake(n):
     return re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', s).lower()
 
 
+def macro_fns():
+    """macro name -> pub fn names its body defines (for `name!()` in impls)."""
+    out = {}
+    for f in glob.glob('src/application/*.rs'):
+        text = open(f).read()
+        for m in re.finditer(r'macro_rules! (\w+) \{', text):
+            i = j = m.end()
+            depth = 1
+            while depth and j < len(text):
+                depth += (text[j] == '{') - (text[j] == '}')
+                j += 1
+            out[m.group(1)] = set(re.findall(r'pub(?:\(crate\))? (?:async )?fn (\w+)', text[i:j]))
+    return out
+
+
+MACROS = macro_fns()
+
+
 def impl_fns(files):
     """type name -> set of pub fn names in its impl blocks (and Display)."""
     out = {}
@@ -74,6 +92,8 @@ def impl_fns(files):
                     fns.add('fmt')
                 continue
             fns |= set(re.findall(r'\n    pub(?:\(crate\))? (?:async )?fn (\w+)', text[i:j]))
+            for name in re.findall(r'\n    (\w+)!\(\);', text[i:j]):
+                fns |= MACROS.get(name, set())
     return out
 
 
