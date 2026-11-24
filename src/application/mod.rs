@@ -28,6 +28,7 @@ pub mod firefox_handle;
 pub mod firefox_input;
 pub mod firefox_locator;
 pub mod firefox_locator_more;
+pub mod firefox_network;
 pub mod firefox_page_more;
 pub mod firefox_record;
 pub mod firefox_route;

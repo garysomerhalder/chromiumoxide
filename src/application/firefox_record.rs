@@ -122,7 +122,7 @@ pub(crate) struct Recorders {
 }
 
 /// One body the data collector kept (`None` when it has none).
-async fn collected(
+pub(crate) async fn collected(
     bidi: &Arc<dyn BidiSession>,
     collector: &str,
     request: &str,
@@ -213,8 +213,14 @@ impl Recorders {
         self.har.lock().unwrap().is_some() || self.trace.lock().unwrap().is_some()
     }
 
+    /// The data collector's id (started if needed).
+    pub(crate) async fn collector_id(&self) -> Option<String> {
+        self.ensure_collector().await.ok()?;
+        self.collector.lock().await.clone()
+    }
+
     /// Keeps request and response bodies of the user context from now on.
-    async fn ensure_collector(&self) -> Result<()> {
+    pub(crate) async fn ensure_collector(&self) -> Result<()> {
         let mut collector = self.collector.lock().await;
         if collector.is_none() {
             let r = self

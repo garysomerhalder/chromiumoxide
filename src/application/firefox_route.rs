@@ -93,116 +93,10 @@ impl crate::application::firefox::BrowserContext {
     }
 }
 
-/// A network request (from a route, or `PageEvent::Request` and friends).
-#[derive(Debug, Clone)]
-pub struct Request {
-    pub(crate) url: String,
-    pub(crate) method: String,
-    pub(crate) headers: Vec<(String, String)>,
-    pub(crate) failure: Option<String>,
-}
+pub use crate::application::firefox_network::{Request, Response};
 
 /// The request a route intercepted (same type as [`Request`]).
 pub type RouteRequest = Request;
-
-/// A response's status line and headers (`PageEvent::Response`).
-#[derive(Debug, Clone)]
-pub struct Response {
-    pub(crate) url: String,
-    pub(crate) status: u16,
-    pub(crate) status_text: String,
-    pub(crate) headers: Vec<(String, String)>,
-}
-
-impl Response {
-    pub fn url(&self) -> &str {
-        &self.url
-    }
-    pub fn status(&self) -> u16 {
-        self.status
-    }
-    pub fn status_text(&self) -> &str {
-        &self.status_text
-    }
-    /// `response.ok()`: status 200..=299 (or 0 for non-HTTP URLs).
-    pub fn ok(&self) -> bool {
-        self.status == 0 || (200..300).contains(&self.status)
-    }
-    pub fn headers(&self) -> &[(String, String)] {
-        &self.headers
-    }
-    /// The first header with this name (case-insensitive).
-    pub fn header_value(&self, name: &str) -> Option<&str> {
-        self.headers
-            .iter()
-            .find(|(n, _)| n.eq_ignore_ascii_case(name))
-            .map(|(_, v)| v.as_str())
-    }
-
-    /// From a BiDi `network.ResponseData`.
-    pub(crate) fn from_bidi(r: &Value) -> Self {
-        Response {
-            url: r["url"].as_str().unwrap_or_default().to_owned(),
-            status: r["status"].as_u64().unwrap_or_default() as u16,
-            status_text: r["statusText"].as_str().unwrap_or_default().to_owned(),
-            headers: bidi_headers(&r["headers"]),
-        }
-    }
-}
-
-/// BiDi `network.Header`s as name / value pairs.
-fn bidi_headers(v: &Value) -> Vec<(String, String)> {
-    v.as_array()
-        .map(|hs| {
-            hs.iter()
-                .map(|h| {
-                    (
-                        h["name"].as_str().unwrap_or_default().to_owned(),
-                        h.pointer("/value/value")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default()
-                            .to_owned(),
-                    )
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-impl Request {
-    /// `request.failure()`: the error text of a failed request.
-    pub fn failure(&self) -> Option<&str> {
-        self.failure.as_deref()
-    }
-
-    pub fn url(&self) -> &str {
-        &self.url
-    }
-    pub fn method(&self) -> &str {
-        &self.method
-    }
-    /// Request headers, in order.
-    pub fn headers(&self) -> &[(String, String)] {
-        &self.headers
-    }
-    /// The first header with this name (case-insensitive).
-    pub fn header_value(&self, name: &str) -> Option<&str> {
-        self.headers
-            .iter()
-            .find(|(n, _)| n.eq_ignore_ascii_case(name))
-            .map(|(_, v)| v.as_str())
-    }
-
-    /// From a BiDi `network.RequestData`.
-    pub(crate) fn from_bidi(r: &Value) -> Self {
-        Request {
-            url: r["url"].as_str().unwrap_or_default().to_owned(),
-            method: r["method"].as_str().unwrap_or("GET").to_owned(),
-            headers: bidi_headers(&r["headers"]),
-            failure: None,
-        }
-    }
-}
 
 /// An intercepted request (`page.route` handler argument).
 #[derive(Clone)]
@@ -216,7 +110,7 @@ pub struct Route {
 impl std::fmt::Debug for Route {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("firefox::Route")
-            .field("url", &self.request.url)
+            .field("url", &self.request.url())
             .finish()
     }
 }

@@ -197,6 +197,61 @@ pub fn unsupported_context_options(o: &ContextOptions) -> Vec<&'static str> {
     out
 }
 
+/// Playwright's resource type of a request, from BiDi's `destination` and
+/// `initiatorType` (Fetch's request destination and initiator).
+pub fn resource_type(destination: &str, initiator_type: Option<&str>) -> &'static str {
+    match destination {
+        "document" | "iframe" | "frame" => "document",
+        "style" => "stylesheet",
+        "script" | "worker" | "sharedworker" | "serviceworker" | "audioworklet"
+        | "paintworklet" => "script",
+        "image" => "image",
+        "font" => "font",
+        "audio" | "video" => "media",
+        "track" => "texttrack",
+        "manifest" => "manifest",
+        _ => match initiator_type {
+            Some("fetch") => "fetch",
+            Some("xmlhttprequest") => "xhr",
+            Some("beacon") => "ping",
+            Some("eventsource") => "eventsource",
+            _ => "other",
+        },
+    }
+}
+
+/// Playwright's `request.timing()` from BiDi `network.FetchTimingInfo`
+/// (epoch milliseconds, 0 when unknown): `start_time` is the request time,
+/// the others are relative to it, `-1` when unknown.
+pub fn timing_from_bidi(t: &Value) -> crate::domain::network::Timing {
+    let start = t["requestTime"].as_f64().unwrap_or_default();
+    let rel = |k: &str| match t[k].as_f64() {
+        Some(v) if v > 0.0 && start > 0.0 => v - start,
+        _ => -1.0,
+    };
+    crate::domain::network::Timing {
+        start_time: start,
+        domain_lookup_start: rel("dnsStart"),
+        domain_lookup_end: rel("dnsEnd"),
+        connect_start: rel("connectStart"),
+        secure_connection_start: rel("tlsStart"),
+        connect_end: rel("connectEnd"),
+        request_start: rel("requestStart"),
+        response_start: rel("responseStart"),
+        response_end: rel("responseEnd"),
+    }
+}
+
+/// Playwright's `response.httpVersion()` from BiDi's `protocol`.
+pub fn http_version_of(protocol: &str) -> String {
+    match protocol.to_ascii_lowercase().as_str() {
+        "h2" | "http/2" | "http/2.0" => "HTTP/2.0".into(),
+        "h3" | "http/3" | "http/3.0" => "HTTP/3.0".into(),
+        "" => "HTTP/1.1".into(),
+        p => p.to_ascii_uppercase(),
+    }
+}
+
 /// The origin (`scheme://host[:port]`) of an http(s) URL, for BiDi
 /// permissions; `None` for other URLs.
 pub fn origin_of(url: &str) -> Option<String> {

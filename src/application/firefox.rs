@@ -22,7 +22,7 @@ use crate::application::firefox_events::{
 };
 use crate::application::firefox_input::{InputState, Keyboard, Mouse};
 use crate::application::firefox_record::{Recorders, Tracing, Video};
-use crate::application::firefox_route::{Request, Response, Route, RouteEntry};
+use crate::application::firefox_route::{Request, Route, RouteEntry};
 use crate::application::firefox_worker::{WS_CHANNEL, WS_PRELOAD, Worker};
 use crate::application::locator::INJECTED_SOURCE;
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
@@ -459,6 +459,12 @@ impl Browser {
             .lock()
             .unwrap()
             .push(Arc::downgrade(&context.inner));
+        // Keeps request and response bodies (`request.postData()`,
+        // `response.body()`).
+        if let Err(e) = context.inner.recorders.ensure_collector().await {
+            let _ = context.close().await;
+            return Err(e);
+        }
         if let Err(e) = context.apply_emulation().await {
             let _ = context.close().await;
             return Err(e);
@@ -994,6 +1000,8 @@ async fn attach_page(
         timeouts: Mutex::new(Timeouts::default()),
         picking: AtomicBool::new(false),
         extra_headers: Mutex::new(Vec::new()),
+        requests: Mutex::new(HashMap::new()),
+        pending_post: Mutex::new(HashMap::new()),
         closed: AtomicBool::new(false),
     });
     ctx.pages.lock().unwrap().push(inner.clone());
@@ -1013,6 +1021,26 @@ async fn attach_page(
             if event_context != Some(context.as_str()) {
                 page.foreign_event(&event.method, &event.params);
                 continue;
+            }
+            if event.method == "network.beforeRequestSent"
+                && event
+                    .params
+                    .pointer("/request/bodySize")
+                    .and_then(Value::as_u64)
+                    .unwrap_or_default()
+                    > 0
+            {
+                // Read the body before the request is reported, so
+                // `request.postData()` has it.
+                let id = event
+                    .params
+                    .pointer("/request/request")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                if let Some(body) = page.collected_data(&id, "request").await {
+                    page.inner.pending_post.lock().unwrap().insert(id, body);
+                }
             }
             page.dispatch(&event.method, &event.params);
             page.inner
@@ -1120,6 +1148,10 @@ pub(crate) struct PageInner {
     pub(crate) picking: AtomicBool,
     /// `page.setExtraHTTPHeaders`.
     pub(crate) extra_headers: Mutex<Vec<(String, String)>>,
+    /// Requests in flight, by BiDi request id (the newest hop).
+    pub(crate) requests: Mutex<HashMap<String, Request>>,
+    /// Request bodies read before their `beforeRequestSent` is handled.
+    pub(crate) pending_post: Mutex<HashMap<String, Vec<u8>>>,
     closed: AtomicBool,
 }
 
@@ -1159,6 +1191,31 @@ impl Page {
             .or(ctx.navigation)
             .or(ctx.action)
             .unwrap_or(DEFAULT_TIMEOUT)
+    }
+
+    /// The live request a BiDi `network` event is about (a new one, if it
+    /// was not seen).
+    fn request_of(&self, p: &Value) -> Request {
+        let id = p
+            .pointer("/request/request")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if let Some(r) = self.inner.requests.lock().unwrap().get(id) {
+            return r.clone();
+        }
+        Request::from_event(p, Arc::downgrade(&self.inner), None, None)
+    }
+
+    /// A request's or response's body from the context's data collector.
+    pub(crate) async fn collected_data(&self, request: &str, data_type: &str) -> Option<Vec<u8>> {
+        let collector = self.inner.recorders.collector_id().await?;
+        crate::application::firefox_record::collected(
+            &self.inner.bidi,
+            &collector,
+            request,
+            data_type,
+        )
+        .await
     }
 
     /// `page.isClosed()`.
@@ -1317,30 +1374,75 @@ impl Page {
                 }
             }
             "network.beforeRequestSent" => {
-                self.emit(PageEvent::Request(Request::from_bidi(&p["request"])));
+                let id = p
+                    .pointer("/request/request")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                let previous = (p["redirectCount"].as_u64().unwrap_or_default() > 0)
+                    .then(|| self.inner.requests.lock().unwrap().get(&id).cloned())
+                    .flatten();
+                let post = self.inner.pending_post.lock().unwrap().remove(&id);
+                let request =
+                    Request::from_event(p, Arc::downgrade(&self.inner), previous.clone(), post);
+                if let Some(previous) = previous {
+                    previous.redirected(&request);
+                }
+                self.inner
+                    .requests
+                    .lock()
+                    .unwrap()
+                    .insert(id, request.clone());
+                self.emit(PageEvent::Request(request.clone()));
                 if p["isBlocked"] == Value::Bool(true) {
-                    self.route_request(p);
+                    self.route_request(request);
                 }
             }
             "network.responseStarted" => {
-                let mut response = Response::from_bidi(&p["response"]);
-                if response.url.is_empty() {
-                    response.url = p
-                        .pointer("/request/url")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .to_owned();
+                let request = self.request_of(p);
+                if request.existing_response().is_none() {
+                    let response = request.responded(p);
+                    self.emit(PageEvent::Response(response));
                 }
-                self.emit(PageEvent::Response(response));
             }
             "network.responseCompleted" => {
-                self.emit(PageEvent::RequestFinished(Request::from_bidi(
-                    &p["request"],
-                )));
+                let request = self.request_of(p);
+                if request.existing_response().is_none() {
+                    let response = request.responded(p);
+                    self.emit(PageEvent::Response(response));
+                }
+                request.completed(p);
+                let redirect = (300..400).contains(
+                    &p.pointer("/response/status")
+                        .and_then(Value::as_u64)
+                        .unwrap_or_default(),
+                ) && p
+                    .pointer("/response/headers")
+                    .and_then(Value::as_array)
+                    .is_some_and(|hs| {
+                        hs.iter().any(|h| {
+                            h["name"]
+                                .as_str()
+                                .is_some_and(|n| n.eq_ignore_ascii_case("location"))
+                        })
+                    });
+                if !redirect {
+                    self.inner
+                        .requests
+                        .lock()
+                        .unwrap()
+                        .remove(&request.inner.id);
+                }
+                self.emit(PageEvent::RequestFinished(request));
             }
             "network.fetchError" => {
-                let mut request = Request::from_bidi(&p["request"]);
-                request.failure = Some(text("errorText"));
+                let request = self.request_of(p);
+                request.failed(&text("errorText"));
+                self.inner
+                    .requests
+                    .lock()
+                    .unwrap()
+                    .remove(&request.inner.id);
                 self.emit(PageEvent::RequestFailed(request));
             }
             "network.authRequired" if p["isBlocked"] == Value::Bool(true) => {
@@ -1546,20 +1648,15 @@ impl Page {
 
     /// Hands a blocked request to the newest matching route handler, or
     /// lets it through.
-    fn route_request(&self, p: &Value) {
-        let id = p
-            .pointer("/request/request")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned();
-        let request = Request::from_bidi(&p["request"]);
+    fn route_request(&self, request: Request) {
+        let id = request.inner.id.clone();
         let find = |routes: &Mutex<Vec<RouteEntry>>| {
             routes
                 .lock()
                 .unwrap()
                 .iter()
                 .rev()
-                .find(|e| e.matcher.matches(&request.url))
+                .find(|e| e.matcher.matches(request.url()))
                 .map(|e| e.handler.clone())
         };
         let handler = find(&self.inner.routes).or_else(|| find(&self.inner.context_routes));
