@@ -129,7 +129,8 @@ async fn open_session(bidi: &Arc<dyn BidiSession>) -> Result<String> {
     bidi.call(
         "session.subscribe",
         json!({"events": ["browsingContext", "log.entryAdded", "network",
-                           "script.realmCreated", "script.realmDestroyed", "script.message"]}),
+                           "script.realmCreated", "script.realmDestroyed", "script.message",
+                           "input.fileDialogOpened"]}),
     )
     .await?;
     Ok(session
@@ -1099,7 +1100,7 @@ pub struct Page {
     pub(crate) inner: Arc<PageInner>,
 }
 
-pub(crate) struct PageInner {
+pub struct PageInner {
     bidi: Arc<dyn BidiSession>,
     pub(crate) services: Services,
     /// The browsing context id.
@@ -1329,9 +1330,30 @@ impl Page {
         };
         match method {
             "log.entryAdded" if p["type"] == "console" => {
+                let frame = p.pointer("/stackTrace/callFrames/0");
                 self.emit(PageEvent::Console(ConsoleMessage {
                     kind: console_kind(p["method"].as_str().unwrap_or("log")),
                     text: text("text"),
+                    args: p["args"].as_array().cloned().unwrap_or_default(),
+                    timestamp: p["timestamp"].as_f64().unwrap_or_default(),
+                    location: crate::domain::console::Location {
+                        url: frame
+                            .and_then(|f| f["url"].as_str())
+                            .unwrap_or_default()
+                            .to_owned(),
+                        line_number: frame
+                            .and_then(|f| f["lineNumber"].as_u64())
+                            .unwrap_or_default() as u32,
+                        column_number: frame
+                            .and_then(|f| f["columnNumber"].as_u64())
+                            .unwrap_or_default() as u32,
+                    },
+                    context: p
+                        .pointer("/source/context")
+                        .and_then(Value::as_str)
+                        .unwrap_or(&self.inner.context)
+                        .to_owned(),
+                    page: Arc::downgrade(&self.inner),
                 }));
             }
             "log.entryAdded" if p["type"] == "javascript" => {
@@ -1445,6 +1467,23 @@ impl Page {
                     .remove(&request.inner.id);
                 self.emit(PageEvent::RequestFailed(request));
             }
+            "input.fileDialogOpened" => {
+                let element = crate::application::firefox_handle::ElementHandle::from_remote(
+                    self.clone(),
+                    p["context"]
+                        .as_str()
+                        .unwrap_or(&self.inner.context)
+                        .to_owned(),
+                    p["element"].clone(),
+                );
+                self.emit(PageEvent::FileChooser(
+                    crate::application::firefox_events::FileChooser {
+                        page: self.clone(),
+                        element,
+                        multiple: p["multiple"] == Value::Bool(true),
+                    },
+                ));
+            }
             "network.authRequired" if p["isBlocked"] == Value::Bool(true) => {
                 self.answer_auth(p);
             }
@@ -1453,6 +1492,7 @@ impl Page {
                     text("url"),
                     text("suggestedFilename"),
                     self.inner.services.clone(),
+                    Arc::downgrade(&self.inner),
                 );
                 self.inner
                     .downloads

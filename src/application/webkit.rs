@@ -450,6 +450,7 @@ impl BrowserContext {
                                         url,
                                         s("suggestedFilename"),
                                         context.inner.browser.inner.services.clone(),
+                                        std::sync::Weak::new(),
                                     );
                                     downloads.insert(s("uuid"), download.clone());
                                     page.emit(PageEvent::Download(download));

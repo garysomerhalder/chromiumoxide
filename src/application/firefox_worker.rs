@@ -78,6 +78,26 @@ pub struct Worker {
     inner: Arc<WorkerInner>,
 }
 
+/// `worker.on(...)` events.
+#[derive(Clone, Debug)]
+pub enum WorkerEvent {
+    /// The worker was terminated (or its page went away).
+    Close,
+}
+
+/// Firefox finds script targets among window realms only.
+fn worker_realm_error(e: Error) -> Error {
+    match e {
+        Error::Protocol { message, .. } if message.contains("no such frame") => {
+            Error::InvalidArgument(format!(
+                "worker.evaluate is not supported on Firefox: its WebDriver BiDi cannot run \
+                 scripts in worker realms yet ({message})"
+            ))
+        }
+        other => other,
+    }
+}
+
 struct WorkerInner {
     page: Page,
     realm: String,
@@ -137,16 +157,33 @@ impl Worker {
             .page
             .evaluate_value_in(json!({"realm": self.inner.realm}), source, arg)
             .await
-            .map_err(|e| match e {
-                // Firefox finds realm targets among window realms only.
-                Error::Protocol { message, .. } if message.contains("no such frame") => {
-                    Error::InvalidArgument(format!(
-                        "worker.evaluate is not supported on Firefox: its WebDriver BiDi \
-                         cannot run scripts in worker realms yet ({message})"
-                    ))
-                }
-                other => other,
-            })
+            .map_err(worker_realm_error)
+    }
+
+    /// `worker.evaluateHandle(expression or function)`.
+    pub async fn evaluate_handle(
+        &self,
+        source: &str,
+    ) -> Result<crate::application::firefox_handle::JsHandle> {
+        if self.is_closed() {
+            return Err(Error::TargetClosed("worker has been closed".into()));
+        }
+        self.inner
+            .page
+            .evaluate_handle_in(json!({"realm": self.inner.realm}), source, None)
+            .await
+            .map_err(worker_realm_error)
+    }
+
+    /// `worker.waitForEvent(event)`: the first event `matcher` maps to a
+    /// value (Firefox reports only the worker's close).
+    pub async fn wait_for_event<T>(
+        &self,
+        matcher: impl Fn(&WorkerEvent) -> Option<T>,
+    ) -> Result<T> {
+        self.wait_for_close().await;
+        matcher(&WorkerEvent::Close)
+            .ok_or_else(|| Error::TargetClosed("worker has been closed".into()))
     }
 
     /// `worker.evaluate(expression or function)`.

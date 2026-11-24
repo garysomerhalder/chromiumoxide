@@ -199,6 +199,84 @@ impl Page {
     }
 }
 
+/// `page.touchscreen()` on Firefox.
+#[derive(Clone, Debug)]
+pub struct Touchscreen {
+    page: Page,
+}
+
+impl Touchscreen {
+    /// `touchscreen.tap(x, y)`: Playwright taps only with `hasTouch`, which
+    /// WebDriver BiDi cannot set in Firefox.
+    pub async fn tap(&self, _x: f64, _y: f64) -> Result<()> {
+        let _ = &self.page;
+        Err(Error::InvalidArgument(
+            "The page does not support tap. Use hasTouch context option to enable touch support \
+             (WebDriver BiDi cannot set hasTouch in Firefox)."
+                .into(),
+        ))
+    }
+}
+
+impl Page {
+    /// `page.touchscreen()`.
+    pub fn touchscreen(&self) -> Touchscreen {
+        Touchscreen { page: self.clone() }
+    }
+}
+
+impl crate::application::firefox::Frame {
+    /// `frame.waitForNavigation()` (deprecated in Playwright: use
+    /// `wait_for_url`): the frame's next document, once loaded. Marks the
+    /// current document at the call, so start it before the action.
+    pub fn wait_for_navigation(&self) -> impl Future<Output = Result<()>> + Send + use<> {
+        let frame = self.clone();
+        let marked = {
+            let frame = frame.clone();
+            async move {
+                frame
+                    .page
+                    .call_json_in(
+                        &frame.context,
+                        "() => { globalThis.__chromiumoxide_nav_mark = true; }",
+                        &[],
+                        Some(UTILITY),
+                    )
+                    .await
+            }
+        };
+        let marked = tokio::spawn(marked);
+        async move {
+            marked
+                .await
+                .map_err(|e| Error::Evaluation(e.to_string()))??;
+            let timeout = frame.page.navigation_timeout();
+            let deadline = frame.page.now() + timeout;
+            loop {
+                let v = frame
+                    .page
+                    .call_json_in(
+                        &frame.context,
+                        "() => !globalThis.__chromiumoxide_nav_mark && document.readyState === 'complete'",
+                        &[],
+                        Some(UTILITY),
+                    )
+                    .await;
+                if matches!(v, Ok(Value::Bool(true))) {
+                    return Ok(());
+                }
+                if frame.page.now() >= deadline {
+                    return Err(Error::Timeout {
+                        ms: timeout.as_millis() as u64,
+                        action: "waiting for navigation".into(),
+                    });
+                }
+                frame.page.sleep(Duration::from_millis(16)).await;
+            }
+        }
+    }
+}
+
 impl FrameLocator {
     /// `frameLocator.nth(index)`: the iframe at `index` among the matches.
     pub fn nth(&self, index: i64) -> FrameLocator {

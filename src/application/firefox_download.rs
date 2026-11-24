@@ -19,6 +19,7 @@ pub struct Download {
 }
 
 struct DownloadInner {
+    page: std::sync::Weak<crate::application::firefox::PageInner>,
     url: String,
     suggested_filename: String,
     services: Services,
@@ -35,9 +36,15 @@ impl std::fmt::Debug for Download {
 }
 
 impl Download {
-    pub(crate) fn new(url: String, suggested_filename: String, services: Services) -> Self {
+    pub(crate) fn new(
+        url: String,
+        suggested_filename: String,
+        services: Services,
+        page: std::sync::Weak<crate::application::firefox::PageInner>,
+    ) -> Self {
         Download {
             inner: Arc::new(DownloadInner {
+                page,
                 url,
                 suggested_filename,
                 services,
@@ -85,6 +92,40 @@ impl Download {
     pub async fn read(&self) -> Result<Vec<u8>> {
         let path = self.path().await?;
         Ok(self.inner.services.fs.read(&path)?)
+    }
+
+    /// `download.page()`: the page the download started from.
+    pub fn page(&self) -> Option<crate::application::firefox::Page> {
+        self.inner
+            .page
+            .upgrade()
+            .map(|inner| crate::application::firefox::Page { inner })
+    }
+
+    /// `download.createReadStream()`: waits for the download, then reads it
+    /// as a [`futures::io::AsyncRead`].
+    pub async fn create_read_stream(
+        &self,
+    ) -> Result<impl futures::io::AsyncRead + Unpin + Send + 'static> {
+        Ok(futures::io::Cursor::new(self.read().await?))
+    }
+
+    /// `download.delete()`: deletes the downloaded file (waits for it).
+    pub async fn delete(&self) -> Result<()> {
+        if let Ok(path) = self.path().await {
+            self.inner.services.fs.remove_file(&path)?;
+        }
+        Ok(())
+    }
+
+    /// `download.cancel()`: WebDriver BiDi has no command to cancel a
+    /// download in Firefox.
+    pub async fn cancel(&self) -> Result<()> {
+        Err(Error::InvalidArgument(
+            "download.cancel() is not available in Firefox: WebDriver BiDi has no command to \
+             cancel a download"
+                .into(),
+        ))
     }
 
     /// `download.saveAs(path)`: copies the file (waits for it).

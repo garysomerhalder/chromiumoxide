@@ -437,6 +437,20 @@ macro_rules! element_actions {
 }
 
 impl ElementHandle {
+    /// An element from a BiDi node `RemoteValue` in `context` (registered
+    /// with the injected script on first use).
+    pub(crate) fn from_remote(page: Page, context: String, remote: Value) -> ElementHandle {
+        ElementHandle {
+            handle: JsHandle {
+                page,
+                target: json!({"context": context}),
+                remote,
+            },
+            context,
+            id: String::new(),
+        }
+    }
+
     /// A locator that matches exactly this element.
     async fn locator(&self) -> Result<Locator> {
         let id = if self.id.is_empty() {

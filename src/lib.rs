@@ -142,6 +142,7 @@ pub mod firefox {
     };
     pub use crate::application::firefox_context_more::BrowserType;
     pub use crate::application::firefox_download::Download;
+    pub use crate::application::firefox_events::FileChooser;
     pub use crate::application::firefox_events::{
         ConsoleMessage, ContextEvent, Dialog, PageError, PageEvent,
     };
@@ -149,9 +150,10 @@ pub mod firefox {
     pub use crate::application::firefox_handle::{ElementHandle, JsHandle};
     pub use crate::application::firefox_input::{Keyboard, Mouse};
     pub use crate::application::firefox_locator::{FrameLocator, Locator};
+    pub use crate::application::firefox_page_more::Touchscreen;
     pub use crate::application::firefox_record::{Pdf, Tracing, Video};
     pub use crate::application::firefox_route::{Fulfill, Request, Response, Route, RouteRequest};
-    pub use crate::application::firefox_worker::Worker;
+    pub use crate::application::firefox_worker::{Worker, WorkerEvent};
     pub use crate::application::websocket::{WebSocket, WebSocketEvent, WsPayload};
 }
 

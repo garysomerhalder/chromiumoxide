@@ -64,16 +64,93 @@ pub enum PageEvent {
     Worker(crate::application::firefox_worker::Worker),
     /// The page opened a WebSocket (`page.on('websocket')`).
     WebSocket(crate::application::websocket::WebSocket),
+    /// A file input asked for files (`page.on('filechooser')`).
+    FileChooser(FileChooser),
+}
+
+/// `page.on('filechooser')`: a file input's chooser (BiDi
+/// `input.fileDialogOpened`); answer it with [`FileChooser::set_files`].
+#[derive(Clone, Debug)]
+pub struct FileChooser {
+    pub(crate) page: Page,
+    pub(crate) element: crate::application::firefox_handle::ElementHandle,
+    pub(crate) multiple: bool,
+}
+
+impl FileChooser {
+    /// `fileChooser.page()`.
+    pub fn page(&self) -> &Page {
+        &self.page
+    }
+    /// `fileChooser.element()`: the `<input type=file>`.
+    pub fn element(&self) -> crate::application::firefox_handle::ElementHandle {
+        self.element.clone()
+    }
+    /// `fileChooser.isMultiple()`.
+    pub fn is_multiple(&self) -> bool {
+        self.multiple
+    }
+    /// `fileChooser.setFiles(files)`.
+    pub async fn set_files(&self, files: &[std::path::PathBuf]) -> Result<()> {
+        self.element.set_input_files(files).await
+    }
 }
 
 /// `page.on('console')`.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ConsoleMessage {
     pub(crate) kind: String,
     pub(crate) text: String,
+    /// BiDi's `RemoteValue`s of the arguments.
+    pub(crate) args: Vec<serde_json::Value>,
+    pub(crate) timestamp: f64,
+    pub(crate) location: crate::domain::console::Location,
+    /// The browsing context that logged it.
+    pub(crate) context: String,
+    pub(crate) page: std::sync::Weak<crate::application::firefox::PageInner>,
+}
+
+impl std::fmt::Debug for ConsoleMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("firefox::ConsoleMessage")
+            .field("kind", &self.kind)
+            .field("text", &self.text)
+            .finish()
+    }
 }
 
 impl ConsoleMessage {
+    /// `consoleMessage.args()`: handles to the logged values.
+    pub fn args(&self) -> Vec<crate::application::firefox_handle::JsHandle> {
+        let Some(page) = self.page() else {
+            return Vec::new();
+        };
+        self.args
+            .iter()
+            .map(|remote| crate::application::firefox_handle::JsHandle {
+                page: page.clone(),
+                target: json!({"context": self.context}),
+                remote: remote.clone(),
+            })
+            .collect()
+    }
+    /// `consoleMessage.location()`: where it was logged.
+    pub fn location(&self) -> &crate::domain::console::Location {
+        &self.location
+    }
+    /// `consoleMessage.timestamp()`: milliseconds since the epoch.
+    pub fn timestamp(&self) -> f64 {
+        self.timestamp
+    }
+    /// `consoleMessage.page()`.
+    pub fn page(&self) -> Option<Page> {
+        self.page.upgrade().map(|inner| Page { inner })
+    }
+    /// `consoleMessage.worker()`: worker messages are not reported on
+    /// Firefox (BiDi cannot reach worker realms), so always `None`.
+    pub fn worker(&self) -> Option<crate::application::firefox_worker::Worker> {
+        None
+    }
     /// `log`, `warning`, `error`, `info`, `debug`, ... (Playwright's names).
     pub fn kind(&self) -> &str {
         &self.kind
@@ -128,6 +205,10 @@ pub struct Dialog {
 }
 
 impl Dialog {
+    /// `dialog.page()`.
+    pub fn page(&self) -> &Page {
+        &self.page
+    }
     /// `alert`, `confirm`, `prompt` or `beforeunload`.
     pub fn kind(&self) -> &str {
         &self.kind

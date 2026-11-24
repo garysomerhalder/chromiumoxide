@@ -2666,7 +2666,7 @@ async fn firefox_event_object_details() {
     assert!(std::ptr::eq(chooser.page(), chooser.page()));
     let file = std::env::temp_dir().join("cox-ff-chooser.txt");
     std::fs::write(&file, "x").unwrap();
-    chooser.set_files(&[file.clone()]).await.unwrap();
+    chooser.set_files(std::slice::from_ref(&file)).await.unwrap();
     assert_eq!(
         chooser
             .element()
@@ -2678,7 +2678,7 @@ async fn firefox_event_object_details() {
 
     // Worker handles and events.
     page.goto(&server.url("/p.html")).await.unwrap();
-    page.evaluate::<()>("window.w = new Worker('/w.js')")
+    page.evaluate::<()>("void (window.w = new Worker('/w.js'))")
         .await
         .unwrap();
     page.wait_for_function("true").await.unwrap();
@@ -2689,8 +2689,13 @@ async fn firefox_event_object_details() {
         page.wait_for_timeout(std::time::Duration::from_millis(50))
             .await;
     };
-    let h = worker.evaluate_handle("({ x: 1 })").await.unwrap();
-    assert_eq!(h.json_value().await.unwrap(), serde_json::json!({"x": 1}));
+    // Firefox's BiDi cannot run scripts in worker realms (as worker.evaluate).
+    let err = worker
+        .evaluate_handle("({ x: 1 })")
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("worker realms"), "{err}");
     let closed = worker.wait_for_event(|e| matches!(e, WorkerEvent::Close).then_some(()));
     page.evaluate::<()>("w.terminate()").await.unwrap();
     // Firefox reports a terminated worker when its realm goes away.
