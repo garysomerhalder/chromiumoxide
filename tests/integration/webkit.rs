@@ -111,3 +111,138 @@ async fn webkit_contexts_emulate_devices() {
     context.close().await.unwrap();
     browser.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn webkit_locators_query_the_page() {
+    use chromiumoxide::RoleOptions;
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = WebKit::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<ul><li class=a>One</li><li class=a>Two</li><li class=a data-testid=three>Three</li></ul>
+         <button title=go>Go <b>now</b></button><input hidden value=x>
+         <section><p>inner</p></section>
+         <script>setTimeout(() => document.body.insertAdjacentHTML('beforeend', '<p id=late>Late</p>'), 300)</script>",
+    )
+    .await
+    .unwrap();
+    let items = page.locator("li.a");
+    assert_eq!(items.count().await.unwrap(), 3);
+    assert_eq!(
+        items.all_text_contents().await.unwrap(),
+        ["One", "Two", "Three"]
+    );
+    assert_eq!(
+        items.nth(1).text_content().await.unwrap().as_deref(),
+        Some("Two")
+    );
+    assert_eq!(items.first().inner_text().await.unwrap(), "One");
+    assert_eq!(items.last().inner_text().await.unwrap(), "Three");
+    assert_eq!(
+        page.get_by_role("button", RoleOptions::default())
+            .inner_text()
+            .await
+            .unwrap(),
+        "Go now"
+    );
+    assert_eq!(
+        page.locator("button")
+            .get_attribute("title")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("go")
+    );
+    assert_eq!(
+        page.get_by_test_id("three")
+            .text_content()
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("Three")
+    );
+    assert!(page.get_by_text("Two", true).is_visible().await.unwrap());
+    assert!(!page.locator("input").is_visible().await.unwrap());
+    assert_eq!(
+        page.locator("section")
+            .locator("p")
+            .inner_html()
+            .await
+            .unwrap(),
+        "inner"
+    );
+    // Reads wait for the element, like Playwright.
+    assert_eq!(page.locator("#late").inner_text().await.unwrap(), "Late");
+    let err = page.locator("li").text_content().await.unwrap_err();
+    assert!(err.to_string().contains("strict mode violation"), "{err}");
+    browser.close().await.unwrap();
+}
+
+/// Input over WebKit's `Input.*` commands: click, fill, press (named keys
+/// and chords), press_sequentially, check/uncheck, hover.
+#[tokio::test]
+async fn webkit_locators_act_on_elements() {
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = WebKit::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<div style='height: 1500px'>spacer</div>
+         <button onclick=\"this.textContent = 'clicked ' + event.detail\">Go</button>
+         <input id=i><input type=checkbox id=c>
+         <div id=h onmouseover=\"this.textContent = 'hovered'\">hover me</div>
+         <input id=k onkeydown=\"this.dataset.keys = (this.dataset.keys || '') + event.key + ','\">",
+    )
+    .await
+    .unwrap();
+    // Below the fold: click scrolls it into view first.
+    page.locator("button").click().await.unwrap();
+    assert_eq!(
+        page.locator("button").inner_text().await.unwrap(),
+        "clicked 1"
+    );
+
+    let input = page.locator("#i");
+    input.fill("hello").await.unwrap();
+    assert_eq!(input.input_value().await.unwrap(), "hello");
+    input.press("Backspace").await.unwrap();
+    assert_eq!(input.input_value().await.unwrap(), "hell");
+    input.press("Control+a").await.unwrap();
+    input.press_sequentially("yo!").await.unwrap();
+    assert_eq!(input.input_value().await.unwrap(), "yo!");
+    input.fill("").await.unwrap();
+    assert_eq!(input.input_value().await.unwrap(), "");
+
+    let check = page.locator("#c");
+    check.check().await.unwrap();
+    assert!(
+        page.evaluate::<bool>("document.getElementById('c').checked")
+            .await
+            .unwrap()
+    );
+    check.uncheck().await.unwrap();
+    assert!(
+        !page
+            .evaluate::<bool>("document.getElementById('c').checked")
+            .await
+            .unwrap()
+    );
+
+    page.locator("#h").hover().await.unwrap();
+    assert_eq!(page.locator("#h").inner_text().await.unwrap(), "hovered");
+
+    page.locator("#k").press("Enter").await.unwrap();
+    page.locator("#k").press("ArrowLeft").await.unwrap();
+    assert_eq!(
+        page.locator("#k")
+            .get_attribute("data-keys")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("Enter,ArrowLeft,")
+    );
+    browser.close().await.unwrap();
+}
