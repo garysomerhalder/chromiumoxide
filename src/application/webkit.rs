@@ -581,6 +581,35 @@ impl Page {
                 json!({"value": o.user_agent.clone().unwrap_or_else(default_user_agent)}),
             ),
         ];
+        steps.push(call("Network.enable", json!({})));
+        steps.push(call("Console.enable", json!({})));
+        steps.push(call(
+            "Network.setExtraHTTPHeaders",
+            json!({"headers": o.extra_http_headers}),
+        ));
+        steps.push(call(
+            "Page.setTouchEmulationEnabled",
+            json!({"enabled": o.has_touch}),
+        ));
+        for (setting, mobile_value) in [
+            ("FullScreenEnabled", false),
+            ("NotificationsEnabled", false),
+            ("PointerLockEnabled", false),
+            ("InputTypeMonthEnabled", true),
+            ("InputTypeWeekEnabled", true),
+            ("FixedBackgroundsPaintRelativeToDocument", true),
+            ("PushAPIEnabled", false),
+        ] {
+            let value = if o.is_mobile {
+                mobile_value
+            } else {
+                !mobile_value
+            };
+            steps.push(call(
+                "Page.overrideSetting",
+                json!({"setting": setting, "value": value}),
+            ));
+        }
         if let Some(tz) = &o.timezone_id {
             steps.push(call("Page.setTimeZone", json!({"timeZone": tz})));
         }
