@@ -138,7 +138,9 @@ fn cases() -> Vec<Case> {
 }
 
 pub(crate) fn playwright_node_path() -> Option<String> {
-    let root = Command::new("npm").args(["root", "-g"]).output().ok()?;
+    // npm is a batch file on Windows.
+    let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
+    let root = Command::new(npm).args(["root", "-g"]).output().ok()?;
     let root = String::from_utf8(root.stdout).ok()?.trim().to_owned();
     let ok = Command::new("node")
         .args(["-e", "require.resolve('playwright')"])

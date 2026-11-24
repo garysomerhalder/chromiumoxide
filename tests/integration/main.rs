@@ -52,15 +52,21 @@ mod video;
 mod workers;
 
 /// Where Playwright installs browsers: `PLAYWRIGHT_BROWSERS_PATH`, the
-/// container image's `/opt/pw-browsers`, and the user cache (CI).
+/// container image's `/opt/pw-browsers`, and the user caches on Linux,
+/// macOS and Windows.
 pub fn playwright_dirs() -> Vec<std::path::PathBuf> {
     let mut dirs = Vec::new();
     if let Some(p) = std::env::var_os("PLAYWRIGHT_BROWSERS_PATH") {
         dirs.push(p.into());
     }
     dirs.push("/opt/pw-browsers".into());
-    if let Some(home) = std::env::var_os("HOME") {
-        dirs.push(std::path::PathBuf::from(home).join(".cache/ms-playwright"));
+    if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
+        let home = std::path::PathBuf::from(home);
+        dirs.push(home.join(".cache/ms-playwright"));
+        dirs.push(home.join("Library/Caches/ms-playwright"));
+    }
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        dirs.push(std::path::PathBuf::from(local).join("ms-playwright"));
     }
     dirs
 }
