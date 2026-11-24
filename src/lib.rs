@@ -165,6 +165,7 @@ pub mod webkit {
     pub use crate::application::webkit::{
         Browser, BrowserContext, Page, Screenshot, WebKitLaunchOptions,
     };
+    pub use crate::application::webkit_binding::BindingSource;
     pub use crate::application::webkit_clock::Clock;
     pub use crate::application::webkit_download::Download;
     pub use crate::application::webkit_events::{

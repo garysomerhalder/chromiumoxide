@@ -240,6 +240,7 @@ impl Browser {
                 granted: Mutex::new(granted),
                 credentials: Mutex::new(credentials),
                 clock_installed: AtomicBool::new(false),
+                bindings: Default::default(),
                 closed: AtomicBool::new(false),
             }),
         };
@@ -322,6 +323,8 @@ pub(crate) struct ContextInner {
     pub(crate) granted: Mutex<Vec<(String, Vec<String>)>>,
     /// `context.setHTTPCredentials`.
     pub(crate) credentials: Mutex<Option<crate::domain::emulation::HttpCredentials>>,
+    /// `context.exposeFunction` / `exposeBinding`.
+    pub(crate) bindings: crate::application::webkit_binding::Bindings,
     /// Playwright's fake timers are installed (`context.clock`).
     pub(crate) clock_installed: AtomicBool,
     pub(crate) closed: AtomicBool,
@@ -459,6 +462,7 @@ impl BrowserContext {
             media: Mutex::new(Default::default()),
             globals: Mutex::new(HashMap::new()),
             locator_handlers: Mutex::new(Vec::new()),
+            bindings: Default::default(),
             handling_locator: AtomicBool::new(false),
             workers: Mutex::new(HashMap::new()),
             websockets: Mutex::new(HashMap::new()),
@@ -672,6 +676,8 @@ pub(crate) struct PageInner {
     /// `page.addLocatorHandler` registrations, and whether they run now.
     pub(crate) locator_handlers: Mutex<Vec<crate::application::webkit_page_more::LocatorHandler>>,
     pub(crate) handling_locator: AtomicBool,
+    /// `page.exposeFunction` / `exposeBinding`.
+    pub(crate) bindings: crate::application::webkit_binding::Bindings,
     /// Dedicated workers by worker id.
     pub(crate) workers: Mutex<HashMap<String, crate::application::webkit_worker::Worker>>,
     /// Open WebSockets by request id.
@@ -818,6 +824,7 @@ impl Page {
             | "Worker.dispatchMessageFromWorker" => self.on_worker_event(target, method, p),
             m if m.starts_with("Network.webSocket") => self.on_websocket_event(method, p),
             "Page.fileChooserOpened" => self.on_file_chooser(p),
+            "Runtime.bindingCalled" => self.on_binding_called(p),
             "Network.requestIntercepted" => self.on_request_intercepted(target, p),
             "Network.requestWillBeSent"
             | "Network.responseReceived"
@@ -913,6 +920,10 @@ impl Page {
         ));
         steps.push(call("Network.enable", json!({})));
         steps.push(call("Worker.enable", json!({})));
+        steps.push(call(
+            "Runtime.addBinding",
+            json!({"name": crate::application::webkit_binding::BINDING}),
+        ));
         steps.push(call(
             "Page.setInterceptFileChooserDialog",
             json!({"enabled": true}),
