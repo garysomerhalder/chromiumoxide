@@ -249,3 +249,94 @@ async fn firefox_locators_act_on_elements() {
     );
     browser.close().await.unwrap();
 }
+
+/// Navigation and waits: url (tracked from BiDi events, also for
+/// navigations the page starts), content, reload, back/forward,
+/// wait_for_function, wait_for_timeout and locator.wait_for.
+#[tokio::test]
+async fn firefox_navigates_and_waits() {
+    use chromiumoxide::WaitForState;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route(
+        "/one.html",
+        "text/html",
+        "<title>one</title><a href='/two.html'>next</a>",
+        0,
+    );
+    server.route(
+        "/two.html",
+        "text/html",
+        "<title>two</title><p>second</p>",
+        0,
+    );
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.goto(&server.url("/one.html")).await.unwrap();
+    assert!(page.url().ends_with("/one.html"), "{}", page.url());
+    assert!(page.content().await.unwrap().contains("<title>one</title>"));
+
+    // A navigation the page starts itself.
+    page.locator("a").click().await.unwrap();
+    page.wait_for_function("document.title === 'two'")
+        .await
+        .unwrap();
+    assert!(page.url().ends_with("/two.html"), "{}", page.url());
+
+    page.go_back().await.unwrap();
+    page.wait_for_function("document.title === 'one'")
+        .await
+        .unwrap();
+    assert!(page.url().ends_with("/one.html"), "{}", page.url());
+    page.go_forward().await.unwrap();
+    page.wait_for_function("document.title === 'two'")
+        .await
+        .unwrap();
+
+    page.evaluate::<()>("document.body.dataset.mark = 'x'")
+        .await
+        .unwrap();
+    page.reload().await.unwrap();
+    assert_eq!(
+        page.evaluate::<Option<String>>("document.body.dataset.mark ?? null")
+            .await
+            .unwrap(),
+        None
+    );
+
+    // wait_for_function returns the first truthy value.
+    page.evaluate::<()>("setTimeout(() => { window.answer = 42 }, 200)")
+        .await
+        .unwrap();
+    let v = page.wait_for_function("window.answer").await.unwrap();
+    assert_eq!(v, serde_json::json!(42));
+    page.wait_for_timeout(std::time::Duration::from_millis(50))
+        .await;
+
+    page.set_content(
+        "<p id=p hidden>hi</p><script>setTimeout(() => p.hidden = false, 200)</script>",
+    )
+    .await
+    .unwrap();
+    page.locator("#p")
+        .wait_for(WaitForState::Attached)
+        .await
+        .unwrap();
+    page.locator("#p")
+        .wait_for(WaitForState::Visible)
+        .await
+        .unwrap();
+    assert!(page.locator("#p").is_visible().await.unwrap());
+    page.evaluate::<()>("p.remove()").await.unwrap();
+    page.locator("#p")
+        .wait_for(WaitForState::Detached)
+        .await
+        .unwrap();
+    page.locator("#p")
+        .wait_for(WaitForState::Hidden)
+        .await
+        .unwrap();
+    browser.close().await.unwrap();
+}
