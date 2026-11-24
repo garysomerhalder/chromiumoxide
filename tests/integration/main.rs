@@ -49,6 +49,7 @@ mod snapshots;
 mod storage;
 mod tracing;
 mod video;
+mod webkit;
 mod workers;
 
 /// Where Playwright installs browsers: `PLAYWRIGHT_BROWSERS_PATH`, the
