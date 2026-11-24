@@ -128,13 +128,36 @@ async fn devtools_browser_url(port: u16) -> Option<String> {
         )
         .await
         .ok()?;
-    let mut body = Vec::new();
-    tokio::io::AsyncReadExt::read_to_end(&mut stream, &mut body)
+    // Read up to Content-Length: WebView2 keeps the connection open.
+    let read = async {
+        let mut answer = Vec::new();
+        let mut chunk = [0u8; 4096];
+        loop {
+            let n = tokio::io::AsyncReadExt::read(&mut stream, &mut chunk)
+                .await
+                .ok()?;
+            answer.extend_from_slice(&chunk[..n]);
+            let text = String::from_utf8_lossy(&answer).into_owned();
+            if let Some((head, body)) = text.split_once("\r\n\r\n") {
+                let length = head.lines().find_map(|l| {
+                    let (name, value) = l.split_once(':')?;
+                    name.trim()
+                        .eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())?
+                });
+                if n == 0 || length.is_some_and(|len| body.len() >= len) {
+                    return Some(body.to_owned());
+                }
+            }
+            if n == 0 {
+                return None;
+            }
+        }
+    };
+    let json = tokio::time::timeout(Duration::from_secs(2), read)
         .await
-        .ok()?;
-    let text = String::from_utf8_lossy(&body);
-    let json = text.split_once("\r\n\r\n")?.1;
-    let v: serde_json::Value = serde_json::from_str(json).ok()?;
+        .ok()??;
+    let v: serde_json::Value = serde_json::from_str(&json).ok()?;
     v["webSocketDebuggerUrl"].as_str().map(str::to_owned)
 }
 
