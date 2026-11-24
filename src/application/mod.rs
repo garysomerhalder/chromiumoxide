@@ -19,6 +19,7 @@ pub mod expect;
 pub mod extras;
 pub mod filechooser;
 pub mod firefox;
+pub mod firefox_events;
 pub mod firefox_expect;
 pub mod firefox_locator;
 pub mod frame;

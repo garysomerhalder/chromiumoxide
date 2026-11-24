@@ -16,6 +16,9 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::application::actions::{ADD_STYLE, StyleTag};
+use crate::application::firefox_events::{
+    ConsoleMessage, Dialog, PageError, PageEvent, console_kind, prompt_params,
+};
 use crate::application::locator::INJECTED_SOURCE;
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
 use crate::application::services::Services;
@@ -173,7 +176,9 @@ impl Browser {
             .bidi
             .call(
                 "session.new",
-                json!({"capabilities": {"alwaysMatch": {"acceptInsecureCerts": false}}}),
+                // Prompts stay open until the page's dialog handling answers them.
+                json!({"capabilities": {"alwaysMatch": {"acceptInsecureCerts": false,
+                    "unhandledPromptBehavior": {"default": "ignore"}}}}),
             )
             .await;
         let session = match session {
@@ -186,7 +191,10 @@ impl Browser {
         };
         if let Err(e) = launched
             .bidi
-            .call("session.subscribe", json!({"events": ["browsingContext"]}))
+            .call(
+                "session.subscribe",
+                json!({"events": ["browsingContext", "log.entryAdded"]}),
+            )
             .await
         {
             launched.process.shutdown().await;
@@ -400,18 +408,27 @@ impl BrowserContext {
             viewport: Mutex::new(None),
             owned_context: Mutex::new(None),
             url: Mutex::new("about:blank".to_owned()),
+            subscribers: Mutex::new(Vec::new()),
             closed: AtomicBool::new(false),
         });
         let weak = Arc::downgrade(&inner);
         tokio::spawn(async move {
             use futures::StreamExt;
             while let Some(event) = events.next().await {
-                if event.params.get("context").and_then(Value::as_str) != Some(context.as_str()) {
+                let event_context = event
+                    .params
+                    .get("context")
+                    .or_else(|| event.params.pointer("/source/context"))
+                    .and_then(Value::as_str);
+                if event_context != Some(context.as_str()) {
                     continue;
                 }
                 let Some(page) = weak.upgrade() else {
                     break;
                 };
+                let page = Page { inner: page };
+                page.dispatch(&event.method, &event.params);
+                let page = page.inner;
                 match event.method.as_str() {
                     "browsingContext.navigationCommitted"
                     | "browsingContext.fragmentNavigated"
@@ -422,6 +439,7 @@ impl BrowserContext {
                     }
                     "browsingContext.contextDestroyed" => {
                         page.closed.store(true, Ordering::SeqCst);
+                        page.subscribers.lock().unwrap().clear();
                         break;
                     }
                     _ => {}
@@ -465,6 +483,8 @@ struct PageInner {
     owned_context: Mutex<Option<BrowserContext>>,
     /// The main frame's URL, from `browsingContext` events.
     url: Mutex<String>,
+    /// `page.events()` subscribers.
+    subscribers: Mutex<Vec<futures::channel::mpsc::UnboundedSender<PageEvent>>>,
     closed: AtomicBool,
 }
 
@@ -498,6 +518,101 @@ impl Page {
                 Error::Protocol { message, .. } => Error::Navigation(message),
                 other => other,
             })?;
+        Ok(())
+    }
+
+    /// `page.events()`: console messages, errors, dialogs, load and close
+    /// from now on. While nobody listens, dialogs are dismissed (like
+    /// Playwright with no `dialog` handler).
+    pub fn events(&self) -> impl futures::Stream<Item = PageEvent> + Send + use<> {
+        let (tx, rx) = futures::channel::mpsc::unbounded();
+        self.inner.subscribers.lock().unwrap().push(tx);
+        rx
+    }
+
+    /// Sends an event to the live subscribers; false when there are none.
+    fn emit(&self, event: PageEvent) -> bool {
+        let mut subs = self.inner.subscribers.lock().unwrap();
+        subs.retain(|s| s.unbounded_send(event.clone()).is_ok());
+        !subs.is_empty()
+    }
+
+    /// Turns one BiDi event for this page into page events.
+    fn dispatch(&self, method: &str, p: &Value) {
+        let text = |k: &str| {
+            p.get(k)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned()
+        };
+        match method {
+            "log.entryAdded" if p["type"] == "console" => {
+                self.emit(PageEvent::Console(ConsoleMessage {
+                    kind: console_kind(p["method"].as_str().unwrap_or("log")),
+                    text: text("text"),
+                }));
+            }
+            "log.entryAdded" if p["type"] == "javascript" => {
+                let stack = p
+                    .pointer("/stackTrace/callFrames")
+                    .and_then(Value::as_array)
+                    .map(|frames| {
+                        frames
+                            .iter()
+                            .map(|f| {
+                                format!(
+                                    "    at {} ({}:{}:{})",
+                                    f["functionName"].as_str().unwrap_or_default(),
+                                    f["url"].as_str().unwrap_or_default(),
+                                    f["lineNumber"].as_i64().unwrap_or_default() + 1,
+                                    f["columnNumber"].as_i64().unwrap_or_default() + 1
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    })
+                    .unwrap_or_default();
+                self.emit(PageEvent::PageError(PageError::from_text(
+                    &text("text"),
+                    stack,
+                )));
+            }
+            "browsingContext.userPromptOpened" => {
+                let dialog = Dialog {
+                    page: self.clone(),
+                    kind: text("type"),
+                    message: text("message"),
+                    default_value: text("defaultValue"),
+                };
+                if !self.emit(PageEvent::Dialog(dialog)) {
+                    let page = self.clone();
+                    tokio::spawn(async move {
+                        let _ = page.handle_user_prompt(false, None).await;
+                    });
+                }
+            }
+            "browsingContext.domContentLoaded" => {
+                self.emit(PageEvent::DomContentLoaded);
+            }
+            "browsingContext.load" => {
+                self.emit(PageEvent::Load);
+            }
+            "browsingContext.contextDestroyed" => {
+                self.emit(PageEvent::Close);
+            }
+            _ => {}
+        }
+    }
+
+    /// Accepts or dismisses the open dialog.
+    pub(crate) async fn handle_user_prompt(&self, accept: bool, text: Option<&str>) -> Result<()> {
+        self.inner
+            .bidi
+            .call(
+                "browsingContext.handleUserPrompt",
+                prompt_params(&self.inner.context, accept, text),
+            )
+            .await?;
         Ok(())
     }
 
