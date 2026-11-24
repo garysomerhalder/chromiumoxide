@@ -69,6 +69,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn relative_frames_are_resolved_against_the_working_directory() {
+        let cwd = std::path::Path::new("/w");
+        assert_eq!(resolve_frame_file("./tests/a.rs", Some(cwd)), "/w/tests/a.rs");
+        assert_eq!(resolve_frame_file(".\\tests\\a.rs", Some(cwd)), "/w/tests/a.rs");
+        assert_eq!(resolve_frame_file("tests\\a.rs", Some(cwd)), "/w/tests/a.rs");
+        assert_eq!(resolve_frame_file("tests/a.rs", Some(cwd)), "/w/tests/a.rs");
+        // Absolute paths stay as they are.
+        assert_eq!(resolve_frame_file("/rustc/x/lib.rs", Some(cwd)), "/rustc/x/lib.rs");
+        assert_eq!(resolve_frame_file("C:\\u\\a.rs", Some(cwd)), "C:\\u\\a.rs");
+        assert_eq!(resolve_frame_file("\\\\server\\a.rs", Some(cwd)), "\\\\server\\a.rs");
+        assert_eq!(resolve_frame_file("./a.rs", None), "./a.rs");
+    }
+
+    #[test]
     fn matching_follows_playwright() {
         let site = SourceLocation {
             file: "/w/tests/main.rs".into(),
