@@ -58,7 +58,10 @@ pub fn resolve_frame_file(file: &str, cwd: Option<&std::path::Path>) -> String {
                 .or_else(|| file.strip_prefix(".\\"))
                 .unwrap_or(file)
                 .replace('\\', "/");
-            cwd.join(rel).to_string_lossy().into_owned()
+            // Joined by hand: `Path::join` would put `\` before `rel` on
+            // Windows.
+            let cwd = cwd.to_string_lossy();
+            format!("{}/{rel}", cwd.trim_end_matches(['/', '\\']))
         }
         _ => file.to_owned(),
     }
