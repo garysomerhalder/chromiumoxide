@@ -66,6 +66,52 @@ impl Browser {
         !self.inner.closed.load(Ordering::SeqCst)
     }
 
+    /// Playwright's `browser.bind()`: lets other clients
+    /// ([`Firefox::connect`](crate::Firefox::connect)) share this browser
+    /// over a local WebSocket. Firefox allows one WebDriver BiDi session, so
+    /// the clients share this one through a relay. Binding again returns
+    /// the same endpoint.
+    pub async fn bind(&self) -> Result<String> {
+        self.bind_with(crate::application::browser::BindOptions::default())
+            .await
+    }
+
+    /// `browser.bind(title, { host, port })`: like [`bind`](Self::bind),
+    /// listening on `host:port`.
+    pub async fn bind_with(
+        &self,
+        options: crate::application::browser::BindOptions,
+    ) -> Result<String> {
+        if let Some(b) = self.inner.bridge.lock().unwrap().as_ref() {
+            return Ok(b.endpoint());
+        }
+        let bound = self
+            .inner
+            .services
+            .bidi_bridge
+            .serve(
+                self.inner.bidi.clone(),
+                crate::ports::BridgeAddress {
+                    host: options.host.clone(),
+                    port: options.port,
+                    path: None,
+                },
+                self.inner.capabilities.clone(),
+            )
+            .await?;
+        let endpoint = bound.endpoint();
+        *self.inner.bridge.lock().unwrap() = Some(bound);
+        Ok(endpoint)
+    }
+
+    /// `browser.unbind()`: stops serving other clients.
+    pub async fn unbind(&self) -> Result<()> {
+        if let Some(b) = self.inner.bridge.lock().unwrap().take() {
+            b.stop();
+        }
+        Ok(())
+    }
+
     /// `browser.newBrowserCDPSession()`: Chromium only.
     pub async fn new_browser_cdp_session(&self) -> Result<()> {
         Err(chromium_only("browser.newBrowserCDPSession()"))

@@ -31,6 +31,18 @@ pub trait CdpBridge: Send + Sync {
     fn is_listening(&self, endpoint: &str) -> BoxFuture<'static, bool>;
 }
 
+/// Starts serving a WebDriver BiDi connection: a client's `session.new`
+/// is answered with the shared session (`capabilities`), its other
+/// commands go through the connection, and every event is forwarded.
+pub trait BidiBridge: Send + Sync {
+    fn serve(
+        &self,
+        bidi: Arc<dyn crate::ports::BidiSession>,
+        address: BridgeAddress,
+        capabilities: serde_json::Value,
+    ) -> BoxFuture<'static, io::Result<Box<dyn BoundBridge>>>;
+}
+
 /// A running bridge.
 pub trait BoundBridge: Send + Sync {
     /// The WebSocket URL clients connect to.

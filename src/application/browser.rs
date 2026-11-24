@@ -990,6 +990,7 @@ mod tests {
             video: Arc::new(crate::testing::memory::NullVideo),
             http: Arc::new(crate::testing::memory::NoHttp),
             bridge: Arc::new(crate::testing::memory::NoBridge),
+            bidi_bridge: Arc::new(crate::testing::memory::NoBridge),
             signals: Arc::new(crate::testing::memory::NoSignals),
             adb: Arc::new(crate::testing::memory::NoAdb),
         };

@@ -118,7 +118,7 @@ fn find_firefox(services: &Services) -> Option<PathBuf> {
 /// Opens the BiDi session (prompts stay open until the page's dialog
 /// handling answers them) and subscribes to the engine's events; the
 /// browser version.
-async fn open_session(bidi: &Arc<dyn BidiSession>) -> Result<String> {
+async fn open_session(bidi: &Arc<dyn BidiSession>) -> Result<(String, Value)> {
     let session = bidi
         .call(
             "session.new",
@@ -133,11 +133,14 @@ async fn open_session(bidi: &Arc<dyn BidiSession>) -> Result<String> {
                            "input.fileDialogOpened"]}),
     )
     .await?;
-    Ok(session
-        .pointer("/capabilities/browserVersion")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned())
+    Ok((
+        session
+            .pointer("/capabilities/browserVersion")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned(),
+        session["capabilities"].clone(),
+    ))
 }
 
 /// A Firefox browser driven over WebDriver BiDi.
@@ -147,8 +150,8 @@ pub struct Browser {
 }
 
 pub(crate) struct BrowserInner {
-    bidi: Arc<dyn BidiSession>,
-    services: Services,
+    pub(crate) bidi: Arc<dyn BidiSession>,
+    pub(crate) services: Services,
     process: Mutex<Option<Box<dyn BrowserProcess>>>,
     /// The temporary profile (removed on close).
     profile: Option<PathBuf>,
@@ -156,6 +159,10 @@ pub(crate) struct BrowserInner {
     /// User contexts made by this client (removed when a connected
     /// browser closes).
     created: Mutex<Vec<String>>,
+    /// The session's capabilities (served to `bind()` clients).
+    pub(crate) capabilities: Value,
+    /// `browser.bind()`'s relay.
+    pub(crate) bridge: Mutex<Option<Box<dyn crate::ports::BoundBridge>>>,
     /// The contexts made through this object (`browser.contexts()`).
     pub(crate) contexts: Mutex<Vec<std::sync::Weak<ContextInner>>>,
     pub(crate) closed: AtomicBool,
@@ -230,7 +237,7 @@ impl Browser {
     /// session on a Firefox started elsewhere. `close` then removes the
     /// contexts made here and ends the session; Firefox keeps running.
     pub async fn connect(services: Services, bidi: Arc<dyn BidiSession>) -> Result<Browser> {
-        let version = match open_session(&bidi).await {
+        let (version, capabilities) = match open_session(&bidi).await {
             Ok(v) => v,
             Err(e) => {
                 bidi.disconnect();
@@ -244,6 +251,8 @@ impl Browser {
                 process: Mutex::new(None),
                 profile: None,
                 version,
+                capabilities,
+                bridge: Mutex::new(None),
                 created: Mutex::new(Vec::new()),
                 contexts: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
@@ -310,7 +319,7 @@ impl Browser {
                 return Err(e);
             }
         };
-        let version = match open_session(&launched.bidi).await {
+        let (version, capabilities) = match open_session(&launched.bidi).await {
             Ok(v) => v,
             Err(e) => {
                 launched.process.shutdown().await;
@@ -325,6 +334,8 @@ impl Browser {
                 process: Mutex::new(Some(launched.process)),
                 profile: (!keep_profile).then_some(profile),
                 version,
+                capabilities,
+                bridge: Mutex::new(None),
                 created: Mutex::new(Vec::new()),
                 contexts: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),

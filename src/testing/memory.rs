@@ -175,6 +175,17 @@ impl crate::ports::CdpBridge for NoBridge {
     }
 }
 
+impl crate::ports::BidiBridge for NoBridge {
+    fn serve(
+        &self,
+        _bidi: std::sync::Arc<dyn crate::ports::BidiSession>,
+        _address: crate::ports::BridgeAddress,
+        _capabilities: serde_json::Value,
+    ) -> futures::future::BoxFuture<'static, io::Result<Box<dyn crate::ports::BoundBridge>>> {
+        Box::pin(async { Err(io::Error::other("no network in unit tests")) })
+    }
+}
+
 /// Signals that never arrive.
 pub struct NoSignals;
 

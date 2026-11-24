@@ -2,6 +2,7 @@
 
 pub mod adb;
 pub mod bidi;
+pub mod bidi_bridge;
 pub mod cdp;
 pub mod clock;
 pub mod electron;

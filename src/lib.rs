@@ -345,6 +345,7 @@ impl Chromium {
             video: Arc::new(adapters::video::FfmpegEncoder),
             http: Arc::new(adapters::http::TcpHttpClient),
             bridge: Arc::new(adapters::cdp::bridge::WsBridge),
+            bidi_bridge: Arc::new(adapters::bidi_bridge::WsBidiBridge),
             signals: Arc::new(adapters::signals::OsSignals),
             adb: Arc::new(adapters::adb::TcpAdb),
         }

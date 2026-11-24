@@ -15,7 +15,7 @@ pub mod video;
 pub mod webkit;
 
 pub use bidi::BidiSession;
-pub use bridge::{BoundBridge, BridgeAddress, CdpBridge};
+pub use bridge::{BidiBridge, BoundBridge, BridgeAddress, CdpBridge};
 pub use cdp::{CdpSession, EventStream, RawEvent};
 pub use clock::Clock;
 pub use env::Environment;
