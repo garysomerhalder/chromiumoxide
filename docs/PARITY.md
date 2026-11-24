@@ -1292,7 +1292,8 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 | `page.events()`: console, pageerror, dialog (accept/dismiss; dismissed with no listener), load, domcontentloaded, close | ✅ | `webkit_history_cookies_scripts_and_events` |
 | `page.route` (fulfill, continue, abort; newest handler first), `unroute`, `unrouteAll` (`Network.addInterception`, as `WKRouteImpl`) | ✅ | `webkit_routes_requests` |
 | `page.events()` request, response, requestfinished, requestfailed | ✅ | `webkit_network_events` |
-| Context routes, frames, `expect`, recording (video, trace, HAR) | ⬜ | Next, as for Firefox |
+| `context.route`, `unroute`, `unrouteAll` (page routes first) | ✅ | `webkit_context_routes` |
+| Frames, `expect`, recording (video, trace, HAR) | ⬜ | Next, as for Firefox |
 
 ## 15. Tauri (M14)
 
@@ -1301,6 +1302,6 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 
 | System | How | Status |
 |---|---|---|
-| Windows | WebView2 over CDP: the app passes `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` on to its WebView2 arguments (Tauri sets its own, and WebView2 then ignores the variable); each window is a Chromium `Page` | ✅ see the goal for the Windows run |
+| Windows | WebView2 over CDP: the app passes `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` on to its WebView2 arguments (Tauri sets its own, and WebView2 then ignores the variable); each window is a Chromium `Page` | ✅ `tauri_window_runs_the_page_api` (Windows 11, WebView2 158) |
 | Linux | WebKitGTK through `WebKitWebDriver` (`webkit2gtk-driver`), with `TAURI_WEBVIEW_AUTOMATION=true` like `tauri-driver`; goto, title, evaluate, waits, screenshot, CSS locators (click, inner text) | ✅ `tauri_window_runs_the_page_api` (Xvfb) |
 | macOS | ❌ WKWebView has no WebDriver or DevTools interface for embedding apps (Tauri's `tauri-driver` has no macOS support either) | error naming the reason |

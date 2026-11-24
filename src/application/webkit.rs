@@ -207,6 +207,7 @@ impl Browser {
                 options: Arc::new(options),
                 init_scripts: Mutex::new(Vec::new()),
                 pages: Mutex::new(Vec::new()),
+                routes: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
             }),
         };
@@ -259,6 +260,8 @@ pub(crate) struct ContextInner {
     pub(crate) init_scripts: Mutex<Vec<String>>,
     /// The context's pages (to update their bootstrap script).
     pub(crate) pages: Mutex<Vec<std::sync::Weak<PageInner>>>,
+    /// `context.route` handlers, oldest first.
+    pub(crate) routes: Mutex<Vec<crate::application::webkit_route::RouteEntry>>,
     closed: AtomicBool,
 }
 
@@ -360,6 +363,7 @@ impl BrowserContext {
             subscribers: Mutex::new(Vec::new()),
             last_console: Mutex::new(None),
             routes: Mutex::new(Vec::new()),
+            intercepting: Mutex::new(std::collections::HashSet::new()),
             requests: Mutex::new(HashMap::new()),
             closed: AtomicBool::new(false),
         });
@@ -442,6 +446,8 @@ pub(crate) struct PageInner {
     pub(crate) last_console: Mutex<Option<(ConsoleMessage, u64)>>,
     /// `page.route` handlers, oldest first.
     pub(crate) routes: Mutex<Vec<crate::application::webkit_route::RouteEntry>>,
+    /// Targets with request interception on.
+    pub(crate) intercepting: Mutex<std::collections::HashSet<String>>,
     /// Requests in flight, by request id (for network events).
     pub(crate) requests: Mutex<HashMap<String, crate::application::firefox_route::Request>>,
     closed: AtomicBool,

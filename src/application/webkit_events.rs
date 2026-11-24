@@ -349,6 +349,17 @@ impl Page {
 }
 
 impl BrowserContext {
+    /// The context's open pages.
+    pub(crate) fn live_pages(&self) -> Vec<Page> {
+        let mut pages = self.inner.pages.lock().unwrap();
+        pages.retain(|p| p.strong_count() > 0);
+        pages
+            .iter()
+            .filter_map(|p| p.upgrade())
+            .map(|inner| Page { inner })
+            .collect()
+    }
+
     /// `context.cookies()`.
     pub async fn cookies(&self) -> Result<Vec<Cookie>> {
         self.cookies_for(&[]).await
@@ -405,16 +416,7 @@ impl BrowserContext {
             .lock()
             .unwrap()
             .push(source.to_owned());
-        let pages: Vec<Page> = {
-            let mut pages = self.inner.pages.lock().unwrap();
-            pages.retain(|p| p.strong_count() > 0);
-            pages
-                .iter()
-                .filter_map(|p| p.upgrade())
-                .map(|inner| Page { inner })
-                .collect()
-        };
-        for page in pages {
+        for page in self.live_pages() {
             page.update_bootstrap_script().await?;
         }
         Ok(())

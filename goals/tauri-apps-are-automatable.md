@@ -51,11 +51,11 @@ Out:
 
 ## Done when
 
-- [ ] A Tauri app's window runs `goto`, `evaluate`, a locator click and a screenshot on Windows CI.
-- [ ] The same test passes on Linux (WebKitGTK).
+- [x] A Tauri app's window runs `goto`, `evaluate`, a locator click and a screenshot on Windows CI.
+- [x] The same test passes on Linux (WebKitGTK).
 - [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass, locally and in CI.
-- [ ] `docs/PARITY.md` lists Tauri support per platform (macOS as not possible, with the reason).
-- [ ] `CHANGELOG.md` has the entry and a draft PR is open.
+- [x] `docs/PARITY.md` lists Tauri support per platform (macOS as not possible, with the reason).
+- [x] `CHANGELOG.md` has the entry and a draft PR is open.
 
 ## Stop rule
 
@@ -73,6 +73,11 @@ Linux path if the WebKit goal is not met yet.
   `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` (and the per-app policy key), so
   the app has to pass the variable on itself (the test app does). The
   Windows CI runner is Gary's PC (GitHub skipped at his request).
+- 2026-11-24: `tauri_window_runs_the_page_api` passes on Gary's PC
+  (WebView2 158). Two fixes on the way: WebView2's DevTools answers
+  `/json/version` only over HTTP/1.1, and keeps the connection open, so
+  the answer is read up to its Content-Length. Left: the full suite on
+  Windows once more.
 
 ## Set it
 

@@ -56,46 +56,38 @@ impl Page {
         self.check_open()?;
         let matcher = url.into();
         let handler: Handler = Arc::new(move |route| handler(route).boxed());
-        let first = {
-            let mut routes = self.inner.routes.lock().unwrap();
-            routes.push(RouteEntry {
-                key: matcher_key(&matcher),
-                matcher,
-                handler,
-            });
-            routes.len() == 1
-        };
-        if first {
-            let target = self.target();
-            interception(self, &target, true).await?;
-        }
-        Ok(())
+        self.inner.routes.lock().unwrap().push(RouteEntry {
+            key: matcher_key(&matcher),
+            matcher,
+            handler,
+        });
+        let target = self.target();
+        interception(self, &target, true).await
     }
 
     /// `page.unroute(url)`: removes the handlers registered for `url`.
     pub async fn unroute(&self, url: impl Into<UrlMatcher>) -> Result<()> {
         let key = matcher_key(&url.into());
-        let empty = {
-            let mut routes = self.inner.routes.lock().unwrap();
-            routes.retain(|e| e.key != key);
-            routes.is_empty()
-        };
-        if empty {
-            let target = self.target();
-            interception(self, &target, false).await?;
-        }
-        Ok(())
+        self.inner.routes.lock().unwrap().retain(|e| e.key != key);
+        let target = self.target();
+        interception(self, &target, self.has_routes()).await
     }
 
     /// `page.unrouteAll()`.
     pub async fn unroute_all(&self) -> Result<()> {
         self.inner.routes.lock().unwrap().clear();
         let target = self.target();
-        interception(self, &target, false).await
+        interception(self, &target, self.has_routes()).await
     }
 
+    /// Whether the page or its context has routes.
     pub(crate) fn has_routes(&self) -> bool {
         !self.inner.routes.lock().unwrap().is_empty()
+            || self
+                .inner
+                .context
+                .upgrade()
+                .is_some_and(|c| !c.routes.lock().unwrap().is_empty())
     }
 
     /// `Network.requestIntercepted`: to the newest matching handler, else
@@ -104,15 +96,19 @@ impl Page {
         let id = p["requestId"].as_str().unwrap_or_default().to_owned();
         let r = &p["request"];
         let url = r["url"].as_str().unwrap_or_default().to_owned();
-        let handler = self
-            .inner
-            .routes
-            .lock()
-            .unwrap()
-            .iter()
-            .rev()
-            .find(|e| e.matcher.matches(&url))
-            .map(|e| e.handler.clone());
+        let newest = |routes: &[RouteEntry]| {
+            routes
+                .iter()
+                .rev()
+                .find(|e| e.matcher.matches(&url))
+                .map(|e| e.handler.clone())
+        };
+        let handler = newest(&self.inner.routes.lock().unwrap()).or_else(|| {
+            self.inner
+                .context
+                .upgrade()
+                .and_then(|c| newest(&c.routes.lock().unwrap()))
+        });
         let route = Route {
             page: self.clone(),
             target: target.to_owned(),
@@ -152,6 +148,17 @@ impl Page {
 
 /// Turns request interception on or off for a page target.
 pub(crate) async fn interception(page: &Page, target: &str, enabled: bool) -> Result<()> {
+    {
+        let mut on = page.inner.intercepting.lock().unwrap();
+        if on.contains(target) == enabled {
+            return Ok(());
+        }
+        if enabled {
+            on.insert(target.to_owned());
+        } else {
+            on.remove(target);
+        }
+    }
     let wk = &page.inner.wk;
     let proxy = &page.inner.proxy;
     wk.call_target(
@@ -179,21 +186,41 @@ pub(crate) async fn interception(page: &Page, target: &str, enabled: bool) -> Re
 impl crate::application::webkit::BrowserContext {
     /// `context.route(url, handler)`: for every page of this context, also
     /// pages opened later; page routes run before the context's.
-    pub async fn route<F, Fut>(&self, _url: impl Into<UrlMatcher>, _handler: F) -> Result<()>
+    pub async fn route<F, Fut>(&self, url: impl Into<UrlMatcher>, handler: F) -> Result<()>
     where
         F: Fn(Route) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        Err(Error::InvalidArgument(
-            "not implemented on WebKit yet".into(),
-        ))
+        let matcher = url.into();
+        let handler: Handler = Arc::new(move |route| handler(route).boxed());
+        self.inner.routes.lock().unwrap().push(RouteEntry {
+            key: matcher_key(&matcher),
+            matcher,
+            handler,
+        });
+        self.refresh_interception().await
     }
 
     /// `context.unroute(url)`.
-    pub async fn unroute(&self, _url: impl Into<UrlMatcher>) -> Result<()> {
-        Err(Error::InvalidArgument(
-            "not implemented on WebKit yet".into(),
-        ))
+    pub async fn unroute(&self, url: impl Into<UrlMatcher>) -> Result<()> {
+        let key = matcher_key(&url.into());
+        self.inner.routes.lock().unwrap().retain(|e| e.key != key);
+        self.refresh_interception().await
+    }
+
+    /// `context.unrouteAll()`.
+    pub async fn unroute_all(&self) -> Result<()> {
+        self.inner.routes.lock().unwrap().clear();
+        self.refresh_interception().await
+    }
+
+    /// Turns interception on or off on each page as its routes say.
+    async fn refresh_interception(&self) -> Result<()> {
+        for page in self.live_pages() {
+            let target = page.target();
+            interception(&page, &target, page.has_routes()).await?;
+        }
+        Ok(())
     }
 }
 
