@@ -2873,3 +2873,63 @@ async fn firefox_aria_snapshots_and_refs() {
     assert_eq!(page.get_by_ref(&go).inner_text().await.unwrap(), "Go");
     browser.close().await.unwrap();
 }
+
+/// Firefox: Playwright's clock (fake timers) on a context and its pages.
+#[tokio::test]
+async fn firefox_clock_controls_time() {
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    page.set_content("<p>t</p>").await.unwrap();
+    let clock = page.clock();
+    clock
+        .install(Some("2024-01-01T00:00:00Z".into()))
+        .await
+        .unwrap();
+    assert_eq!(
+        page.evaluate::<String>("new Date().toISOString().slice(0, 10)")
+            .await
+            .unwrap(),
+        "2024-01-01"
+    );
+    page.evaluate::<()>("window.fired = 0; setTimeout(() => window.fired++, 5000)")
+        .await
+        .unwrap();
+    clock.run_for(1000).await.unwrap();
+    assert_eq!(page.evaluate::<i64>("window.fired").await.unwrap(), 0);
+    clock.fast_forward(5000).await.unwrap();
+    assert_eq!(page.evaluate::<i64>("window.fired").await.unwrap(), 1);
+    clock.pause_at("2024-02-01T00:00:00Z").await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("new Date().toISOString().slice(0, 7)")
+            .await
+            .unwrap(),
+        "2024-02"
+    );
+    clock.resume().await.unwrap();
+    clock.set_fixed_time("2030-05-05T00:00:00Z").await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("new Date().toISOString().slice(0, 10)")
+            .await
+            .unwrap(),
+        "2030-05-05"
+    );
+    context
+        .clock()
+        .set_system_time("2031-01-01T00:00:00Z")
+        .await
+        .unwrap();
+    // A new page in the context gets the same clock.
+    let other = context.new_page().await.unwrap();
+    other.set_content("<p>o</p>").await.unwrap();
+    assert!(
+        other
+            .evaluate::<bool>("!!globalThis.__pwClock")
+            .await
+            .unwrap()
+    );
+    browser.close().await.unwrap();
+}
