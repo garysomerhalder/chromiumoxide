@@ -851,7 +851,7 @@ async fn webkit_js_and_element_handles() {
     assert_eq!(h.json_value().await.unwrap(), "");
     let nav = frame.wait_for_navigation();
     frame
-        .evaluate::<()>("void (location.href = 'about:blank#next')")
+        .evaluate::<()>("void setTimeout(() => location.href = 'about:blank#next')")
         .await
         .unwrap();
     nav.await.unwrap();

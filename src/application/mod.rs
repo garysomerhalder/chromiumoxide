@@ -74,6 +74,7 @@ pub mod webkit;
 pub mod webkit_events;
 pub mod webkit_expect;
 pub mod webkit_frame;
+pub mod webkit_handle;
 pub mod webkit_locator;
 pub mod webkit_locator_more;
 pub mod webkit_network;

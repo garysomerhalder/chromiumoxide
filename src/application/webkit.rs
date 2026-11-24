@@ -454,6 +454,7 @@ impl BrowserContext {
             picking: AtomicBool::new(false),
             extra_headers: Mutex::new(Vec::new()),
             media: Mutex::new(Default::default()),
+            globals: Mutex::new(HashMap::new()),
             closed: AtomicBool::new(false),
         });
         self.inner
@@ -660,6 +661,8 @@ pub(crate) struct PageInner {
     pub(crate) extra_headers: Mutex<Vec<(String, String)>>,
     /// `page.emulateMedia` overrides.
     pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
+    /// Global objects by execution context id (`run_in`).
+    pub(crate) globals: Mutex<HashMap<i64, String>>,
     closed: AtomicBool,
 }
 
@@ -1112,6 +1115,28 @@ impl Page {
         if utility { w.1 } else { w.0 }
     }
 
+    /// A remote object for the global object of execution context `id`
+    /// (cached per context).
+    async fn global_object(&self, id: i64) -> Option<String> {
+        if let Some(g) = self.inner.globals.lock().unwrap().get(&id) {
+            return Some(g.clone());
+        }
+        let r = self
+            .target_call(
+                "Runtime.evaluate",
+                json!({"expression": "globalThis", "contextId": id, "returnByValue": false}),
+            )
+            .await
+            .ok()?;
+        let g = r["result"]["objectId"].as_str()?.to_owned();
+        let mut globals = self.inner.globals.lock().unwrap();
+        if globals.len() > 256 {
+            globals.clear();
+        }
+        globals.insert(id, g.clone());
+        Some(g)
+    }
+
     /// Runs `expression` in a frame (`None`: the main frame), in its main
     /// world or the utility world, and awaits it when it is a promise; the
     /// remote object of the result.
@@ -1126,6 +1151,31 @@ impl Page {
             return Err(Error::TargetClosed(
                 "the frame has no execution context".into(),
             ));
+        }
+        // On the context's global object, so a promise is awaited in the
+        // same command (a navigation right after cannot lose it).
+        if let Some(id) = context
+            && let Some(global) = self.global_object(id).await
+        {
+            let r = self
+                .target_call(
+                    "Runtime.callFunctionOn",
+                    json!({"objectId": global,
+                           "functionDeclaration": format!("function() {{ return (\n{expression}\n); }}"),
+                           "returnByValue": false, "awaitPromise": true,
+                           "emulateUserGesture": true}),
+                )
+                .await?;
+            if r["wasThrown"].as_bool() == Some(true) {
+                return Err(Error::Evaluation(
+                    r["result"]["description"]
+                        .as_str()
+                        .unwrap_or("exception")
+                        .to_owned(),
+                ));
+            }
+            let result = r["result"].clone();
+            return Ok(result);
         }
         let mut params = json!({"expression": expression, "returnByValue": false,
                                 "emulateUserGesture": true});
@@ -1465,7 +1515,9 @@ impl Page {
         let options = json!({
             "isUnderTest": false, "sdkLanguage": "javascript", "frameSeq": 0,
             "testIdAttributeName": "data-testid", "stableRafCount": 1, "browserName": "webkit",
-            "isUtilityWorld": true, "customEngines": [],
+            "isUtilityWorld": true,
+            "customEngines": [{"name": "chromiumoxide-handle",
+                               "source": crate::application::locator::HANDLE_ENGINE}],
         });
         let install = format!(
             "(() => {{ if (globalThis.{INJECTED}) return; const module = {{}};\n{}\n\
