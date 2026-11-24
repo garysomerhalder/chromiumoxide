@@ -23,6 +23,7 @@ use serde_json::{Value, json};
 use tokio::sync::watch;
 
 use crate::application::actions::{ADD_STYLE, StyleTag};
+use crate::application::firefox_download::Download;
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
 use crate::application::services::Services;
 use crate::application::webkit_events::{ConsoleMessage, PageEvent};
@@ -200,6 +201,16 @@ impl Browser {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
+        let downloads_dir = if options.accept_downloads {
+            Some(
+                self.inner
+                    .services
+                    .fs
+                    .create_temp_dir("chromiumoxide-webkit-downloads-")?,
+            )
+        } else {
+            None
+        };
         let context = BrowserContext {
             inner: Arc::new(ContextInner {
                 browser: self.clone(),
@@ -208,6 +219,7 @@ impl Browser {
                 init_scripts: Mutex::new(Vec::new()),
                 pages: Mutex::new(Vec::new()),
                 routes: Mutex::new(Vec::new()),
+                downloads_dir,
                 closed: AtomicBool::new(false),
             }),
         };
@@ -263,6 +275,8 @@ pub(crate) struct ContextInner {
     pub(crate) pages: Mutex<Vec<std::sync::Weak<PageInner>>>,
     /// `context.route` handlers, oldest first.
     pub(crate) routes: Mutex<Vec<crate::application::webkit_route::RouteEntry>>,
+    /// Where WebKit saves downloads (named by uuid), when accepted.
+    downloads_dir: Option<PathBuf>,
     closed: AtomicBool,
 }
 
@@ -284,12 +298,13 @@ impl BrowserContext {
         let o = &self.inner.options;
         let id = &self.inner.id;
         let wk = self.wk();
-        wk.call(
-            None,
-            "Playwright.setDownloadBehavior",
-            json!({"behavior": "deny", "browserContextId": id}),
-        )
-        .await?;
+        let behavior = match &self.inner.downloads_dir {
+            Some(dir) => json!({"behavior": "allow", "downloadPath": dir.display().to_string(),
+                                "browserContextId": id}),
+            None => json!({"behavior": "deny", "browserContextId": id}),
+        };
+        wk.call(None, "Playwright.setDownloadBehavior", behavior)
+            .await?;
         if o.ignore_https_errors {
             wk.call(
                 None,
@@ -408,12 +423,54 @@ impl BrowserContext {
                 String,
                 futures::channel::mpsc::UnboundedSender<Arc<crate::ports::RawEvent>>,
             > = HashMap::new();
+            // Downloads by uuid: (page proxy, url), then the download.
+            let mut started: HashMap<String, (String, String)> = HashMap::new();
+            let mut downloads: HashMap<String, Download> = HashMap::new();
             while let Some(event) = events.next().await {
                 let Some(inner) = context.upgrade() else {
                     break;
                 };
                 let context = BrowserContext { inner };
                 let p = &event.params;
+                if event.session_id.is_none() && event.method.starts_with("Playwright.download") {
+                    let s = |k: &str| p[k].as_str().unwrap_or_default().to_owned();
+                    match event.method.as_str() {
+                        "Playwright.downloadCreated" => {
+                            started.insert(s("uuid"), (s("pageProxyId"), s("url")));
+                        }
+                        "Playwright.downloadFilenameSuggested" => {
+                            if let Some((proxy, url)) = started.remove(&s("uuid")) {
+                                let page = context
+                                    .live_pages()
+                                    .into_iter()
+                                    .find(|p| p.inner.proxy == proxy);
+                                if let Some(page) = page {
+                                    let download = Download::new(
+                                        url,
+                                        s("suggestedFilename"),
+                                        context.inner.browser.inner.services.clone(),
+                                    );
+                                    downloads.insert(s("uuid"), download.clone());
+                                    page.emit(PageEvent::Download(download));
+                                }
+                            }
+                        }
+                        "Playwright.downloadFinished" => {
+                            if let Some(download) = downloads.remove(&s("uuid")) {
+                                let error = s("error");
+                                download.finish(match &context.inner.downloads_dir {
+                                    Some(dir) if error.is_empty() => Ok(dir.join(s("uuid"))),
+                                    _ if error.is_empty() => {
+                                        Err("downloads are not accepted".into())
+                                    }
+                                    _ => Err(error),
+                                });
+                            }
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
                 if event.session_id.is_none() && event.method == "Playwright.pageProxyCreated" {
                     let ours = p["browserContextId"].as_str() == Some(context.inner.id.as_str());
                     if let (true, Some(proxy), Some(opener)) =
@@ -463,6 +520,15 @@ impl BrowserContext {
             )
             .await?;
         Ok(())
+    }
+}
+
+impl Drop for ContextInner {
+    /// The downloads go with the context, as in Playwright.
+    fn drop(&mut self) {
+        if let Some(dir) = &self.downloads_dir {
+            let _ = self.browser.inner.services.fs.remove_dir_all(dir);
+        }
     }
 }
 

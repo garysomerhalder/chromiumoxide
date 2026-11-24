@@ -1296,7 +1296,8 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 | `expect(locator)` (`toHaveText`, `toContainText`, `toHaveAttribute`, `toHaveClass`, `toContainClass`, `toHaveCount`, `toHaveCSS`, `toHaveId`, `toHaveRole`, `toHaveValue`, `toBe*` states, `.not`, timeout) and `expect(page)` (`toHaveTitle`, `toHaveURL`), with Playwright's messages | ✅ | `webkit_expect_assertions` |
 | `page.frameLocator` (nested too; reads, actions, `expect`, clicks offset to the frame), `page.frames()` with `url` and `evaluate` | ✅ | `webkit_frames` |
 | `PageEvent::Popup` (`window.open`, `target=_blank`): a working page | ✅ | `webkit_popups` |
-| Recording (video, trace, HAR), downloads, workers | ⬜ | Next, as for Firefox |
+| `PageEvent::Download` (`suggested_filename`, `url`, `path`, `read`, `save_as`, `failure`); `acceptDownloads` | ✅ | `webkit_downloads` |
+| Recording (video, trace, HAR), workers | ⬜ | Next, as for Firefox |
 
 ## 15. Tauri (M14)
 
