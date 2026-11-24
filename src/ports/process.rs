@@ -62,6 +62,17 @@ pub trait BrowserLauncher: Send + Sync {
         })
     }
 
+    /// Starts a Tauri app with its web view's DevTools open (Windows:
+    /// WebView2's `--remote-debugging-port`) and connects to them.
+    fn launch_tauri(&self, command: TauriCommand) -> BoxFuture<'static, Result<LaunchedTauri>> {
+        let _ = command;
+        Box::pin(async {
+            Err(crate::domain::error::Error::Launch(
+                "this launcher cannot start Tauri apps".into(),
+            ))
+        })
+    }
+
     /// Starts Playwright's WebKit with `--inspector-pipe` (file descriptors
     /// 3 and 4) and connects to it.
     fn launch_webkit(&self, command: WebKitCommand) -> BoxFuture<'static, Result<LaunchedWebKit>> {
@@ -119,6 +130,23 @@ pub struct WebKitCommand {
 /// A launched WebKit with its inspector-pipe connection.
 pub struct LaunchedWebKit {
     pub session: std::sync::Arc<dyn crate::ports::WebKitSession>,
+    pub process: Box<dyn BrowserProcess>,
+}
+
+/// A Tauri app launch.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TauriCommand {
+    pub program: PathBuf,
+    pub args: Vec<String>,
+    /// Added to this process's environment.
+    pub env: Vec<(String, String)>,
+    pub timeout_ms: u64,
+}
+
+/// A launched Tauri app connected to its web view's DevTools (Windows:
+/// WebView2).
+pub struct LaunchedTauri {
+    pub browser: Arc<dyn CdpSession>,
     pub process: Box<dyn BrowserProcess>,
 }
 

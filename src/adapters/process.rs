@@ -15,7 +15,8 @@ use crate::adapters::cdp::Connection;
 use crate::domain::error::{Error, Result};
 use crate::ports::{
     BrowserLauncher, BrowserProcess, Channel, ElectronCommand, FirefoxCommand, LaunchCommand,
-    Launched, LaunchedElectron, LaunchedFirefox, LaunchedWebKit, Transport, WebKitCommand,
+    Launched, LaunchedElectron, LaunchedFirefox, LaunchedTauri, LaunchedWebKit, TauriCommand,
+    Transport, WebKitCommand,
 };
 
 /// Spawns browsers with tokio.
@@ -44,6 +45,102 @@ impl BrowserLauncher for TokioLauncher {
     fn launch_webkit(&self, command: WebKitCommand) -> BoxFuture<'static, Result<LaunchedWebKit>> {
         launch_webkit(command).boxed()
     }
+
+    fn launch_tauri(&self, command: TauriCommand) -> BoxFuture<'static, Result<LaunchedTauri>> {
+        launch_tauri(command).boxed()
+    }
+}
+
+/// Windows: a Tauri app's WebView2 gets `--remote-debugging-port` through
+/// `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`; its DevTools endpoint comes
+/// from `/json/version` on that port.
+#[cfg(windows)]
+async fn launch_tauri(command: TauriCommand) -> Result<LaunchedTauri> {
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .map_err(|e| Error::Launch(format!("cannot pick a port: {e}")))?
+        .port();
+    let mut extra = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
+    if let Some((_, v)) = command
+        .env
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"))
+    {
+        extra = v.clone();
+    }
+    let extra = format!("{extra} --remote-debugging-port={port}")
+        .trim()
+        .to_owned();
+    let mut cmd = Command::new(&command.program);
+    cmd.args(&command.args)
+        .envs(command.env.iter().cloned())
+        .env("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", extra)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    let child = cmd
+        .spawn()
+        .map_err(|e| Error::Launch(format!("{}: {e}", command.program.display())))?;
+    let pid = child.id();
+    let child = Arc::new(tokio::sync::Mutex::new(Some(child)));
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(command.timeout_ms.max(1));
+    let url = loop {
+        if let Some(url) = devtools_browser_url(port).await {
+            break url;
+        }
+        if let Some(c) = child.lock().await.as_mut()
+            && let Ok(Some(status)) = c.try_wait()
+        {
+            return Err(Error::Launch(format!("the Tauri app exited ({status})")));
+        }
+        if tokio::time::Instant::now() > deadline {
+            if let Some(mut c) = child.lock().await.take() {
+                let _ = c.kill().await;
+            }
+            return Err(Error::Timeout {
+                ms: command.timeout_ms,
+                action: "waiting for the Tauri app's WebView2 DevTools".into(),
+            });
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    let transport = crate::adapters::transport::websocket::connect(&url).await?;
+    Ok(LaunchedTauri {
+        browser: Arc::new(Connection::spawn(transport)),
+        process: Box::new(Process { child, pid }),
+    })
+}
+
+/// `webSocketDebuggerUrl` from `http://127.0.0.1:<port>/json/version`.
+#[cfg(windows)]
+async fn devtools_browser_url(port: u16) -> Option<String> {
+    use tokio::io::AsyncWriteExt;
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .ok()?;
+    stream
+        .write_all(b"GET /json/version HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n")
+        .await
+        .ok()?;
+    let mut body = Vec::new();
+    tokio::io::AsyncReadExt::read_to_end(&mut stream, &mut body)
+        .await
+        .ok()?;
+    let text = String::from_utf8_lossy(&body);
+    let json = text.split_once("\r\n\r\n")?.1;
+    let v: serde_json::Value = serde_json::from_str(json).ok()?;
+    v["webSocketDebuggerUrl"].as_str().map(str::to_owned)
+}
+
+#[cfg(not(windows))]
+async fn launch_tauri(command: TauriCommand) -> Result<LaunchedTauri> {
+    let _ = command;
+    Err(Error::Launch(
+        "Tauri apps are driven through WebView2 on Windows; Linux (WebKitGTK) is not supported yet, \
+         and macOS (WKWebView) has no automation interface"
+            .into(),
+    ))
 }
 
 /// Starts WebKit with its inspector pipe on fds 3 and 4.

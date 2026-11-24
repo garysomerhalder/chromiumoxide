@@ -170,6 +170,19 @@ impl WebKit {
     }
 }
 
+pub use crate::application::tauri::{TauriApp, TauriLaunchOptions};
+
+/// Tauri apps: on Windows their WebView2 windows are driven over CDP with
+/// the Chromium API.
+pub struct Tauri;
+
+impl Tauri {
+    /// Starts a Tauri app and connects to its web view.
+    pub async fn launch(options: TauriLaunchOptions) -> Result<TauriApp> {
+        TauriApp::launch(Chromium::services(), options).await
+    }
+}
+
 /// Playwright's `firefox`: launches Firefox, driven over WebDriver BiDi.
 pub struct Firefox;
 

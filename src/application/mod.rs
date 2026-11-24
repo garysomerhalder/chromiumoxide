@@ -53,6 +53,7 @@ pub(crate) mod shared;
 pub mod shortcuts;
 pub mod snapshot;
 pub mod storage;
+pub mod tauri;
 pub mod tracing;
 pub mod video;
 pub mod wait;
