@@ -27,6 +27,7 @@ use crate::application::webkit_events::{ConsoleMessage, ContextEvent, PageError,
 use crate::application::webkit_frame::FrameLocator;
 use crate::application::webkit_locator::Locator;
 use crate::application::webkit_network::{Request, Response};
+use crate::application::webkit_worker::Worker;
 use crate::domain::emulation::{
     ColorScheme, Contrast, ForcedColors, Geolocation, HttpCredentials, Media, ReducedMotion,
 };
@@ -745,21 +746,6 @@ impl FrameLocator {
     }
 }
 
-/// A web or service worker. WebKit reports neither through Playwright's
-/// API for service workers (Chromium only), so `context.serviceWorkers()`
-/// is empty.
-#[derive(Clone, Debug)]
-pub struct Worker {
-    pub(crate) url: String,
-}
-
-impl Worker {
-    /// `worker.url()`.
-    pub fn url(&self) -> &str {
-        &self.url
-    }
-}
-
 impl ContextInner {
     /// Sends an event to `context.events()` subscribers; false if none.
     pub(crate) fn emit(&self, event: ContextEvent) -> bool {
@@ -1210,5 +1196,118 @@ impl Page {
         self.context()
             .expect("a page belongs to a context while it is open")
             .request()
+    }
+}
+
+impl Page {
+    /// `Network.webSocket*` events (`WKPage`'s WebSocket reporting).
+    pub(crate) fn on_websocket_event(&self, method: &str, p: &Value) {
+        use crate::application::websocket::{WebSocket, WebSocketEvent, payload};
+        let id = p["requestId"].as_str().unwrap_or_default().to_owned();
+        if method == "Network.webSocketCreated" {
+            let ws = WebSocket::new(p["url"].as_str().unwrap_or_default().to_owned());
+            self.inner.websockets.lock().unwrap().insert(id, ws.clone());
+            self.emit(PageEvent::WebSocket(ws));
+            return;
+        }
+        let ws = {
+            let mut map = self.inner.websockets.lock().unwrap();
+            if method == "Network.webSocketClosed" {
+                map.remove(&id)
+            } else {
+                map.get(&id).cloned()
+            }
+        };
+        let Some(ws) = ws else {
+            return;
+        };
+        // WebKit also reports control frames (close, ping, pong).
+        if p.pointer("/response/opcode").and_then(Value::as_u64) >= Some(8) {
+            return;
+        }
+        match method {
+            "Network.webSocketFrameSent" => ws.push(WebSocketEvent::FrameSent(payload(p))),
+            "Network.webSocketFrameReceived" => ws.push(WebSocketEvent::FrameReceived(payload(p))),
+            "Network.webSocketFrameError" => ws.push(WebSocketEvent::Error(
+                p["errorMessage"].as_str().unwrap_or_default().to_owned(),
+            )),
+            "Network.webSocketClosed" => ws.push(WebSocketEvent::Close),
+            _ => {}
+        }
+    }
+
+    /// `Page.fileChooserOpened`: a `FileChooser` for the input.
+    pub(crate) fn on_file_chooser(&self, p: &Value) {
+        let frame = p["frameId"]
+            .as_str()
+            .filter(|f| *f != self.main_frame_id())
+            .map(str::to_owned);
+        let handle = crate::application::webkit_handle::JsHandle {
+            page: self.clone(),
+            frame,
+            remote: p["element"].clone(),
+            worker: None,
+        };
+        let Some(element) = handle.as_element() else {
+            return;
+        };
+        let page = self.clone();
+        tokio::spawn(async move {
+            let multiple = element
+                .evaluate::<bool>("e => !!e.multiple")
+                .await
+                .unwrap_or(false);
+            page.emit(PageEvent::FileChooser(
+                crate::application::webkit_events::FileChooser {
+                    page: page.clone(),
+                    element,
+                    multiple,
+                },
+            ));
+        });
+    }
+
+    /// The page went away: its sockets close, its workers end.
+    pub(crate) fn on_page_gone(&self) {
+        use crate::application::websocket::WebSocketEvent;
+        let sockets: Vec<_> = self
+            .inner
+            .websockets
+            .lock()
+            .unwrap()
+            .drain()
+            .map(|(_, ws)| ws)
+            .collect();
+        for ws in sockets {
+            ws.push(WebSocketEvent::Close);
+        }
+        for (_, w) in self.inner.workers.lock().unwrap().drain() {
+            w.mark_closed();
+        }
+    }
+
+    /// `page.touchscreen()`.
+    pub fn touchscreen(&self) -> Touchscreen {
+        Touchscreen { page: self.clone() }
+    }
+}
+
+/// `page.touchscreen()` on WebKit (`Input.dispatchTapEvent`).
+#[derive(Clone, Debug)]
+pub struct Touchscreen {
+    page: Page,
+}
+
+impl Touchscreen {
+    /// `touchscreen.tap(x, y)`: only in a context with `hasTouch`, like
+    /// Playwright.
+    pub async fn tap(&self, x: f64, y: f64) -> Result<()> {
+        if !self.page.inner.options.has_touch {
+            return Err(Error::InvalidArgument(
+                "The page does not support tap. Use hasTouch context option to enable touch support."
+                    .into(),
+            ));
+        }
+        self.page.tap_at(x, y).await
     }
 }

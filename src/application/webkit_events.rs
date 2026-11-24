@@ -29,7 +29,40 @@ pub enum PageEvent {
     /// The page opened a pop-up (`page.on('popup')`).
     Popup(Page),
     /// A download started (`page.on('download')`).
-    Download(crate::application::firefox_download::Download),
+    Download(crate::application::webkit_download::Download),
+    /// A dedicated worker started (`page.on('worker')`).
+    Worker(crate::application::webkit_worker::Worker),
+    /// A WebSocket opened (`page.on('websocket')`).
+    WebSocket(crate::application::websocket::WebSocket),
+    /// A file input asked for files (`page.on('filechooser')`).
+    FileChooser(FileChooser),
+}
+
+/// `page.on('filechooser')`.
+#[derive(Clone, Debug)]
+pub struct FileChooser {
+    pub(crate) page: Page,
+    pub(crate) element: crate::application::webkit_handle::ElementHandle,
+    pub(crate) multiple: bool,
+}
+
+impl FileChooser {
+    /// `fileChooser.page()`.
+    pub fn page(&self) -> &Page {
+        &self.page
+    }
+    /// `fileChooser.element()`: the `<input type=file>`.
+    pub fn element(&self) -> crate::application::webkit_handle::ElementHandle {
+        self.element.clone()
+    }
+    /// `fileChooser.isMultiple()`.
+    pub fn is_multiple(&self) -> bool {
+        self.multiple
+    }
+    /// `fileChooser.setFiles(files)`.
+    pub async fn set_files(&self, files: &[std::path::PathBuf]) -> Result<()> {
+        self.element.set_input_files(files).await
+    }
 }
 
 /// Something that happened in a WebKit context (`context.on(...)`).
@@ -65,13 +98,59 @@ impl ContextEvent {
 }
 
 /// `page.on('console')`.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ConsoleMessage {
     pub(crate) kind: String,
     pub(crate) text: String,
+    /// WebKit `RemoteObject`s of the arguments.
+    pub(crate) args: Vec<Value>,
+    pub(crate) timestamp: f64,
+    pub(crate) location: crate::domain::console::Location,
+    pub(crate) page: std::sync::Weak<crate::application::webkit::PageInner>,
+    pub(crate) worker: Option<crate::application::webkit_worker::Worker>,
+}
+
+impl std::fmt::Debug for ConsoleMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("webkit::ConsoleMessage")
+            .field("kind", &self.kind)
+            .field("text", &self.text)
+            .finish()
+    }
 }
 
 impl ConsoleMessage {
+    /// `consoleMessage.args()`: handles to the logged values.
+    pub fn args(&self) -> Vec<crate::application::webkit_handle::JsHandle> {
+        let Some(page) = self.page() else {
+            return Vec::new();
+        };
+        self.args
+            .iter()
+            .map(|remote| crate::application::webkit_handle::JsHandle {
+                page: page.clone(),
+                frame: None,
+                remote: remote.clone(),
+                worker: self.worker.clone(),
+            })
+            .collect()
+    }
+    /// `consoleMessage.location()`.
+    pub fn location(&self) -> &crate::domain::console::Location {
+        &self.location
+    }
+    /// `consoleMessage.timestamp()`: when it was logged (ms since the epoch).
+    pub fn timestamp(&self) -> f64 {
+        self.timestamp
+    }
+    /// `consoleMessage.page()`.
+    pub fn page(&self) -> Option<Page> {
+        self.page.upgrade().map(|inner| Page { inner })
+    }
+    /// `consoleMessage.worker()`: the worker that logged it, if any.
+    pub fn worker(&self) -> Option<crate::application::webkit_worker::Worker> {
+        self.worker.clone()
+    }
     /// `log`, `warning`, `error`, `info`, `debug`, ... (Playwright's names).
     pub fn kind(&self) -> &str {
         &self.kind
@@ -111,6 +190,10 @@ pub struct Dialog {
 }
 
 impl Dialog {
+    /// `dialog.page()`.
+    pub fn page(&self) -> &Page {
+        &self.page
+    }
     pub fn kind(&self) -> &str {
         &self.kind
     }
@@ -205,7 +288,11 @@ impl Page {
     }
 
     /// `Console.messageAdded` (`WKPage._onConsoleMessage`).
-    pub(crate) fn on_console(&self, m: &Value) {
+    pub(crate) fn on_console(
+        &self,
+        m: &Value,
+        worker: Option<crate::application::webkit_worker::Worker>,
+    ) {
         let text = m["text"].as_str().unwrap_or_default();
         if m["level"] == "error" && m["source"] == "javascript" {
             let (name, message) = split_error_message(text);
@@ -245,7 +332,23 @@ impl Page {
             }
             _ => text.to_owned(),
         };
-        let message = ConsoleMessage { kind, text };
+        let message = ConsoleMessage {
+            kind,
+            text,
+            args: m["parameters"].as_array().cloned().unwrap_or_default(),
+            timestamp: m["timestamp"]
+                .as_f64()
+                .map(|t| t * 1000.0)
+                .filter(|t| *t > 0.0)
+                .unwrap_or_else(|| self.inner.services.clock.now_ms() as f64),
+            location: crate::domain::console::Location {
+                url: m["url"].as_str().unwrap_or_default().to_owned(),
+                line_number: m["line"].as_u64().unwrap_or_default().saturating_sub(1) as u32,
+                column_number: m["column"].as_u64().unwrap_or_default().saturating_sub(1) as u32,
+            },
+            page: std::sync::Arc::downgrade(&self.inner),
+            worker,
+        };
         *self.inner.last_console.lock().unwrap() = Some((message.clone(), 1));
         self.emit(PageEvent::Console(message));
     }

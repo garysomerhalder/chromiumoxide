@@ -17,6 +17,7 @@ use crate::application::locator::{BoundingBox, WaitForState};
 use crate::application::webkit::Page;
 use crate::application::webkit_frame::Frame;
 use crate::application::webkit_locator::Locator;
+use crate::application::webkit_worker::Worker;
 use crate::domain::error::{Error, Result};
 
 /// Playwright's `JSHandle`: a reference to a value in a page.
@@ -27,6 +28,8 @@ pub struct JsHandle {
     pub(crate) frame: Option<String>,
     /// The WebKit `RemoteObject` (with an `objectId` for objects).
     pub(crate) remote: Value,
+    /// The worker the value lives in, if any.
+    pub(crate) worker: Option<Worker>,
 }
 
 /// Playwright's `ElementHandle`: a handle to a DOM element.
@@ -53,9 +56,23 @@ fn thrown(r: &Value) -> Option<Error> {
     })
 }
 
-impl Page {
+/// Where remote objects live: a page target or a worker.
+#[derive(Clone, Debug)]
+pub(crate) enum Via {
+    Page(Page),
+    Worker(Worker),
+}
+
+impl Via {
+    pub(crate) async fn call(&self, method: &str, params: Value) -> Result<Value> {
+        match self {
+            Via::Page(p) => p.target_call(method, params).await,
+            Via::Worker(w) => w.call(method, params).await,
+        }
+    }
+
     /// Awaits a promise result (by value or as a remote object).
-    async fn settle(&self, mut r: Value, by_value: bool) -> Result<Value> {
+    pub(crate) async fn settle(&self, mut r: Value, by_value: bool) -> Result<Value> {
         if let Some(e) = thrown(&r) {
             return Err(e);
         }
@@ -63,7 +80,7 @@ impl Page {
             && let Some(id) = r["result"]["objectId"].as_str()
         {
             r = self
-                .target_call(
+                .call(
                     "Runtime.awaitPromise",
                     json!({"promiseObjectId": id, "returnByValue": by_value}),
                 )
@@ -85,7 +102,7 @@ impl Page {
         by_value: bool,
     ) -> Result<Value> {
         let r = self
-            .target_call(
+            .call(
                 "Runtime.callFunctionOn",
                 json!({"objectId": object, "functionDeclaration": function,
                        "arguments": arguments, "returnByValue": false,
@@ -98,7 +115,7 @@ impl Page {
         match v["objectId"].as_str() {
             Some(id) if by_value => {
                 let r = self
-                    .target_call(
+                    .call(
                         "Runtime.callFunctionOn",
                         json!({"objectId": id, "functionDeclaration": "function() { return this; }",
                                "returnByValue": true}),
@@ -108,6 +125,24 @@ impl Page {
             }
             _ => Ok(v),
         }
+    }
+}
+
+impl Page {
+    pub(crate) async fn settle(&self, r: Value, by_value: bool) -> Result<Value> {
+        Via::Page(self.clone()).settle(r, by_value).await
+    }
+
+    pub(crate) async fn call_on(
+        &self,
+        object: &str,
+        function: &str,
+        arguments: Vec<Value>,
+        by_value: bool,
+    ) -> Result<Value> {
+        Via::Page(self.clone())
+            .call_on(object, function, arguments, by_value)
+            .await
     }
 
     /// Evaluates `source` (an expression, or a function called with `arg`)
@@ -143,6 +178,7 @@ impl Page {
             page: self.clone(),
             frame: frame.map(str::to_owned),
             remote,
+            worker: None,
         })
     }
 
@@ -238,6 +274,7 @@ impl Frame {
                 page: self.page.clone(),
                 frame: parent.scope().map(str::to_owned),
                 remote: r["object"].clone(),
+                worker: None,
             },
         })
     }
@@ -286,6 +323,7 @@ impl Locator {
                 page: self.page.clone(),
                 frame,
                 remote,
+                worker: None,
             },
         })
     }
@@ -311,6 +349,37 @@ impl JsHandle {
         self.remote["objectId"].as_str()
     }
 
+    fn via(&self) -> Via {
+        match &self.worker {
+            Some(w) => Via::Worker(w.clone()),
+            None => Via::Page(self.page.clone()),
+        }
+    }
+
+    /// The JSON value of `source` where this value lives.
+    async fn value_here(&self, source: &str, arg: &Value) -> Result<Value> {
+        match &self.worker {
+            Some(w) => w.evaluate_value(source, Some(arg)).await,
+            None => {
+                self.page
+                    .evaluate_value_in(source, Some(arg), self.frame.as_deref())
+                    .await
+            }
+        }
+    }
+
+    /// A handle to the value of `source` where this value lives.
+    async fn handle_here(&self, source: &str, arg: &Value) -> Result<JsHandle> {
+        match &self.worker {
+            Some(w) => w.evaluate_handle_value(source, Some(arg)).await,
+            None => {
+                self.page
+                    .evaluate_handle_in(self.frame.as_deref(), source, Some(arg))
+                    .await
+            }
+        }
+    }
+
     /// `jsHandle.evaluate(fn)`: `fn(value)` as JSON.
     pub async fn evaluate<T: DeserializeOwned>(&self, function: &str) -> Result<T> {
         self.evaluate_with(function, Value::Null).await
@@ -327,7 +396,7 @@ impl JsHandle {
         let v = match self.object_id() {
             Some(object) => {
                 let r = self
-                    .page
+                    .via()
                     .call_on(
                         object,
                         &format!(
@@ -347,13 +416,11 @@ impl JsHandle {
             }
             None => {
                 let value = self.remote.get("value").cloned().unwrap_or(Value::Null);
-                self.page
-                    .evaluate_value_in(
-                        &format!("(__p) => ({function})(__p.v, __p.a)"),
-                        Some(&json!({"v": value, "a": arg})),
-                        self.frame.as_deref(),
-                    )
-                    .await?
+                self.value_here(
+                    &format!("(__p) => ({function})(__p.v, __p.a)"),
+                    &json!({"v": value, "a": arg}),
+                )
+                .await?
             }
         };
         serde_json::from_value(v)
@@ -376,7 +443,7 @@ impl JsHandle {
         match self.object_id() {
             Some(object) => {
                 let remote = self
-                    .page
+                    .via()
                     .call_on(
                         object,
                         &format!(
@@ -391,17 +458,16 @@ impl JsHandle {
                     page: self.page.clone(),
                     frame: self.frame.clone(),
                     remote,
+                    worker: self.worker.clone(),
                 })
             }
             None => {
                 let value = self.remote.get("value").cloned().unwrap_or(Value::Null);
-                self.page
-                    .evaluate_handle_in(
-                        self.frame.as_deref(),
-                        &format!("(__p) => ({function})(__p.v, __p.a)"),
-                        Some(&json!({"v": value, "a": arg})),
-                    )
-                    .await
+                self.handle_here(
+                    &format!("(__p) => ({function})(__p.v, __p.a)"),
+                    &json!({"v": value, "a": arg}),
+                )
+                .await
             }
         }
     }
@@ -432,7 +498,7 @@ impl JsHandle {
 
     /// `jsHandle.asElement()`: the element handle, if this is an element.
     pub fn as_element(&self) -> Option<ElementHandle> {
-        (self.remote["subtype"] == "node").then(|| ElementHandle {
+        (self.remote["subtype"] == "node" && self.worker.is_none()).then(|| ElementHandle {
             handle: self.clone(),
         })
     }
@@ -440,8 +506,8 @@ impl JsHandle {
     /// `jsHandle.dispose()`: releases the reference.
     pub async fn dispose(&self) -> Result<()> {
         if let Some(object) = self.object_id() {
-            self.page
-                .target_call("Runtime.releaseObject", json!({"objectId": object}))
+            self.via()
+                .call("Runtime.releaseObject", json!({"objectId": object}))
                 .await?;
         }
         Ok(())

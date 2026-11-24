@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use crate::application::network::{SecurityDetails, ServerAddr};
 use crate::application::webkit::{Page, PageInner};
 use crate::application::webkit_frame::Frame;
-use crate::application::webkit_page_more::Worker;
+use crate::application::webkit_worker::Worker;
 use crate::domain::error::{Error, Result};
 use crate::domain::firefox::http_version_of;
 use crate::domain::network::{RequestSizes, Timing};

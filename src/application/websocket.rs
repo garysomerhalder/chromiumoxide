@@ -118,7 +118,7 @@ impl WebSocket {
     }
 }
 
-fn payload(p: &Value) -> WsPayload {
+pub(crate) fn payload(p: &Value) -> WsPayload {
     let data = p
         .pointer("/response/payloadData")
         .and_then(Value::as_str)

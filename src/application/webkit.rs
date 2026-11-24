@@ -24,9 +24,9 @@ use tokio::sync::watch;
 
 use crate::application::actions::{ADD_STYLE, StyleTag};
 use crate::application::firefox::Timeouts;
-use crate::application::firefox_download::Download;
 use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
 use crate::application::services::Services;
+use crate::application::webkit_download::Download;
 use crate::application::webkit_events::{ConsoleMessage, PageEvent};
 use crate::domain::emulation::{ContextOptions, Viewport};
 use crate::domain::error::{Error, Result};
@@ -455,6 +455,8 @@ impl BrowserContext {
             extra_headers: Mutex::new(Vec::new()),
             media: Mutex::new(Default::default()),
             globals: Mutex::new(HashMap::new()),
+            workers: Mutex::new(HashMap::new()),
+            websockets: Mutex::new(HashMap::new()),
             closed: AtomicBool::new(false),
         });
         self.inner
@@ -502,10 +504,11 @@ impl BrowserContext {
                                     .find(|p| p.inner.proxy == proxy);
                                 if let Some(page) = page {
                                     let download = Download::new(
+                                        &page,
+                                        s("uuid"),
                                         url,
                                         s("suggestedFilename"),
                                         context.inner.browser.inner.services.clone(),
-                                        std::sync::Weak::new(),
                                     );
                                     downloads.insert(s("uuid"), download.clone());
                                     page.emit(PageEvent::Download(download));
@@ -661,6 +664,10 @@ pub(crate) struct PageInner {
     pub(crate) extra_headers: Mutex<Vec<(String, String)>>,
     /// `page.emulateMedia` overrides.
     pub(crate) media: Mutex<crate::application::extras::EmulateMedia>,
+    /// Dedicated workers by worker id.
+    pub(crate) workers: Mutex<HashMap<String, crate::application::webkit_worker::Worker>>,
+    /// Open WebSockets by request id.
+    pub(crate) websockets: Mutex<HashMap<String, crate::application::websocket::WebSocket>>,
     /// Global objects by execution context id (`run_in`).
     pub(crate) globals: Mutex<HashMap<i64, String>>,
     closed: AtomicBool,
@@ -749,6 +756,7 @@ impl Page {
                             }
                             "Playwright.pageProxyDestroyed" => {
                                 page.inner.closed.store(true, Ordering::SeqCst);
+                                page.on_page_gone();
                                 page.emit(PageEvent::Close);
                                 break;
                             }
@@ -770,6 +778,7 @@ impl Page {
                         "Target.targetDestroyed" => {
                             if let Some(t) = p["targetId"].as_str() {
                                 page.inner.worlds.lock().unwrap().remove(t);
+                                page.close_workers_of(t);
                             }
                         }
                         "Dialog.javascriptDialogOpening" => page.on_dialog(p),
@@ -795,7 +804,12 @@ impl Page {
             "Page.domContentEventFired" if current => {
                 self.emit(PageEvent::DomContentLoaded);
             }
-            "Console.messageAdded" if current => self.on_console(&p["message"]),
+            "Console.messageAdded" if current => self.on_console(&p["message"], None),
+            "Worker.workerCreated"
+            | "Worker.workerTerminated"
+            | "Worker.dispatchMessageFromWorker" => self.on_worker_event(target, method, p),
+            m if m.starts_with("Network.webSocket") => self.on_websocket_event(method, p),
+            "Page.fileChooserOpened" => self.on_file_chooser(p),
             "Network.requestIntercepted" => self.on_request_intercepted(target, p),
             "Network.requestWillBeSent"
             | "Network.responseReceived"
@@ -890,6 +904,11 @@ impl Page {
             json!({"source": self.bootstrap_script()}),
         ));
         steps.push(call("Network.enable", json!({})));
+        steps.push(call("Worker.enable", json!({})));
+        steps.push(call(
+            "Page.setInterceptFileChooserDialog",
+            json!({"enabled": true}),
+        ));
         steps.push(call("Console.enable", json!({})));
         steps.push(call(
             "Network.setExtraHTTPHeaders",
