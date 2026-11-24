@@ -52,13 +52,24 @@ async fn tauri_window_runs_the_page_api() {
     assert_eq!(window.locator("#h").inner_text().await.unwrap(), "clicked");
     let png = window.screenshot().await.unwrap();
     assert_eq!(&png[1..4], b"PNG");
-    window
-        .goto("data:text/html,<title>moved</title><p>away</p>")
-        .await
-        .unwrap();
+    // `goto` returns once the page has loaded.
+    let server = crate::server::TestServer::start().await;
+    server.route("/m.html", "text/html", "<title>served</title><p>here</p>", 0);
+    window.goto(&server.url("/m.html")).await.unwrap();
     assert_eq!(
         window.evaluate::<String>("document.title").await.unwrap(),
-        "moved"
+        "served"
     );
+    // WKWebView (macOS) does not open `data:` URLs as the top page.
+    if !cfg!(target_os = "macos") {
+        window
+            .goto("data:text/html,<title>moved</title><p>away</p>")
+            .await
+            .unwrap();
+        assert_eq!(
+            window.evaluate::<String>("document.title").await.unwrap(),
+            "moved"
+        );
+    }
     app.close().await.unwrap();
 }
