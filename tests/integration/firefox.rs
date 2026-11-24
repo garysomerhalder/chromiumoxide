@@ -395,3 +395,76 @@ async fn firefox_expect_assertions() {
     assert!(message.contains("\"Ready\""), "{message}");
     browser.close().await.unwrap();
 }
+
+/// Page events on Firefox: console messages, uncaught errors and dialogs
+/// (accepted with text; dismissed automatically when nobody listens).
+#[tokio::test]
+async fn firefox_page_events() {
+    use chromiumoxide::firefox::PageEvent;
+    use futures::StreamExt;
+    use std::time::Duration;
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    let mut events = page.events();
+    let mut next = async || loop {
+        let e = tokio::time::timeout(Duration::from_secs(10), events.next())
+            .await
+            .expect("event within 10 s")
+            .expect("stream open");
+        if !matches!(e, PageEvent::Load | PageEvent::DomContentLoaded) {
+            return e;
+        }
+    };
+
+    page.evaluate::<()>("console.log('hello', 42); console.warn('careful')")
+        .await
+        .unwrap();
+    match next().await {
+        PageEvent::Console(m) => {
+            assert_eq!(m.kind(), "log");
+            assert_eq!(m.text(), "hello 42");
+        }
+        other => panic!("{other:?}"),
+    }
+    match next().await {
+        PageEvent::Console(m) => {
+            assert_eq!(m.kind(), "warning");
+            assert_eq!(m.text(), "careful");
+        }
+        other => panic!("{other:?}"),
+    }
+
+    page.evaluate::<()>("void setTimeout(() => { throw new Error('boom') })")
+        .await
+        .unwrap();
+    match next().await {
+        PageEvent::PageError(e) => {
+            assert_eq!(e.message(), "boom");
+            assert_eq!(e.name(), "Error");
+        }
+        other => panic!("{other:?}"),
+    }
+
+    let answer = {
+        let page = page.clone();
+        tokio::spawn(async move { page.evaluate::<String>("prompt('name?', 'anon')").await })
+    };
+    match next().await {
+        PageEvent::Dialog(d) => {
+            assert_eq!(d.kind(), "prompt");
+            assert_eq!(d.message(), "name?");
+            assert_eq!(d.default_value(), "anon");
+            d.accept(Some("Fox")).await.unwrap();
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(answer.await.unwrap().unwrap(), "Fox");
+
+    // Nobody listening: Playwright dismisses the dialog.
+    drop(events);
+    assert!(!page.evaluate::<bool>("confirm('ok?')").await.unwrap());
+    browser.close().await.unwrap();
+}
