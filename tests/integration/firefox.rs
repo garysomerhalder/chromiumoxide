@@ -2272,3 +2272,154 @@ async fn firefox_context_settings_and_events() {
     browser.close().await.unwrap();
     assert!(!browser.is_connected());
 }
+
+/// Firefox: JSHandle and ElementHandle (evaluateHandle, elementHandle(s),
+/// waitForSelector, frameElement, contentFrame, ownerFrame and the element
+/// actions), over BiDi remote references.
+#[tokio::test]
+async fn firefox_js_and_element_handles() {
+    use chromiumoxide::WaitForState;
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<input id=t value=v><button id=b onclick=\"this.textContent='hit'\">b</button>\
+         <input id=c type=checkbox><select id=s><option>x</option><option>y</option></select>\
+         <ul><li>1</li><li>2</li></ul><iframe name=f srcdoc='<p>in</p>'></iframe>",
+    )
+    .await
+    .unwrap();
+    page.wait_for_function("frames[0] && frames[0].document.readyState === 'complete'")
+        .await
+        .unwrap();
+
+    // JSHandle: values, properties, evaluate, dispose.
+    let obj = page
+        .evaluate_handle("({ a: 1, b: { c: 'x' } })")
+        .await
+        .unwrap();
+    assert_eq!(
+        obj.json_value().await.unwrap(),
+        serde_json::json!({"a": 1, "b": {"c": "x"}})
+    );
+    let b = obj.get_property("b").await.unwrap();
+    assert_eq!(b.json_value().await.unwrap(), serde_json::json!({"c": "x"}));
+    let props = obj.get_properties().await.unwrap();
+    assert_eq!(props.len(), 2);
+    assert_eq!(obj.evaluate::<i64>("o => o.a + 1").await.unwrap(), 2);
+    let c = b.evaluate_handle("o => o.c").await.unwrap();
+    assert_eq!(c.json_value().await.unwrap(), "x");
+    assert!(obj.as_element().is_none());
+    obj.dispose().await.unwrap();
+
+    // ElementHandle from evaluateHandle, a locator and waitForSelector.
+    let doc_button = page
+        .evaluate_handle("document.getElementById('b')")
+        .await
+        .unwrap();
+    let button = doc_button.as_element().expect("an element");
+    button.click().await.unwrap();
+    assert_eq!(button.inner_text().await.unwrap(), "hit");
+    assert_eq!(button.text_content().await.unwrap().as_deref(), Some("hit"));
+    assert_eq!(button.inner_html().await.unwrap(), "hit");
+    assert_eq!(
+        button.get_attribute("id").await.unwrap().as_deref(),
+        Some("b")
+    );
+    assert!(button.is_visible().await.unwrap() && !button.is_hidden().await.unwrap());
+    assert!(button.is_enabled().await.unwrap() && !button.is_disabled().await.unwrap());
+    assert!(button.bounding_box().await.unwrap().is_some());
+    assert_eq!(&button.screenshot().await.unwrap()[1..4], b"PNG");
+    button.hover().await.unwrap();
+    button.dblclick().await.unwrap();
+    button.dispatch_event("click").await.unwrap();
+    button.scroll_into_view_if_needed().await.unwrap();
+    button.focus().await.unwrap();
+    button.wait_for_element_state("visible").await.unwrap();
+    assert_eq!(button.evaluate::<String>("e => e.id").await.unwrap(), "b");
+
+    let input = page.locator("#t").element_handle().await.unwrap();
+    assert!(input.is_editable().await.unwrap());
+    input.fill("new").await.unwrap();
+    assert_eq!(input.input_value().await.unwrap(), "new");
+    input.select_text().await.unwrap();
+    input.press("End").await.unwrap();
+    let check = page
+        .wait_for_selector("#c", WaitForState::Visible)
+        .await
+        .unwrap()
+        .unwrap();
+    check.check().await.unwrap();
+    assert!(check.is_checked().await.unwrap());
+    check.uncheck().await.unwrap();
+    check.set_checked(true).await.unwrap();
+    let select = page.locator("#s").element_handle().await.unwrap();
+    assert_eq!(select.select_option(&["y"]).await.unwrap(), ["y"]);
+    let ul = page.locator("ul").element_handle().await.unwrap();
+    let li = ul
+        .wait_for_selector("li >> nth=1", WaitForState::Attached)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(li.inner_text().await.unwrap(), "2");
+    assert_eq!(page.locator("li").element_handles().await.unwrap().len(), 2);
+    assert!(
+        page.wait_for_selector("#gone", WaitForState::Detached)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    // Frames: frameElement, contentFrame, ownerFrame; frame and locator
+    // evaluateHandle.
+    let frame = page.frame("f").await.unwrap().unwrap();
+    let iframe = frame.frame_element().await.unwrap();
+    assert_eq!(
+        iframe.get_attribute("name").await.unwrap().as_deref(),
+        Some("f")
+    );
+    let content = iframe.content_frame().await.unwrap().unwrap();
+    assert_eq!(
+        content
+            .evaluate::<String>("document.body.textContent")
+            .await
+            .unwrap(),
+        "in"
+    );
+    let p = frame
+        .wait_for_selector("p", WaitForState::Visible)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        p.owner_frame()
+            .await
+            .unwrap()
+            .unwrap()
+            .evaluate::<String>("name")
+            .await
+            .unwrap(),
+        "f"
+    );
+    let h = frame.evaluate_handle("document.title").await.unwrap();
+    assert_eq!(h.json_value().await.unwrap(), "");
+    let lh = page
+        .locator("#b")
+        .evaluate_handle("e => e.id")
+        .await
+        .unwrap();
+    assert_eq!(lh.json_value().await.unwrap(), "b");
+
+    // tap needs hasTouch, which BiDi cannot set in Firefox.
+    assert!(
+        button
+            .tap()
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("hasTouch")
+    );
+    browser.close().await.unwrap();
+}
