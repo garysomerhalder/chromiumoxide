@@ -937,6 +937,20 @@ impl Browser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn windows_launches_over_the_devtools_port() {
+        assert_eq!(effective_channel(Channel::Pipe, false), Channel::Pipe);
+        assert_eq!(
+            effective_channel(Channel::WebSocket, false),
+            Channel::WebSocket
+        );
+        assert_eq!(effective_channel(Channel::Pipe, true), Channel::WebSocket);
+        assert_eq!(
+            effective_channel(Channel::WebSocket, true),
+            Channel::WebSocket
+        );
+    }
     use crate::ports::FileSystem;
     use crate::testing::clock::TestClock;
     use crate::testing::memory::{MapEnvironment, MemoryFileSystem};
