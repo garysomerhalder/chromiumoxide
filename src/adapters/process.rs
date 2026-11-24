@@ -15,7 +15,7 @@ use crate::adapters::cdp::Connection;
 use crate::domain::error::{Error, Result};
 use crate::ports::{
     BrowserLauncher, BrowserProcess, Channel, ElectronCommand, FirefoxCommand, LaunchCommand,
-    Launched, LaunchedElectron, LaunchedFirefox, Transport,
+    Launched, LaunchedElectron, LaunchedFirefox, LaunchedWebKit, Transport, WebKitCommand,
 };
 
 /// Spawns browsers with tokio.
@@ -40,6 +40,52 @@ impl BrowserLauncher for TokioLauncher {
     ) -> BoxFuture<'static, Result<LaunchedFirefox>> {
         launch_firefox(command).boxed()
     }
+
+    fn launch_webkit(&self, command: WebKitCommand) -> BoxFuture<'static, Result<LaunchedWebKit>> {
+        launch_webkit(command).boxed()
+    }
+}
+
+/// Starts WebKit with its inspector pipe on fds 3 and 4.
+#[cfg(unix)]
+async fn launch_webkit(command: WebKitCommand) -> Result<LaunchedWebKit> {
+    let mut cmd = Command::new(&command.program);
+    cmd.args(&command.args)
+        .envs(command.env.iter().cloned())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    let pipes = unix_pipes::attach(&mut cmd)?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| Error::Launch(format!("{}: {e}", command.program.display())))?;
+    let pid = child.id();
+    if let Some(stderr) = child.stderr.take() {
+        tokio::spawn(async move {
+            let mut lines = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                tracing::debug!(target: "chromiumoxide::webkit", "{line}");
+            }
+        });
+    }
+    let (reader, writer) = pipes.into_parent()?;
+    let transport = crate::adapters::transport::pipe::pipe_transport(reader, writer);
+    Ok(LaunchedWebKit {
+        session: Arc::new(crate::adapters::webkit::WebKitConnection::spawn(transport)),
+        process: Box::new(Process {
+            child: Arc::new(tokio::sync::Mutex::new(Some(child))),
+            pid,
+        }),
+    })
+}
+
+#[cfg(not(unix))]
+async fn launch_webkit(command: WebKitCommand) -> Result<LaunchedWebKit> {
+    let _ = command;
+    Err(Error::Launch(
+        "WebKit's inspector pipe is not supported on this system yet".into(),
+    ))
 }
 
 /// Firefox prints `WebDriver BiDi listening on ws://127.0.0.1:<port>` on

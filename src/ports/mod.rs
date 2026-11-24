@@ -12,6 +12,7 @@ pub mod process;
 pub mod signals;
 pub mod transport;
 pub mod video;
+pub mod webkit;
 
 pub use bidi::BidiSession;
 pub use bridge::{BoundBridge, BridgeAddress, CdpBridge};
@@ -22,8 +23,9 @@ pub use fs::FileSystem;
 pub use http::HttpClient;
 pub use process::{
     BrowserLauncher, BrowserProcess, Channel, ElectronCommand, FirefoxCommand, LaunchCommand,
-    Launched, LaunchedElectron, LaunchedFirefox,
+    Launched, LaunchedElectron, LaunchedFirefox, LaunchedWebKit, WebKitCommand,
 };
 pub use signals::{Signal, Signals};
 pub use transport::Transport;
 pub use video::{VideoEncoder, VideoSink};
+pub use webkit::WebKitSession;

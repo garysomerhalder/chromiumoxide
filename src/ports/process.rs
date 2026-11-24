@@ -62,6 +62,17 @@ pub trait BrowserLauncher: Send + Sync {
         })
     }
 
+    /// Starts Playwright's WebKit with `--inspector-pipe` (file descriptors
+    /// 3 and 4) and connects to it.
+    fn launch_webkit(&self, command: WebKitCommand) -> BoxFuture<'static, Result<LaunchedWebKit>> {
+        let _ = command;
+        Box::pin(async {
+            Err(crate::domain::error::Error::Launch(
+                "this launcher cannot start WebKit".into(),
+            ))
+        })
+    }
+
     /// Starts Firefox with `--remote-debugging-port` and connects to the
     /// WebDriver BiDi endpoint it prints on stderr.
     fn launch_firefox(
@@ -93,6 +104,22 @@ pub struct LaunchedFirefox {
     pub process: Box<dyn BrowserProcess>,
     /// `ws://127.0.0.1:<port>` as printed by Firefox.
     pub ws_endpoint: String,
+}
+
+/// A launch of Playwright's WebKit (`pw_run.sh --inspector-pipe ...`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct WebKitCommand {
+    pub program: PathBuf,
+    pub args: Vec<String>,
+    /// Added to this process's environment.
+    pub env: Vec<(String, String)>,
+    pub timeout_ms: u64,
+}
+
+/// A launched WebKit with its inspector-pipe connection.
+pub struct LaunchedWebKit {
+    pub session: std::sync::Arc<dyn crate::ports::WebKitSession>,
+    pub process: Box<dyn BrowserProcess>,
 }
 
 /// An Electron launch (Playwright's `electron.launch`).

@@ -151,6 +151,25 @@ pub mod firefox {
     pub use crate::application::websocket::{WebSocket, WebSocketEvent, WsPayload};
 }
 
+/// The WebKit engine (`WebKit::launch`): Playwright's WebKit build over its
+/// own protocol, with the Playwright method names.
+pub mod webkit {
+    pub use crate::application::webkit::{
+        Browser, BrowserContext, Page, Screenshot, WebKitLaunchOptions,
+    };
+}
+
+/// Playwright's `webkit`: launches Playwright's WebKit build (Safari's
+/// engine).
+pub struct WebKit;
+
+impl WebKit {
+    /// `webkit.launch(options)`.
+    pub async fn launch(options: webkit::WebKitLaunchOptions) -> Result<webkit::Browser> {
+        webkit::Browser::launch(Chromium::services(), options).await
+    }
+}
+
 /// Playwright's `firefox`: launches Firefox, driven over WebDriver BiDi.
 pub struct Firefox;
 
