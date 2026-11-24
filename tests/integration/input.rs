@@ -31,7 +31,7 @@ async fn keyboard_types_presses_and_inserts() {
         "Hello ü!"
     );
     kb.press("Shift+KeyA").await.unwrap();
-    kb.press("Control+a").await.unwrap();
+    kb.press("ControlOrMeta+a").await.unwrap();
     kb.press("Backspace").await.unwrap();
     assert_eq!(
         page.evaluate::<String>("document.getElementById('i').value")

@@ -120,7 +120,7 @@ pub fn process_command_line(pid: u32) -> Option<String> {
             .ok()?
     } else {
         std::process::Command::new("ps")
-            .args(["-p", &pid.to_string(), "-o", "command="])
+            .args(["-ww", "-p", &pid.to_string(), "-o", "command="])
             .output()
             .ok()?
     };

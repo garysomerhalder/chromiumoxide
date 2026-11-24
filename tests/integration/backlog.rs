@@ -773,9 +773,10 @@ fn run_signal_child(mode: &str, signal: &str) -> (std::process::ExitStatus, Stri
             break pid.parse::<u32>().unwrap();
         }
     };
-    let cmdline = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap();
-    let profile = String::from_utf8_lossy(&cmdline)
-        .split('\0')
+    // Portable (macOS has no /proc): the browser's command line.
+    let cmdline = crate::process_command_line(pid).expect("browser command line");
+    let profile = cmdline
+        .split_whitespace()
         .find_map(|a| a.strip_prefix("--user-data-dir=").map(str::to_owned))
         .unwrap();
     let sent = std::process::Command::new("kill")
