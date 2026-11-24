@@ -168,7 +168,13 @@ async fn page_frame_dialog_and_crash_events() {
         assert!(got.iter().any(|g| g == want), "{want} not in {got:?}");
     }
     let _ = page.goto("chrome://crash").await;
-    tokio::time::sleep(Duration::from_millis(1500)).await;
+    // Windows reports the crash later (its crash handling runs first).
+    for _ in 0..100 {
+        if seen.lock().unwrap().iter().any(|g| g == "crash") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
     assert!(
         seen.lock().unwrap().iter().any(|g| g == "crash"),
         "{:?}",
