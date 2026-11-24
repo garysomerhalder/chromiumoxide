@@ -113,6 +113,30 @@ fn find_firefox(services: &Services) -> Option<PathBuf> {
     found.pop().map(|(_, p)| p)
 }
 
+/// Opens the BiDi session (prompts stay open until the page's dialog
+/// handling answers them) and subscribes to the engine's events; the
+/// browser version.
+async fn open_session(bidi: &Arc<dyn BidiSession>) -> Result<String> {
+    let session = bidi
+        .call(
+            "session.new",
+            json!({"capabilities": {"alwaysMatch": {"acceptInsecureCerts": false,
+                "unhandledPromptBehavior": {"default": "ignore"}}}}),
+        )
+        .await?;
+    bidi.call(
+        "session.subscribe",
+        json!({"events": ["browsingContext", "log.entryAdded", "network",
+                           "script.realmCreated", "script.realmDestroyed", "script.message"]}),
+    )
+    .await?;
+    Ok(session
+        .pointer("/capabilities/browserVersion")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned())
+}
+
 /// A Firefox browser driven over WebDriver BiDi.
 #[derive(Clone)]
 pub struct Browser {
@@ -123,8 +147,12 @@ struct BrowserInner {
     bidi: Arc<dyn BidiSession>,
     services: Services,
     process: Mutex<Option<Box<dyn BrowserProcess>>>,
+    /// The temporary profile (removed on close).
     profile: Option<PathBuf>,
     version: String,
+    /// User contexts made by this client (removed when a connected
+    /// browser closes).
+    created: Mutex<Vec<String>>,
     closed: AtomicBool,
 }
 
@@ -139,6 +167,89 @@ impl std::fmt::Debug for Browser {
 impl Browser {
     /// Starts Firefox and opens a BiDi session.
     pub async fn launch(services: Services, options: FirefoxLaunchOptions) -> Result<Browser> {
+        Self::launch_in(services, options, None).await
+    }
+
+    /// `firefox.launchPersistentContext(userDataDir, options)`: Firefox on
+    /// a profile that is kept (created when missing); the context is the
+    /// default user context, with the window Firefox opened, and closing
+    /// it closes Firefox.
+    pub async fn launch_persistent_context(
+        services: Services,
+        user_data_dir: &std::path::Path,
+        options: FirefoxLaunchOptions,
+        context_options: ContextOptions,
+    ) -> Result<BrowserContext> {
+        services
+            .fs
+            .create_dir_all(user_data_dir)
+            .map_err(|e| Error::Launch(format!("cannot create the profile: {e}")))?;
+        let browser = Self::launch_in(services, options, Some(user_data_dir.to_owned())).await?;
+        let events = browser.inner.bidi.subscribe();
+        let context = match browser
+            .make_context("default".to_owned(), context_options, Some(browser.clone()))
+            .await
+        {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = browser.close().await;
+                return Err(e);
+            }
+        };
+        let tree = browser
+            .inner
+            .bidi
+            .call("browsingContext.getTree", json!({"maxDepth": 0}))
+            .await?;
+        let mut events = Some(events);
+        for top in tree["contexts"].as_array().into_iter().flatten() {
+            if top["userContext"] != "default" {
+                continue;
+            }
+            let events = events
+                .take()
+                .unwrap_or_else(|| browser.inner.bidi.subscribe());
+            let page = attach_page(
+                &context.inner,
+                top["context"].as_str().unwrap_or_default().to_owned(),
+                top["url"].as_str().unwrap_or("about:blank").to_owned(),
+                events,
+            )
+            .await?;
+            page.refresh_url().await;
+        }
+        Ok(context)
+    }
+
+    /// `firefox.connect(wsEndpoint)` over an open BiDi connection: a new
+    /// session on a Firefox started elsewhere. `close` then removes the
+    /// contexts made here and ends the session; Firefox keeps running.
+    pub async fn connect(services: Services, bidi: Arc<dyn BidiSession>) -> Result<Browser> {
+        let version = match open_session(&bidi).await {
+            Ok(v) => v,
+            Err(e) => {
+                bidi.disconnect();
+                return Err(e);
+            }
+        };
+        Ok(Browser {
+            inner: Arc::new(BrowserInner {
+                bidi,
+                services,
+                process: Mutex::new(None),
+                profile: None,
+                version,
+                created: Mutex::new(Vec::new()),
+                closed: AtomicBool::new(false),
+            }),
+        })
+    }
+
+    async fn launch_in(
+        services: Services,
+        options: FirefoxLaunchOptions,
+        user_data_dir: Option<PathBuf>,
+    ) -> Result<Browser> {
         let program = match options.executable_path.clone() {
             Some(p) => p,
             None => find_firefox(&services).ok_or_else(|| {
@@ -149,10 +260,20 @@ impl Browser {
                 )
             })?,
         };
-        let profile = services
-            .fs
-            .create_temp_dir("chromiumoxide-firefox-profile-")
-            .map_err(|e| Error::Launch(format!("cannot create the profile: {e}")))?;
+        let keep_profile = user_data_dir.is_some();
+        let profile = match user_data_dir {
+            Some(dir) => dir,
+            None => services
+                .fs
+                .create_temp_dir("chromiumoxide-firefox-profile-")
+                .map_err(|e| Error::Launch(format!("cannot create the profile: {e}")))?,
+        };
+        // Only a temporary profile is removed on failure or close.
+        let remove_profile = |services: &Services| {
+            if !keep_profile {
+                let _ = services.fs.remove_dir_all(&profile);
+            }
+        };
         for (path, contents) in profile_files(options.headless) {
             let path = profile.join(path);
             let written = match path.parent() {
@@ -161,7 +282,7 @@ impl Browser {
             }
             .and_then(|()| services.fs.write(&path, contents.as_bytes()));
             if let Err(e) = written {
-                let _ = services.fs.remove_dir_all(&profile);
+                remove_profile(&services);
                 return Err(Error::Launch(format!("cannot write the profile: {e}")));
             }
         }
@@ -179,52 +300,26 @@ impl Browser {
         let launched = match launched {
             Ok(l) => l,
             Err(e) => {
-                let _ = services.fs.remove_dir_all(&profile);
+                remove_profile(&services);
                 return Err(e);
             }
         };
-        let session = launched
-            .bidi
-            .call(
-                "session.new",
-                // Prompts stay open until the page's dialog handling answers them.
-                json!({"capabilities": {"alwaysMatch": {"acceptInsecureCerts": false,
-                    "unhandledPromptBehavior": {"default": "ignore"}}}}),
-            )
-            .await;
-        let session = match session {
-            Ok(s) => s,
+        let version = match open_session(&launched.bidi).await {
+            Ok(v) => v,
             Err(e) => {
                 launched.process.shutdown().await;
-                let _ = services.fs.remove_dir_all(&profile);
+                remove_profile(&services);
                 return Err(e);
             }
         };
-        if let Err(e) = launched
-            .bidi
-            .call(
-                "session.subscribe",
-                json!({"events": ["browsingContext", "log.entryAdded", "network",
-                                   "script.realmCreated", "script.realmDestroyed", "script.message"]}),
-            )
-            .await
-        {
-            launched.process.shutdown().await;
-            let _ = services.fs.remove_dir_all(&profile);
-            return Err(e);
-        }
-        let version = session
-            .pointer("/capabilities/browserVersion")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned();
         Ok(Browser {
             inner: Arc::new(BrowserInner {
                 bidi: launched.bidi,
                 services,
                 process: Mutex::new(Some(launched.process)),
-                profile: Some(profile),
+                profile: (!keep_profile).then_some(profile),
                 version,
+                created: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
             }),
         })
@@ -247,23 +342,50 @@ impl Browser {
                 unsupported.join(", ")
             )));
         }
-        let bidi = &self.inner.bidi;
         let mut create = json!({});
         if options.ignore_https_errors {
             create["acceptInsecureCerts"] = json!(true);
         }
-        let options_accept_downloads = options.accept_downloads;
-        let record_har = options.record_har.clone();
-        let viewport = options
-            .viewport
-            .map_or((1280, 720), |v| (v.width, v.height));
-        let user_context = bidi
+        let user_context = self
+            .inner
+            .bidi
             .call("browser.createUserContext", create)
             .await?
             .get("userContext")
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
+        self.inner
+            .created
+            .lock()
+            .unwrap()
+            .push(user_context.clone());
+        self.make_context(user_context, options, None).await
+    }
+
+    /// The context object of a user context, with its emulation, storage
+    /// state, recorders and WebSocket reporting set up. `persistent` is the
+    /// browser a persistent context closes.
+    async fn make_context(
+        &self,
+        user_context: String,
+        options: ContextOptions,
+        persistent: Option<Browser>,
+    ) -> Result<BrowserContext> {
+        let unsupported = unsupported_context_options(&options);
+        if !unsupported.is_empty() {
+            return Err(Error::InvalidArgument(format!(
+                "not supported on Firefox (no WebDriver BiDi command in Firefox {}): {}",
+                self.inner.version,
+                unsupported.join(", ")
+            )));
+        }
+        let bidi = &self.inner.bidi;
+        let options_accept_downloads = options.accept_downloads;
+        let record_har = options.record_har.clone();
+        let viewport = options
+            .viewport
+            .map_or((1280, 720), |v| (v.width, v.height));
         let context = BrowserContext {
             inner: Arc::new(ContextInner {
                 bidi: bidi.clone(),
@@ -272,6 +394,7 @@ impl Browser {
                 options: Arc::new(options),
                 routes: Arc::default(),
                 pages: Mutex::new(Vec::new()),
+                videos: Mutex::new(Vec::new()),
                 downloads_dir: if options_accept_downloads {
                     self.inner
                         .services
@@ -288,6 +411,7 @@ impl Browser {
                     self.inner.version.clone(),
                     viewport,
                 )),
+                persistent: Mutex::new(persistent),
                 closed: AtomicBool::new(false),
             }),
         };
@@ -335,8 +459,25 @@ impl Browser {
         if self.inner.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
-        let _ = self.inner.bidi.call("browser.close", json!({})).await;
         let process = self.inner.process.lock().unwrap().take();
+        if process.is_none() {
+            // Connected: leave Firefox running, without our contexts.
+            let created: Vec<String> = self.inner.created.lock().unwrap().drain(..).collect();
+            for user_context in created {
+                let _ = self
+                    .inner
+                    .bidi
+                    .call(
+                        "browser.removeUserContext",
+                        json!({"userContext": user_context}),
+                    )
+                    .await;
+            }
+            let _ = self.inner.bidi.call("session.end", json!({})).await;
+            self.inner.bidi.disconnect();
+            return Ok(());
+        }
+        let _ = self.inner.bidi.call("browser.close", json!({})).await;
         if let Some(process) = process {
             process.shutdown().await;
         }
@@ -361,11 +502,16 @@ struct ContextInner {
     /// `context.route` handlers, shared with the context's pages.
     routes: Arc<Mutex<Vec<RouteEntry>>>,
     /// The context's pages (to add network intercepts for new routes).
-    pages: Mutex<Vec<std::sync::Weak<PageInner>>>,
+    /// Held until they close, like Playwright's pages.
+    pages: Mutex<Vec<Arc<PageInner>>>,
+    /// Videos of the context's pages (`close` waits for them).
+    videos: Mutex<Vec<Video>>,
     /// Where this context's downloads go (removed with the context).
     downloads_dir: Option<PathBuf>,
     /// HAR and tracing recorders (shared with the pages).
     recorders: Arc<Recorders>,
+    /// The browser of a persistent context (closed with it).
+    persistent: Mutex<Option<Browser>>,
     closed: AtomicBool,
 }
 
@@ -456,11 +602,12 @@ impl BrowserContext {
 
     fn live_pages(&self) -> Vec<Page> {
         let mut pages = self.inner.pages.lock().unwrap();
-        pages.retain(|w| w.strong_count() > 0);
+        pages.retain(|p| !p.closed.load(Ordering::SeqCst));
         pages
             .iter()
-            .filter_map(std::sync::Weak::upgrade)
-            .map(|inner| Page { inner })
+            .map(|inner| Page {
+                inner: inner.clone(),
+            })
             .collect()
     }
 
@@ -663,9 +810,6 @@ impl BrowserContext {
     /// `context.pages()`: the context's open pages.
     pub fn pages(&self) -> Vec<Page> {
         self.live_pages()
-            .into_iter()
-            .filter(|p| !p.inner.closed.load(Ordering::SeqCst))
-            .collect()
     }
 
     /// `context.close()`: closes its pages and the user context.
@@ -675,22 +819,30 @@ impl BrowserContext {
         }
         let har = self.inner.recorders.flush_har(&self.live_pages()).await;
         let pages = self.live_pages();
-        self.inner
-            .bidi
-            .call(
-                "browser.removeUserContext",
-                json!({"userContext": self.inner.user_context}),
-            )
-            .await?;
+        let persistent = self.inner.persistent.lock().unwrap().take();
+        match &persistent {
+            // The default user context cannot be removed: Firefox closes.
+            Some(browser) => browser.close().await?,
+            None => {
+                self.inner
+                    .bidi
+                    .call(
+                        "browser.removeUserContext",
+                        json!({"userContext": self.inner.user_context}),
+                    )
+                    .await?;
+            }
+        }
         if let Some(dir) = &self.inner.downloads_dir {
             let _ = self.inner.services.fs.remove_dir_all(dir);
         }
         // Like Playwright, close resolves once the pages' videos are written.
-        for page in pages {
-            if let Some(video) = page.video() {
-                let _ = video.path().await;
-            }
+        drop(pages);
+        let videos: Vec<Video> = self.inner.videos.lock().unwrap().clone();
+        for video in videos {
+            let _ = video.path().await;
         }
+        self.inner.pages.lock().unwrap().clear();
         har
     }
 
@@ -732,7 +884,7 @@ async fn attach_page(
         websockets: Mutex::new(HashMap::new()),
         closed: AtomicBool::new(false),
     });
-    ctx.pages.lock().unwrap().push(Arc::downgrade(&inner));
+    ctx.pages.lock().unwrap().push(inner.clone());
     let weak = Arc::downgrade(&inner);
     tokio::spawn(async move {
         use futures::StreamExt;
@@ -779,7 +931,11 @@ async fn attach_page(
         }
     });
     let page = Page { inner };
-    *page.inner.video.lock().unwrap() = Video::start(&page);
+    let video = Video::start(&page);
+    if let Some(v) = &video {
+        ctx.videos.lock().unwrap().push(v.clone());
+    }
+    *page.inner.video.lock().unwrap() = video;
     ctx.recorders.page_created(&page);
     page.sync_intercept().await?;
     if ctx.options.http_credentials.is_some() {

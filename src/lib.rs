@@ -159,6 +159,37 @@ impl Firefox {
     pub async fn launch(options: firefox::FirefoxLaunchOptions) -> Result<firefox::Browser> {
         firefox::Browser::launch(Chromium::services(), options).await
     }
+
+    /// `firefox.launchPersistentContext(userDataDir, options)`: the profile
+    /// in `user_data_dir` is kept between launches.
+    pub async fn launch_persistent_context(
+        user_data_dir: impl AsRef<std::path::Path>,
+        options: firefox::FirefoxLaunchOptions,
+        context_options: ContextOptions,
+    ) -> Result<firefox::BrowserContext> {
+        firefox::Browser::launch_persistent_context(
+            Chromium::services(),
+            user_data_dir.as_ref(),
+            options,
+            context_options,
+        )
+        .await
+    }
+
+    /// `firefox.connect(wsEndpoint)`: a running Firefox's WebDriver BiDi
+    /// endpoint (`ws://127.0.0.1:<port>` as it prints with
+    /// `--remote-debugging-port`, or its `/session` URL).
+    pub async fn connect(ws_endpoint: &str) -> Result<firefox::Browser> {
+        let base = ws_endpoint.trim_end_matches('/');
+        let url = if base.ends_with("/session") {
+            base.to_owned()
+        } else {
+            format!("{base}/session")
+        };
+        let transport = adapters::transport::websocket::connect(&url).await?;
+        let bidi = std::sync::Arc::new(adapters::bidi::BidiConnection::spawn(transport));
+        firefox::Browser::connect(Chromium::services(), bidi).await
+    }
 }
 
 /// Playwright's `_electron`: launches Electron apps.
