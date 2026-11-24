@@ -1230,7 +1230,9 @@ Firefox.
 | `browser.version`, `newPage`, `newContext`, `close` | ✅ | `firefox_launches_and_runs_a_page`, `firefox_contexts_emulate_devices` |
 | Context emulation: `viewport`, `deviceScaleFactor`, `userAgent`, `locale`, `timezoneId`, `screen`, `geolocation`, `extraHTTPHeaders`, `ignoreHTTPSErrors` | ✅ | `firefox_contexts_emulate_devices` |
 | Context options `isMobile`, `hasTouch`, `colorScheme` (dark / no-preference), `reducedMotion`, `forcedColors`, `contrast`, `javaScriptEnabled: false`, `offline`, `permissions` | ❌ | No BiDi command in Firefox 159 (Playwright uses its Juggler protocol); creating such a context is an error naming the options |
-| Context options `bypassCSP`, `proxy`, `clientCertificates`, `baseURL`, `serviceWorkers`, `recordHar`, `recordVideo` | ⬜ | An error naming the option for now |
+| Context options `bypassCSP`, `proxy`, `clientCertificates`, `baseURL`, `serviceWorkers` | ⬜ | An error naming the option for now |
+| `recordHar` (bodies from a BiDi network data collector; `content`, `mode`, `urlFilter`, `.zip`) | ✅ | `firefox_pdf_and_har` |
+| `recordVideo` (viewport screenshots on a 25 fps timeline, scaled into the `.webm`) | ✅ | `firefox_records_video` |
 | `httpCredentials` | ✅ | `firefox_network_events_context_routes_and_auth` |
 | `storageState` (option) and `context.storageState()` | ✅ | `firefox_storage_state_round_trip` |
 | `page.goto`, `setContent`, `title`, `url`, `content`, `reload`, `goBack`, `goForward` | ✅ | `firefox_launches_and_runs_a_page`, `firefox_navigates_and_waits` |
@@ -1243,18 +1245,24 @@ Firefox.
 | Locators: `locator`, `getBy*`, `nth` / `first` / `last`, chaining, `textContent`, `innerText`, `innerHTML`, `getAttribute`, `inputValue`, `count`, `allTextContents`, `allInnerTexts`, `isVisible`, `isHidden`, `isChecked`, strictness | ✅ | `firefox_locators_query_the_page` |
 | Locator `filter`, `and`, `or`, `all`, `boundingBox`, `evaluate`, `ariaSnapshot`, `screenshot`, `highlight` | ⬜ | |
 | Input: `click`, `hover`, `fill`, `focus`, `press`, `pressSequentially`, `check`, `uncheck` | ✅ | `firefox_locators_act_on_elements` |
-| Input: `dblclick`, `dragTo`, `selectOption`, `setInputFiles`, `tap`, `page.mouse`, `page.keyboard` | ⬜ | |
+| Input: `dblclick`, `dragTo`, `selectOption`, `setInputFiles`, `page.mouse` (`move`, `down`, `up`, `click`, `dblclick`, `wheel`), `page.keyboard` (`down`, `up`, `press`, `type`, `insertText`) | ✅ | `firefox_more_input`. Firefox's WebDriver actions start a drag but end it without a `drop`, so `dragTo` finishes the drop in the page the way the browser does |
+| Input: `tap` | ❌ | `hasTouch` cannot be set over BiDi in Firefox 159 |
 | `expect()` locator assertions (state, text, attribute, class, count, CSS, id, role, value) and page `toHaveTitle` / `toHaveURL` | ✅ | `firefox_expect_assertions` |
 | Events: console, page errors, dialogs (auto-dismissed without a listener), load, DOMContentLoaded, close | ✅ | `firefox_page_events` |
 | Events: request, response, requestfinished, requestfailed | ✅ | `firefox_network_events_context_routes_and_auth` |
-| Events: popup, websocket, worker, filechooser, frameattached / framedetached | ⬜ | |
+| Events: popup (`context.pages()` keeps pop-ups), websocket (frames both ways, close), worker (`page.workers()`, url, close; worker console messages reach the page) | ✅ | `firefox_popups_workers_and_websockets` |
+| `worker.evaluate` | ❌ | Firefox 159's BiDi only runs scripts in window realms; a clear error |
+| Events: filechooser, frameattached / framedetached | ⬜ | |
 | Cookies: `context.cookies`, `addCookies`, `clearCookies` | ✅ | `firefox_cookies_and_init_scripts` |
 | `context.addInitScript`, `page.addInitScript` | ✅ | `firefox_cookies_and_init_scripts` |
 | `page.route` / `context.route` (fulfill, continue, abort), `unroute`, `unrouteAll` | ✅ | `firefox_routes_requests`, `firefox_network_events_context_routes_and_auth` |
 | Route `fetch`, `fallback`, continue / fulfill with overrides, `routeFromHAR`, `routeWebSocket` | ⬜ | |
 | Downloads: event, `suggestedFilename`, `url`, `path`, `saveAs`, `failure` | ✅ | `firefox_downloads` |
 | Frames: `frameLocator` (nested), clicks and fills inside iframes, `page.frames()`, `frame.evaluate` | ✅ | `firefox_frames` |
-| `page.pdf` | ⬜ | BiDi has `browsingContext.print`; not wired yet |
-| Video, tracing, HAR recording, clock, aria snapshots, accessibility, `exposeBinding`, element handles | ⬜ | |
+| `page.pdf` (format, size, margins, landscape, scale, page ranges, background) | ✅ | `firefox_pdf_and_har` (`browsingContext.print`); `displayHeaderFooter` is an error (BiDi prints none) |
+| `context.tracing()` `start` / `stop` (actions, console, network resources, screencast frames) | ✅ | `firefox_tracing` |
+| Tracing DOM snapshots (`snapshots: true`), chunks, groups | ⬜ | |
+| Clock, aria snapshots, accessibility, `exposeBinding`, element handles | ⬜ | |
 | CDP sessions, coverage, `browser.startTracing`, CDP domain clients (section 12) | ❌ | Chromium-only: Firefox does not speak CDP |
-| `firefox.connect`, `launchPersistentContext`, `launchServer` | ⬜ | |
+| `firefox.connect` (a running Firefox's BiDi endpoint; `close` leaves it running), `launchPersistentContext` (kept profile) | ✅ | `firefox_persistent_context_and_connect` |
+| `launchServer` | ⬜ | |

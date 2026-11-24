@@ -37,7 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - HTTP credentials;
   - downloads;
   - iframes (`frame_locator`, `frames`);
-  - storage state (save and restore).
+  - storage state (save and restore);
+  - more input: `dblclick`, `drag_to`, `select_option`, `set_input_files`,
+    `page.mouse()` and `page.keyboard()`;
+  - `page.pdf()`, `recordHar`, `recordVideo` and `context.tracing()`
+    (actions, console, network, screencast frames; no DOM snapshots yet);
+  - pop-ups, workers (events, url, close) and WebSockets;
+  - `Firefox::launch_persistent_context` and `Firefox::connect`.
+- `worker.evaluate` is an error on Firefox: Firefox 159's BiDi cannot run
+  scripts in worker realms yet.
+- The video encoder port gains `start_scaled` (Firefox frames are full
+  size); Chromium's ffmpeg arguments are unchanged.
 - `docs/PARITY.md` section 13: the Firefox column (what works, the test,
   or why not).
 - Over BiDi in Firefox 159 there is no command for isMobile, hasTouch or

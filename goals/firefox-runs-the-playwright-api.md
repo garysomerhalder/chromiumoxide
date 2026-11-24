@@ -121,6 +121,24 @@ uses Juggler).
   is ⬜ on Firefox: element handles, `dblclick` / drag / `select_option` /
   file inputs, raw mouse and keyboard, PDF, video, tracing, HAR,
   popups, workers, WebSockets, `launch_persistent_context`, `connect`.
+- 2026-11-24: added on Firefox, each with a passing test (20 Firefox tests
+  in all):
+  - `dblclick`, `drag_to`, `select_option`, `set_input_files`,
+    `page.mouse()`, `page.keyboard()`;
+  - `page.pdf()`, HAR recording, video recording, tracing;
+  - pop-ups, workers, WebSockets;
+  - `launch_persistent_context`, `connect`.
+
+  Findings:
+  - Firefox's WebDriver actions start a drag but never send `drop`; the
+    library finishes the drop in the page.
+  - Firefox 159 cannot run code inside workers over BiDi, so
+    `worker.evaluate` is a clear error (PARITY ❌).
+  - Firefox screenshots are full size, so videos are scaled by ffmpeg
+    (new `start_scaled` on the encoder port; Chromium's path unchanged).
+
+  Still ⬜ in PARITY section 13: element handles, clock, aria snapshots,
+  tracing DOM snapshots, some locator and route extras, `launchServer`.
 
 ## Set it
 
