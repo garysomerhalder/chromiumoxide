@@ -241,7 +241,9 @@ async fn screencast_show_actions_style() {
     });
     tokio::time::sleep(Duration::from_millis(350)).await;
     let during = page.screenshot().await.unwrap();
-    let [r, g, b] = pixel(&during, 200, 100);
+    // Inside the 30 px disc, above the button's "Go" (macOS draws the
+    // text across the disc's centre pixel).
+    let [r, g, b] = pixel(&during, 200, 88);
     // The marker fades out over the duration: red, partly blended with white.
     assert!(
         r > 200 && g < 160 && b < 160,
