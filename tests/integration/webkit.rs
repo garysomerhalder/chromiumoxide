@@ -787,3 +787,43 @@ async fn webkit_downloads() {
     std::fs::remove_file(&copy).unwrap();
     browser.close().await.unwrap();
 }
+
+/// recordVideo on WebKit: a .webm per page from WebKit's screencast frames.
+#[tokio::test]
+async fn webkit_records_video() {
+    use chromiumoxide::{ContextOptions, RecordVideo};
+    let Some(options) = options() else {
+        return;
+    };
+    if chromiumoxide::adapters::video::find_ffmpeg().is_none() {
+        eprintln!("no ffmpeg; skipping");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("cox-wk-video-{}", std::process::id()));
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions {
+            record_video: Some(RecordVideo::new(&dir)),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.set_content(
+        "<style>@keyframes c{from{background:red}to{background:blue}} body{animation:c .3s infinite}</style><h1>video</h1>",
+    )
+    .await
+    .unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+    let video = page.video().expect("recording");
+    page.close().await.unwrap();
+    let path = video.path().await.unwrap();
+    assert!(path.starts_with(&dir), "{path:?}");
+    assert_eq!(path.extension().unwrap(), "webm");
+    let bytes = std::fs::read(&path).unwrap();
+    assert_eq!(&bytes[..4], &[0x1a, 0x45, 0xdf, 0xa3], "EBML header");
+    assert!(bytes.len() > 1000, "{} bytes", bytes.len());
+    context.close().await.unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    browser.close().await.unwrap();
+}
