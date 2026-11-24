@@ -435,6 +435,8 @@ impl Browser {
                 granted: Mutex::new(Vec::new()),
                 subscribers: Mutex::new(Vec::new()),
                 clock_installed: AtomicBool::new(false),
+                bindings: Mutex::new(HashMap::new()),
+                binding_calls: Mutex::new(std::collections::HashSet::new()),
                 closed: AtomicBool::new(false),
             }),
         };
@@ -562,6 +564,9 @@ pub(crate) struct ContextInner {
     pub(crate) granted: Mutex<Vec<(String, String)>>,
     /// Playwright's clock script is in the context's pages.
     pub(crate) clock_installed: AtomicBool,
+    /// `context.exposeBinding` callbacks, and the call ids answered.
+    pub(crate) bindings: crate::application::firefox_binding::Bindings,
+    pub(crate) binding_calls: Mutex<std::collections::HashSet<String>>,
     /// `context.events()` subscribers.
     pub(crate) subscribers: Mutex<
         Vec<
@@ -1006,6 +1011,7 @@ async fn attach_page(
         extra_headers: Mutex::new(Vec::new()),
         requests: Mutex::new(HashMap::new()),
         pending_post: Mutex::new(HashMap::new()),
+        bindings: Mutex::new(HashMap::new()),
         closed: AtomicBool::new(false),
     });
     ctx.pages.lock().unwrap().push(inner.clone());
@@ -1156,6 +1162,8 @@ pub struct PageInner {
     pub(crate) requests: Mutex<HashMap<String, Request>>,
     /// Request bodies read before their `beforeRequestSent` is handled.
     pub(crate) pending_post: Mutex<HashMap<String, Vec<u8>>>,
+    /// `page.exposeBinding` callbacks.
+    pub(crate) bindings: crate::application::firefox_binding::Bindings,
     closed: AtomicBool,
 }
 
@@ -1527,6 +1535,13 @@ impl Page {
             "script.realmCreated" if p["type"] == "window" => {
                 self.inner.realms.lock().unwrap().insert(text("realm"));
             }
+            "script.message"
+                if p["channel"]
+                    .as_str()
+                    .is_some_and(|c| c.starts_with("chromiumoxide-binding:")) =>
+            {
+                self.binding_message(p);
+            }
             "script.message" if p["channel"] == WS_CHANNEL => {
                 let realm = p
                     .pointer("/source/realm")
@@ -1570,6 +1585,14 @@ impl Page {
     /// this page: a pop-up it opened, its dedicated workers.
     fn foreign_event(&self, method: &str, p: &Value) {
         match method {
+            // A binding call from one of this page's iframes.
+            "script.message"
+                if p["channel"]
+                    .as_str()
+                    .is_some_and(|c| c.starts_with("chromiumoxide-binding:")) =>
+            {
+                self.binding_message(p);
+            }
             "browsingContext.contextCreated"
                 if p["originalOpener"].as_str() == Some(self.inner.context.as_str())
                     && p["parent"].is_null() =>

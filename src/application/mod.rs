@@ -20,6 +20,7 @@ pub mod extras;
 pub mod filechooser;
 pub mod firefox;
 pub mod firefox_aria;
+pub mod firefox_binding;
 pub mod firefox_clock;
 pub mod firefox_context_more;
 pub mod firefox_download;

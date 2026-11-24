@@ -140,6 +140,7 @@ pub mod firefox {
     pub use crate::application::firefox::{
         Browser, BrowserContext, FirefoxLaunchOptions, Frame, Page, Screenshot,
     };
+    pub use crate::application::firefox_binding::BindingSource;
     pub use crate::application::firefox_clock::Clock;
     pub use crate::application::firefox_context_more::BrowserType;
     pub use crate::application::firefox_download::Download;
