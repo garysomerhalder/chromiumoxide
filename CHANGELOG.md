@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Milestone 14: every browser on every system
 
+- Firefox and WebKit now offer every public method of Playwright 1.65.1
+  that Chromium does: 453 of 453 per `scripts/api_coverage.py`, each
+  tested against the real browser (`tests/integration/firefox.rs`,
+  `tests/integration/webkit_api.rs`). Where the engine cannot do one
+  (`page.pdf` on WebKit, `requestGC` / `emulateMedia` / `download.cancel`
+  on Firefox, CDP sessions on both), the method returns an error that
+  says why. Highlights: frames as objects and the selector shortcuts;
+  JSHandle / ElementHandle; live Request / Response objects; route
+  `fallback` / `fetch`; `context.request`; context settings after
+  creation; `exposeFunction` / `exposeBinding`; ARIA snapshots; clock;
+  locator handlers; workers with `evaluate` on WebKit; tracing, HAR and
+  `routeFromHAR` on WebKit; `routeWebSocket`; `browser.bind()` with
+  `Firefox::connect` / `WebKit::connect`.
+
 - Runs on Linux, Windows and macOS: the full suite passes on each with
   every browser required (Chromium, Chrome, Edge, Firefox, Playwright's
   WebKit, Electron, Tauri; real Safari on macOS).

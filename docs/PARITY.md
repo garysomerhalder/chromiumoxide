@@ -1231,7 +1231,8 @@ Firefox.
 | `firefox.launch` (Playwright's arguments, `executablePath`, `headless`, `args`, `env`, `timeout`) | ✅ | `firefox_launches_and_runs_a_page` |
 | `browser.version`, `newPage`, `newContext`, `close` | ✅ | `firefox_launches_and_runs_a_page`, `firefox_contexts_emulate_devices` |
 | Context emulation: `viewport`, `deviceScaleFactor`, `userAgent`, `locale`, `timezoneId`, `screen`, `geolocation`, `extraHTTPHeaders`, `ignoreHTTPSErrors` | ✅ | `firefox_contexts_emulate_devices` |
-| Context options `isMobile`, `hasTouch`, `colorScheme` (dark / no-preference), `reducedMotion`, `forcedColors`, `contrast`, `javaScriptEnabled: false`, `offline`, `permissions` | ❌ | No BiDi command in Firefox 159 (Playwright uses its Juggler protocol); creating such a context is an error naming the options |
+| Context options `offline`, `permissions` | ✅ | `firefox_context_settings_and_events` (`emulation.setNetworkConditions`, `permissions.setPermission`) |
+| Context options `isMobile`, `hasTouch`, `colorScheme` (dark / no-preference), `reducedMotion`, `forcedColors`, `contrast`, `javaScriptEnabled: false` | ❌ | No BiDi command in Firefox 159 (Playwright uses its Juggler protocol); creating such a context is an error naming the options |
 | Context option `baseURL` | ✅ | `firefox_base_url_and_locator_screenshot` |
 | Context options `bypassCSP`, `proxy`, `clientCertificates`, `serviceWorkers` | ⬜ | An error naming the option for now |
 | `recordHar` (bodies from a BiDi network data collector; `content`, `mode`, `urlFilter`, `.zip`) | ✅ | `firefox_pdf_and_har` |
@@ -1245,11 +1246,20 @@ Firefox.
 | `page.screenshot` `omitBackground`, `scale: "css"` at a device scale factor above 1, WebP, `mask` | ⬜ | An error for now (BiDi has no background or scale option) |
 | `page.waitForFunction`, `waitForTimeout`, `locator.waitFor` | ✅ | `firefox_navigates_and_waits` |
 | `page.waitForURL`, `waitForLoadState` (`domcontentloaded`, `load`, `networkidle`), `waitForRequest` / `Response` | ✅ | `firefox_waits_and_locator_extras` |
-| `page.waitForEvent` | ⬜ | `page.events()` covers it for now |
+| `page.waitForEvent`, `context.waitForEvent`, `worker.waitForEvent` | ✅ | `firefox_context_settings_and_events`, `firefox_event_object_details` |
+| Playwright 1.65.1's whole API, class by class (453 methods: Page, Frame, Locator, FrameLocator, ElementHandle, JSHandle, BrowserContext, Browser, Route, Request, Response, Mouse, Keyboard, Touchscreen, Worker, Download, Dialog, ConsoleMessage, FileChooser, WebSocket, Tracing, Clock, APIRequestContext, APIResponse) | ✅ | `scripts/api_coverage.py` reports 453/453; the Firefox tests below |
+| Page and context details: `context`, `opener`, `bringToFront`, `consoleMessages`, `pageErrors`, `requests`, default timeouts, `waitForNavigation`, `pickLocator`, `pause`; context `setExtraHTTPHeaders`, `setOffline`, `setGeolocation`, `grant/clearPermissions`, `setHTTPCredentials`, `setStorageState`, `events` | ✅ | `firefox_page_details_and_frame_locator_nth`, `firefox_context_settings_and_events` |
+| `page.requestGC`, `page.emulateMedia` | ❌ | No BiDi command in Firefox 159; an error that says so |
+| Frames as objects (`mainFrame`, `frame(name)`, `childFrames`, `parentFrame`, `goto`, waits, script and style tags) and the selector shortcuts (`page.click(selector)`, …) | ✅ | `firefox_frames_and_selector_shortcuts` |
+| JSHandle and ElementHandle (all element actions, `evaluateHandle`, `waitForSelector`, `frameElement`, `contentFrame`) | ✅ | `firefox_js_and_element_handles` |
+| Request / Response details (post data, resource type, redirects, timing, sizes, bodies, headers) | ✅ | `firefox_request_and_response_details`; `serverAddr` / `securityDetails` are `None` (BiDi does not report them) |
+| `context.request` / `page.request` (APIRequestContext sharing the context's cookies) | ✅ | `firefox_api_request_context` |
+| `exposeFunction` / `exposeBinding` (BiDi channels) | ✅ | `firefox_expose_function_and_binding` |
+| `browser.bind` / `unbind` (one BiDi session relayed to other clients) | ✅ | `firefox_bind_shares_the_browser` |
 | Locators: `locator`, `getBy*`, `nth` / `first` / `last`, chaining, `textContent`, `innerText`, `innerHTML`, `getAttribute`, `inputValue`, `count`, `allTextContents`, `allInnerTexts`, `isVisible`, `isHidden`, `isChecked`, strictness | ✅ | `firefox_locators_query_the_page` |
 | Locator `filter`, `and`, `or`, `all`, `boundingBox`, `evaluate` | ✅ | `firefox_waits_and_locator_extras` |
 | Locator `screenshot` | ✅ | `firefox_base_url_and_locator_screenshot` |
-| Locator `ariaSnapshot`, `highlight` | ⬜ | |
+| Locator `ariaSnapshot` (YAML, JSON, 'ai' mode with refs), `page.getByRef`, `highlight`, the rest of Locator (states, `blur`, `clear`, `dispatchEvent`, `evaluateAll`, `describe`, `normalize`, `drop`, …) | ✅ | `firefox_aria_snapshots_and_refs`, `firefox_locator_helpers` |
 | Input: `click`, `hover`, `fill`, `focus`, `press`, `pressSequentially`, `check`, `uncheck` | ✅ | `firefox_locators_act_on_elements` |
 | Input: `dblclick`, `dragTo`, `selectOption`, `setInputFiles`, `page.mouse` (`move`, `down`, `up`, `click`, `dblclick`, `wheel`), `page.keyboard` (`down`, `up`, `press`, `type`, `insertText`) | ✅ | `firefox_more_input`. Firefox's WebDriver actions start a drag but end it without a `drop`, so `dragTo` finishes the drop in the page the way the browser does |
 | Input: `tap` | ❌ | `hasTouch` cannot be set over BiDi in Firefox 159 |
@@ -1258,17 +1268,21 @@ Firefox.
 | Events: request, response, requestfinished, requestfailed | ✅ | `firefox_network_events_context_routes_and_auth` |
 | Events: popup (`context.pages()` keeps pop-ups), websocket (frames both ways, close), worker (`page.workers()`, url, close; worker console messages reach the page) | ✅ | `firefox_popups_workers_and_websockets` |
 | `worker.evaluate` | ❌ | Firefox 159's BiDi only runs scripts in window realms; a clear error. Running code in a worker any other way means starting it from a different script URL, which breaks the worker's own relative imports, so it is not done |
-| Events: filechooser, frameattached / framedetached | ⬜ | |
+| Events: filechooser; console message `args`, `location`, `timestamp`, `page`; dialog `page`; download `page`, `createReadStream`, `delete` | ✅ | `firefox_event_object_details` |
+| `download.cancel` | ❌ | WebDriver BiDi has no command to cancel a download; an error that says so |
 | Cookies: `context.cookies`, `addCookies`, `clearCookies` | ✅ | `firefox_cookies_and_init_scripts` |
 | `context.addInitScript`, `page.addInitScript` | ✅ | `firefox_cookies_and_init_scripts` |
 | `page.route` / `context.route` (fulfill, continue, abort), `unroute`, `unrouteAll` | ✅ | `firefox_routes_requests`, `firefox_network_events_context_routes_and_auth` |
-| Route `fetch`, `fallback`, continue / fulfill with overrides, `routeFromHAR`, `routeWebSocket` | ⬜ | |
+| Route `fetch`, `fallback`, `fulfill({ response })` | ✅ | `firefox_route_fallback_and_fetch` |
+| `routeFromHAR` (serve, not-found modes, update), `tracing.startHar` / `stopHar` | ✅ | `firefox_har_recording_and_routing` |
+| `routeWebSocket` (mock, connect to server, pass through) | ✅ | `firefox_route_web_socket` |
+| `page.addLocatorHandler` / `removeLocatorHandler` | ✅ | `firefox_locator_handlers` |
 | Downloads: event, `suggestedFilename`, `url`, `path`, `saveAs`, `failure` | ✅ | `firefox_downloads` |
 | Frames: `frameLocator` (nested), clicks and fills inside iframes, `page.frames()`, `frame.evaluate` | ✅ | `firefox_frames` |
 | `page.pdf` (format, size, margins, landscape, scale, page ranges, background) | ✅ | `firefox_pdf_and_har` (`browsingContext.print`); `displayHeaderFooter` is an error (BiDi prints none) |
 | `context.tracing()` `start` / `stop` (actions, console, network resources, screencast frames) | ✅ | `firefox_tracing` |
 | Tracing DOM snapshots (`snapshots: true`, Playwright's snapshot streamer), `startChunk` / `stopChunk`, `group` / `groupEnd` | ✅ | `firefox_trace_snapshots_chunks_and_groups` |
-| Clock, aria snapshots, accessibility, `exposeBinding`, element handles | ⬜ | |
+| Clock (Playwright's fake timers) | ✅ | `firefox_clock_controls_time` |
 | CDP sessions, coverage, `browser.startTracing`, CDP domain clients (section 12) | ❌ | Chromium-only: Firefox does not speak CDP |
 | `firefox.connect` (a running Firefox's BiDi endpoint; `close` leaves it running), `launchPersistentContext` (kept profile) | ✅ | `firefox_persistent_context_and_connect` |
 | `launchServer` | ⬜ | |
@@ -1302,7 +1316,20 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 | `PageEvent::Popup` (`window.open`, `target=_blank`): a working page | ✅ | `webkit_popups` |
 | `PageEvent::Download` (`suggested_filename`, `url`, `path`, `read`, `save_as`, `failure`); `acceptDownloads` | ✅ | `webkit_downloads` |
 | `recordVideo`: one `.webm` per page from WebKit's screencast (`Screencast.startScreencast`), `page.video()` with `path`, `save_as`, `delete` | ✅ | `webkit_records_video` |
-| Tracing, HAR, workers | ⬜ | Next, as for Firefox |
+| Playwright 1.65.1's whole API, class by class (453 methods, as for Firefox) | ✅ | `scripts/api_coverage.py` reports 453/453; `tests/integration/webkit_api.rs` (the Firefox tests, ported) |
+| The rest of Locator, Frames as objects, the selector shortcuts | ✅ | `webkit_locator_helpers`, `webkit_frames_and_selector_shortcuts` (`DOM.setInputFiles`, `Input.dispatchTapEvent` with `hasTouch`) |
+| Waits (`waitForURL`, `waitForLoadState`, `waitForRequest` / `Response`, `waitForNavigation`), locator extras, `baseURL` | ✅ | `webkit_waits_and_locator_extras` |
+| Page details, default timeouts, `pickLocator`, `pause`, `requestGC` (`Heap.gc`), `emulateMedia` (`Page.setEmulatedMedia`, `overrideUserPreference`, `setForcedColors`), mouse and keyboard | ✅ | `webkit_page_details_and_frame_locator_nth` |
+| Context settings: extra headers, `offline` (`Network.setEmulateOfflineState`), geolocation, permissions (`Emulation.grantPermissions` / `resetPermissions`), HTTP credentials (`Emulation.setAuthCredentials`), storage state, events | ✅ | `webkit_context_settings_and_events`. WebKit keeps a loaded document's geolocation decision until it reloads, as under Playwright |
+| JSHandle and ElementHandle (remote objects, `DOM.resolveNode`, `DOM.describeNode`) | ✅ | `webkit_js_and_element_handles` |
+| Request / Response details (incl. `serverAddr`, `securityDetails`, bodies via `Network.getResponseBody`), route `fallback` / `fetch`, APIRequestContext | ✅ | `webkit_request_and_response_details`, `webkit_route_fallback_and_fetch`, `webkit_api_request_context` |
+| Event objects (console `args`/`location`/`worker`, dialog `page`, download `page`/`cancel`, file chooser), workers (`worker.evaluate` / `evaluateHandle` through `Worker.sendMessageToWorker`), WebSockets, touchscreen | ✅ | `webkit_event_object_details` |
+| ARIA snapshots, `getByRef`, clock, locator handlers | ✅ | `webkit_aria_snapshots_and_refs`, `webkit_clock_controls_time`, `webkit_locator_handlers` |
+| `exposeFunction` / `exposeBinding` (`Runtime.addBinding`), `routeWebSocket` | ✅ | `webkit_expose_function_and_binding`, `webkit_route_web_socket` |
+| Tracing (actions, console, network, screencast, DOM snapshots, chunks, groups), `recordHar`, `startHar` / `stopHar`, `routeFromHAR` | ✅ | `webkit_tracing`, `webkit_trace_snapshots_chunks_and_groups`, `webkit_har_recording_and_routing`, `webkit_record_har_option` |
+| `browser.bind` / `unbind`, `WebKit::connect` (WebKit's protocol relayed over a WebSocket) | ✅ | `webkit_bind_shares_the_browser` |
+| `page.pdf` | ❌ | Playwright prints PDFs in Chromium only; an error that says so (`webkit_pdf_is_chromium_only`) |
+| CDP sessions, `browser.startTracing`, `backgroundPages`, `serviceWorkers` | ❌ | Chromium only; errors (or empty lists) that say so |
 
 ## 16. Safari (M14)
 

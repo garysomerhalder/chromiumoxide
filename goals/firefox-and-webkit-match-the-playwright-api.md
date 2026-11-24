@@ -64,13 +64,14 @@ Out:
 
 - `scripts/api_coverage.py <playwright-core>/types/types.d.ts`: methods per
   class and engine.
-- `tests/integration/firefox.rs`, `tests/integration/webkit.rs`.
+- `tests/integration/firefox.rs`, `tests/integration/webkit.rs`,
+  `tests/integration/webkit_api.rs` (the Firefox tests, ported to WebKit).
 
 ## Done when
 
-- [ ] `scripts/api_coverage.py` reports 453/453 for chromium, firefox and webkit.
-- [ ] Every new method has an integration test against the real browser.
-- [ ] PARITY 13 and 14 list each method as ✅ or ❌ with the reason.
+- [x] `scripts/api_coverage.py` reports 453/453 for chromium, firefox and webkit.
+- [x] Every new method has an integration test against the real browser.
+- [x] PARITY 13 and 14 list each method as ✅ or ❌ with the reason.
 - [ ] fmt, clippy `-D warnings` and the full suite pass on Linux; the full
       suite passes on Windows and macOS.
 - [ ] CHANGELOG has the entry; the PR is updated.
@@ -84,6 +85,11 @@ discovery, launch or rendering, or a browser build other than Playwright's.
 
 - 2026-11-24: active. Baseline per class: chromium 448/453, firefox 147/453,
   webkit 102/453.
+- 2026-11-24: chromium and firefox 453/453 (Firefox tests pass).
+- 2026-11-24: webkit 453/453: the Firefox tests ported to WebKit in nine
+  red/green batches (`webkit_api.rs`, 23 tests), all passing on Linux with
+  the WebKit pixel-parity test. Left: the full suite on Linux, Windows and
+  macOS; the PR description.
 
 ## Set it
 
