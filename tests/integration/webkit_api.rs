@@ -285,3 +285,431 @@ async fn webkit_frames_and_selector_shortcuts() {
     assert!(gone.is_detached().await.unwrap());
     browser.close().await.unwrap();
 }
+
+/// WebKit: waitForURL / waitForLoadState / waitForRequest / waitForResponse
+/// and the locator extras (filter, and, or, all, boundingBox, evaluate,
+/// screenshot), with the baseURL context option.
+#[tokio::test]
+async fn webkit_waits_and_locator_extras() {
+    use chromiumoxide::{ContextOptions, Filter, WaitUntil};
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/a.html", "text/html", "<a href='/b.html'>next</a>", 0);
+    server.route("/b.html", "text/html", "<title>b</title>", 0);
+    server.route("/data.txt", "text/plain", "data", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser
+        .new_context(ContextOptions {
+            base_url: Some(server.url("/")),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let page = context.new_page().await.unwrap();
+    page.goto("/a.html").await.unwrap();
+
+    let clicked = {
+        let page = page.clone();
+        tokio::spawn(async move { page.locator("a").click().await })
+    };
+    page.wait_for_url("**/b.html").await.unwrap();
+    clicked.await.unwrap().unwrap();
+    page.wait_for_load_state(WaitUntil::Load).await.unwrap();
+    page.wait_for_load_state(WaitUntil::DomContentLoaded)
+        .await
+        .unwrap();
+    page.wait_for_load_state(WaitUntil::NetworkIdle)
+        .await
+        .unwrap();
+    assert_eq!(page.title().await.unwrap(), "b");
+
+    let request = page.wait_for_request("**/data.txt");
+    let response = page.wait_for_response("**/data.txt");
+    page.evaluate::<String>("fetch('/data.txt').then(r => r.text())")
+        .await
+        .unwrap();
+    assert_eq!(request.await.unwrap().method(), "GET");
+    assert_eq!(response.await.unwrap().status(), 200);
+
+    page.set_content("<li>apple</li><li class=x>banana</li><li>cherry</li><button>b</button>")
+        .await
+        .unwrap();
+    let li = page.locator("li");
+    assert_eq!(
+        li.filter(Filter {
+            has_text: Some("an".into()),
+            ..Default::default()
+        })
+        .inner_text()
+        .await
+        .unwrap(),
+        "banana"
+    );
+    assert_eq!(li.and(&page.locator(".x")).count().await.unwrap(), 1);
+    assert_eq!(
+        page.locator("li.x")
+            .or(&page.locator("button"))
+            .count()
+            .await
+            .unwrap(),
+        2
+    );
+    let all = li.all().await.unwrap();
+    assert_eq!(all.len(), 3);
+    assert_eq!(all[2].inner_text().await.unwrap(), "cherry");
+    let b = page.locator(".x").bounding_box().await.unwrap().unwrap();
+    assert!(b.width > 0.0 && b.height > 0.0, "{b:?}");
+    assert_eq!(
+        page.locator(".x")
+            .evaluate::<String>("e => e.className + ':' + e.textContent")
+            .await
+            .unwrap(),
+        "x:banana"
+    );
+
+    page.set_content(
+        "<body style='margin:0'><div style='height:300px'></div>\
+         <div id=box style='width:50px;height:30px;margin-left:20px;background:rgb(255,0,0)'></div></body>",
+    )
+    .await
+    .unwrap();
+    let png = page.locator("#box").screenshot().await.unwrap();
+    let (w, h, rgba) = crate::screenshot::decode(&png);
+    assert_eq!((w, h), (50, 30));
+    assert_eq!(&rgba[..4], &[255, 0, 0, 255]);
+    browser.close().await.unwrap();
+}
+
+/// WebKit: the rest of Page (context, opener, bringToFront, recent console
+/// messages / errors / requests, waitForNavigation, default timeouts,
+/// pickLocator, pause, requestGC, emulateMedia) and FrameLocator's nth,
+/// first, last and owner.
+#[tokio::test]
+async fn webkit_page_details_and_frame_locator_nth() {
+    use chromiumoxide::{ColorScheme, EmulateMedia, Media};
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/a.html", "text/html", "<a href='/b.html'>b</a>", 0);
+    server.route("/b.html", "text/html", "<title>b</title>", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    let context = browser.new_context(Default::default()).await.unwrap();
+    let page = context.new_page().await.unwrap();
+    assert!(page.context().is_some());
+    assert!(page.opener().is_none());
+    page.bring_to_front().await.unwrap();
+
+    // Recent console messages, page errors and requests.
+    page.goto(&server.url("/a.html")).await.unwrap();
+    page.evaluate::<serde_json::Value>(
+        "console.log('one'); setTimeout(() => { throw new Error('boom'); })",
+    )
+    .await
+    .unwrap();
+    page.wait_for_function("true").await.unwrap();
+    page.wait_for_timeout(std::time::Duration::from_millis(200))
+        .await;
+    assert!(page.console_messages().iter().any(|m| m.text() == "one"));
+    assert!(
+        page.page_errors()
+            .iter()
+            .any(|e| e.message().contains("boom"))
+    );
+    assert!(page.requests().iter().any(|r| r.url().ends_with("/a.html")));
+    page.clear_console_messages();
+    page.clear_page_errors();
+    assert!(page.console_messages().is_empty());
+    assert!(page.page_errors().is_empty());
+
+    // waitForNavigation: listens from the call on.
+    let nav = page.wait_for_navigation();
+    page.locator("a").click().await.unwrap();
+    nav.await.unwrap();
+    assert_eq!(page.title().await.unwrap(), "b");
+
+    // Default timeouts apply to locator actions.
+    page.set_default_timeout(std::time::Duration::from_millis(300));
+    let started = std::time::Instant::now();
+    let err = page.locator("#missing").click().await.unwrap_err();
+    assert!(
+        matches!(err, chromiumoxide::Error::Timeout { ms: 300, .. }),
+        "{err}"
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    page.set_default_navigation_timeout(std::time::Duration::from_secs(30));
+    context.set_default_timeout(std::time::Duration::from_secs(30));
+    context.set_default_navigation_timeout(std::time::Duration::from_secs(30));
+
+    // Opener of a pop-up.
+    page.set_content("<a target=_blank href='about:blank'>pop</a>")
+        .await
+        .unwrap();
+    let mut events = page.events();
+    page.locator("a").click().await.unwrap();
+    let popup = loop {
+        use futures::StreamExt;
+        if let Some(chromiumoxide::webkit::PageEvent::Popup(p)) = events.next().await {
+            break p;
+        }
+    };
+    assert!(popup.opener().is_some());
+
+    // FrameLocator nth / first / last / owner, get_by_alt_text / title.
+    page.set_content(
+        "<iframe srcdoc=\"<img alt=A title=T src='data:,'>\"></iframe><iframe srcdoc='<p>2</p>'></iframe>",
+    )
+    .await
+    .unwrap();
+    let frames = page.frame_locator("iframe");
+    assert_eq!(
+        frames
+            .first()
+            .get_by_alt_text("A", true)
+            .count()
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        frames
+            .first()
+            .get_by_title("T", true)
+            .count()
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(frames.last().locator("p").inner_text().await.unwrap(), "2");
+    assert_eq!(frames.nth(1).locator("p").count().await.unwrap(), 1);
+    assert_eq!(frames.nth(1).owner().count().await.unwrap(), 1);
+
+    // pickLocator: a click in the page picks the element; cancel stops it.
+    page.set_content("<button id=pick>pick me</button>")
+        .await
+        .unwrap();
+    let picking = {
+        let page = page.clone();
+        tokio::spawn(async move { page.pick_locator().await })
+    };
+    page.wait_for_timeout(std::time::Duration::from_millis(300))
+        .await;
+    page.mouse().click(10.0, 10.0).await.unwrap();
+    let picked = picking.await.unwrap().unwrap();
+    assert_eq!(picked.inner_text().await.unwrap(), "pick me");
+    let cancelled = {
+        let page = page.clone();
+        tokio::spawn(async move { page.pick_locator().await })
+    };
+    page.wait_for_timeout(std::time::Duration::from_millis(200))
+        .await;
+    page.cancel_pick_locator().await.unwrap();
+    assert!(cancelled.await.unwrap().is_err());
+
+    // pause() waits for context.resume().
+    let paused = {
+        let page = page.clone();
+        tokio::spawn(async move { page.pause().await })
+    };
+    page.wait_for_timeout(std::time::Duration::from_millis(100))
+        .await;
+    assert!(!paused.is_finished());
+    context.resume();
+    paused.await.unwrap().unwrap();
+
+    // requestGC and emulateMedia work in WebKit.
+    page.request_gc().await.unwrap();
+    page.emulate_media(EmulateMedia {
+        media: Some(Media::Print),
+        color_scheme: Some(ColorScheme::Dark),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    assert!(
+        page.evaluate::<bool>("matchMedia('print').matches")
+            .await
+            .unwrap()
+    );
+    assert!(
+        page.evaluate::<bool>("matchMedia('(prefers-color-scheme: dark)').matches")
+            .await
+            .unwrap()
+    );
+    browser.close().await.unwrap();
+}
+
+/// WebKit: context settings after creation (extra headers, offline,
+/// geolocation, permissions, HTTP credentials, storage state), context
+/// events, and the rest of Browser and BrowserContext.
+#[tokio::test]
+async fn webkit_context_settings_and_events() {
+    use chromiumoxide::webkit::ContextEvent;
+    use chromiumoxide::{ContextOptions, Geolocation, HttpCredentials, StorageState};
+    use futures::StreamExt;
+    let Some(options) = options() else {
+        return;
+    };
+    let server = crate::server::TestServer::start().await;
+    server.route("/p.html", "text/html", "<title>p</title>", 0);
+    let browser = WebKit::launch(options).await.unwrap();
+    assert_eq!(browser.browser_type().name(), "webkit");
+    assert!(browser.is_connected());
+    let context = browser
+        .new_context(ContextOptions {
+            permissions: vec!["geolocation".into()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(browser.contexts().len(), 1);
+    assert!(context.browser().is_some());
+    assert!(!context.is_closed());
+    assert!(context.background_pages().is_empty());
+    assert!(context.service_workers().is_empty());
+
+    // Context events: a new page, then its console messages.
+    let mut events = context.events();
+    let page = context.new_page().await.unwrap();
+    assert!(matches!(events.next().await, Some(ContextEvent::Page(_))));
+    assert_eq!(context.pages().len(), 1);
+    let console = context.wait_for_event(|e| match e {
+        ContextEvent::Console(m) => Some(m.text().to_owned()),
+        _ => None,
+    });
+    page.evaluate::<()>("void console.log('waited')")
+        .await
+        .unwrap();
+    assert_eq!(console.await.unwrap(), "waited");
+
+    // Extra headers on the context and the page.
+    context
+        .set_extra_http_headers(&[("x-ctx", "1")])
+        .await
+        .unwrap();
+    page.set_extra_http_headers(&[("x-page", "2")])
+        .await
+        .unwrap();
+    page.goto(&server.url("/dump")).await.unwrap();
+    let echoed: serde_json::Value = page
+        .evaluate("JSON.parse(document.body.innerText)")
+        .await
+        .unwrap();
+    assert_eq!(echoed["headers"]["x-ctx"], "1", "{echoed}");
+    assert_eq!(echoed["headers"]["x-page"], "2", "{echoed}");
+
+    // Geolocation and permissions.
+    page.goto(&server.url("/p.html")).await.unwrap();
+    context
+        .set_geolocation(Some(Geolocation {
+            latitude: 10.0,
+            longitude: 20.0,
+            accuracy: 1.0,
+        }))
+        .await
+        .unwrap();
+    let lat: f64 = page
+        .evaluate(
+            "new Promise((ok, err) => navigator.geolocation.getCurrentPosition(p => ok(p.coords.latitude), err))",
+        )
+        .await
+        .unwrap();
+    assert_eq!(lat, 10.0);
+    context.clear_permissions().await.unwrap();
+    let denied: bool = page
+        .evaluate(
+            "new Promise(ok => navigator.geolocation.getCurrentPosition(() => ok(false), () => ok(true)))",
+        )
+        .await
+        .unwrap();
+    assert!(denied);
+    context
+        .grant_permissions(
+            &["geolocation"],
+            Some(server.url("/").trim_end_matches('/')),
+        )
+        .await
+        .unwrap();
+    let lat: f64 = page
+        .evaluate(
+            "new Promise((ok, err) => navigator.geolocation.getCurrentPosition(p => ok(p.coords.latitude), err))",
+        )
+        .await
+        .unwrap();
+    assert_eq!(lat, 10.0);
+
+    // Offline.
+    context.set_offline(true).await.unwrap();
+    assert!(page.goto(&server.url("/p.html")).await.is_err());
+    context.set_offline(false).await.unwrap();
+    page.goto(&server.url("/p.html")).await.unwrap();
+
+    // HTTP credentials set later.
+    context
+        .set_http_credentials(Some(HttpCredentials {
+            username: "user".into(),
+            password: "pass".into(),
+            origin: None,
+        }))
+        .await
+        .unwrap();
+    page.goto(&server.url("/protected")).await.unwrap();
+    assert_eq!(page.inner_text("body").await.unwrap(), "secret ok");
+
+    // setStorageState replaces cookies and localStorage.
+    page.goto(&server.url("/p.html")).await.unwrap();
+    page.evaluate::<()>("void (document.cookie = 'a=1', localStorage.setItem('k', 'v'))")
+        .await
+        .unwrap();
+    let saved = context.storage_state().await.unwrap();
+    context
+        .set_storage_state(&StorageState::default())
+        .await
+        .unwrap();
+    assert!(context.cookies().await.unwrap().is_empty());
+    context.set_storage_state(&saved).await.unwrap();
+    assert_eq!(context.cookies().await.unwrap().len(), saved.cookies.len());
+    assert!(
+        context
+            .cookies()
+            .await
+            .unwrap()
+            .iter()
+            .any(|c| c.name == "a")
+    );
+    page.reload().await.unwrap();
+    assert_eq!(
+        page.evaluate::<String>("localStorage.getItem('k')")
+            .await
+            .unwrap(),
+        "v"
+    );
+
+    // Chromium-only parts: an error that says so.
+    for err in [
+        context
+            .new_cdp_session(&page)
+            .await
+            .unwrap_err()
+            .to_string(),
+        browser
+            .new_browser_cdp_session()
+            .await
+            .unwrap_err()
+            .to_string(),
+        browser
+            .start_tracing(None, &[])
+            .await
+            .unwrap_err()
+            .to_string(),
+        browser.stop_tracing().await.unwrap_err().to_string(),
+    ] {
+        assert!(err.contains("Chromium"), "{err}");
+    }
+    context.close().await.unwrap();
+    assert!(context.is_closed());
+    browser.close().await.unwrap();
+    assert!(!browser.is_connected());
+}
