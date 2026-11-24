@@ -93,3 +93,38 @@ pub fn newest_playwright_install(prefix: &str, exe: &str) -> Option<std::path::P
 pub fn full_chromium() -> Option<std::path::PathBuf> {
     newest_playwright_install("chromium-", "chrome-linux64/chrome")
 }
+
+/// A running process's command line (`None` once it has ended), on Linux,
+/// macOS and Windows.
+pub fn process_command_line(pid: u32) -> Option<String> {
+    if cfg!(target_os = "linux") {
+        let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+        if stat.contains(") Z") {
+            return None;
+        }
+        let raw = std::fs::read(format!("/proc/{pid}/cmdline")).ok()?;
+        return Some(String::from_utf8_lossy(&raw).replace('\0', " "));
+    }
+    let out = if cfg!(windows) {
+        std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!("(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine"),
+            ])
+            .output()
+            .ok()?
+    } else {
+        std::process::Command::new("ps")
+            .args(["-p", &pid.to_string(), "-o", "command="])
+            .output()
+            .ok()?
+    };
+    let line = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+    (!line.is_empty()).then_some(line)
+}
+
+/// Whether the process has ended.
+pub fn process_gone(pid: u32) -> bool {
+    process_command_line(pid).is_none()
+}

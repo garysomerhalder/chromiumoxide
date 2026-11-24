@@ -577,17 +577,10 @@ async fn browser_server_process() {
         .unwrap();
     let process = server.process().expect("launched by us");
     let pid = process.pid();
-    let cmdline = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap();
-    let cmdline = String::from_utf8_lossy(&cmdline);
+    let cmdline = crate::process_command_line(pid).expect("the browser is running");
     assert!(cmdline.contains("--remote-debugging-port"), "{cmdline}");
     server.close().await.unwrap();
-    assert!(
-        !std::path::Path::new(&format!("/proc/{pid}/cmdline")).exists()
-            || std::fs::read_to_string(format!("/proc/{pid}/stat"))
-                .unwrap_or_default()
-                .contains(") Z"),
-        "process {pid} ended"
-    );
+    assert!(crate::process_gone(pid), "process {pid} ended");
 }
 
 /// `download.createReadStream()`: the bytes as an `AsyncRead`.
@@ -746,6 +739,7 @@ async fn signal_child() {
 
 /// Runs `signal_child` in `mode`, sends it `signal` once the browser is up;
 /// returns its exit status, its output and the browser's profile directory.
+#[cfg(unix)]
 fn run_signal_child(mode: &str, signal: &str) -> (std::process::ExitStatus, String, String, u32) {
     use std::io::BufRead;
     let mut child = std::process::Command::new(std::env::current_exe().unwrap())
@@ -789,12 +783,14 @@ fn run_signal_child(mode: &str, signal: &str) -> (std::process::ExitStatus, Stri
     (child.wait().unwrap(), seen, profile, pid)
 }
 
+#[cfg(unix)]
 fn gone(pid: u32) -> bool {
     std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |s| s.contains(") Z"))
 }
 
 /// `handleSIGINT`: Ctrl-C closes the browser, removes its profile, then the
-/// program exits with 130.
+/// program exits with 130. (POSIX signals sent with `kill`: Unix only.)
+#[cfg(unix)]
 #[tokio::test]
 async fn handle_sigint_closes_the_browser_and_exits() {
     let (status, out, profile, pid) = run_signal_child("int", "-INT");
@@ -806,7 +802,9 @@ async fn handle_sigint_closes_the_browser_and_exits() {
     );
 }
 
-/// `handleSIGTERM`: closes the browser; the program keeps running.
+/// `handleSIGTERM`: closes the browser; the program keeps running. (Unix
+/// only: Windows has no SIGTERM.)
+#[cfg(unix)]
 #[tokio::test]
 async fn handle_sigterm_closes_the_browser() {
     let (status, out, profile, pid) = run_signal_child("term", "-TERM");

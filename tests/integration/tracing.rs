@@ -14,6 +14,8 @@ pub(crate) fn unzip(path: &std::path::Path) -> Value {
                   assert z.testzip() is None\n\
                   print(json.dumps({n: base64.b64encode(z.read(n)).decode() for n in z.namelist()}))";
     let out = std::process::Command::new("python3")
+        // UTF-8 output on Windows too (its console code page cannot print every character).
+        .env("PYTHONIOENCODING", "utf-8")
         .args(["-c", script])
         .arg(path)
         .output()

@@ -311,6 +311,8 @@ async fn request_context_tracing() {
     rq.tracing().stop(Some(&path)).await.unwrap();
 
     let out = std::process::Command::new("python3")
+        // UTF-8 output on Windows too (its console code page cannot print every character).
+        .env("PYTHONIOENCODING", "utf-8")
         .args([
             "-c",
             "import sys, zipfile; z = zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(sorted(z.namelist())); sys.stdout.write(z.read('trace.trace').decode())",
