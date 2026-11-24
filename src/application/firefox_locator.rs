@@ -54,17 +54,17 @@ impl Page {
 /// A Firefox locator: a selector resolved lazily, strict like Playwright's.
 #[derive(Clone, Debug)]
 pub struct Locator {
-    page: Page,
+    pub(crate) page: Page,
     /// Iframe selectors from the main frame down to the locator's frame.
-    frames: Vec<String>,
-    selector: String,
+    pub(crate) frames: Vec<String>,
+    pub(crate) selector: String,
 }
 
 /// `page.frameLocator(selector)`: locators inside an iframe.
 #[derive(Clone, Debug)]
 pub struct FrameLocator {
-    page: Page,
-    frames: Vec<String>,
+    pub(crate) page: Page,
+    pub(crate) frames: Vec<String>,
 }
 
 impl FrameLocator {
@@ -175,7 +175,7 @@ impl Locator {
 
     /// The locator's frame: its browsing context and the offset of its
     /// viewport in the page's; `None` while an iframe on the way is missing.
-    async fn scope(&self) -> Result<Option<(String, (f64, f64))>> {
+    pub(crate) async fn scope(&self) -> Result<Option<(String, (f64, f64))>> {
         let mut context = self.page.main_context();
         let mut offset = (0.0, 0.0);
         for frame in &self.frames {
@@ -212,7 +212,7 @@ impl Locator {
     /// Runs `body(injected, element)` on the single element the locator
     /// resolves to, waiting until there is one (strict: more than one is an
     /// error).
-    async fn read(&self, body: &str, args: &[Value]) -> Result<Value> {
+    pub(crate) async fn read(&self, body: &str, args: &[Value]) -> Result<Value> {
         let function = format!(
             "(i, selector, args) => {{ const parsed = i.parseSelector(selector); \
              const els = i.querySelectorAll(parsed, document); \
@@ -325,7 +325,7 @@ impl Locator {
     /// Playwright's actionability for pointer actions: waits until the
     /// single element is in `states`, scrolls it into view if needed and
     /// checks the centre hits it; returns that point (viewport CSS px).
-    async fn actionable_point(&self, states: &[&str]) -> Result<(f64, f64)> {
+    pub(crate) async fn actionable_point(&self, states: &[&str]) -> Result<(f64, f64)> {
         const PREPARE: &str = "async (i, selector, states) => { const parsed = i.parseSelector(selector); \
              const els = i.querySelectorAll(parsed, document); \
              if (els.length > 1) throw i.strictModeViolationError(parsed, els); \
@@ -711,7 +711,8 @@ impl Locator {
         Ok(v == Value::Bool(true))
     }
 
-    async fn set_checked(&self, checked: bool) -> Result<()> {
+    /// `locator.setChecked(checked)`.
+    pub async fn set_checked(&self, checked: bool) -> Result<()> {
         if self.is_checked().await? == checked {
             return Ok(());
         }

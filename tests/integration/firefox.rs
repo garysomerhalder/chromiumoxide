@@ -1798,7 +1798,8 @@ async fn firefox_locator_helpers() {
         .unwrap();
     assert_eq!(
         page.evaluate::<Vec<String>>("events").await.unwrap(),
-        ["blur", "custom", "drop:dropped"]
+        // `blur()`, then the checkbox click takes the focus `clear()` gave back.
+        ["blur", "blur", "custom", "drop:dropped"]
     );
 
     // tap needs a touch context, which BiDi cannot create.

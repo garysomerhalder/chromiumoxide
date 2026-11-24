@@ -61,7 +61,7 @@ pub struct BoundingBox {
 
 /// One attempt's outcome inside the retry loop.
 /// Playwright's in-page part of `drop()`.
-const DROP: &str = "(i, node, payloads, data, point) => {
+pub(crate) const DROP: &str = "(i, node, payloads, data, point) => {
   if (!node.isConnected || node.nodeType !== 1) return 'error:notconnected';
   const dt = new DataTransfer();
   for (const p of payloads) {
@@ -106,6 +106,41 @@ pub struct DropPayload {
 }
 
 impl DropPayload {
+    /// Whether there is nothing to drop.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.files.is_empty() && self.paths.is_empty() && self.data.is_empty()
+    }
+
+    /// The files (read from disk where given as paths) and data entries as
+    /// the in-page `DROP` function takes them.
+    pub(crate) fn to_json(
+        &self,
+        fs: &dyn crate::ports::FileSystem,
+    ) -> Result<(Vec<Value>, Vec<Value>)> {
+        let mut files: Vec<Value> = Vec::new();
+        for p in &self.paths {
+            let bytes = fs.read(p)?;
+            let name = p
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let mime = crate::domain::network::mime_type_for_path(&name)
+                .unwrap_or("application/octet-stream");
+            files.push(json!({"name": name, "mimeType": mime,
+                              "buffer": base64::engine::general_purpose::STANDARD.encode(bytes)}));
+        }
+        for f in &self.files {
+            files.push(json!({"name": f.name, "mimeType": f.mime_type,
+                              "buffer": base64::engine::general_purpose::STANDARD.encode(&f.buffer)}));
+        }
+        let data = self
+            .data
+            .iter()
+            .map(|(m, v)| json!({"mimeType": m, "value": v}))
+            .collect();
+        Ok((files, data))
+    }
+
     pub fn file(mut self, file: DropFile) -> Self {
         self.files.push(file);
         self
@@ -1061,33 +1096,12 @@ impl Locator {
     /// `locator.drop(payload)`: an external drag-and-drop of files and/or
     /// data onto the element's centre (`dragenter`, `dragover`, `drop`).
     pub async fn drop(&self, payload: DropPayload) -> Result<()> {
-        if payload.files.is_empty() && payload.paths.is_empty() && payload.data.is_empty() {
+        if payload.is_empty() {
             return Err(Error::InvalidArgument(
                 "At least one of \"files\" or \"data\" must be provided.".into(),
             ));
         }
-        let fs = self.page.inner.shared.services.fs.clone();
-        let mut files: Vec<Value> = Vec::new();
-        for p in &payload.paths {
-            let bytes = fs.read(p)?;
-            let name = p
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            let mime = crate::domain::network::mime_type_for_path(&name)
-                .unwrap_or("application/octet-stream");
-            files.push(json!({"name": name, "mimeType": mime,
-                              "buffer": base64::engine::general_purpose::STANDARD.encode(bytes)}));
-        }
-        for f in &payload.files {
-            files.push(json!({"name": f.name, "mimeType": f.mime_type,
-                              "buffer": base64::engine::general_purpose::STANDARD.encode(&f.buffer)}));
-        }
-        let data: Vec<Value> = payload
-            .data
-            .iter()
-            .map(|(m, v)| json!({"mimeType": m, "value": v}))
-            .collect();
+        let (files, data) = payload.to_json(&*self.page.inner.shared.services.fs)?;
         let timeout = self.timeout();
         let (files, data) = (&files, &data);
         self.retry("dropping", timeout, |_| async move {

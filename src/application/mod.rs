@@ -24,6 +24,7 @@ pub mod firefox_events;
 pub mod firefox_expect;
 pub mod firefox_input;
 pub mod firefox_locator;
+pub mod firefox_locator_more;
 pub mod firefox_record;
 pub mod firefox_route;
 pub mod firefox_waits;
