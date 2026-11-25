@@ -15,6 +15,7 @@ mod debugger;
 mod dragdrop;
 mod electron;
 mod engine_options;
+mod engine_server;
 mod events;
 mod extras;
 mod extras2;
