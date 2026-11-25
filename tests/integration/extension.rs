@@ -12,8 +12,20 @@ use crate::server::TestServer;
 /// returns its output folder; `None` (skip) without npm, unless
 /// `CHROMIUMOXIDE_REQUIRE_EXTENSION` is set.
 pub(crate) fn built(browser: &str) -> Option<PathBuf> {
-    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _guard = LOCK.lock().unwrap();
+    // Built once per test run: rebuilding replaces the output folder, which
+    // a browser started by another test may be loading at that moment.
+    static BUILT: std::sync::Mutex<Vec<(String, Option<PathBuf>)>> =
+        std::sync::Mutex::new(Vec::new());
+    let mut done = BUILT.lock().unwrap();
+    if let Some((_, out)) = done.iter().find(|(b, _)| b == browser) {
+        return out.clone();
+    }
+    let out = build(browser);
+    done.push((browser.to_owned(), out.clone()));
+    out
+}
+
+fn build(browser: &str) -> Option<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("extension");
     let out = dir.join(".output").join(match browser {
         "firefox" => "firefox-mv2",
