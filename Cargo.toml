@@ -87,6 +87,10 @@ name = "architecture"
 path = "tests/architecture.rs"
 
 [[test]]
+name = "webkit_protocol_names"
+path = "tests/webkit_protocol_names.rs"
+
+[[test]]
 name = "integration"
 path = "tests/integration/main.rs"
 
