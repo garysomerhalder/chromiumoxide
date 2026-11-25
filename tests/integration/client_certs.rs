@@ -190,7 +190,7 @@ pub(crate) fn mtls_server() -> Option<MtlsServer> {
         }
         return None;
     }
-    let front = std::net::TcpListener::bind("127.0.0.1:0").ok()?;
+    let front = crate::server::browsable_std_listener();
     let port = front.local_addr().ok()?.port();
     let idle = Arc::new((Mutex::new(backends), Condvar::new()));
     std::thread::spawn(move || {

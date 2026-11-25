@@ -10,7 +10,7 @@ use crate::server::TestServer;
 
 /// Echoes `echo:<text>` plus a binary [1, 2, 3] for each text message.
 pub(crate) async fn ws_server() -> u16 {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let listener = crate::server::browsable_listener().await;
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {
         while let Ok((sock, _)) = listener.accept().await {

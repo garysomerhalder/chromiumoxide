@@ -270,7 +270,7 @@ pub(crate) struct TestProxy {
 pub(crate) async fn test_proxy() -> TestProxy {
     use base64::Engine;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let listener = crate::server::browsable_listener().await;
     let port = listener.local_addr().unwrap().port();
     let site_authorizations = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));

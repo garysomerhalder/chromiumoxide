@@ -41,8 +41,7 @@ pub fn https_server() -> Option<(Server, u16)> {
     if !ok {
         return None;
     }
-    let port = std::net::TcpListener::bind("127.0.0.1:0")
-        .ok()?
+    let port = crate::server::browsable_std_listener()
         .local_addr()
         .ok()?
         .port();
