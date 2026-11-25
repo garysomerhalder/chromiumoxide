@@ -2533,6 +2533,16 @@ impl Page {
                 Some(UTILITY),
             )
             .await;
+        // Two animation frames (Playwright's "rafraf"): pending rendering
+        // work, such as an `autofocus` that Firefox applies at the next
+        // rendering update after `load`, is done before the capture.
+        let _ = self
+            .call_json(
+                "() => new Promise(f => requestAnimationFrame(() => requestAnimationFrame(() => f())))",
+                &[],
+                None,
+            )
+            .await;
         let shot = self.capture(o, viewport, format).await;
         let _ = self
             .call_json(&format!("({CLEANUP})"), &[], Some(UTILITY))
