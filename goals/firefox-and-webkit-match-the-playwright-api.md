@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | done |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-24 |
 | Started | 2026-11-24 |
@@ -95,6 +95,7 @@ discovery, launch or rendering, or a browser build other than Playwright's.
   Two macOS-only failures were fixed on the way: the test WebSocket
   server now completes the close handshake, and Firefox screenshots wait
   two animation frames (a rare missing autofocus ring).
+- 2026-11-25: status word corrected to `met` (the folder's standard).
 
 ## Set it
 

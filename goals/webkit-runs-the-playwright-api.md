@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | active |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
 | Started | 2026-11-24 |
-| Finished | — |
+| Finished | 2026-11-25 |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (Playwright's WebKit 27.2, `webkit-2388`, GTK and WPE); CI ubuntu-latest |
 
@@ -54,11 +54,11 @@ Out:
 
 ## Done when
 
-- [ ] The WebKit protocol crate is generated from `protocol.json` by the generator.
-- [ ] The integration suite runs against WebKit; every test passes or is listed in PARITY as not applicable with the reason.
-- [ ] The WebKit pixel-parity test passes against Playwright's WebKit.
-- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass, locally and in CI.
-- [ ] `docs/PARITY.md` has a WebKit column; `CHANGELOG.md` has the entries; draft PRs are open.
+- [x] The WebKit protocol crate is generated from `protocol.json` by the generator.
+- [x] The integration suite runs against WebKit; every test passes or is listed in PARITY as not applicable with the reason.
+- [x] The WebKit pixel-parity test passes against Playwright's WebKit.
+- [x] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
+- [x] `docs/PARITY.md` has a WebKit column; `CHANGELOG.md` has the entries; draft PRs are open.
 
 ## Stop rule
 
@@ -93,9 +93,18 @@ the WebKit build needs system libraries CI cannot install.
   parity tests), Edge, Chrome and Electron. The Mac found one real bug:
   editing keys (Backspace, Meta+A) need Playwright's macOS editing
   commands, now sent to Chromium (`commands`) and WebKit (`macCommands`).
+- 2026-11-25: the CI line follows Gary's "skip GitHub" (as the Firefox
+  goal does); "Set it" changed in the same commit.
+- 2026-11-25: met. The protocol crate `chromiumoxide_webkit_protocol` is
+  generated from `protocol.json` by `chromiumoxide_pdl` (33 domains); the
+  engine sends its core commands typed and a test checks every other
+  method name against it. Every Playwright 1.65.1 method Chromium has is
+  on WebKit (453/453), tested or listed ❌ in PARITY 14 with the reason.
+  Full suite green on Linux and Windows; pixel parity with Playwright's
+  WebKit passes.
 
 ## Set it
 
 ```
-/goal WebKit runs the Playwright API (goals/webkit-runs-the-playwright-api.md): the WebKit protocol crate is generated from protocol.json; the integration suite runs against WebKit with every test passing or listed as not applicable with the reason; the WebKit pixel-parity test passes against Playwright's WebKit; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally and in CI; PARITY has a WebKit column, CHANGELOG the entries, and draft PRs are open.
+/goal WebKit runs the Playwright API (goals/webkit-runs-the-playwright-api.md): the WebKit protocol crate is generated from protocol.json; the integration suite runs against WebKit with every test passing or listed as not applicable with the reason; the WebKit pixel-parity test passes against Playwright's WebKit; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally; PARITY has a WebKit column, CHANGELOG the entries, and draft PRs are open.
 ```

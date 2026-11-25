@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | active |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
 | Started | 2026-11-23 |
-| Finished | — |
+| Finished | 2026-11-25 |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (Playwright's Firefox 159, `firefox-1572`, WebDriver BiDi verified) |
 
@@ -60,10 +60,10 @@ Out:
 
 ## Done when
 
-- [ ] `chromiumoxide::firefox` has the Playwright API; every member has a passing Firefox integration test or is listed in PARITY's Firefox column with the reason; the Chromium suite and pixel parity stay green.
-- [ ] The Firefox pixel-parity test passes against Playwright's Firefox.
-- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
-- [ ] `docs/PARITY.md` has a Firefox column; `CHANGELOG.md` has the entries; draft PRs are open.
+- [x] `chromiumoxide::firefox` has the Playwright API; every member has a passing Firefox integration test or is listed in PARITY's Firefox column with the reason; the Chromium suite and pixel parity stay green.
+- [x] The Firefox pixel-parity test passes against Playwright's Firefox.
+- [x] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
+- [x] `docs/PARITY.md` has a Firefox column; `CHANGELOG.md` has the entries; draft PRs are open.
 
 ## Stop rule
 
@@ -144,6 +144,13 @@ uses Juggler).
   pref was tried and ends the drag without a drop too, so the in-page
   drop stays. `worker.evaluate` stays ❌: the only way round BiDi would
   start workers from another script URL and break their relative imports.
+- 2026-11-25: met. Every Playwright 1.65.1 method Chromium has is on
+  Firefox (453/453, `scripts/api_coverage.py`), each tested against the
+  real browser or listed ❌ in PARITY 13 with the reason. Added since:
+  screenshots with `omitBackground`, `scale: "css"`, WebP and masks;
+  contexts with `bypassCSP`, `proxy`, `clientCertificates` and
+  `serviceWorkers: "block"`; `launchServer`. Full suite green on Linux and
+  Windows; pixel parity with Playwright's Firefox passes.
 
 ## Set it
 

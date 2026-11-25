@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | done |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
 | Started | 2026-11-24 |
@@ -85,6 +85,7 @@ Linux path if the WebKit goal is not met yet.
   (macOS only, started only with `TAURI_WEBDRIVER_PORT`), and
   `tauri_window_runs_the_page_api` passes on the cloud Mac (macOS 26.6
   arm64). WebDriver `goto` now waits for the load.
+- 2026-11-25: status word corrected to `met` (the folder's standard).
 
 ## Set it
 
