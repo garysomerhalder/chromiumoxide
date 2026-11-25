@@ -677,7 +677,27 @@ impl BrowserContext {
             if let Some(dpr) = o.device_scale_factor {
                 p["devicePixelRatio"] = json!(dpr);
             }
-            bidi.call("browsingContext.setViewport", p).await?;
+            // A window Firefox is still opening has no browser element yet
+            // (seen on Windows); it is ready a moment later.
+            let mut attempts = 0;
+            loop {
+                match bidi.call("browsingContext.setViewport", p.clone()).await {
+                    Err(Error::Protocol { message, .. })
+                        if message.contains("browser is null") && attempts < 50 =>
+                    {
+                        attempts += 1;
+                        self.inner
+                            .services
+                            .clock
+                            .sleep(std::time::Duration::from_millis(100))
+                            .await;
+                    }
+                    result => {
+                        result?;
+                        break;
+                    }
+                }
+            }
         }
         if let Some(ua) = &o.user_agent {
             bidi.call(
