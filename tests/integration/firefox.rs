@@ -3390,3 +3390,48 @@ async fn firefox_screenshot_webp_and_mask() {
     assert_eq!(&rgba[(25 * w as usize + 25) * 4..][..4], &[255, 0, 0, 255]);
     browser.close().await.unwrap();
 }
+
+/// Firefox: `omitBackground`. Playwright's own Firefox answers "Not
+/// implemented", so there is no Playwright image to match: where the page
+/// paints nothing the image is transparent, opaque content keeps its colour,
+/// and half-transparent content keeps its alpha.
+#[tokio::test]
+async fn firefox_screenshot_omit_background() {
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<body style='margin:0'><div style='width:40px;height:40px;background:rgb(0,170,0)'></div>\
+         <div style='width:40px;height:40px;background:rgba(200,0,0,.5)'></div></body>",
+    )
+    .await
+    .unwrap();
+    let png = page.screenshot().omit_background(true).await.unwrap();
+    let (w, _, rgba) = crate::screenshot::decode(&png);
+    let at = |x: usize, y: usize| rgba[(y * w as usize + x) * 4..][..4].to_vec();
+    assert_eq!(at(200, 200)[3], 0, "no background: transparent");
+    assert_eq!(at(20, 20), [0, 170, 0, 255], "opaque content");
+    let half = at(20, 60);
+    assert!((126..=129).contains(&half[3]), "{half:?}");
+    assert!(
+        (198..=202).contains(&half[0]) && half[1] == 0 && half[2] == 0,
+        "{half:?}"
+    );
+    // The page's own background is kept (opaque), as in Playwright.
+    page.set_content("<body style='background:rgb(0,0,255)'></body>")
+        .await
+        .unwrap();
+    let png = page.screenshot().omit_background(true).await.unwrap();
+    let (_, _, rgba) = crate::screenshot::decode(&png);
+    assert_eq!(&rgba[..4], &[0, 0, 255, 255]);
+    // Nothing of the capture is left in the page.
+    assert_eq!(
+        page.evaluate::<usize>("document.querySelectorAll('#__chromiumoxide_backdrop').length")
+            .await
+            .unwrap(),
+        0
+    );
+    browser.close().await.unwrap();
+}

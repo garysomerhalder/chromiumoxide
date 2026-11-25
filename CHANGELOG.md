@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Milestone 14: every browser on every system
 
+- Firefox screenshots: `scale: "css"` (pixel-identical to Playwright's
+  Firefox), WebP, `mask` / `maskColor`, and `omitBackground` (which
+  Playwright's own Firefox does not implement). Checked: the library builds
+  on its minimum Rust, 1.88.
+
 - Firefox and WebKit now offer every public method of Playwright 1.65.1
   that Chromium does: 453 of 453 per `scripts/api_coverage.py`, each
   tested against the real browser (`tests/integration/firefox.rs`,

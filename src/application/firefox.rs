@@ -2465,6 +2465,8 @@ impl Page {
             page: self,
             options: ScreenshotOptions::default(),
             path: None,
+            mask: Vec::new(),
+            mask_color: None,
         }
     }
 
@@ -2472,29 +2474,53 @@ impl Page {
     /// `takeScreenshot`: always a document-relative rectangle.
     async fn take_screenshot(&self, o: &ScreenshotOptions) -> Result<Vec<u8>> {
         let quality = validate(o).map_err(|e| Error::InvalidArgument(e.0))?;
-        if o.omit_background {
-            return Err(Error::InvalidArgument(
-                "omitBackground is not supported on Firefox over WebDriver BiDi".into(),
-            ));
-        }
-        if o.scale == ScreenshotScale::Css
-            && self.inner.options.device_scale_factor.unwrap_or(1.0) != 1.0
-        {
-            return Err(Error::InvalidArgument(
-                "scale: \"css\" is not supported on Firefox over WebDriver BiDi".into(),
-            ));
-        }
         let format = match o.format {
             ImageFormat::Png => json!({"type": "image/png"}),
             ImageFormat::Jpeg => {
                 json!({"type": "image/jpeg", "quality": f64::from(quality.unwrap_or(80)) / 100.0})
             }
             ImageFormat::Webp => {
-                return Err(Error::InvalidArgument(
-                    "webp screenshots are not supported on Firefox over WebDriver BiDi".into(),
-                ));
+                json!({"type": "image/webp", "quality": f64::from(quality.unwrap_or(100)) / 100.0})
             }
         };
+        // `scale: "css"`: rendered at one device pixel per CSS pixel for the
+        // capture (BiDi has no capture scale), then back.
+        let dpr = self.inner.options.device_scale_factor.unwrap_or(1.0);
+        let css_scale = o.scale == ScreenshotScale::Css && dpr != 1.0;
+        if css_scale {
+            self.set_device_pixel_ratio(1.0).await?;
+        }
+        let shot = self.take_screenshot_at_scale(o, format).await;
+        if css_scale {
+            self.set_device_pixel_ratio(dpr).await?;
+        }
+        shot
+    }
+
+    async fn set_device_pixel_ratio(&self, dpr: f64) -> Result<()> {
+        self.inner
+            .bidi
+            .call(
+                "browsingContext.setViewport",
+                json!({"context": self.inner.context, "devicePixelRatio": dpr}),
+            )
+            .await?;
+        // The next frame is painted at the new ratio.
+        let _ = self
+            .call_json(
+                "() => new Promise(f => requestAnimationFrame(() => requestAnimationFrame(() => f())))",
+                &[],
+                None,
+            )
+            .await;
+        Ok(())
+    }
+
+    async fn take_screenshot_at_scale(
+        &self,
+        o: &ScreenshotOptions,
+        format: Value,
+    ) -> Result<Vec<u8>> {
         let viewport = match self.viewport_size() {
             Some(v) => Size {
                 width: f64::from(v.width),
@@ -2543,11 +2569,92 @@ impl Page {
                 None,
             )
             .await;
-        let shot = self.capture(o, viewport, format).await;
+        let shot = if o.omit_background {
+            self.capture_transparent(o, viewport, format).await
+        } else {
+            self.capture(o, viewport, format).await
+        };
         let _ = self
             .call_json(&format!("({CLEANUP})"), &[], Some(UTILITY))
             .await;
         shot
+    }
+
+    /// `omitBackground`: BiDi always paints Firefox's default white canvas,
+    /// so a page that sets no background of its own is captured twice, over
+    /// black and over white, and each pixel's alpha and colour are worked
+    /// out from the two (an opaque pixel is the same in both). A page with
+    /// its own background is opaque anyway, as in Playwright.
+    async fn capture_transparent(
+        &self,
+        o: &ScreenshotOptions,
+        viewport: Size,
+        format: Value,
+    ) -> Result<Vec<u8>> {
+        let bare: bool = self
+            .call_json(
+                "() => { const none = e => { if (!e) return true; const s = getComputedStyle(e); \
+                 return s.backgroundImage === 'none' && /^(transparent|rgba\\(0, 0, 0, 0\\))$/.test(s.backgroundColor); }; \
+                 return none(document.documentElement) && none(document.body); }",
+                &[],
+                Some(UTILITY),
+            )
+            .await?
+            .as_bool()
+            .unwrap_or(false);
+        if !bare {
+            return self.capture(o, viewport, format).await;
+        }
+        const SET: &str = "(color) => { let s = document.getElementById('__chromiumoxide_backdrop'); \
+             if (!s) { s = document.createElement('style'); s.id = '__chromiumoxide_backdrop'; \
+             (document.head || document.documentElement).appendChild(s); } \
+             s.textContent = color ? ':root { background: ' + color + ' !important; }' : ''; \
+             if (!color) s.remove(); \
+             return new Promise(f => requestAnimationFrame(() => requestAnimationFrame(() => f()))); }";
+        let png = json!({"type": "image/png"});
+        self.call_json(SET, &[json!("#000")], None).await?;
+        let black = self.capture(o, viewport, png.clone()).await;
+        self.call_json(SET, &[json!("#fff")], None).await?;
+        let white = self.capture(o, viewport, png).await;
+        let _ = self.call_json(SET, &[Value::Null], None).await;
+        let (black, white) = (
+            crate::domain::image::decode_png(&black?)?,
+            crate::domain::image::decode_png(&white?)?,
+        );
+        let image = crate::domain::image::unmatte(&black, &white)?;
+        let encoded = crate::domain::image::encode_png(&image);
+        match format["type"].as_str() {
+            Some("image/png") => Ok(encoded),
+            // The page's canvas encodes other formats (as Firefox does for
+            // its own captures).
+            Some(kind) => {
+                self.encode_in_page(&encoded, kind, format["quality"].as_f64())
+                    .await
+            }
+            None => Ok(encoded),
+        }
+    }
+
+    async fn encode_in_page(
+        &self,
+        png: &[u8],
+        kind: &str,
+        quality: Option<f64>,
+    ) -> Result<Vec<u8>> {
+        let data = base64::engine::general_purpose::STANDARD.encode(png);
+        let v = self
+            .call_json(
+                "async (data, kind, quality) => { const img = new Image(); img.src = 'data:image/png;base64,' + data; \
+                 await img.decode(); const c = document.createElement('canvas'); c.width = img.naturalWidth; \
+                 c.height = img.naturalHeight; c.getContext('2d').drawImage(img, 0, 0); \
+                 const url = c.toDataURL(kind, quality === null ? undefined : quality); return url.slice(url.indexOf(',') + 1); }",
+                &[json!(data), json!(kind), json!(quality)],
+                Some(UTILITY),
+            )
+            .await?;
+        base64::engine::general_purpose::STANDARD
+            .decode(v.as_str().unwrap_or_default())
+            .map_err(|e| Error::Serde(format!("screenshot data: {e}")))
     }
 
     async fn capture(
@@ -2645,6 +2752,8 @@ pub struct Screenshot<'a> {
     page: &'a Page,
     options: ScreenshotOptions,
     path: Option<PathBuf>,
+    mask: Vec<crate::application::firefox_locator::Locator>,
+    mask_color: Option<String>,
 }
 
 impl<'a> Screenshot<'a> {
@@ -2677,6 +2786,26 @@ impl<'a> Screenshot<'a> {
         self.options.style = Some(css.to_owned());
         self
     }
+    /// `omitBackground`: transparent where the page paints nothing.
+    pub fn omit_background(mut self, yes: bool) -> Self {
+        self.options.omit_background = yes;
+        self
+    }
+    /// `scale`: CSS or device pixels.
+    pub fn scale(mut self, scale: ScreenshotScale) -> Self {
+        self.options.scale = scale;
+        self
+    }
+    /// Covers the elements these locators match with a box (`mask`).
+    pub fn mask(mut self, locators: &[crate::application::firefox_locator::Locator]) -> Self {
+        self.mask.extend(locators.iter().cloned());
+        self
+    }
+    /// Colour of the mask boxes, any CSS colour (default `#F0F`).
+    pub fn mask_color(mut self, color: &str) -> Self {
+        self.mask_color = Some(color.to_owned());
+        self
+    }
     /// Also write the image to this file.
     pub fn path(mut self, path: impl Into<PathBuf>) -> Self {
         self.path = Some(path.into());
@@ -2695,7 +2824,32 @@ impl<'a> IntoFuture for Screenshot<'a> {
 
     fn into_future(self) -> Self::IntoFuture {
         async move {
-            let bytes = self.page.take_screenshot(&self.options).await?;
+            // Playwright's `_maskElements`: boxes over every match (not
+            // strict), removed after the capture.
+            let mut masked: Vec<String> = Vec::new();
+            for locator in &self.mask {
+                let Some((context, _)) = locator.scope().await? else {
+                    continue;
+                };
+                self.page
+                    .injected_call_in(
+                        &context,
+                        "(i, selector, color) => { i.addMaskedElements(i.querySelectorAll(i.parseSelector(selector), i.document), color); }",
+                        &[json!(locator.selector), json!(self.mask_color.as_deref().unwrap_or("#F0F"))],
+                    )
+                    .await?;
+                if !masked.contains(&context) {
+                    masked.push(context);
+                }
+            }
+            let shot = self.page.take_screenshot(&self.options).await;
+            for context in &masked {
+                let _ = self
+                    .page
+                    .injected_call_in(context, "(i) => { i.hideHighlight(); }", &[])
+                    .await;
+            }
+            let bytes = shot?;
             if let Some(path) = &self.path {
                 self.page.inner.services.fs.write(path, &bytes)?;
             }

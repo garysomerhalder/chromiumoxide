@@ -1243,7 +1243,8 @@ Firefox.
 | `page.evaluate` / `evaluate(fn, arg)` | ✅ | `firefox_launches_and_runs_a_page` |
 | `page.addStyleTag`, `setViewportSize`, `viewportSize` | ✅ | `firefox_contexts_emulate_devices` |
 | `page.screenshot` (viewport, clip, fullPage, JPEG, caret, animations, style) | ✅ | `firefox_screenshots_are_pixel_identical_to_playwright` (pixel-identical to Playwright's Firefox) |
-| `page.screenshot` `omitBackground`, `scale: "css"` at a device scale factor above 1, WebP, `mask` | ⬜ | An error for now (BiDi has no background or scale option) |
+| `page.screenshot` `scale: "css"` at a device scale factor above 1, WebP, `mask` / `maskColor` | ✅ | `firefox_screenshots_are_pixel_identical_to_playwright` (the `css` shot), `firefox_screenshot_webp_and_mask` |
+| `page.screenshot` `omitBackground` | ✅ | `firefox_screenshot_omit_background`: two captures (over black and white) give each pixel's alpha. Playwright's own Firefox answers "Not implemented" here |
 | `page.waitForFunction`, `waitForTimeout`, `locator.waitFor` | ✅ | `firefox_navigates_and_waits` |
 | `page.waitForURL`, `waitForLoadState` (`domcontentloaded`, `load`, `networkidle`), `waitForRequest` / `Response` | ✅ | `firefox_waits_and_locator_extras` |
 | `page.waitForEvent`, `context.waitForEvent`, `worker.waitForEvent` | ✅ | `firefox_context_settings_and_events`, `firefox_event_object_details` |
