@@ -3343,3 +3343,50 @@ async fn firefox_bind_shares_the_browser() {
     assert!(Firefox::connect(&endpoint).await.is_err());
     browser.close().await.unwrap();
 }
+
+/// Firefox: WebP screenshots and `mask` / `maskColor` (boxes over the
+/// matched elements, as Playwright).
+#[tokio::test]
+async fn firefox_screenshot_webp_and_mask() {
+    use chromiumoxide::ImageFormat;
+    let Some(options) = options() else {
+        return;
+    };
+    let browser = Firefox::launch(options).await.unwrap();
+    let page = browser.new_page().await.unwrap();
+    page.set_content(
+        "<body style='margin:0'><div id=a style='width:50px;height:50px;background:red'></div>\
+         <div id=b style='width:50px;height:50px;background:blue'></div></body>",
+    )
+    .await
+    .unwrap();
+    let webp = page
+        .screenshot()
+        .format(ImageFormat::Webp)
+        .quality(80)
+        .await
+        .unwrap();
+    assert_eq!(&webp[..4], b"RIFF");
+    assert_eq!(&webp[8..12], b"WEBP");
+
+    let png = page.screenshot().mask(&[page.locator("#a")]).await.unwrap();
+    let (w, _, rgba) = crate::screenshot::decode(&png);
+    let at = |x: usize, y: usize| &rgba[(y * w as usize + x) * 4..][..4];
+    assert_eq!(at(25, 25), &[255, 0, 255, 255], "default mask colour #F0F");
+    assert_eq!(at(25, 75), &[0, 0, 255, 255], "unmasked element");
+    let png = page
+        .screenshot()
+        .mask(&[page.locator("div")])
+        .mask_color("rgb(0, 128, 0)")
+        .await
+        .unwrap();
+    let (w, _, rgba) = crate::screenshot::decode(&png);
+    let at = |x: usize, y: usize| rgba[(y * w as usize + x) * 4..][..4].to_vec();
+    assert_eq!(at(25, 25), [0, 128, 0, 255]);
+    assert_eq!(at(25, 75), [0, 128, 0, 255]);
+    // The masks are gone afterwards.
+    let png = page.screenshot().await.unwrap();
+    let (w, _, rgba) = crate::screenshot::decode(&png);
+    assert_eq!(&rgba[(25 * w as usize + 25) * 4..][..4], &[255, 0, 0, 255]);
+    browser.close().await.unwrap();
+}

@@ -66,7 +66,26 @@ pub(crate) fn cases() -> Vec<Case> {
                     json!({"clip": {"x": 0, "y": 40, "width": 390, "height": 300}}),
                 ),
                 ("full", json!({"fullPage": true})),
+                // CSS pixels at a device scale factor of 3.
+                ("css", json!({"scale": "css"})),
             ],
+        },
+        Case {
+            name: "transparent",
+            context: ContextOptions {
+                viewport: Some(Viewport::new(400, 300)),
+                ..Default::default()
+            },
+            context_json: json!({"viewport": {"width": 400, "height": 300}}),
+            // No page background: transparent with `omitBackground`; text and
+            // half-transparent boxes keep their colour and alpha.
+            html: "<body style='margin:20px;font:24px sans-serif;color:#036'>\
+                   <p>Transparent</p><div style='width:120px;height:60px;background:rgba(200,0,0,.5)'></div>\
+                   <div style='width:80px;height:40px;margin-top:10px;background:#0a0;border-radius:12px'></div></body>"
+                .into(),
+            style: None,
+            resize: None,
+            shots: vec![("omit", json!({"omitBackground": true}))],
         },
         Case {
             name: "mockup",
