@@ -508,3 +508,40 @@ impl Page {
             .request()
     }
 }
+
+impl BrowserContext {
+    /// `serviceWorkers: "block"` (Playwright's init script) and
+    /// `clientCertificates` (requests to those origins are sent by the
+    /// context's API request context, which presents the certificate, and
+    /// fulfilled with its response; registered first, so user routes run
+    /// before it and fall back to it).
+    pub(crate) async fn apply_network_options(&self) -> Result<()> {
+        let o = self.inner.options.clone();
+        if o.service_workers == crate::domain::emulation::ServiceWorkers::Block {
+            self.add_init_script(crate::domain::firefox::BLOCK_SERVICE_WORKERS)
+                .await?;
+        }
+        let mut origins: Vec<String> = o
+            .client_certificates
+            .iter()
+            .filter_map(|c| crate::domain::client_cert::normalize_origin(&c.origin))
+            .collect();
+        origins.dedup();
+        for origin in origins {
+            let pattern = format!("^{}([/?#]|$)", regex::escape(&origin));
+            let matcher =
+                regex::Regex::new(&pattern).map_err(|e| Error::InvalidArgument(e.to_string()))?;
+            self.route(
+                matcher,
+                |route: crate::application::firefox_route::Route| async move {
+                    let _ = match route.fetch().await {
+                        Ok(response) => route.fulfill().response(&response).await,
+                        Err(_) => route.abort().await,
+                    };
+                },
+            )
+            .await?;
+        }
+        Ok(())
+    }
+}

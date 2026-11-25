@@ -1234,7 +1234,7 @@ Firefox.
 | Context options `offline`, `permissions` | ✅ | `firefox_context_settings_and_events` (`emulation.setNetworkConditions`, `permissions.setPermission`) |
 | Context options `isMobile`, `hasTouch`, `colorScheme` (dark / no-preference), `reducedMotion`, `forcedColors`, `contrast`, `javaScriptEnabled: false` | ❌ | No BiDi command in Firefox 159 (Playwright uses its Juggler protocol); creating such a context is an error naming the options |
 | Context option `baseURL` | ✅ | `firefox_base_url_and_locator_screenshot` |
-| Context options `bypassCSP`, `proxy`, `clientCertificates`, `serviceWorkers` | ⬜ | An error naming the option for now |
+| Context options `bypassCSP`, `proxy` (with credentials), `clientCertificates`, `serviceWorkers: "block"` | ✅ | `firefox_proxy_certificates_csp_and_service_workers` (CSP headers dropped in a response intercept; proxy via `browser.createUserContext`; certificates through the HTTP client) |
 | `recordHar` (bodies from a BiDi network data collector; `content`, `mode`, `urlFilter`, `.zip`) | ✅ | `firefox_pdf_and_har` |
 | `recordVideo` (viewport screenshots on a 25 fps timeline, scaled into the `.webm`) | ✅ | `firefox_records_video` |
 | `httpCredentials` | ✅ | `firefox_network_events_context_routes_and_auth` |
@@ -1301,6 +1301,7 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 | `webkit.launch` (Playwright's arguments, `executablePath`, `headless`, `args`, `env`, `timeout`); Linux, macOS and Windows (pipe) | ✅ | `webkit_launches_and_runs_a_page` (Linux, Windows) |
 | `browser.version`, `newPage`, `newContext`, `close` | ✅ | `webkit_launches_and_runs_a_page` |
 | Context options `viewport`, `deviceScaleFactor`, `screen`, `userAgent` (default: Playwright's Safari 27.2 one), `locale`, `timezoneId`, `geolocation`, `ignoreHTTPSErrors`, `extraHTTPHeaders`, `hasTouch` | ✅ | `webkit_contexts_emulate_devices` |
+| Context options `bypassCSP`, `proxy` (with credentials), `clientCertificates`, `serviceWorkers: "block"`, `javaScriptEnabled: false` | ✅ | `webkit_proxy_certificates_csp_service_workers_and_javascript` |
 | `page.goto`, `setContent`, `title`, `url`, `content`, `evaluate`, `addStyleTag`, `setViewportSize`, `waitForFunction`, `waitForTimeout` | ✅ | `webkit_launches_and_runs_a_page`, `webkit_contexts_emulate_devices` |
 | `page.screenshot` (viewport, clip, fullPage, JPEG, scale) | ✅ | `webkit_screenshots_are_pixel_identical_to_playwright`: pixel-identical to Playwright's WebKit (desktop, mobile 3x, mockup 2x) |
 | Pixelated `<img>` and the `autofocus` focus ring in parity pages | ❌ | Headless WebKit paints them in some runs only, in Playwright's own runs too; left out of the parity cases |

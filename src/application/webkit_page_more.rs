@@ -500,8 +500,17 @@ impl Page {
             .await?;
         }
         let credentials = ctx.credentials.lock().unwrap().clone();
-        if credentials.is_some() {
+        let proxy_credentials = ctx
+            .options
+            .proxy
+            .as_ref()
+            .is_some_and(|p| p.username.is_some());
+        if credentials.is_some() || proxy_credentials {
             self.apply_credentials(credentials.as_ref()).await?;
+        }
+        if !ctx.options.java_script_enabled {
+            self.proxy_call("Emulation.setJavaScriptEnabled", json!({"enabled": false}))
+                .await?;
         }
         Ok(())
     }
@@ -517,7 +526,19 @@ impl Page {
             })
             .into_iter()
             .collect();
-        self.proxy_call("Emulation.setAuthCredentials", json!({"credentials": list}))
+        let mut params = json!({"credentials": list});
+        // The proxy's credentials answer the proxy's challenges only.
+        if let Some(p) = self
+            .inner
+            .context
+            .upgrade()
+            .and_then(|c| c.options.proxy.clone())
+            && let Some(username) = p.username
+        {
+            params["proxyCredentials"] =
+                json!({"username": username, "password": p.password.unwrap_or_default()});
+        }
+        self.proxy_call("Emulation.setAuthCredentials", params)
             .await
             .map(drop)
     }
@@ -1130,15 +1151,19 @@ impl crate::application::request::CookieStore for WebKitJar {
     fn storage_state(&self) -> futures::future::BoxFuture<'_, Result<StorageState>> {
         Box::pin(async move { self.context()?.storage_state().await })
     }
+    /// The pages' user agent: the context's, else Playwright's default
+    /// (what every page is given). Not read from a page, which may be
+    /// waiting on the very request being sent (`route.fetch`).
     fn user_agent(&self) -> futures::future::BoxFuture<'_, Option<String>> {
         Box::pin(async move {
             let ctx = self.context().ok()?;
-            for page in ctx.pages() {
-                if let Ok(ua) = page.evaluate::<String>("navigator.userAgent").await {
-                    return Some(ua);
-                }
-            }
-            Some(crate::domain::webkit::default_user_agent())
+            Some(
+                ctx.inner
+                    .options
+                    .user_agent
+                    .clone()
+                    .unwrap_or_else(crate::domain::webkit::default_user_agent),
+            )
         })
     }
 }
@@ -1469,6 +1494,42 @@ impl Browser {
     pub async fn unbind(&self) -> Result<()> {
         if let Some(b) = self.inner.bridge.lock().unwrap().take() {
             b.stop();
+        }
+        Ok(())
+    }
+}
+
+impl BrowserContext {
+    /// `serviceWorkers: "block"` (Playwright's init script) and
+    /// `clientCertificates` (requests to those origins are sent by the
+    /// context's API request context, which presents the certificate, and
+    /// fulfilled with its response).
+    pub(crate) async fn apply_network_options(&self) -> Result<()> {
+        let o = self.inner.options.clone();
+        if o.service_workers == crate::domain::emulation::ServiceWorkers::Block {
+            self.add_init_script(crate::domain::firefox::BLOCK_SERVICE_WORKERS)
+                .await?;
+        }
+        let mut origins: Vec<String> = o
+            .client_certificates
+            .iter()
+            .filter_map(|c| crate::domain::client_cert::normalize_origin(&c.origin))
+            .collect();
+        origins.dedup();
+        for origin in origins {
+            let pattern = format!("^{}([/?#]|$)", regex::escape(&origin));
+            let matcher =
+                regex::Regex::new(&pattern).map_err(|e| Error::InvalidArgument(e.to_string()))?;
+            self.route(
+                matcher,
+                |route: crate::application::webkit_route::Route| async move {
+                    let _ = match route.fetch().await {
+                        Ok(response) => route.fulfill().response(&response).await,
+                        Err(_) => route.abort().await,
+                    };
+                },
+            )
+            .await?;
         }
         Ok(())
     }

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Number, Value};
 
-use crate::domain::emulation::{ColorScheme, ContextOptions, ServiceWorkers};
+use crate::domain::emulation::{ColorScheme, ContextOptions};
 use crate::domain::har::{
     Content, Entry, HarRequest, HarResponse, NameValuePair, PostData, Timings, iso_time,
     query_string, request_cookies, response_cookie,
@@ -189,12 +189,60 @@ pub fn unsupported_context_options(o: &ContextOptions) -> Vec<&'static str> {
     check(o.reduced_motion.is_some(), "reducedMotion");
     check(o.forced_colors.is_some(), "forcedColors");
     check(o.contrast.is_some(), "contrast");
-    check(o.proxy.is_some(), "proxy");
-    check(!o.client_certificates.is_empty(), "clientCertificates");
     check(!o.java_script_enabled, "javaScriptEnabled");
-    check(o.bypass_csp, "bypassCSP");
-    check(o.service_workers != ServiceWorkers::Allow, "serviceWorkers");
     out
+}
+
+/// A context `proxy` as WebDriver BiDi's manual proxy configuration
+/// (`browser.createUserContext`'s `proxy`): `http://`, `https://` or no
+/// scheme proxy HTTP and HTTPS; `socks4://` / `socks5://` are SOCKS;
+/// `bypass` (comma-separated) becomes `noProxy`.
+pub fn bidi_proxy(proxy: &crate::domain::launch::Proxy) -> Value {
+    let server = proxy.server.trim();
+    let (scheme, address) = match server.split_once("://") {
+        Some((s, a)) => (s.to_ascii_lowercase(), a.trim_end_matches('/').to_owned()),
+        None => ("http".to_owned(), server.trim_end_matches('/').to_owned()),
+    };
+    let mut config = Map::new();
+    config.insert("proxyType".into(), Value::String("manual".into()));
+    match scheme.as_str() {
+        "socks4" | "socks5" | "socks" => {
+            config.insert("socksProxy".into(), Value::String(address));
+            let version = if scheme == "socks4" { 4 } else { 5 };
+            config.insert("socksVersion".into(), Value::Number(Number::from(version)));
+        }
+        _ => {
+            config.insert("httpProxy".into(), Value::String(address.clone()));
+            config.insert("sslProxy".into(), Value::String(address));
+        }
+    }
+    if let Some(bypass) = &proxy.bypass {
+        let hosts: Vec<Value> = bypass
+            .split(',')
+            .map(str::trim)
+            .filter(|h| !h.is_empty())
+            .map(|h| Value::String(h.to_owned()))
+            .collect();
+        if !hosts.is_empty() {
+            config.insert("noProxy".into(), Value::Array(hosts));
+        }
+    }
+    Value::Object(config)
+}
+
+/// Playwright's script for `serviceWorkers: "block"`.
+pub const BLOCK_SERVICE_WORKERS: &str = "if (self.ServiceWorkerContainer) ServiceWorkerContainer.prototype.register = async () => { console.warn('Service Worker registration blocked by Playwright'); };";
+
+/// Response headers without the Content Security Policy (`bypassCSP`).
+pub fn without_csp(headers: &[(String, String)]) -> Vec<(String, String)> {
+    headers
+        .iter()
+        .filter(|(k, _)| {
+            !k.eq_ignore_ascii_case("content-security-policy")
+                && !k.eq_ignore_ascii_case("content-security-policy-report-only")
+        })
+        .cloned()
+        .collect()
 }
 
 /// Playwright's resource type of a request, from BiDi's `destination` and
@@ -692,6 +740,47 @@ mod tests {
         assert_eq!(webdriver_key("F12").as_deref(), Some("\u{E03C}"));
         assert_eq!(webdriver_key("Space").as_deref(), Some(" "));
         assert_eq!(webdriver_key("NoSuchKey"), None);
+    }
+
+    #[test]
+    fn proxies_become_bidi_manual_proxies() {
+        use crate::domain::launch::Proxy;
+        let http = Proxy {
+            server: "http://127.0.0.1:3128".into(),
+            bypass: Some(".com, chromium.org".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            bidi_proxy(&http),
+            serde_json::json!({"proxyType": "manual", "httpProxy": "127.0.0.1:3128",
+                "sslProxy": "127.0.0.1:3128", "noProxy": [".com", "chromium.org"]})
+        );
+        let bare = Proxy {
+            server: "proxy.test:8080".into(),
+            ..Default::default()
+        };
+        assert_eq!(bidi_proxy(&bare)["httpProxy"], "proxy.test:8080");
+        let socks = Proxy {
+            server: "socks5://127.0.0.1:1080".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            bidi_proxy(&socks),
+            serde_json::json!({"proxyType": "manual", "socksProxy": "127.0.0.1:1080", "socksVersion": 5})
+        );
+    }
+
+    #[test]
+    fn csp_headers_are_dropped() {
+        let h = |k: &str| (k.to_owned(), "x".to_owned());
+        assert_eq!(
+            without_csp(&[
+                h("Content-Type"),
+                h("Content-Security-Policy"),
+                h("content-security-policy-report-only")
+            ]),
+            [h("Content-Type")]
+        );
     }
 
     #[test]

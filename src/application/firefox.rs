@@ -364,6 +364,9 @@ impl Browser {
         if options.ignore_https_errors {
             create["acceptInsecureCerts"] = json!(true);
         }
+        if let Some(proxy) = &options.proxy {
+            create["proxy"] = crate::domain::firefox::bidi_proxy(proxy);
+        }
         let user_context = self
             .inner
             .bidi
@@ -490,6 +493,10 @@ impl Browser {
         if let Some(state) = context.inner.options.storage_state.clone()
             && let Err(e) = context.restore_storage_state(&state).await
         {
+            let _ = context.close().await;
+            return Err(e);
+        }
+        if let Err(e) = context.apply_network_options().await {
             let _ = context.close().await;
             return Err(e);
         }
@@ -1113,12 +1120,28 @@ async fn attach_page(
     ctx.emit(crate::application::firefox_events::ContextEvent::Page(
         page.clone(),
     ));
-    if ctx.credentials.lock().unwrap().is_some() {
+    let proxy_credentials = ctx
+        .options
+        .proxy
+        .as_ref()
+        .is_some_and(|p| p.username.is_some());
+    if ctx.credentials.lock().unwrap().is_some() || proxy_credentials {
         page.inner
             .bidi
             .call(
                 "network.addIntercept",
                 json!({"phases": ["authRequired"], "contexts": [page.inner.context]}),
+            )
+            .await?;
+    }
+    if ctx.options.bypass_csp {
+        // `bypassCSP`: responses lose their Content-Security-Policy headers
+        // (BiDi has no CSP switch; a `<meta>` CSP still applies).
+        page.inner
+            .bidi
+            .call(
+                "network.addIntercept",
+                json!({"phases": ["responseStarted"], "contexts": [page.inner.context]}),
             )
             .await?;
     }
@@ -1464,6 +1487,9 @@ impl Page {
                     let response = request.responded(p);
                     self.emit(PageEvent::Response(response));
                 }
+                if p["isBlocked"] == Value::Bool(true) {
+                    self.continue_without_csp(p);
+                }
             }
             "network.responseCompleted" => {
                 let request = self.request_of(p);
@@ -1805,6 +1831,30 @@ impl Page {
         Ok(())
     }
 
+    /// Lets an intercepted response go on without its CSP headers.
+    fn continue_without_csp(&self, p: &Value) {
+        let id = p
+            .pointer("/request/request")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        let headers: Vec<Value> = crate::domain::firefox::without_csp(
+            &crate::application::firefox_network::bidi_headers(&p["response"]["headers"]),
+        )
+        .into_iter()
+        .map(|(k, v)| json!({"name": k, "value": {"type": "string", "value": v}}))
+        .collect();
+        let page = self.clone();
+        tokio::spawn(async move {
+            let _ = page
+                .bidi_call(
+                    "network.continueResponse",
+                    json!({"request": id, "headers": headers}),
+                )
+                .await;
+        });
+    }
+
     /// Answers a `network.authRequired` with the context's
     /// `httpCredentials` (once per request, for their origin if set), or
     /// cancels it.
@@ -1818,6 +1868,34 @@ impl Page {
             .pointer("/request/url")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        // A proxy's challenge (407) is answered with the proxy's own
+        // credentials only, a site's never with them (Playwright 1.65).
+        if p.pointer("/response/status").and_then(Value::as_u64) == Some(407) {
+            let first = self
+                .inner
+                .auth_attempts
+                .lock()
+                .unwrap()
+                .insert(format!("proxy:{id}"));
+            let proxy = self
+                .inner
+                .owner
+                .upgrade()
+                .and_then(|ctx| ctx.options.proxy.clone())
+                .filter(|_| first);
+            let params = match proxy
+                .and_then(|p| Some((p.username?, p.password.unwrap_or_default())))
+            {
+                Some((username, password)) => json!({"request": id, "action": "provideCredentials",
+                    "credentials": {"type": "password", "username": username, "password": password}}),
+                None => json!({"request": id, "action": "cancel"}),
+            };
+            let page = self.clone();
+            tokio::spawn(async move {
+                let _ = page.bidi_call("network.continueWithAuth", params).await;
+            });
+            return;
+        }
         let first = self.inner.auth_attempts.lock().unwrap().insert(id.clone());
         let credentials = self
             .inner

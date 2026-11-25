@@ -226,8 +226,15 @@ impl Browser {
     /// `browser.newContext(options)`.
     pub async fn new_context(&self, options: ContextOptions) -> Result<BrowserContext> {
         let wk = &self.inner.wk;
+        let mut create = json!({});
+        if let Some(proxy) = &options.proxy {
+            create["proxyServer"] = json!(proxy.server);
+            if let Some(bypass) = &proxy.bypass {
+                create["proxyBypassList"] = json!(bypass);
+            }
+        }
         let id = wk
-            .call(None, "Playwright.createContext", json!({}))
+            .call(None, "Playwright.createContext", create)
             .await?
             .get("browserContextId")
             .and_then(Value::as_str)
@@ -292,6 +299,7 @@ impl Browser {
         if let Some(har) = record_har {
             context.inner.recorders.start_har(har).await?;
         }
+        context.apply_network_options().await?;
         context.watch_popups();
         if let Err(e) = context.initialize().await {
             let _ = context.close().await;
@@ -983,6 +991,9 @@ impl Page {
         ));
         steps.push(call("Network.enable", json!({})));
         steps.push(call("Worker.enable", json!({})));
+        if o.bypass_csp {
+            steps.push(call("Page.setBypassCSP", json!({"enabled": true})));
+        }
         steps.push(call(
             "Runtime.addBinding",
             json!({"name": crate::application::webkit_binding::BINDING}),

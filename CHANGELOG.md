@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Milestone 14: every browser on every system
 
+- Firefox and WebKit contexts take `bypassCSP`, `proxy` (with
+  credentials), `clientCertificates` and `serviceWorkers: "block"`;
+  WebKit also `javaScriptEnabled: false`. The client-certificate test
+  server now takes several connections at once, as real servers do
+  (WebKit opens one early, without a certificate).
+
 - Firefox screenshots: `scale: "css"` (pixel-identical to Playwright's
   Firefox), WebP, `mask` / `maskColor`, and `omitBackground` (which
   Playwright's own Firefox does not implement). Checked: the library builds
