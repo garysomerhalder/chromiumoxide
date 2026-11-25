@@ -10,10 +10,26 @@
     "build:firefox": "wxt build -b firefox",
     "build:safari": "wxt build -b safari",
     "zip": "wxt zip",
-    "check": "tsc --noEmit"
+    "check": "wxt prepare && tsc --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.3",
+    "@types/chrome": "^0.3.8",
+    "@types/react": "^19.3.1",
+    "@types/react-dom": "^19.3.0",
+    "@wxt-dev/module-react": "^1.2.2",
+    "jsdom": "^31.0.1",
     "typescript": "^5.9.3",
+    "vitest": "^5.1.1",
     "wxt": "0.21.5"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^9.6.0",
+    "@mui/material": "^9.6.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   }
 }
