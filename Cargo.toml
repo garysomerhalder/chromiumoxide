@@ -95,5 +95,6 @@ members = [
   "chromiumoxide_pdl",
   "chromiumoxide_types",
   "chromiumoxide_cdp",
+  "chromiumoxide_webkit_protocol",
   "chromiumoxide_fetcher",
 ]
