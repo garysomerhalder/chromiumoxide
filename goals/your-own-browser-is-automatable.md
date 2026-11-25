@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | active |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-25 |
 | Started | 2026-11-25 |
-| Finished | — |
+| Finished | 2026-11-25 |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (Playwright's Chromium and Firefox builds); Gary's Windows PC; the cloud Mac for Safari |
 
@@ -62,7 +62,7 @@ Out:
 - [x] Through the extension, a Chromium with its own tabs is driven with the page API (existing tabs, new tabs, `goto`, `evaluate`, locators, screenshots), and disconnecting leaves it running.
 - [x] Through the extension, Firefox runs `goto`, `evaluate`, click, fill and screenshot on a tab.
 - [x] The Safari build is produced; it is tested on a Mac or listed in PARITY as untested with the reason.
-- [ ] fmt, clippy -D warnings and the full suite pass; PARITY, CHANGELOG and a README for `extension/` describe it.
+- [x] fmt, clippy -D warnings and the full suite pass; PARITY, CHANGELOG and a README for `extension/` describe it.
 
 ## Stop rule
 
@@ -76,6 +76,10 @@ by hand each time (beyond loading the extension once).
   through the extension. The extension is TypeScript, DDD + hexagonal, with
   an MUI popup in atomic design (Gary's request). Safari's build is made
   (`safari-mv3`) but untested: the cloud Mac is unreachable.
+- 2026-11-25: met. Full Linux suite green (239 unit, 310 integration with
+  both extension tests; Electron run on its own display as usual), 28
+  extension tests, fmt, clippy and both architecture tests. Safari stays
+  listed as built but untested until a Mac is reachable.
 
 ## Set it
 

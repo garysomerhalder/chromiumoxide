@@ -57,5 +57,5 @@ goals.
 | [WebKit runs the Playwright API](webkit-runs-the-playwright-api.md) | met |
 | [Tauri apps are automatable](tauri-apps-are-automatable.md) | met |
 | [Firefox and WebKit offer every Playwright method Chromium does](firefox-and-webkit-match-the-playwright-api.md) | met |
-| [Your own browser is automatable through an extension](your-own-browser-is-automatable.md) | active |
+| [Your own browser is automatable through an extension](your-own-browser-is-automatable.md) | met |
 | [Playwright 1.66 is matched](playwright-1-66-is-matched.md) | proposed |
