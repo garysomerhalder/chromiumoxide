@@ -261,16 +261,16 @@ async fn http_credentials_can_change_at_runtime() {
 /// A tiny forward proxy: answers 407 until `Proxy-Authorization` carries
 /// user:pass, then serves every URL itself; `/site-auth` asks the *site*
 /// credentials (401) and records any `Authorization` header it gets.
-struct TestProxy {
-    port: u16,
-    site_authorizations: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
-    requests: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+pub(crate) struct TestProxy {
+    pub(crate) port: u16,
+    pub(crate) site_authorizations: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    pub(crate) requests: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
 }
 
-async fn test_proxy() -> TestProxy {
+pub(crate) async fn test_proxy() -> TestProxy {
     use base64::Engine;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let listener = crate::server::browsable_listener().await;
     let port = listener.local_addr().unwrap().port();
     let site_authorizations = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));

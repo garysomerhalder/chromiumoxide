@@ -62,6 +62,7 @@ pub struct Generator {
     protocol_mods: Vec<String>,
     domains: HashMap<String, usize>,
     target_mod: Option<String>,
+    docs_url: Option<String>,
     /// Used to store the size of a specific type
     type_size: HashMap<String, usize>,
     /// Used to fix a type's size later if the ref was not processed yet
@@ -85,6 +86,7 @@ impl Default for Generator {
             protocol_mods: Vec::new(),
             domains: Default::default(),
             target_mod: Default::default(),
+            docs_url: Some("https://chromedevtools.github.io/devtools-protocol/tot/".into()),
             type_size: Default::default(),
             ref_sizes: VecDeque::new(),
             enums: Default::default(),
@@ -136,6 +138,13 @@ impl Generator {
     }
 
     /// Configures the name of the module and file generated.
+    /// Where the docs link each item (`<url><Domain>/#method-<name>`);
+    /// `None` for no links. Default: Chrome's DevTools protocol pages.
+    pub fn docs_url(&mut self, url: Option<String>) -> &mut Self {
+        self.docs_url = url;
+        self
+    }
+
     pub fn target_mod(&mut self, mod_name: impl Into<String>) -> &mut Self {
         self.target_mod = Some(mod_name.into());
         self
@@ -182,11 +191,38 @@ impl Generator {
             inputs.push(resolved);
         }
 
+        let protocols = inputs
+            .iter()
+            .map(|input| parse_pdl(input).map_err(|e| Error::other(e.message)))
+            .collect::<io::Result<Vec<_>>>()?;
+        self.compile_protocols(&target, protocols)
+    }
+
+    /// Like [`compile_pdls`](Self::compile_pdls), for a protocol described
+    /// in JSON (WebKit's inspector `protocol.json`); its module is named
+    /// after the file.
+    pub fn compile_protocol_json<P: AsRef<Path>>(&mut self, path: P) -> io::Result<()> {
+        let target: PathBuf = self.out_dir.clone().map(Ok).unwrap_or_else(|| {
+            std::env::var_os("OUT_DIR")
+                .ok_or_else(|| Error::other("OUT_DIR environment variable is not set"))
+                .map(Into::into)
+        })?;
+        let path = path.as_ref();
+        let file_name = path.file_stem().ok_or_else(|| {
+            Error::other(format!("Failed to read file name for {}", path.display()))
+        })?;
+        self.protocol_mods
+            .push(file_name.to_string_lossy().to_string());
+        let input = fs::read_to_string(path)?;
+        let protocol =
+            crate::pdl::parse_protocol_json(&input).map_err(|e| Error::other(e.message))?;
+        self.compile_protocols(&target, vec![protocol])
+    }
+
+    fn compile_protocols(&mut self, target: &Path, pdls: Vec<Protocol<'_>>) -> io::Result<()> {
         let mut protocols = vec![];
 
-        for (idx, input) in inputs.iter().enumerate() {
-            let pdl = parse_pdl(input).map_err(|e| Error::other(e.message))?;
-
+        for (idx, pdl) in pdls.into_iter().enumerate() {
             self.domains
                 .extend(pdl.domains.iter().map(|d| (d.name.to_string(), idx)));
 
@@ -229,7 +265,7 @@ impl Generator {
             } else {
                 sequential_retries += 1;
                 if sequential_retries > refs.len() {
-                    panic!("No type found for ref {reff}");
+                    panic!("No type found for ref {reff} (in {name})");
                 }
                 refs.push_back((name, reff));
             }
@@ -242,6 +278,7 @@ impl Generator {
             &self.protocol_mods,
             &super::domains::Filter {
                 experimental: self.with_experimental,
+                docs_url: self.docs_url.clone(),
             },
         );
         let imports = self.serde_support.generate_serde_import_deserialize();
@@ -655,7 +692,7 @@ impl Generator {
 
         let serde_derives = self.serde_support.generate_derives();
 
-        let desc = dt.type_description_tokens(domain.name.as_ref());
+        let desc = dt.type_description_tokens(domain.name.as_ref(), self.docs_url.as_deref());
 
         let mut stream = quote! {
             #desc

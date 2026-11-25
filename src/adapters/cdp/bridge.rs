@@ -184,7 +184,7 @@ impl CdpBridge for WsBridge {
 }
 
 /// 128 random bits as hex, from the OS-seeded hasher keys.
-fn unguessable() -> String {
+pub(crate) fn unguessable() -> String {
     use std::hash::{BuildHasher, Hasher};
     let part = || {
         let mut h = std::collections::hash_map::RandomState::new().build_hasher();

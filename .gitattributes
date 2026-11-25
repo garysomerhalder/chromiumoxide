@@ -1,0 +1,3 @@
+# The protocol files are compared byte for byte with upstream (tests/generate.rs);
+# keep them LF on every system, Windows included.
+*.pdl text eol=lf

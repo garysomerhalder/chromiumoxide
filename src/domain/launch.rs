@@ -474,3 +474,144 @@ mod persistent_tests {
         assert!(!args.iter().any(|a| a == "--no-startup-window"));
     }
 }
+
+/// A Windows command line for `CreateProcessW`: the program, then each
+/// argument quoted the way the MSVC runtime (`CommandLineToArgvW`) splits
+/// it back (backslashes doubled only before a quote).
+pub fn windows_command_line(program: &Path, args: &[String]) -> String {
+    fn quote(arg: &str, out: &mut String) {
+        if !arg.is_empty() && !arg.contains([' ', '\t', '\n', '\x0b', '"']) {
+            out.push_str(arg);
+            return;
+        }
+        out.push('"');
+        let mut backslashes = 0;
+        for c in arg.chars() {
+            match c {
+                '\\' => backslashes += 1,
+                '"' => {
+                    out.extend(std::iter::repeat_n('\\', backslashes * 2 + 1));
+                    out.push('"');
+                    backslashes = 0;
+                }
+                _ => {
+                    out.extend(std::iter::repeat_n('\\', backslashes));
+                    out.push(c);
+                    backslashes = 0;
+                }
+            }
+        }
+        out.extend(std::iter::repeat_n('\\', backslashes * 2));
+        out.push('"');
+    }
+    let mut out = String::new();
+    quote(&program.display().to_string(), &mut out);
+    for arg in args {
+        out.push(' ');
+        quote(arg, &mut out);
+    }
+    out
+}
+
+#[cfg(test)]
+mod windows_command_line_tests {
+    use super::*;
+
+    #[test]
+    fn arguments_are_quoted_like_the_msvc_runtime_reads_them() {
+        assert_eq!(
+            windows_command_line(
+                Path::new("C:/Program Files/App/app.exe"),
+                &[
+                    "--plain".into(),
+                    "--user-data-dir=C:\\Users\\a b\\p".into(),
+                    "".into(),
+                    "say \"hi\"".into(),
+                    "C:\\dir with space\\".into(),
+                    "back\\\\slash".into(),
+                ]
+            ),
+            r#""C:/Program Files/App/app.exe" --plain "--user-data-dir=C:\Users\a b\p" "" "say \"hi\"" "C:\dir with space\\" back\\slash"#
+        );
+    }
+}
+
+/// An ordinary browser started with the chromiumoxide extension
+/// (`Chromium::launch_with_extension`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtensionLaunchSpec {
+    pub kind: BrowserKind,
+    pub headless: bool,
+    /// The profile, kept between launches.
+    pub user_data_dir: PathBuf,
+    /// The unpacked extension (`extension/.output/chrome-mv3`).
+    pub extension: PathBuf,
+    pub args: Vec<String>,
+    /// Tabs to open (the relay's connect page among them).
+    pub urls: Vec<String>,
+}
+
+/// Its command line: none of Playwright's automation switches and no
+/// debugging port, so the browser is driven through the extension only.
+pub fn extension_command_line(spec: &ExtensionLaunchSpec) -> Vec<String> {
+    let mut args = vec![
+        format!("--user-data-dir={}", spec.user_data_dir.display()),
+        format!("--load-extension={}", spec.extension.display()),
+        "--no-first-run".to_owned(),
+        "--no-default-browser-check".to_owned(),
+    ];
+    if spec.headless {
+        args.push(match spec.kind {
+            BrowserKind::HeadlessShell => "--headless".to_owned(),
+            BrowserKind::Chrome => "--headless=new".to_owned(),
+        });
+    }
+    args.extend(spec.args.iter().cloned());
+    args.extend(spec.urls.iter().cloned());
+    args
+}
+
+#[cfg(test)]
+mod extension_launch_tests {
+    use super::*;
+
+    #[test]
+    fn an_extension_launch_is_an_ordinary_browser_with_the_extension() {
+        let args = extension_command_line(&ExtensionLaunchSpec {
+            kind: BrowserKind::Chrome,
+            headless: true,
+            user_data_dir: PathBuf::from("/p"),
+            extension: PathBuf::from("/ext"),
+            args: vec!["--lang=nl".into()],
+            urls: vec!["http://127.0.0.1:5/chromiumoxide-connect".into()],
+        });
+        assert_eq!(
+            args,
+            [
+                "--user-data-dir=/p",
+                "--load-extension=/ext",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--headless=new",
+                "--lang=nl",
+                "http://127.0.0.1:5/chromiumoxide-connect",
+            ]
+        );
+        // Nothing that marks it as automated or opens a debugging port.
+        assert!(!args.iter().any(|a| a.contains("remote-debugging")
+            || a.contains("enable-automation")
+            || a.contains("disable-extensions")));
+        let headful = extension_command_line(&ExtensionLaunchSpec {
+            headless: false,
+            ..ExtensionLaunchSpec {
+                kind: BrowserKind::Chrome,
+                headless: true,
+                user_data_dir: PathBuf::from("/p"),
+                extension: PathBuf::from("/ext"),
+                args: vec![],
+                urls: vec![],
+            }
+        });
+        assert!(!headful.iter().any(|a| a.starts_with("--headless")));
+    }
+}

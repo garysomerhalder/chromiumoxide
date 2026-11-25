@@ -17,6 +17,10 @@ pub struct Services {
     pub http: Arc<dyn crate::ports::HttpClient>,
     /// Serves a browser connection to other clients (`browser.bind()`).
     pub bridge: Arc<dyn crate::ports::CdpBridge>,
+    /// Serves a Firefox BiDi connection to other clients (`browser.bind()`).
+    pub bidi_bridge: Arc<dyn crate::ports::BidiBridge>,
+    /// Serves a WebKit connection to other clients (`browser.bind()`).
+    pub webkit_bridge: Arc<dyn crate::ports::WebKitBridge>,
     /// Process signals (`handle_sigint` and friends).
     pub signals: Arc<dyn crate::ports::Signals>,
     /// The adb server (Android devices).

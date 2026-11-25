@@ -61,6 +61,13 @@ impl WeakWorker {
     }
 }
 
+/// `worker.on(...)` events.
+#[derive(Clone, Debug)]
+pub enum WorkerEvent {
+    /// The worker was terminated.
+    Close,
+}
+
 impl Worker {
     pub(crate) fn downgrade(&self) -> WeakWorker {
         WeakWorker(Arc::downgrade(&self.inner))
@@ -72,6 +79,17 @@ impl Worker {
 
     pub fn is_closed(&self) -> bool {
         self.inner.closed.load(Ordering::SeqCst)
+    }
+
+    /// `worker.waitForEvent(event)`: the first event `matcher` maps to a
+    /// value (the worker's close).
+    pub async fn wait_for_event<T>(
+        &self,
+        matcher: impl Fn(&WorkerEvent) -> Option<T>,
+    ) -> Result<T> {
+        self.wait_for_close().await;
+        matcher(&WorkerEvent::Close)
+            .ok_or_else(|| Error::TargetClosed("worker has been closed".into()))
     }
 
     /// Waits until the worker is terminated.

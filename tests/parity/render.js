@@ -1,12 +1,17 @@
 // Renders the parity cases with Playwright. Usage: node render.js job.json
-// job: { executablePath, args, outDir, cases: [{ name, context, html, style?, resize?, shots: [{ name, options }] }] }
+// job: { browser?: 'chromium' | 'firefox' | 'webkit', executablePath, args, outDir,
+//        cases: [{ name, context, html, style?, resize?, shots: [{ name, options }] }] }
 const fs = require('fs');
 const path = require('path');
-const { chromium } = require('playwright');
+const { chromium, firefox, webkit } = require('playwright');
 
 (async () => {
   const job = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-  const browser = await chromium.launch({ executablePath: job.executablePath, ignoreDefaultArgs: true, args: job.args });
+  const browser = job.browser === 'firefox'
+    ? await firefox.launch({ executablePath: job.executablePath })
+    : job.browser === 'webkit'
+      ? await webkit.launch({ executablePath: job.executablePath })
+      : await chromium.launch({ executablePath: job.executablePath, ignoreDefaultArgs: true, args: job.args });
   for (const c of job.cases) {
     const context = await browser.newContext(c.context);
     const page = await context.newPage();

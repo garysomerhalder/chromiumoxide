@@ -9,8 +9,8 @@ use futures::StreamExt;
 use crate::server::TestServer;
 
 /// Echoes `echo:<text>` plus a binary [1, 2, 3] for each text message.
-async fn ws_server() -> u16 {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+pub(crate) async fn ws_server() -> u16 {
+    let listener = crate::server::browsable_listener().await;
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {
         while let Ok((sock, _)) = listener.accept().await {
@@ -24,7 +24,10 @@ async fn ws_server() -> u16 {
                             let _ = ws.send(Message::text(format!("echo:{t}"))).await;
                             let _ = ws.send(Message::binary(vec![1u8, 2, 3])).await;
                         }
-                        Message::Close(_) => break,
+                        // Keep reading after the client's close frame:
+                        // tungstenite sends the close reply (the handshake)
+                        // and the stream ends once the client closes.
+                        Message::Close(_) => {}
                         _ => {}
                     }
                 }

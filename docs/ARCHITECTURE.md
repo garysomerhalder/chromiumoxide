@@ -114,6 +114,21 @@ browser.close().await?;
 Option-taking calls return builders that implement `IntoFuture`, so the
 Playwright defaults apply unless you chain an option.
 
+## Engines (Chromium, Firefox)
+
+The Chromium engine is the application layer above: it speaks CDP through
+the `CdpSession` port. Firefox is a second engine, `application::firefox`,
+re-exported as `chromiumoxide::firefox`. It speaks WebDriver BiDi through a
+`BidiSession` port (`adapters::bidi` over a WebSocket) and has its own
+`Browser`, `BrowserContext`, `Page`, ... with the Playwright method names.
+
+The engines share the domain layer (selectors, screenshot maths, keyboard
+layouts, emulation, launch presets, waits) and the injected script. They do
+not share protocol code: CDP and BiDi differ too much in sessions, frames
+and realms for one seam to fit both without rewriting the Chromium engine.
+The Chromium engine (and device-mockup's contract) does not change for
+Firefox.
+
 ## Testing strategy
 
 - Domain: plain unit tests next to the code (`#[cfg(test)]`).

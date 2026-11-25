@@ -8,12 +8,14 @@ use serde_json::Value;
 use crate::server::TestServer;
 
 /// Lists and reads the zip with Python's zipfile (which also checks CRCs).
-fn unzip(path: &std::path::Path) -> Value {
+pub(crate) fn unzip(path: &std::path::Path) -> Value {
     let script = "import sys, zipfile, json, base64\n\
                   z = zipfile.ZipFile(sys.argv[1])\n\
                   assert z.testzip() is None\n\
                   print(json.dumps({n: base64.b64encode(z.read(n)).decode() for n in z.namelist()}))";
     let out = std::process::Command::new("python3")
+        // UTF-8 output on Windows too (its console code page cannot print every character).
+        .env("PYTHONIOENCODING", "utf-8")
         .args(["-c", script])
         .arg(path)
         .output()
@@ -26,7 +28,7 @@ fn unzip(path: &std::path::Path) -> Value {
     serde_json::from_slice(&out.stdout).unwrap()
 }
 
-fn file(files: &Value, name: &str) -> Vec<u8> {
+pub(crate) fn file(files: &Value, name: &str) -> Vec<u8> {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD
         .decode(

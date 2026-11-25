@@ -91,7 +91,17 @@ impl WebSocket {
         }
     }
 
-    fn push(&self, event: WebSocketEvent) {
+    /// A socket opened at `url` (for engines that report sockets themselves).
+    pub(crate) fn new(url: String) -> Self {
+        WebSocket {
+            inner: Arc::new(WsInner {
+                url,
+                state: Mutex::new(WsState::default()),
+            }),
+        }
+    }
+
+    pub(crate) fn push(&self, event: WebSocketEvent) {
         let mut st = self.inner.state.lock().unwrap();
         if st.closed {
             return;
@@ -108,7 +118,7 @@ impl WebSocket {
     }
 }
 
-fn payload(p: &Value) -> WsPayload {
+pub(crate) fn payload(p: &Value) -> WsPayload {
     let data = p
         .pointer("/response/payloadData")
         .and_then(Value::as_str)

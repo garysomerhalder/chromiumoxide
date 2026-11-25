@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::domain::discovery::{
-    DiscoveryEnv, Os, Probe, Source, executables_within, probes, rank_entries,
+    DiscoveryEnv, Os, Probe, Source, channel_paths, executables_within, probes, rank_entries,
 };
 use crate::domain::error::{Error, Result};
 use crate::domain::launch::BrowserKind;
@@ -98,6 +98,46 @@ pub fn discover(
     Err(Error::BrowserNotFound { tried })
 }
 
+/// Finds the installed browser of a Playwright `channel` (`msedge`,
+/// `chrome-beta`, ...); the default discovery is not consulted.
+pub fn discover_channel(
+    fs: &dyn FileSystem,
+    env: &dyn Environment,
+    channel: &str,
+) -> Result<Discovered> {
+    let snapshot = discovery_env(env, None);
+    let paths = channel_paths(channel, &snapshot).map_err(Error::InvalidArgument)?;
+    match paths.iter().find(|p| fs.is_file(p)) {
+        Some(path) => Ok(Discovered {
+            kind: BrowserKind::from_executable(path),
+            executable: path.clone(),
+            source: Source::System,
+        }),
+        None => Err(Error::Launch(format!(
+            "Chromium distribution '{channel}' is not found at {}",
+            paths
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))),
+    }
+}
+
+/// The browser a launch uses: an explicit path, else the `channel`'s
+/// installed browser, else the default discovery.
+pub fn discover_for(
+    fs: &dyn FileSystem,
+    env: &dyn Environment,
+    explicit: Option<&Path>,
+    channel: Option<&str>,
+) -> Result<Discovered> {
+    match (explicit, channel) {
+        (None, Some(name)) => discover_channel(fs, env, name),
+        _ => discover(fs, env, explicit),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,6 +145,31 @@ mod tests {
 
     const PW_SHELL: &str = "/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
     const PW_CHROME: &str = "/opt/pw-browsers/chromium-1243/chrome-linux64/chrome";
+
+    #[test]
+    fn a_launch_finds_its_channel_and_an_explicit_path_wins() {
+        let fs = MemoryFileSystem::default();
+        fs.add_file(PW_SHELL);
+        fs.add_file("/opt/microsoft/msedge/msedge");
+        let env = MapEnvironment::linux("/home/u");
+        let edge = Some("msedge".to_owned());
+        assert_eq!(
+            discover_for(&fs, &env, None, edge.as_deref())
+                .unwrap()
+                .executable,
+            Path::new("/opt/microsoft/msedge/msedge")
+        );
+        assert_eq!(
+            discover_for(&fs, &env, None, None).unwrap().executable,
+            Path::new(PW_SHELL)
+        );
+        assert_eq!(
+            discover_for(&fs, &env, Some(Path::new(PW_SHELL)), edge.as_deref())
+                .unwrap()
+                .executable,
+            Path::new(PW_SHELL)
+        );
+    }
 
     fn found(fs: &MemoryFileSystem, env: &MapEnvironment, explicit: Option<&str>) -> Discovered {
         discover(fs, env, explicit.map(Path::new)).expect("discovered")

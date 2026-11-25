@@ -45,9 +45,24 @@ pub struct ApiRequestOptions {
     pub client_certificates: Vec<crate::domain::client_cert::ClientCertificate>,
 }
 
+/// Another engine's browser context, as an API request context's cookie
+/// jar (Firefox's `context.request`).
+pub(crate) trait CookieStore: Send + Sync {
+    /// Whether the context is still open.
+    fn is_open(&self) -> bool;
+    fn cookies_for<'a>(&'a self, urls: &'a [&'a str]) -> BoxFuture<'a, Result<Vec<Cookie>>>;
+    fn add_cookies<'a>(&'a self, cookies: &'a [NewCookie]) -> BoxFuture<'a, Result<()>>;
+    fn clear_cookies_matching(&self, filter: ClearCookies) -> BoxFuture<'_, Result<()>>;
+    fn storage_state(&self) -> BoxFuture<'_, Result<StorageState>>;
+    /// The browser's user agent.
+    fn user_agent(&self) -> BoxFuture<'_, Option<String>>;
+}
+
 enum Jar {
     /// The browser context's cookies.
     Context(Weak<ContextInner>),
+    /// Another engine's context.
+    Store(Arc<dyn CookieStore>),
     /// Its own cookies (standalone contexts).
     Own(Mutex<Vec<Cookie>>),
 }
@@ -181,6 +196,25 @@ impl Page {
 }
 
 impl ApiRequestContext {
+    /// The request context of another engine's browser context (cookies,
+    /// headers, credentials and base URL from `options`).
+    pub(crate) fn with_store(
+        services: Services,
+        options: ApiRequestOptions,
+        store: Arc<dyn CookieStore>,
+    ) -> Self {
+        ApiRequestContext {
+            inner: Arc::new(Inner {
+                services,
+                options,
+                jar: Jar::Store(store),
+                browser_ua: Mutex::new(None),
+                disposed: AtomicBool::new(false),
+                trace: Mutex::new(None),
+            }),
+        }
+    }
+
     /// A standalone context (Playwright's `request.newContext()`).
     pub fn new(services: Services, options: ApiRequestOptions) -> Self {
         let cookies = options
@@ -203,7 +237,7 @@ impl ApiRequestContext {
     fn context(&self) -> Option<BrowserContext> {
         match &self.inner.jar {
             Jar::Context(w) => w.upgrade().map(|inner| BrowserContext { inner }),
-            Jar::Own(_) => None,
+            Jar::Own(_) | Jar::Store(_) => None,
         }
     }
 
@@ -267,6 +301,7 @@ impl ApiRequestContext {
                 Some(ctx) => ctx.storage_state_with(options).await,
                 None => Err(Error::Request(CLOSED.into())),
             },
+            Jar::Store(store) => store.storage_state().await,
         }
     }
 
@@ -299,6 +334,14 @@ impl ApiRequestContext {
     async fn user_agent(&self) -> String {
         if let Some(ua) = &self.inner.options.user_agent {
             return ua.clone();
+        }
+        if let Jar::Store(store) = &self.inner.jar {
+            if let Some(ua) = self.inner.browser_ua.lock().unwrap().clone() {
+                return ua;
+            }
+            let ua = store.user_agent().await.unwrap_or_default();
+            *self.inner.browser_ua.lock().unwrap() = Some(ua.clone());
+            return ua;
         }
         let Some(ctx) = self.context() else {
             return format!("chromiumoxide/{}", env!("CARGO_PKG_VERSION"));
@@ -338,6 +381,12 @@ impl ApiRequestContext {
                 Some(ctx) => ctx.cookies_for(&[url]).await,
                 None => Err(Error::Request(CLOSED.into())),
             },
+            Jar::Store(store) => Ok(store
+                .cookies_for(&[url])
+                .await?
+                .into_iter()
+                .filter(alive)
+                .collect()),
         }
     }
 
@@ -354,6 +403,7 @@ impl ApiRequestContext {
                 Some(ctx) => ctx.cookies_for(urls).await,
                 None => Err(Error::Request(CLOSED.into())),
             },
+            Jar::Store(store) => store.cookies_for(urls).await,
         }
     }
 
@@ -373,6 +423,7 @@ impl ApiRequestContext {
                 Some(ctx) => ctx.add_cookies(cookies).await,
                 None => Err(Error::Request(CLOSED.into())),
             },
+            Jar::Store(store) => store.add_cookies(cookies).await,
         }
     }
 
@@ -392,6 +443,7 @@ impl ApiRequestContext {
                 Some(ctx) => ctx.clear_cookies_matching(filter).await,
                 None => Err(Error::Request(CLOSED.into())),
             },
+            Jar::Store(store) => store.clear_cookies_matching(filter).await,
         }
     }
 
@@ -430,6 +482,13 @@ impl ApiRequestContext {
                 }
                 None => Err(Error::Request(CLOSED.into())),
             },
+            Jar::Store(store) => {
+                for c in cookies {
+                    // One by one, like Playwright: a bad cookie does not drop the rest.
+                    let _ = store.add_cookies(&[c]).await;
+                }
+                Ok(())
+            }
         }
     }
 
@@ -486,6 +545,7 @@ impl ApiRequestContext {
     async fn run_inner(&self, r: ApiRequest<'_>, call: Option<&str>) -> Result<ApiResponse> {
         if self.inner.disposed.load(Ordering::SeqCst)
             || matches!(self.inner.jar, Jar::Context(_)) && self.context().is_none()
+            || matches!(&self.inner.jar, Jar::Store(s) if !s.is_open())
         {
             return Err(Error::Request(CLOSED.into()));
         }

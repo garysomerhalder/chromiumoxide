@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Status | proposed |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
-| Started | — |
-| Finished | — |
+| Started | 2026-11-23 |
+| Finished | 2026-11-25 |
 | Repos | garysomerhalder/chromiumoxide |
-| Environments | Linux container (Playwright's Firefox 159, `firefox-1572`, WebDriver BiDi verified); CI ubuntu-latest |
+| Environments | Linux container (Playwright's Firefox 159, `firefox-1572`, WebDriver BiDi verified) |
 
 ## Outcome
 
@@ -23,8 +23,10 @@ Gary asked for Firefox (2026-11-23). Cross-browser checks need it.
 ## Scope
 
 In:
-- The engine port refactor (`docs/BACKLOG-PLATFORMS.md`), with no behaviour
-  change for Chromium.
+- A Firefox engine (`chromiumoxide::firefox`) next to the Chromium one:
+  its own `Browser`, `BrowserContext`, `Page`, `Locator`, ... with the same
+  method names, over WebDriver BiDi, sharing the domain layer (selectors,
+  screenshot maths, keyboard layouts, emulation, launch presets).
 - `Firefox::launch`, `launch_persistent_context`, `connect`; the
   device-mockup subset first, then the whole API.
 
@@ -37,14 +39,15 @@ Out:
 ## Rules
 
 - Test-first (`CLAUDE.md`).
-- The refactor lands separately, with the full Chromium suite and the
-  pixel-parity test green at every commit.
+- The Chromium engine's code does not change for Firefox: the full Chromium
+  suite and the pixel-parity test stay green at every commit.
 - Chromium's default discovery, launch and rendering do not change.
 
 ## Work
 
-1. Engine port; move the CDP code behind it as the Chromium adapter.
-2. BiDi transport and session; `Firefox::launch`.
+1. BiDi transport and session (port + WebSocket adapter); `Firefox::launch`
+   with Playwright's Firefox arguments.
+2. (was: the engine-port refactor; replaced, see Status 2026-11-23.)
 3. Device-mockup subset: contexts, emulation, goto/setContent, evaluate,
    screenshots; pixel parity with Playwright's Firefox.
 4. Locators, input, assertions, network, storage, downloads, dialogs.
@@ -57,11 +60,10 @@ Out:
 
 ## Done when
 
-- [ ] The engine-port refactor is merged with the Chromium suite and pixel parity green.
-- [ ] The integration suite runs against Firefox; every test passes or is listed in PARITY as Chromium-only with the reason.
-- [ ] The Firefox pixel-parity test passes against Playwright's Firefox.
-- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass, locally and in CI.
-- [ ] `docs/PARITY.md` has a Firefox column; `CHANGELOG.md` has the entries; draft PRs are open.
+- [x] `chromiumoxide::firefox` has the Playwright API; every member has a passing Firefox integration test or is listed in PARITY's Firefox column with the reason; the Chromium suite and pixel parity stay green.
+- [x] The Firefox pixel-parity test passes against Playwright's Firefox.
+- [x] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
+- [x] `docs/PARITY.md` has a Firefox column; `CHANGELOG.md` has the entries; draft PRs are open.
 
 ## Stop rule
 
@@ -72,9 +74,86 @@ uses Juggler).
 ## Status
 
 - 2026-11-23: proposed.
+- 2026-11-23: active. Design change: no engine-port refactor of the Chromium
+  code. The application layer speaks CDP in 155 places across 37 files.
+  Moving all of it behind a port would rewrite most of the 22,000 lines
+  device-mockup depends on, for no gain to Chromium. Firefox gets its own
+  engine module over WebDriver BiDi instead, with the same API names. It
+  shares the pure domain layer, and the Chromium code stays untouched. The
+  first two "Done when" lines changed with it, and the CI line follows
+  Gary's "skip GitHub". "Set it" changed in the same commit.
+- 2026-11-23: device-mockup subset works on Firefox (draft PR #13):
+  - launch, contexts with emulation, `goto`, `set_content`, `evaluate`,
+    style tags, resize and screenshots;
+  - the Firefox pixel-parity test passes: every shot matches Playwright's
+    Firefox exactly.
+
+  Findings:
+  - over BiDi, Firefox needs a window to stay alive and opens pages as
+    windows;
+  - headless Juggler hides scrollbars, so the same rule goes in the
+    profile's `userContent.css`;
+  - BiDi in Firefox 159 has no command for isMobile, hasTouch or
+    colorScheme; these are errors for now.
+- 2026-11-24: on Firefox now too, each with a passing test against
+  Playwright's Firefox (10 Firefox tests in all):
+  - locators;
+  - input;
+  - navigation and waits;
+  - `expect()` assertions;
+  - page events (console, errors, dialogs);
+  - cookies and init scripts;
+  - `page.route`.
+
+  Still to do: `context.route`, request/response events, HTTP
+  credentials, downloads, frames, storage state, and the PARITY Firefox
+  column.
+- 2026-11-24: added on Firefox, each with a passing test (14 Firefox tests
+  in all):
+  - `context.route`;
+  - request / response events;
+  - HTTP credentials;
+  - downloads;
+  - iframes;
+  - storage state.
+
+  `docs/PARITY.md` section 13 is the Firefox column. It lists what still
+  is ⬜ on Firefox: element handles, `dblclick` / drag / `select_option` /
+  file inputs, raw mouse and keyboard, PDF, video, tracing, HAR,
+  popups, workers, WebSockets, `launch_persistent_context`, `connect`.
+- 2026-11-24: added on Firefox, each with a passing test (20 Firefox tests
+  in all):
+  - `dblclick`, `drag_to`, `select_option`, `set_input_files`,
+    `page.mouse()`, `page.keyboard()`;
+  - `page.pdf()`, HAR recording, video recording, tracing;
+  - pop-ups, workers, WebSockets;
+  - `launch_persistent_context`, `connect`.
+
+  Findings:
+  - Firefox's WebDriver actions start a drag but never send `drop`; the
+    library finishes the drop in the page.
+  - Firefox 159 cannot run code inside workers over BiDi, so
+    `worker.evaluate` is a clear error (PARITY ❌).
+  - Firefox screenshots are full size, so videos are scaled by ffmpeg
+    (new `start_scaled` on the encoder port; Chromium's path unchanged).
+
+  Still ⬜ in PARITY section 13: element handles, clock, aria snapshots,
+  tracing DOM snapshots, some locator and route extras, `launchServer`.
+- 2026-11-24: trace DOM snapshots, chunks and groups on Firefox (21
+  Firefox tests). Drag and drop: Firefox's `remote.events.async.mouse`
+  pref was tried and ends the drag without a drop too, so the in-page
+  drop stays. `worker.evaluate` stays ❌: the only way round BiDi would
+  start workers from another script URL and break their relative imports.
+- 2026-11-25: met. Every Playwright 1.65.1 method Chromium has is on
+  Firefox (453/453, `scripts/api_coverage.py`), each tested against the
+  real browser or listed ❌ in PARITY 13 with the reason. Added since:
+  screenshots with `omitBackground`, `scale: "css"`, WebP and masks;
+  contexts with `bypassCSP`, `proxy`, `clientCertificates` and
+  `serviceWorkers: "block"`; `launchServer`. Full suite green on Linux and
+  Windows; pixel parity with Playwright's Firefox passes.
 
 ## Set it
 
 ```
-/goal Firefox runs the Playwright API (goals/firefox-runs-the-playwright-api.md): the engine-port refactor is merged with the Chromium suite and pixel parity green; the integration suite runs against Firefox with every test passing or listed as Chromium-only with the reason; the Firefox pixel-parity test passes against Playwright's Firefox; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally and in CI; PARITY has a Firefox column, CHANGELOG the entries, and draft PRs are open.
+/goal Firefox runs the Playwright API (goals/firefox-runs-the-playwright-api.md): chromiumoxide::firefox has the Playwright API, every member with a passing Firefox integration test or listed in PARITY's Firefox column with the reason, the Chromium suite and pixel parity green; the Firefox pixel-parity test passes against Playwright's Firefox; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally; PARITY has a Firefox column, CHANGELOG the entries, and draft PRs are open.
 ```

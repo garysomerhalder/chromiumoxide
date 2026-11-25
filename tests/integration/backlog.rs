@@ -155,20 +155,34 @@ async fn page_frame_dialog_and_crash_events() {
     page.evaluate::<()>("void setTimeout(() => alert('hi'), 0)")
         .await
         .unwrap();
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    let got = seen.lock().unwrap().clone();
-    for want in [
+    let wanted = [
         "framenavigated:",
         "frameattached",
         "framenavigated:child",
         "framedetached",
         "dialog:hi",
         "dialogclosed:hi",
-    ] {
+    ];
+    // The events arrive within moments; a busy machine can take longer.
+    for _ in 0..100 {
+        let got = seen.lock().unwrap().clone();
+        if wanted.iter().all(|w| got.iter().any(|g| g == w)) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let got = seen.lock().unwrap().clone();
+    for want in wanted {
         assert!(got.iter().any(|g| g == want), "{want} not in {got:?}");
     }
     let _ = page.goto("chrome://crash").await;
-    tokio::time::sleep(Duration::from_millis(1500)).await;
+    // Windows reports the crash later (its crash handling runs first).
+    for _ in 0..300 {
+        if seen.lock().unwrap().iter().any(|g| g == "crash") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
     assert!(
         seen.lock().unwrap().iter().any(|g| g == "crash"),
         "{:?}",
@@ -355,7 +369,7 @@ async fn close_can_run_before_unload() {
 /// request), then answers `ok`.
 async fn flaky_server(resets: usize) -> String {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let listener = crate::server::browsable_listener().await;
     let url = format!(
         "http://127.0.0.1:{}/",
         listener.local_addr().unwrap().port()
@@ -577,17 +591,10 @@ async fn browser_server_process() {
         .unwrap();
     let process = server.process().expect("launched by us");
     let pid = process.pid();
-    let cmdline = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap();
-    let cmdline = String::from_utf8_lossy(&cmdline);
+    let cmdline = crate::process_command_line(pid).expect("the browser is running");
     assert!(cmdline.contains("--remote-debugging-port"), "{cmdline}");
     server.close().await.unwrap();
-    assert!(
-        !std::path::Path::new(&format!("/proc/{pid}/cmdline")).exists()
-            || std::fs::read_to_string(format!("/proc/{pid}/stat"))
-                .unwrap_or_default()
-                .contains(") Z"),
-        "process {pid} ended"
-    );
+    assert!(crate::process_gone(pid), "process {pid} ended");
 }
 
 /// `download.createReadStream()`: the bytes as an `AsyncRead`.
@@ -746,6 +753,7 @@ async fn signal_child() {
 
 /// Runs `signal_child` in `mode`, sends it `signal` once the browser is up;
 /// returns its exit status, its output and the browser's profile directory.
+#[cfg(unix)]
 fn run_signal_child(mode: &str, signal: &str) -> (std::process::ExitStatus, String, String, u32) {
     use std::io::BufRead;
     let mut child = std::process::Command::new(std::env::current_exe().unwrap())
@@ -773,9 +781,10 @@ fn run_signal_child(mode: &str, signal: &str) -> (std::process::ExitStatus, Stri
             break pid.parse::<u32>().unwrap();
         }
     };
-    let cmdline = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap();
-    let profile = String::from_utf8_lossy(&cmdline)
-        .split('\0')
+    // Portable (macOS has no /proc): the browser's command line.
+    let cmdline = crate::process_command_line(pid).expect("browser command line");
+    let profile = cmdline
+        .split_whitespace()
         .find_map(|a| a.strip_prefix("--user-data-dir=").map(str::to_owned))
         .unwrap();
     let sent = std::process::Command::new("kill")
@@ -789,12 +798,14 @@ fn run_signal_child(mode: &str, signal: &str) -> (std::process::ExitStatus, Stri
     (child.wait().unwrap(), seen, profile, pid)
 }
 
+#[cfg(unix)]
 fn gone(pid: u32) -> bool {
     std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |s| s.contains(") Z"))
 }
 
 /// `handleSIGINT`: Ctrl-C closes the browser, removes its profile, then the
-/// program exits with 130.
+/// program exits with 130. (POSIX signals sent with `kill`: Unix only.)
+#[cfg(unix)]
 #[tokio::test]
 async fn handle_sigint_closes_the_browser_and_exits() {
     let (status, out, profile, pid) = run_signal_child("int", "-INT");
@@ -806,7 +817,9 @@ async fn handle_sigint_closes_the_browser_and_exits() {
     );
 }
 
-/// `handleSIGTERM`: closes the browser; the program keeps running.
+/// `handleSIGTERM`: closes the browser; the program keeps running. (Unix
+/// only: Windows has no SIGTERM.)
+#[cfg(unix)]
 #[tokio::test]
 async fn handle_sigterm_closes_the_browser() {
     let (status, out, profile, pid) = run_signal_child("term", "-TERM");

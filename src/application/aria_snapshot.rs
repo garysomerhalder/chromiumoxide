@@ -36,7 +36,7 @@ pub struct AriaSnapshotOptions {
 }
 
 impl AriaSnapshotOptions {
-    fn mode_name(&self) -> &'static str {
+    pub(crate) fn mode_name(&self) -> &'static str {
         match self.mode {
             AriaSnapshotMode::Default => "default",
             AriaSnapshotMode::Ai => "ai",
@@ -162,7 +162,7 @@ async fn frame_snapshot(
     }))
 }
 
-fn merge_iframe_children(node: &mut Value, children: &[(String, Vec<Value>)]) {
+pub(crate) fn merge_iframe_children(node: &mut Value, children: &[(String, Vec<Value>)]) {
     let Some(obj) = node.as_object_mut() else {
         return;
     };

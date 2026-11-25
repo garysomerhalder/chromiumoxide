@@ -60,7 +60,12 @@ fn key_params(e: &KeyEvent) -> Value {
             "modifiers": e.modifiers,
             "windowsVirtualKeyCode": e.windows_virtual_key_code,
             "code": e.code,
-            "commands": [],
+            // Playwright sends macOS editing commands on macOS only.
+            "commands": if cfg!(target_os = "macos") {
+                crate::domain::mac_editing::chromium_commands(&e.code, e.modifiers)
+            } else {
+                Vec::new()
+            },
             "key": e.key,
             "text": e.text,
             "unmodifiedText": e.text,

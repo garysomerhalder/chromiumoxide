@@ -45,6 +45,28 @@ pub fn backtrace_locations(text: &str) -> Vec<SourceLocation> {
         .collect()
 }
 
+/// A backtrace frame's file as an absolute path: Rust prints files under
+/// the working directory relative to it (`./a.rs` on Unix, `.\a.rs` or
+/// `a.rs` on Windows); those are joined to `cwd` (with `/` separators).
+pub fn resolve_frame_file(file: &str, cwd: Option<&std::path::Path>) -> String {
+    let absolute =
+        file.starts_with('/') || file.starts_with("\\\\") || file.as_bytes().get(1) == Some(&b':');
+    match cwd {
+        Some(cwd) if !absolute => {
+            let rel = file
+                .strip_prefix("./")
+                .or_else(|| file.strip_prefix(".\\"))
+                .unwrap_or(file)
+                .replace('\\', "/");
+            // Joined by hand: `Path::join` would put `\` before `rel` on
+            // Windows.
+            let cwd = cwd.to_string_lossy();
+            format!("{}/{rel}", cwd.trim_end_matches(['/', '\\']))
+        }
+        _ => file.to_owned(),
+    }
+}
+
 fn parse_location(s: &str) -> Option<SourceLocation> {
     let (rest, last) = s.rsplit_once(':')?;
     let last: u32 = last.parse().ok()?;
@@ -67,6 +89,35 @@ fn parse_location(s: &str) -> Option<SourceLocation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn relative_frames_are_resolved_against_the_working_directory() {
+        let cwd = std::path::Path::new("/w");
+        assert_eq!(
+            resolve_frame_file("./tests/a.rs", Some(cwd)),
+            "/w/tests/a.rs"
+        );
+        assert_eq!(
+            resolve_frame_file(".\\tests\\a.rs", Some(cwd)),
+            "/w/tests/a.rs"
+        );
+        assert_eq!(
+            resolve_frame_file("tests\\a.rs", Some(cwd)),
+            "/w/tests/a.rs"
+        );
+        assert_eq!(resolve_frame_file("tests/a.rs", Some(cwd)), "/w/tests/a.rs");
+        // Absolute paths stay as they are.
+        assert_eq!(
+            resolve_frame_file("/rustc/x/lib.rs", Some(cwd)),
+            "/rustc/x/lib.rs"
+        );
+        assert_eq!(resolve_frame_file("C:\\u\\a.rs", Some(cwd)), "C:\\u\\a.rs");
+        assert_eq!(
+            resolve_frame_file("\\\\server\\a.rs", Some(cwd)),
+            "\\\\server\\a.rs"
+        );
+        assert_eq!(resolve_frame_file("./a.rs", None), "./a.rs");
+    }
 
     #[test]
     fn matching_follows_playwright() {

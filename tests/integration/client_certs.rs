@@ -4,21 +4,24 @@
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use chromiumoxide::{
     ApiRequestOptions, Chromium, ClientCertificate, ContextOptions, LaunchOptions,
 };
 
-struct MtlsServer {
-    child: Child,
-    dir: PathBuf,
-    port: u16,
+pub(crate) struct MtlsServer {
+    children: Arc<Mutex<Vec<Child>>>,
+    pub(crate) dir: PathBuf,
+    pub(crate) port: u16,
 }
 
 impl Drop for MtlsServer {
     fn drop(&mut self) {
-        let _ = self.child.kill();
+        for c in self.children.lock().unwrap().iter_mut() {
+            let _ = c.kill();
+        }
         let _ = std::fs::remove_dir_all(&self.dir);
     }
 }
@@ -35,7 +38,7 @@ fn openssl(dir: &Path, args: &[&str]) -> bool {
 
 /// A CA, a server certificate for localhost, a client certificate (CN=Alice)
 /// as PEM, as an encrypted PEM key and as a PFX (passphrase `secret`).
-fn mtls_server() -> Option<MtlsServer> {
+pub(crate) fn mtls_server() -> Option<MtlsServer> {
     let dir = std::env::temp_dir().join(format!("cox-mtls-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).ok()?;
@@ -145,13 +148,48 @@ fn mtls_server() -> Option<MtlsServer> {
             return None;
         }
     }
-    let port = std::net::TcpListener::bind("127.0.0.1:0")
-        .ok()?
-        .local_addr()
-        .ok()?
-        .port();
-    let child = Command::new("openssl")
-        .current_dir(&dir)
+    // `s_server` serves one connection at a time, and a browser may hold
+    // several open (WebKit preconnects without a certificate). Like a real
+    // server, the fixture takes any number at once: a front port hands each
+    // connection to an idle `s_server`, starting another when all are busy.
+    let children = Arc::new(Mutex::new(Vec::new()));
+    let mut backends = Vec::new();
+    for _ in 0..4 {
+        backends.push(start_backend(&dir, &children)?);
+    }
+    let front = crate::server::browsable_std_listener();
+    let port = front.local_addr().ok()?.port();
+    let idle = Arc::new(Mutex::new(backends));
+    let (spawn_dir, spawn_children) = (dir.clone(), children.clone());
+    std::thread::spawn(move || {
+        for conn in front.incoming().flatten() {
+            let idle = idle.clone();
+            let (dir, children) = (spawn_dir.clone(), spawn_children.clone());
+            std::thread::spawn(move || {
+                let free = idle.lock().unwrap().pop();
+                let Some(backend) = free.or_else(|| start_backend(&dir, &children)) else {
+                    return;
+                };
+                if let Ok(up) = std::net::TcpStream::connect(("127.0.0.1", backend)) {
+                    pipe(conn, up);
+                }
+                idle.lock().unwrap().push(backend);
+            });
+        }
+    });
+    Some(MtlsServer {
+        children,
+        dir,
+        port,
+    })
+}
+
+/// Starts an `s_server` that requires a client certificate signed by the
+/// test CA and answers with a page naming it; its port once it listens.
+fn start_backend(dir: &Path, children: &Mutex<Vec<Child>>) -> Option<u16> {
+    let port = free_port()?;
+    let mut child = Command::new("openssl")
+        .current_dir(dir)
         .args([
             "s_server",
             "-accept",
@@ -166,13 +204,47 @@ fn mtls_server() -> Option<MtlsServer> {
         .stderr(Stdio::null())
         .spawn()
         .ok()?;
-    for _ in 0..100 {
-        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
-            return Some(MtlsServer { child, dir, port });
+    let up = (0..250).any(|_| {
+        let up = std::net::TcpStream::connect(("127.0.0.1", port)).is_ok();
+        if !up {
+            std::thread::sleep(Duration::from_millis(20));
         }
-        std::thread::sleep(Duration::from_millis(20));
+        up
+    });
+    if !up {
+        let _ = child.kill();
+        return None;
     }
-    None
+    children.lock().unwrap().push(child);
+    Some(port)
+}
+
+fn free_port() -> Option<u16> {
+    Some(
+        std::net::TcpListener::bind("127.0.0.1:0")
+            .ok()?
+            .local_addr()
+            .ok()?
+            .port(),
+    )
+}
+
+/// Copies both ways until either side closes.
+fn pipe(a: std::net::TcpStream, b: std::net::TcpStream) {
+    let (Ok(a2), Ok(b2)) = (a.try_clone(), b.try_clone()) else {
+        return;
+    };
+    let t = std::thread::spawn(move || {
+        let (mut r, mut w) = (a2, b2);
+        let _ = std::io::copy(&mut r, &mut w);
+        let _ = w.shutdown(std::net::Shutdown::Both);
+        let _ = r.shutdown(std::net::Shutdown::Both);
+    });
+    let (mut r, mut w) = (b, a);
+    let _ = std::io::copy(&mut r, &mut w);
+    let _ = w.shutdown(std::net::Shutdown::Both);
+    let _ = r.shutdown(std::net::Shutdown::Both);
+    let _ = t.join();
 }
 
 #[tokio::test]

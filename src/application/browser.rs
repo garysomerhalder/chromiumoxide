@@ -12,7 +12,6 @@ use futures::StreamExt;
 use serde_json::{Value, json};
 
 use crate::application::context::BrowserContext;
-use crate::application::discovery::discover;
 use crate::application::page::Page;
 use crate::application::services::Services;
 use crate::application::shared::Shared;
@@ -41,6 +40,11 @@ pub struct LaunchOptions {
     pub timeout: Duration,
     /// Pipe (default) or WebSocket.
     pub channel: Channel,
+    /// Playwright's `channel`: an installed branded browser by name
+    /// (`chrome`, `chrome-beta`, `chrome-dev`, `chrome-canary`, `msedge`,
+    /// `msedge-beta`, `msedge-dev`, `msedge-canary`) instead of the default
+    /// discovery. `executable_path` wins when both are set.
+    pub browser_channel: Option<String>,
     /// Route the browser's traffic through a proxy (Playwright's `proxy`).
     pub proxy: Option<crate::domain::launch::Proxy>,
     /// Playwright's `slowMo`: wait this long after each action, navigation
@@ -79,6 +83,7 @@ impl Default for LaunchOptions {
             env: Vec::new(),
             timeout: Duration::from_secs(180),
             channel: Channel::Pipe,
+            browser_channel: None,
             proxy: None,
             slow_mo: Duration::ZERO,
             downloads_path: None,
@@ -281,10 +286,11 @@ impl Browser {
         options: LaunchOptions,
         persistent: Option<(PathBuf, ContextOptions)>,
     ) -> Result<(Browser, Option<BrowserContext>)> {
-        let found = discover(
+        let found = crate::application::discovery::discover_for(
             &*services.fs,
             &*services.env,
             options.executable_path.as_deref(),
+            options.browser_channel.as_deref(),
         )?;
         let user_data_dir = match &persistent {
             Some((dir, _)) => dir.clone(),
@@ -305,7 +311,8 @@ impl Browser {
         } else {
             command_line(&spec)
         };
-        if options.channel == Channel::WebSocket {
+        let channel = effective_channel(options.channel, cfg!(windows));
+        if channel == Channel::WebSocket {
             for a in &mut args {
                 if a == "--remote-debugging-pipe" {
                     *a = "--remote-debugging-port=0".to_owned();
@@ -316,7 +323,7 @@ impl Browser {
             program: found.executable.clone(),
             args,
             env: options.env.clone(),
-            channel: options.channel,
+            channel,
             user_data_dir: user_data_dir.clone(),
             timeout_ms: options.timeout.as_millis() as u64,
         };
@@ -381,12 +388,23 @@ impl Browser {
         cdp: Arc<dyn CdpSession>,
         ws_endpoint: Option<String>,
     ) -> Result<Browser> {
-        let browser = Browser {
+        let browser = Browser::connect_raw_at(services, cdp, ws_endpoint, true);
+        browser.handshake(None).await?;
+        Ok(browser)
+    }
+
+    fn connect_raw_at(
+        services: Services,
+        cdp: Arc<dyn CdpSession>,
+        ws_endpoint: Option<String>,
+        headless: bool,
+    ) -> Browser {
+        Browser {
             inner: Arc::new(BrowserInner {
                 cdp,
                 services,
                 shared: Mutex::new(None),
-                headless: true,
+                headless,
                 process: Mutex::new(None),
                 user_data_dir: None,
                 executable: None,
@@ -402,8 +420,53 @@ impl Browser {
                 subscribers: Mutex::new(Vec::new()),
                 disconnected: AtomicBool::new(false),
             }),
-        };
-        browser.handshake(None).await?;
+        }
+    }
+
+    /// Connects to a browser driven through the extension: its own profile
+    /// is the default context (`contexts()[0]`, with its open tabs), and
+    /// no viewport is emulated, so tabs keep their window's size.
+    pub async fn connect_own_profile(
+        services: Services,
+        cdp: Arc<dyn CdpSession>,
+        recording: ContextOptions,
+    ) -> Result<Browser> {
+        // A browser someone uses: headful (no headless font families).
+        let browser = Browser::connect_raw_at(services, cdp.clone(), None, false);
+        let ctx = browser
+            .handshake(Some(ContextOptions {
+                viewport: None,
+                record_video: recording.record_video,
+                record_har: recording.record_har,
+                ..ContextOptions::default()
+            }))
+            .await?
+            .ok_or_else(|| Error::Launch("no default context".into()))?;
+        ctx.inner.shared.via_extension.store(true, Ordering::SeqCst);
+        // Like `connectOverCDP`: the tabs already open are pages on return.
+        let targets = cdp.call(None, "Target.getTargets", json!({})).await?;
+        let open: Vec<String> = targets["targetInfos"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|t| t["type"] == "page")
+            .filter_map(|t| t["targetId"].as_str().map(str::to_owned))
+            .collect();
+        let inner = &ctx.inner;
+        crate::application::wait::wait_until(
+            &*inner.shared.services.clock,
+            &inner.changed,
+            crate::application::page::DEFAULT_TIMEOUT,
+            "initialising the browser's open tabs",
+            || {
+                let pages = inner.pages.lock().unwrap();
+                let failed = inner.init_errors.lock().unwrap();
+                open.iter()
+                    .all(|id| pages.iter().any(|p| p.target_id() == id) || failed.contains_key(id))
+                    .then_some(Ok(()))
+            },
+        )
+        .await?;
         Ok(browser)
     }
 
@@ -576,6 +639,7 @@ impl Browser {
             .and_then(Value::as_str)
             .unwrap_or_default();
         let shared = Arc::new(Shared {
+            via_extension: Default::default(),
             cdp: cdp.clone(),
             services: self.inner.services.clone(),
             headless: self.inner.headless,
@@ -708,6 +772,12 @@ impl Browser {
 
     pub(crate) fn clock(&self) -> Arc<dyn crate::ports::Clock> {
         self.inner.services.clock.clone()
+    }
+
+    /// Ties a process this library started to the browser: closing the
+    /// browser ends it (`Chromium::launch_with_extension`).
+    pub(crate) fn adopt_process(&self, process: Box<dyn BrowserProcess>) {
+        *self.inner.process.lock().unwrap() = Some(process);
     }
 
     /// The pid of the browser process this library launched (`None` when
@@ -934,9 +1004,31 @@ impl Browser {
     }
 }
 
+/// The channel a launch really uses: the one asked for, on every system
+/// (Windows gets the pipe through its C runtime's fds 3 and 4, like Node).
+fn effective_channel(requested: Channel, windows: bool) -> Channel {
+    let _ = windows;
+    requested
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_system_launches_over_the_requested_channel() {
+        assert_eq!(effective_channel(Channel::Pipe, false), Channel::Pipe);
+        assert_eq!(
+            effective_channel(Channel::WebSocket, false),
+            Channel::WebSocket
+        );
+        // Windows has the pipe too now (fds 3 and 4 via the C runtime).
+        assert_eq!(effective_channel(Channel::Pipe, true), Channel::Pipe);
+        assert_eq!(
+            effective_channel(Channel::WebSocket, true),
+            Channel::WebSocket
+        );
+    }
     use crate::ports::FileSystem;
     use crate::testing::clock::TestClock;
     use crate::testing::memory::{MapEnvironment, MemoryFileSystem};
@@ -954,6 +1046,8 @@ mod tests {
             video: Arc::new(crate::testing::memory::NullVideo),
             http: Arc::new(crate::testing::memory::NoHttp),
             bridge: Arc::new(crate::testing::memory::NoBridge),
+            bidi_bridge: Arc::new(crate::testing::memory::NoBridge),
+            webkit_bridge: Arc::new(crate::testing::memory::NoBridge),
             signals: Arc::new(crate::testing::memory::NoSignals),
             adb: Arc::new(crate::testing::memory::NoAdb),
         };
@@ -985,8 +1079,49 @@ mod tests {
             cmd.args
                 .contains(&format!("--user-data-dir={}", dir.display()))
         );
-        assert_eq!(cmd.channel, Channel::Pipe);
+        assert_eq!(cmd.channel, effective_channel(Channel::Pipe, cfg!(windows)));
         assert_eq!(browser.executable_path(), Some(PathBuf::from(SHELL)));
+    }
+
+    #[tokio::test]
+    async fn a_channel_launches_the_installed_chrome_or_edge() {
+        let launcher = FakeLauncher::default();
+        let (s, fs) = services(&launcher);
+        fs.add_file("/opt/microsoft/msedge/msedge");
+        let browser = Browser::launch(
+            s.clone(),
+            LaunchOptions {
+                browser_channel: Some("msedge".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            browser.executable_path(),
+            Some(PathBuf::from("/opt/microsoft/msedge/msedge"))
+        );
+        let cmd = launcher.commands.lock().unwrap()[0].clone();
+        assert!(
+            cmd.args.contains(&"--headless=new".to_owned()),
+            "{:?}",
+            cmd.args
+        );
+        // Not installed: an error naming the channel and where it looked.
+        let err = match Browser::launch(
+            s,
+            LaunchOptions {
+                browser_channel: Some("chrome-beta".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("chrome-beta is not installed"),
+        };
+        assert!(err.contains("chrome-beta"), "{err}");
+        assert!(err.contains("/opt/google/chrome-beta/chrome"), "{err}");
     }
 
     #[tokio::test]

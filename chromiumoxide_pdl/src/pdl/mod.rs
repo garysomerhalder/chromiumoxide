@@ -1,5 +1,6 @@
 mod dep;
 mod error;
+pub mod json;
 pub mod parser;
 pub mod resolver;
 
@@ -12,6 +13,7 @@ mod ser;
 use std::borrow::Cow;
 
 pub use self::error::Error;
+pub use self::json::parse_protocol_json;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

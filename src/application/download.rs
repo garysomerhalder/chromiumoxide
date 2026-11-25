@@ -27,7 +27,9 @@ struct DownloadInner {
     guid: String,
     url: String,
     suggested_filename: String,
-    path: PathBuf,
+    /// Where the file is: the downloads folder, or where the browser saved
+    /// it (downloads through the extension).
+    path: Mutex<PathBuf>,
     unaccessible: Option<&'static str>,
     /// `None` while in progress; then `Ok` or the failure text.
     outcome: Mutex<Option<std::result::Result<(), String>>>,
@@ -87,7 +89,7 @@ impl Download {
         self.finished()
             .await
             .map_err(|e| Error::InvalidArgument(format!("download.path: {e}")))?;
-        Ok(self.inner.path.clone())
+        Ok(self.inner.path.lock().unwrap().clone())
     }
 
     /// Copies the finished download to `path` (creating parent directories).
@@ -99,7 +101,8 @@ impl Download {
             .await
             .map_err(|e| Error::InvalidArgument(format!("download.saveAs: {e}")))?;
         let fs = &self.inner.page.inner.shared.services.fs;
-        let data = fs.read(&self.inner.path)?;
+        let source = self.inner.path.lock().unwrap().clone();
+        let data = fs.read(&source)?;
         fs.write(path.as_ref(), &data)?;
         Ok(())
     }
@@ -144,7 +147,7 @@ impl Download {
             .shared
             .services
             .fs
-            .remove_file(&self.inner.path)?;
+            .remove_file(&self.inner.path.lock().unwrap())?;
         Ok(())
     }
 
@@ -211,7 +214,7 @@ impl Shared {
                 let download = Download {
                     inner: Arc::new(DownloadInner {
                         page: page.clone(),
-                        path: dir.join(&guid),
+                        path: Mutex::new(dir.join(&guid)),
                         guid: guid.clone(),
                         url: s("url"),
                         suggested_filename: s("suggestedFilename"),
@@ -236,6 +239,10 @@ impl Shared {
                     _ => return,
                 };
                 if let Some(d) = self.downloads.lock().unwrap().remove(&s("guid")) {
+                    // The extension reports where the browser saved it.
+                    if let Some(saved) = p.get("filePath").and_then(Value::as_str) {
+                        *d.inner.path.lock().unwrap() = PathBuf::from(saved);
+                    }
                     d.settle(outcome);
                 }
             }

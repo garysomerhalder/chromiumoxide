@@ -6,7 +6,7 @@ const RECORDER: &str = "<input id=i style='position:absolute;left:10px;top:10px;
 <div style='height:3000px'></div>
 <script>
 window.keys = [];
-document.getElementById('i').addEventListener('keydown', e => keys.push([e.key, e.code, e.shiftKey, e.ctrlKey]));
+document.getElementById('i').addEventListener('keydown', e => keys.push([e.key, e.code, e.shiftKey, e.ctrlKey, e.metaKey]));
 window.mouse = [];
 for (const t of ['mousedown', 'mouseup', 'click', 'contextmenu'])
   document.addEventListener(t, e => mouse.push([t, e.button, e.clientX, e.clientY]));
@@ -31,7 +31,7 @@ async fn keyboard_types_presses_and_inserts() {
         "Hello ü!"
     );
     kb.press("Shift+KeyA").await.unwrap();
-    kb.press("Control+a").await.unwrap();
+    kb.press("ControlOrMeta+a").await.unwrap();
     kb.press("Backspace").await.unwrap();
     assert_eq!(
         page.evaluate::<String>("document.getElementById('i').value")
@@ -48,11 +48,18 @@ async fn keyboard_types_presses_and_inserts() {
     );
     let keys: Vec<Value> = page.evaluate("window.keys").await.unwrap();
     assert!(
-        keys.contains(&serde_json::json!(["A", "KeyA", true, false])),
+        keys.contains(&serde_json::json!(["A", "KeyA", true, false, false])),
         "{keys:?}"
     );
     assert!(
-        keys.contains(&serde_json::json!(["a", "KeyA", false, true])),
+        // ControlOrMeta: Meta on macOS, Control elsewhere.
+        keys.contains(&serde_json::json!([
+            "a",
+            "KeyA",
+            false,
+            !cfg!(target_os = "macos"),
+            cfg!(target_os = "macos")
+        ])),
         "{keys:?}"
     );
     assert!(

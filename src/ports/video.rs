@@ -15,6 +15,20 @@ pub trait VideoEncoder: Send + Sync {
         height: u32,
         fps: u32,
     ) -> BoxFuture<'static, io::Result<Box<dyn VideoSink>>>;
+
+    /// [`VideoEncoder::start`] for frames of `source` size, scaled down to
+    /// fit the video (Firefox's full-size screenshots).
+    fn start_scaled(
+        &self,
+        output: &Path,
+        width: u32,
+        height: u32,
+        fps: u32,
+        source: (u32, u32),
+    ) -> BoxFuture<'static, io::Result<Box<dyn VideoSink>>> {
+        let _ = source;
+        self.start(output, width, height, fps)
+    }
 }
 
 /// A running encoder: frames are written at the video's frame rate.

@@ -29,7 +29,8 @@ fn electron_executable() -> Option<Option<PathBuf>> {
     Some(found)
 }
 
-/// An X display for Electron: `DISPLAY` if set, else a private Xvfb.
+/// An X display for Electron on Linux: `DISPLAY` if set, else a private
+/// Xvfb. macOS and Windows need none.
 struct Display {
     name: String,
     xvfb: Option<Child>,
@@ -44,6 +45,12 @@ impl Drop for Display {
 }
 
 fn display() -> Option<Display> {
+    if !cfg!(target_os = "linux") {
+        return Some(Display {
+            name: String::new(),
+            xvfb: None,
+        });
+    }
     if let Ok(name) = std::env::var("DISPLAY") {
         return Some(Display { name, xvfb: None });
     }
@@ -92,7 +99,7 @@ async fn electron_app_windows_main_process_and_close() {
     let app = Electron::launch(ElectronLaunchOptions {
         executable_path: exe,
         args: vec![fixture()],
-        env: Some(vec![("DISPLAY".into(), display.name.clone())]),
+        env: cfg!(target_os = "linux").then(|| vec![("DISPLAY".into(), display.name.clone())]),
         ..Default::default()
     })
     .await
@@ -135,7 +142,8 @@ async fn electron_app_windows_main_process_and_close() {
     // `browserWindow(page)`: the BrowserWindow of a page.
     let bw = app.browser_window(&window).await.unwrap();
     assert_eq!(
-        bw.evaluate::<i64>("w => w.getBounds().width")
+        // Content bounds: the outer bounds include the window frame on Windows.
+        bw.evaluate::<i64>("w => w.getContentBounds().width")
             .await
             .unwrap(),
         400

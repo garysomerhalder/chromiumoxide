@@ -156,3 +156,48 @@ async fn bind_shares_a_launched_browser() {
     );
     owner.close().await.unwrap();
 }
+
+/// Playwright's `channel: 'msedge'`: the installed Edge, by name.
+#[tokio::test]
+async fn edge_channel_runs_the_installed_edge() {
+    let options = LaunchOptions {
+        browser_channel: Some("msedge".into()),
+        ..Default::default()
+    };
+    let browser = match Chromium::launch(options).await {
+        Ok(b) => b,
+        Err(e) if std::env::var_os("CHROMIUMOXIDE_REQUIRE_EDGE").is_none() => {
+            eprintln!("skipping: no Edge installed ({e})");
+            return;
+        }
+        Err(e) => panic!("{e}"),
+    };
+    let page = browser.new_page().await.unwrap();
+    page.set_content("<h1>edge</h1>").await.unwrap();
+    let ua: String = page.evaluate("navigator.userAgent").await.unwrap();
+    assert!(ua.contains("Edg/"), "{ua}");
+    let png = page.screenshot().await.unwrap();
+    assert_eq!(&png[1..4], b"PNG");
+    browser.close().await.unwrap();
+}
+
+/// A profile reused over the WebSocket channel (Windows' default): the
+/// second launch must not read the first one's `DevToolsActivePort`.
+#[tokio::test]
+async fn websocket_relaunch_on_the_same_profile() {
+    let dir = std::env::temp_dir().join(format!("cox-ws-relaunch-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let options = || LaunchOptions {
+        channel: Channel::WebSocket,
+        ..Default::default()
+    };
+    for _ in 0..2 {
+        let context = Chromium::launch_persistent_context(&dir, options(), Default::default())
+            .await
+            .unwrap();
+        let page = context.new_page().await.unwrap();
+        page.set_content("<p>again</p>").await.unwrap();
+        context.close().await.unwrap();
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

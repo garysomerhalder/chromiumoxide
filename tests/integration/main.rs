@@ -14,11 +14,17 @@ mod coverage;
 mod debugger;
 mod dragdrop;
 mod electron;
+mod engine_options;
+mod engine_server;
 mod events;
+mod extension;
+mod extension_api;
 mod extras;
 mod extras2;
 mod extras3;
 mod fake_adb;
+mod firefox;
+mod firefox_parity;
 mod frames;
 mod handles;
 mod handles2;
@@ -38,6 +44,7 @@ mod protocol;
 mod pw165;
 mod request;
 mod routing;
+mod safari;
 mod screencast;
 mod screenshot;
 mod scripts;
@@ -45,20 +52,30 @@ mod server;
 mod shortcuts;
 mod snapshots;
 mod storage;
+mod tauri;
 mod tracing;
 mod video;
+mod webkit;
+mod webkit_api;
+mod webkit_parity;
 mod workers;
 
 /// Where Playwright installs browsers: `PLAYWRIGHT_BROWSERS_PATH`, the
-/// container image's `/opt/pw-browsers`, and the user cache (CI).
+/// container image's `/opt/pw-browsers`, and the user caches on Linux,
+/// macOS and Windows.
 pub fn playwright_dirs() -> Vec<std::path::PathBuf> {
     let mut dirs = Vec::new();
     if let Some(p) = std::env::var_os("PLAYWRIGHT_BROWSERS_PATH") {
         dirs.push(p.into());
     }
     dirs.push("/opt/pw-browsers".into());
-    if let Some(home) = std::env::var_os("HOME") {
-        dirs.push(std::path::PathBuf::from(home).join(".cache/ms-playwright"));
+    if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
+        let home = std::path::PathBuf::from(home);
+        dirs.push(home.join(".cache/ms-playwright"));
+        dirs.push(home.join("Library/Caches/ms-playwright"));
+    }
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        dirs.push(std::path::PathBuf::from(local).join("ms-playwright"));
     }
     dirs
 }
@@ -83,5 +100,90 @@ pub fn newest_playwright_install(prefix: &str, exe: &str) -> Option<std::path::P
 
 /// The newest full Chromium Playwright installed (`chromium-<revision>`).
 pub fn full_chromium() -> Option<std::path::PathBuf> {
-    newest_playwright_install("chromium-", "chrome-linux64/chrome")
+    const MAC_APP: &str = "Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
+    let candidates: &[String] = &if cfg!(windows) {
+        vec![
+            "chrome-win64/chrome.exe".into(),
+            "chrome-win/chrome.exe".into(),
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec![
+            format!("chrome-mac-arm64/{MAC_APP}"),
+            format!("chrome-mac-x64/{MAC_APP}"),
+            format!("chrome-mac/{MAC_APP}"),
+        ]
+    } else {
+        vec!["chrome-linux64/chrome".into()]
+    };
+    candidates
+        .iter()
+        .find_map(|exe| newest_playwright_install("chromium-", exe))
+}
+
+/// A running process's command line (`None` once it has ended), on Linux,
+/// macOS and Windows.
+pub fn process_command_line(pid: u32) -> Option<String> {
+    if cfg!(target_os = "linux") {
+        let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+        if stat.contains(") Z") {
+            return None;
+        }
+        let raw = std::fs::read(format!("/proc/{pid}/cmdline")).ok()?;
+        return Some(String::from_utf8_lossy(&raw).replace('\0', " "));
+    }
+    let out = if cfg!(windows) {
+        std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!("(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine"),
+            ])
+            .output()
+            .ok()?
+    } else {
+        std::process::Command::new("ps")
+            .args(["-ww", "-p", &pid.to_string(), "-o", "command="])
+            .output()
+            .ok()?
+    };
+    let line = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+    (!line.is_empty()).then_some(line)
+}
+
+/// Whether the process has ended.
+pub fn process_gone(pid: u32) -> bool {
+    process_command_line(pid).is_none()
+}
+
+/// With `CHROMIUMOXIDE_TEST_TRACE=<file>`, appends every WebDriver BiDi
+/// message to `<file>`, each line naming its test (the thread name), to
+/// find which call a browser left unanswered.
+pub fn trace_protocol() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        use tracing_subscriber::prelude::*;
+        let Some(path) = std::env::var_os("CHROMIUMOXIDE_TEST_TRACE") else {
+            return;
+        };
+        let Ok(file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        else {
+            return;
+        };
+        let filter = tracing_subscriber::filter::Targets::new().with_target(
+            "chromiumoxide::bidi",
+            tracing_subscriber::filter::LevelFilter::TRACE,
+        );
+        let _ = tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_writer(std::sync::Mutex::new(file))
+                    .with_ansi(false)
+                    .with_thread_names(true)
+                    .with_filter(filter),
+            )
+            .try_init();
+    });
 }

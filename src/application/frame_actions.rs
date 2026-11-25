@@ -219,6 +219,49 @@ impl Frame {
         Ok(h)
     }
 
+    /// `frame.addScriptTag({ content | url | path, type })`: waits until the
+    /// script ran (or loaded).
+    pub async fn add_script_tag(&self, tag: crate::application::scripts::ScriptTag) -> Result<()> {
+        let args = tag.to_args(&*self.page().inner.shared.services.fs)?;
+        self.evaluate_with::<Value, _>(
+            &format!(
+                "(a) => ({})(a[0], a[1], a[2])",
+                crate::application::scripts::ADD_SCRIPT
+            ),
+            args.to_vec(),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// `frame.addStyleTag({ content | url | path })`: waits until the
+    /// stylesheet loaded.
+    pub async fn add_style_tag(&self, tag: crate::application::actions::StyleTag) -> Result<()> {
+        use crate::application::actions::StyleTag;
+        let (content, url) = match tag {
+            StyleTag::Content(c) => (Value::String(c), Value::Null),
+            StyleTag::Url(u) => (Value::Null, Value::String(u)),
+            StyleTag::Path(p) => {
+                let bytes = self.page().inner.shared.services.fs.read(&p)?;
+                let mut css = String::from_utf8_lossy(&bytes).into_owned();
+                css.push_str(&format!(
+                    "\n/*# sourceURL={}*/",
+                    p.display().to_string().replace('\n', "")
+                ));
+                (Value::String(css), Value::Null)
+            }
+        };
+        self.evaluate_with::<Value, _>(
+            &format!(
+                "(a) => ({})(a[0], a[1])",
+                crate::application::actions::ADD_STYLE
+            ),
+            vec![content, url],
+        )
+        .await?;
+        Ok(())
+    }
+
     /// `frame.addStyleTag({content})`.
     pub async fn add_style_tag_content(&self, css: &str) -> Result<()> {
         self.evaluate_with::<Value, _>(

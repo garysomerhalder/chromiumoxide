@@ -1,0 +1,20 @@
+# A minimal Tauri 2 app for tests/integration/tauri.rs. Build it with
+# `cargo build` in this folder (its own workspace).
+[package]
+name = "cox-tauri-app"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+# macOS: WKWebView has no automation interface of its own, so the app embeds
+# a W3C WebDriver server (started only when TAURI_WEBDRIVER_PORT is set).
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-plugin-wdio-webdriver = "1.5"

@@ -163,10 +163,48 @@ pub fn ffmpeg_args(
     args
 }
 
+/// [`ffmpeg_args`] for frames of `source` size (Firefox's full-size
+/// screenshots): scaled down to fit first, then padded like the others.
+pub fn ffmpeg_args_scaled(
+    codec: VideoCodec,
+    width: u32,
+    height: u32,
+    fps: u32,
+    output: &str,
+    source: (u32, u32),
+) -> Vec<String> {
+    let mut args = ffmpeg_args(codec, width, height, fps, output);
+    if source != (width, height)
+        && let Some(i) = args.iter().position(|a| a == "-vf")
+    {
+        args[i + 1] = format!(
+            "scale={width}:{height}:force_original_aspect_ratio=decrease,{}",
+            args[i + 1]
+        );
+    }
+    args
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::domain::emulation::Viewport;
+
+    #[test]
+    fn scaled_frames_fit_the_video_before_padding() {
+        let plain = ffmpeg_args(VideoCodec::Vp8, 800, 450, 25, "o.webm");
+        assert_eq!(
+            ffmpeg_args_scaled(VideoCodec::Vp8, 800, 450, 25, "o.webm", (800, 450)),
+            plain
+        );
+        let scaled = ffmpeg_args_scaled(VideoCodec::Vp8, 800, 450, 25, "o.webm", (1280, 720));
+        let vf = scaled.iter().position(|a| a == "-vf").unwrap();
+        assert_eq!(
+            scaled[vf + 1],
+            "scale=800:450:force_original_aspect_ratio=decrease,pad=800:450:0:0:gray,crop=800:450:0:0"
+        );
+        assert_eq!(scaled.last().unwrap(), "o.webm");
+    }
 
     #[test]
     fn default_size_fits_800_like_playwright() {

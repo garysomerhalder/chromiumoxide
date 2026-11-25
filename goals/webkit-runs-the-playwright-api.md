@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | proposed |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
-| Started | — |
-| Finished | — |
+| Started | 2026-11-24 |
+| Finished | 2026-11-25 |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (Playwright's WebKit 27.2, `webkit-2388`, GTK and WPE); CI ubuntu-latest |
 
@@ -54,11 +54,11 @@ Out:
 
 ## Done when
 
-- [ ] The WebKit protocol crate is generated from `protocol.json` by the generator.
-- [ ] The integration suite runs against WebKit; every test passes or is listed in PARITY as not applicable with the reason.
-- [ ] The WebKit pixel-parity test passes against Playwright's WebKit.
-- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass, locally and in CI.
-- [ ] `docs/PARITY.md` has a WebKit column; `CHANGELOG.md` has the entries; draft PRs are open.
+- [x] The WebKit protocol crate is generated from `protocol.json` by the generator.
+- [x] The integration suite runs against WebKit; every test passes or is listed in PARITY as not applicable with the reason.
+- [x] The WebKit pixel-parity test passes against Playwright's WebKit.
+- [x] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally (GitHub CI skipped at Gary's request).
+- [x] `docs/PARITY.md` has a WebKit column; `CHANGELOG.md` has the entries; draft PRs are open.
 
 ## Stop rule
 
@@ -68,9 +68,43 @@ the WebKit build needs system libraries CI cannot install.
 ## Status
 
 - 2026-11-23: proposed.
+- 2026-11-24: active. `chromiumoxide::WebKit` drives Playwright's WebKit
+  build over its own protocol (`--inspector-pipe`): contexts with emulation,
+  goto, set_content, evaluate, style tags, resize, waits and screenshots.
+  The WebKit pixel-parity test passes: every shot matches Playwright's
+  WebKit, except a pixelated `<img>` that headless WebKit paints only in
+  some runs (Playwright's too), left out of the cases. Runs on Linux and
+  Windows (pipe on the C runtime's fds 3 and 4). Real Safari needs a Mac:
+  the Daytona key given for the cloud Mac is rejected ("Invalid
+  credentials"). Next: locators, input, events, network, as for Firefox.
+- 2026-11-24: locators and input; reload, back, forward; context cookies;
+  init scripts (with Playwright's Safari shims); console, page errors and
+  dialogs; `page.route` (fulfill, continue, abort); network events. All
+  WebKit tests pass on Linux; locators and parity also on Windows. Next:
+  context routes, frames, `expect`, recording.
+- 2026-11-24: context routes, `expect`, frames, pop-ups, downloads and
+  `recordVideo`; 15 WebKit tests. The full suite passes on Windows. The
+  parity cases also leave out `autofocus`: its focus ring races in
+  Playwright's own WebKit shots under load. Next: tracing, HAR, workers;
+  real Safari needs the Mac.
+- 2026-11-24: on a real Mac (Daytona, macOS 26.6.2 arm64) the whole
+  suite passes with every browser required: real Safari through
+  safaridriver, Playwright's WebKit, Firefox and Chromium (all three pixel
+  parity tests), Edge, Chrome and Electron. The Mac found one real bug:
+  editing keys (Backspace, Meta+A) need Playwright's macOS editing
+  commands, now sent to Chromium (`commands`) and WebKit (`macCommands`).
+- 2026-11-25: the CI line follows Gary's "skip GitHub" (as the Firefox
+  goal does); "Set it" changed in the same commit.
+- 2026-11-25: met. The protocol crate `chromiumoxide_webkit_protocol` is
+  generated from `protocol.json` by `chromiumoxide_pdl` (33 domains); the
+  engine sends its core commands typed and a test checks every other
+  method name against it. Every Playwright 1.65.1 method Chromium has is
+  on WebKit (453/453), tested or listed ❌ in PARITY 14 with the reason.
+  Full suite green on Linux and Windows; pixel parity with Playwright's
+  WebKit passes.
 
 ## Set it
 
 ```
-/goal WebKit runs the Playwright API (goals/webkit-runs-the-playwright-api.md): the WebKit protocol crate is generated from protocol.json; the integration suite runs against WebKit with every test passing or listed as not applicable with the reason; the WebKit pixel-parity test passes against Playwright's WebKit; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally and in CI; PARITY has a WebKit column, CHANGELOG the entries, and draft PRs are open.
+/goal WebKit runs the Playwright API (goals/webkit-runs-the-playwright-api.md): the WebKit protocol crate is generated from protocol.json; the integration suite runs against WebKit with every test passing or listed as not applicable with the reason; the WebKit pixel-parity test passes against Playwright's WebKit; fmt, clippy -D warnings, MSRV 1.88 and the full suite pass locally, and the CI job's commands pass when run locally; PARITY has a WebKit column, CHANGELOG the entries, and draft PRs are open.
 ```

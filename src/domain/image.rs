@@ -276,6 +276,44 @@ pub fn compare_images(actual: &Image, expected: &Image, o: &CompareOptions) -> O
 }
 
 /// Decodes a PNG into RGBA.
+/// The transparent image behind two captures of the same content, one over
+/// black and one over white: per channel, `black = a·c` and
+/// `white = a·c + (1 − a)·255`, so `a = 1 − (white − black)/255` and
+/// `c = black / a`. A pixel that is the same over both is opaque.
+pub fn unmatte(black: &Image, white: &Image) -> Result<Image> {
+    if (black.width, black.height) != (white.width, white.height) {
+        return Err(Error::Evaluation(format!(
+            "captures differ in size: {}x{} and {}x{}",
+            black.width, black.height, white.width, white.height
+        )));
+    }
+    let mut rgba = Vec::with_capacity(black.rgba.len());
+    for (b, w) in black.rgba.chunks(4).zip(white.rgba.chunks(4)) {
+        // The largest channel difference sets the alpha (the channels agree
+        // up to rounding).
+        let diff = (0..3)
+            .map(|i| i32::from(w[i]) - i32::from(b[i]))
+            .max()
+            .unwrap_or(0)
+            .clamp(0, 255);
+        let alpha = 255 - diff;
+        if alpha == 0 {
+            rgba.extend_from_slice(&[0, 0, 0, 0]);
+            continue;
+        }
+        for &c in &b[..3] {
+            let v = (i32::from(c) * 255 + alpha / 2) / alpha;
+            rgba.push(v.clamp(0, 255) as u8);
+        }
+        rgba.push(alpha as u8);
+    }
+    Ok(Image {
+        width: black.width,
+        height: black.height,
+        rgba,
+    })
+}
+
 pub fn decode_png(bytes: &[u8]) -> Result<Image> {
     let bad = || Error::InvalidArgument("Could not decode expected image as PNG.".into());
     let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
@@ -535,5 +573,43 @@ mod tests {
             decode_png(b"nope").unwrap_err().to_string(),
             Error::InvalidArgument("Could not decode expected image as PNG.".into()).to_string()
         );
+    }
+}
+
+#[cfg(test)]
+mod unmatte_tests {
+    use super::*;
+
+    fn px(c: [u8; 4]) -> Image {
+        Image {
+            width: 1,
+            height: 1,
+            rgba: c.to_vec(),
+        }
+    }
+
+    #[test]
+    fn opaque_pixels_stay_and_backdrop_becomes_transparent() {
+        let a = unmatte(&px([10, 20, 30, 255]), &px([10, 20, 30, 255])).unwrap();
+        assert_eq!(a.rgba, [10, 20, 30, 255]);
+        let t = unmatte(&px([0, 0, 0, 255]), &px([255, 255, 255, 255])).unwrap();
+        assert_eq!(t.rgba, [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn half_transparent_red_is_recovered() {
+        // rgba(200, 0, 0, .5) over black and white, as rounded to 8 bits.
+        let a = unmatte(&px([100, 0, 0, 255]), &px([228, 128, 128, 255])).unwrap();
+        assert_eq!(a.rgba, [201, 0, 0, 127]);
+    }
+
+    #[test]
+    fn sizes_must_match() {
+        let wide = Image {
+            width: 2,
+            height: 1,
+            rgba: vec![0; 8],
+        };
+        assert!(unmatte(&px([0, 0, 0, 255]), &wide).is_err());
     }
 }

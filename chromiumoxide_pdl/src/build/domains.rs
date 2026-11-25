@@ -23,10 +23,12 @@ fn method_ident(name: &str) -> Ident {
     }
 }
 
-fn doc(description: Option<&str>, link: String) -> TokenStream {
-    let text = match description {
-        Some(d) if !d.is_empty() => format!("{d}\n\n{link}"),
-        _ => link,
+fn doc(description: Option<&str>, link: Option<String>) -> TokenStream {
+    let text = match (description, link) {
+        (Some(d), Some(link)) if !d.is_empty() => format!("{d}\n\n{link}"),
+        (_, Some(link)) => link,
+        (Some(d), None) => d.to_owned(),
+        (None, None) => return TokenStream::new(),
     };
     quote! { #[doc = #text] }
 }
@@ -36,6 +38,8 @@ fn doc(description: Option<&str>, link: String) -> TokenStream {
 /// when the type generator includes them.
 pub(crate) struct Filter {
     pub experimental: bool,
+    /// The docs' base URL, if items link to them.
+    pub docs_url: Option<String>,
 }
 
 impl Filter {
@@ -131,7 +135,10 @@ fn generate_domain(
     let path = quote! { super::#protocol_mod::#module };
     let domain_doc = doc(
         domain.description.as_deref(),
-        format!("[{name}](https://chromedevtools.github.io/devtools-protocol/tot/{name}/)"),
+        filter
+            .docs_url
+            .as_ref()
+            .map(|u| format!("[{name}]({u}{name}/)")),
     );
     let accessor_doc = format!("The `{name}` domain.");
 
@@ -148,9 +155,10 @@ fn generate_domain(
         let returns = format_ident!("{}Returns", cmd_name.to_upper_camel_case());
         let doc = doc(
             cmd.description.as_deref(),
-            format!(
-                "Sends [`{name}.{cmd_name}`](https://chromedevtools.github.io/devtools-protocol/tot/{name}/#method-{cmd_name})."
-            ),
+            Some(match &filter.docs_url {
+                Some(u) => format!("Sends [`{name}.{cmd_name}`]({u}{name}/#method-{cmd_name})."),
+                None => format!("Sends `{name}.{cmd_name}`."),
+            }),
         );
         methods.extend(quote! {
             #doc
@@ -171,9 +179,12 @@ fn generate_domain(
         let event = format_ident!("Event{}", ev_name.to_upper_camel_case());
         let doc = doc(
             ev.description.as_deref(),
-            format!(
-                "Streams [`{name}.{ev_name}`](https://chromedevtools.github.io/devtools-protocol/tot/{name}/#event-{ev_name}) from now on."
-            ),
+            Some(match &filter.docs_url {
+                Some(u) => {
+                    format!("Streams [`{name}.{ev_name}`]({u}{name}/#event-{ev_name}) from now on.")
+                }
+                None => format!("Streams `{name}.{ev_name}` from now on."),
+            }),
         );
         methods.extend(quote! {
             #doc

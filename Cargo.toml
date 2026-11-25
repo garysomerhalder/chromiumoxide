@@ -19,6 +19,7 @@ serde = { version = "1", features = ["derive"] }
 futures = "0.3"
 chromiumoxide_types = { path = "chromiumoxide_types", version = "0.10" }
 chromiumoxide_cdp = { path = "chromiumoxide_cdp", version = "0.10" }
+chromiumoxide_webkit_protocol = { path = "chromiumoxide_webkit_protocol", version = "0.10" }
 chromiumoxide_fetcher = { path = "chromiumoxide_fetcher", version = "0.10", default-features = false, optional = true }
 serde_json = "1"
 which = "8"
@@ -54,6 +55,14 @@ pkcs8 = { version = "0.11", features = ["encryption", "pem", "std"] }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_Pipes",
+  "Win32_System_Threading",
+] }
+
 [dev-dependencies]
 base64 = "0.22"
 futures = "0.3"
@@ -79,6 +88,10 @@ name = "architecture"
 path = "tests/architecture.rs"
 
 [[test]]
+name = "webkit_protocol_names"
+path = "tests/webkit_protocol_names.rs"
+
+[[test]]
 name = "integration"
 path = "tests/integration/main.rs"
 
@@ -87,5 +100,6 @@ members = [
   "chromiumoxide_pdl",
   "chromiumoxide_types",
   "chromiumoxide_cdp",
+  "chromiumoxide_webkit_protocol",
   "chromiumoxide_fetcher",
 ]

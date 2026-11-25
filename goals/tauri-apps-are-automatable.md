@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | proposed |
+| Status | met |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-23 |
-| Started | — |
-| Finished | — |
+| Started | 2026-11-24 |
+| Finished | 2026-11-24 |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (WebKitGTK; `webkit2gtk-driver` 2.52 installable); a Windows CI runner for WebView2 |
 
@@ -31,7 +31,9 @@ In:
 
 Out:
 - macOS: WKWebView has no supported automation, and Tauri's own `tauri-driver`
-  does not support macOS either. Recorded as not possible.
+  does not support macOS either. First recorded as not possible; since
+  2026-11-24 the app embeds a W3C WebDriver server
+  (`tauri-plugin-wdio-webdriver`) and chromiumoxide drives it like Linux.
 
 ## Rules
 
@@ -51,11 +53,11 @@ Out:
 
 ## Done when
 
-- [ ] A Tauri app's window runs `goto`, `evaluate`, a locator click and a screenshot on Windows CI.
-- [ ] The same test passes on Linux (WebKitGTK).
-- [ ] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass, locally and in CI.
-- [ ] `docs/PARITY.md` lists Tauri support per platform (macOS as not possible, with the reason).
-- [ ] `CHANGELOG.md` has the entry and a draft PR is open.
+- [x] A Tauri app's window runs `goto`, `evaluate`, a locator click and a screenshot on Windows CI.
+- [x] The same test passes on Linux (WebKitGTK).
+- [x] fmt, clippy -D warnings, MSRV 1.88 and the full suite pass, locally and in CI.
+- [x] `docs/PARITY.md` lists Tauri support per platform (macOS through the embedded WebDriver plugin).
+- [x] `CHANGELOG.md` has the entry and a draft PR is open.
 
 ## Stop rule
 
@@ -65,6 +67,25 @@ Linux path if the WebKit goal is not met yet.
 ## Status
 
 - 2026-11-23: proposed.
+- 2026-11-24: active. `chromiumoxide::Tauri` with a test app
+  (`tests/fixtures/tauri-app`). Linux: WebKitGTK through WebKitWebDriver
+  (`TAURI_WEBVIEW_AUTOMATION=true`); the test passes (goto, evaluate, click,
+  screenshot). Windows: WebView2 over CDP. Finding: Tauri always sets its
+  own WebView2 arguments, and WebView2 then ignores
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` (and the per-app policy key), so
+  the app has to pass the variable on itself (the test app does). The
+  Windows CI runner is Gary's PC (GitHub skipped at his request).
+- 2026-11-24: `tauri_window_runs_the_page_api` passes on Gary's PC
+  (WebView2 158). Two fixes on the way: WebView2's DevTools answers
+  `/json/version` only over HTTP/1.1, and keeps the connection open, so
+  the answer is read up to its Content-Length.
+- 2026-11-24: the full workspace suite passes on Gary's PC (Windows 11):
+  224 unit, 257 integration and every other test crate, Tauri included.
+- 2026-11-24: macOS too. The test app embeds `tauri-plugin-wdio-webdriver`
+  (macOS only, started only with `TAURI_WEBDRIVER_PORT`), and
+  `tauri_window_runs_the_page_api` passes on the cloud Mac (macOS 26.6
+  arm64). WebDriver `goto` now waits for the load.
+- 2026-11-25: status word corrected to `met` (the folder's standard).
 
 ## Set it
 

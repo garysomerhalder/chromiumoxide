@@ -151,9 +151,33 @@ impl ScriptTag {
         self.module = true;
         self
     }
+
+    /// The `(content, url, type)` arguments of [`ADD_SCRIPT`] (a path is
+    /// read, with a `sourceURL`).
+    pub(crate) fn to_args(&self, fs: &dyn crate::ports::FileSystem) -> Result<[Value; 3]> {
+        let (content, url) = match &self.source {
+            ScriptSource::Content(c) => (json!(c), Value::Null),
+            ScriptSource::Url(u) => (Value::Null, json!(u)),
+            ScriptSource::Path(p) => {
+                let bytes = fs.read(p)?;
+                let mut js = String::from_utf8_lossy(&bytes).into_owned();
+                js.push_str(&format!(
+                    "\n//# sourceURL={}",
+                    p.display().to_string().replace('\n', "")
+                ));
+                (json!(js), Value::Null)
+            }
+        };
+        let kind = if self.module {
+            json!("module")
+        } else {
+            Value::Null
+        };
+        Ok([content, url, kind])
+    }
 }
 
-const ADD_SCRIPT: &str = "async function(content, url, type) {
+pub(crate) const ADD_SCRIPT: &str = "async function(content, url, type) {
   const script = document.createElement('script');
   if (type) script.type = type;
   if (url) {

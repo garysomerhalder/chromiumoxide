@@ -31,7 +31,7 @@ const CONTENT: &str = "function() {
   return html;
 }";
 
-const ADD_STYLE: &str = "async function(content, url) {
+pub(crate) const ADD_STYLE: &str = "async function(content, url) {
   if (url) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';

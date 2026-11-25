@@ -48,6 +48,7 @@ fn domain_is_pure() {
         &[
             "tokio",
             "chromiumoxide_cdp",
+            "chromiumoxide_webkit_protocol",
             "async_tungstenite",
             "crate::ports",
             "crate::application",
@@ -69,6 +70,7 @@ fn ports_depend_only_on_domain() {
         &[
             "tokio",
             "chromiumoxide_cdp",
+            "chromiumoxide_webkit_protocol",
             "crate::application",
             "crate::adapters",
             "std::fs",

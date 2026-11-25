@@ -192,23 +192,23 @@ fn caller_location(env: &dyn crate::ports::Environment) -> Option<SourceLocation
     let own_src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     env.call_stack().into_iter().find(|loc| {
         let path = std::path::Path::new(&loc.file);
-        let toolchain = [
-            "/rustc/",
-            "/.cargo/",
-            "/.rustup/",
-            "\\rustc\\",
-            "\\.cargo\\",
-        ]
-        .iter()
-        .any(|p| loc.file.contains(p));
-        path.is_absolute() && !toolchain && !path.starts_with(&own_src)
+        path.is_absolute() && !is_toolchain_file(&loc.file) && !path.starts_with(&own_src)
     })
+}
+
+/// A frame in the Rust toolchain or a registry crate, with Unix or Windows
+/// separators.
+fn is_toolchain_file(file: &str) -> bool {
+    let file = file.replace('\\', "/");
+    ["/rustc/", "/.cargo/", "/.rustup/"]
+        .iter()
+        .any(|p| file.contains(p))
 }
 
 /// Picking mode in one frame: hover highlights the element with its
 /// locator, a click picks it (and does not reach the page). Re-installed by
 /// every poll, so it survives new documents.
-const PICK_TICK: &str = "(i) => {
+pub(crate) const PICK_TICK: &str = "(i) => {
   let state = window.__coxPick;
   if (!state) {
     const h = i._ensureHighlight();
@@ -241,7 +241,7 @@ const PICK_TICK: &str = "(i) => {
   return picked;
 }";
 
-const PICK_STOP: &str = "() => { if (window.__coxPick) window.__coxPick.stop(); }";
+pub(crate) const PICK_STOP: &str = "() => { if (window.__coxPick) window.__coxPick.stop(); }";
 
 impl Page {
     async fn stop_picking(&self) {
@@ -320,5 +320,29 @@ impl Page {
             .picking
             .store(false, std::sync::atomic::Ordering::SeqCst);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn toolchain_frames_are_skipped_on_every_system() {
+        for file in [
+            "/rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/future/future.rs",
+            "/home/u/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/lib.rs",
+            "/Users/u/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/future/future.rs",
+            "C:\\Users\\u\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust\\library\\core\\src\\future\\future.rs",
+            "C:\\Users\\u\\.cargo\\registry\\src\\index.crates.io-1949cf8c6b5b557f\\tokio-1.54.1\\src\\lib.rs",
+        ] {
+            assert!(is_toolchain_file(file), "{file}");
+        }
+        assert!(!is_toolchain_file(
+            "/home/u/app/tests/integration/backlog.rs"
+        ));
+        assert!(!is_toolchain_file(
+            "C:\\Users\\u\\app\\tests\\integration\\backlog.rs"
+        ));
     }
 }

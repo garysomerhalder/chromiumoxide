@@ -93,6 +93,35 @@ fn opt_inches(v: &Option<String>) -> Result<Option<f64>, String> {
 }
 
 impl PdfOptions {
+    /// WebDriver BiDi `browsingContext.print` parameters (centimetres).
+    /// BiDi prints no header or footer, so those options are refused.
+    pub fn to_bidi(&self) -> Result<Value, String> {
+        if self.display_header_footer {
+            return Err("displayHeaderFooter is not supported on Firefox".into());
+        }
+        let p = self.to_protocol()?;
+        let cm = |key: &str| p[key].as_f64().unwrap_or(0.0) * 2.54;
+        let mut out = json!({
+            "background": self.print_background,
+            "orientation": if self.landscape { "landscape" } else { "portrait" },
+            "scale": self.scale,
+            "shrinkToFit": false,
+            "page": {"width": cm("paperWidth"), "height": cm("paperHeight")},
+            "margin": {"top": cm("marginTop"), "bottom": cm("marginBottom"),
+                       "left": cm("marginLeft"), "right": cm("marginRight")},
+        });
+        let ranges: Vec<&str> = self
+            .page_ranges
+            .split(',')
+            .map(str::trim)
+            .filter(|r| !r.is_empty())
+            .collect();
+        if !ranges.is_empty() {
+            out["pageRanges"] = json!(ranges);
+        }
+        Ok(out)
+    }
+
     /// `Page.printToPDF` parameters, exactly as Playwright sends them.
     pub fn to_protocol(&self) -> Result<Value, String> {
         let (width, height) = match &self.format {
@@ -132,6 +161,48 @@ impl PdfOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bidi_print_parameters() {
+        let d = PdfOptions::default().to_bidi().unwrap();
+        assert_eq!(
+            d,
+            json!({"background": false, "orientation": "portrait", "scale": 1.0,
+                   "shrinkToFit": false,
+                   "page": {"width": 21.59, "height": 27.94},
+                   "margin": {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}})
+        );
+        let o = PdfOptions {
+            format: Some("A4".into()),
+            landscape: true,
+            print_background: true,
+            scale: 0.5,
+            page_ranges: "1-2, 4".into(),
+            margin: Margin {
+                top: Some("1in".into()),
+                left: Some("10mm".into()),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+        .to_bidi()
+        .unwrap();
+        assert_eq!(o["orientation"], "landscape");
+        assert_eq!(o["background"], true);
+        assert_eq!(o["scale"], 0.5);
+        assert_eq!(o["pageRanges"], json!(["1-2", "4"]));
+        assert!((o["page"]["width"].as_f64().unwrap() - 21.0058).abs() < 1e-6);
+        assert!((o["page"]["height"].as_f64().unwrap() - 29.718).abs() < 1e-6);
+        assert!((o["margin"]["top"].as_f64().unwrap() - 2.54).abs() < 1e-9);
+        assert!((o["margin"]["left"].as_f64().unwrap() - 1.0).abs() < 1e-2);
+        let err = PdfOptions {
+            display_header_footer: true,
+            ..Default::default()
+        }
+        .to_bidi()
+        .unwrap_err();
+        assert!(err.contains("displayHeaderFooter"), "{err}");
+    }
 
     #[test]
     fn units_convert_to_inches_like_playwright() {

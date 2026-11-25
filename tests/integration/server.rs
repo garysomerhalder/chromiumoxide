@@ -53,9 +53,40 @@ async fn read_request(sock: &mut tokio::net::TcpStream) -> (String, Vec<u8>) {
     (String::from_utf8_lossy(&data).to_string(), Vec::new())
 }
 
+/// Ports browsers refuse to load (`ERR_UNSAFE_PORT`; Chromium's
+/// `net/base/port_util.cc`, the same in Firefox and WebKit). The OS can hand
+/// one out as a free port (Windows did: 5061).
+const UNSAFE_PORTS: &[u16] = &[
+    1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102,
+    103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465,
+    512, 513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993,
+    995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668,
+    6669, 6679, 6697, 10080,
+];
+
+/// A localhost listener on a free port a browser will load.
+pub(crate) async fn browsable_listener() -> TcpListener {
+    loop {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        if !UNSAFE_PORTS.contains(&listener.local_addr().unwrap().port()) {
+            return listener;
+        }
+    }
+}
+
+/// [`browsable_listener`] without tokio.
+pub(crate) fn browsable_std_listener() -> std::net::TcpListener {
+    loop {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        if !UNSAFE_PORTS.contains(&listener.local_addr().unwrap().port()) {
+            return listener;
+        }
+    }
+}
+
 impl TestServer {
     pub async fn start() -> TestServer {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener = browsable_listener().await;
         let port = listener.local_addr().unwrap().port();
         let routes: Routes = Arc::default();
         let custom: Custom = Arc::default();

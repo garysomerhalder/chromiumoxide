@@ -14,8 +14,9 @@ use tokio::process::{Child, Command};
 use crate::adapters::cdp::Connection;
 use crate::domain::error::{Error, Result};
 use crate::ports::{
-    BrowserLauncher, BrowserProcess, Channel, ElectronCommand, LaunchCommand, Launched,
-    LaunchedElectron, Transport,
+    BrowserLauncher, BrowserProcess, Channel, ElectronCommand, FirefoxCommand, LaunchCommand,
+    Launched, LaunchedElectron, LaunchedFirefox, LaunchedTauri, LaunchedWebDriver, LaunchedWebKit,
+    TauriCommand, TauriConnection, Transport, WebDriverCommand, WebKitCommand,
 };
 
 /// Spawns browsers with tokio.
@@ -27,12 +28,488 @@ impl BrowserLauncher for TokioLauncher {
         launch(command).boxed()
     }
 
+    fn spawn(
+        &self,
+        program: std::path::PathBuf,
+        args: Vec<String>,
+        env: Vec<(String, String)>,
+    ) -> BoxFuture<'static, Result<Box<dyn BrowserProcess>>> {
+        async move {
+            let child = Command::new(&program)
+                .args(&args)
+                .envs(env)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .kill_on_drop(true)
+                .spawn()
+                .map_err(|e| Error::Launch(format!("{}: {e}", program.display())))?;
+            let pid = child.id();
+            Ok(Box::new(PlainProcess {
+                child: Arc::new(tokio::sync::Mutex::new(Some(child))),
+                pid,
+            }) as Box<dyn BrowserProcess>)
+        }
+        .boxed()
+    }
+
     fn launch_electron(
         &self,
         command: ElectronCommand,
     ) -> BoxFuture<'static, Result<LaunchedElectron>> {
         launch_electron(command).boxed()
     }
+
+    fn launch_firefox(
+        &self,
+        command: FirefoxCommand,
+    ) -> BoxFuture<'static, Result<LaunchedFirefox>> {
+        launch_firefox(command).boxed()
+    }
+
+    fn launch_webkit(&self, command: WebKitCommand) -> BoxFuture<'static, Result<LaunchedWebKit>> {
+        launch_webkit(command).boxed()
+    }
+
+    fn launch_tauri(&self, command: TauriCommand) -> BoxFuture<'static, Result<LaunchedTauri>> {
+        launch_tauri(command).boxed()
+    }
+
+    fn launch_webdriver(
+        &self,
+        command: WebDriverCommand,
+    ) -> BoxFuture<'static, Result<LaunchedWebDriver>> {
+        launch_webdriver(command).boxed()
+    }
+}
+
+/// Windows: a Tauri app's WebView2 gets `--remote-debugging-port` through
+/// `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`; its DevTools endpoint comes
+/// from `/json/version` on that port.
+#[cfg(windows)]
+async fn launch_tauri(command: TauriCommand) -> Result<LaunchedTauri> {
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .map_err(|e| Error::Launch(format!("cannot pick a port: {e}")))?
+        .port();
+    let mut extra = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
+    if let Some((_, v)) = command
+        .env
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"))
+    {
+        extra = v.clone();
+    }
+    let extra = format!("{extra} --remote-debugging-port={port}")
+        .trim()
+        .to_owned();
+    let mut cmd = Command::new(&command.program);
+    cmd.args(&command.args)
+        .envs(command.env.iter().cloned())
+        .env("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", extra)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    let child = cmd
+        .spawn()
+        .map_err(|e| Error::Launch(format!("{}: {e}", command.program.display())))?;
+    let pid = child.id();
+    let child = Arc::new(tokio::sync::Mutex::new(Some(child)));
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(command.timeout_ms.max(1));
+    let url = loop {
+        if let Some(url) = devtools_browser_url(port).await {
+            break url;
+        }
+        if let Some(c) = child.lock().await.as_mut()
+            && let Ok(Some(status)) = c.try_wait()
+        {
+            return Err(Error::Launch(format!("the Tauri app exited ({status})")));
+        }
+        if tokio::time::Instant::now() > deadline {
+            if let Some(mut c) = child.lock().await.take() {
+                let _ = c.kill().await;
+            }
+            return Err(Error::Timeout {
+                ms: command.timeout_ms,
+                action: "waiting for the Tauri app's WebView2 DevTools".into(),
+            });
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    let transport = crate::adapters::transport::websocket::connect(&url).await?;
+    Ok(LaunchedTauri {
+        connection: TauriConnection::Cdp(Arc::new(Connection::spawn(transport))),
+        process: Box::new(Process { child, pid }),
+    })
+}
+
+/// `webSocketDebuggerUrl` from `http://127.0.0.1:<port>/json/version`.
+#[cfg_attr(not(windows), allow(dead_code))]
+async fn devtools_browser_url(port: u16) -> Option<String> {
+    use tokio::io::AsyncWriteExt;
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .ok()?;
+    stream
+        .write_all(
+            format!(
+                "GET /json/version HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
+            )
+            .as_bytes(),
+        )
+        .await
+        .ok()?;
+    // Read up to Content-Length: WebView2 keeps the connection open.
+    let read = async {
+        let mut answer = Vec::new();
+        let mut chunk = [0u8; 4096];
+        loop {
+            let n = tokio::io::AsyncReadExt::read(&mut stream, &mut chunk)
+                .await
+                .ok()?;
+            answer.extend_from_slice(&chunk[..n]);
+            let text = String::from_utf8_lossy(&answer).into_owned();
+            if let Some((head, body)) = text.split_once("\r\n\r\n") {
+                let length = head.lines().find_map(|l| {
+                    let (name, value) = l.split_once(':')?;
+                    name.trim()
+                        .eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())?
+                });
+                if n == 0 || length.is_some_and(|len| body.len() >= len) {
+                    return Some(body.to_owned());
+                }
+            }
+            if n == 0 {
+                return None;
+            }
+        }
+    };
+    let json = tokio::time::timeout(Duration::from_secs(2), read)
+        .await
+        .ok()??;
+    let v: serde_json::Value = serde_json::from_str(&json).ok()?;
+    v["webSocketDebuggerUrl"].as_str().map(str::to_owned)
+}
+
+/// Linux: `WebKitWebDriver` (WebKitGTK's WebDriver server, as Tauri's own
+/// `tauri-driver` uses) starts the app in a WebDriver session. Tauri apps
+/// accept automation with `TAURI_WEBVIEW_AUTOMATION=true`.
+#[cfg(not(windows))]
+async fn launch_tauri(command: TauriCommand) -> Result<LaunchedTauri> {
+    if cfg!(target_os = "macos") {
+        // WKWebView has no automation interface of its own: the app embeds
+        // a W3C WebDriver server (tauri-plugin-wdio-webdriver).
+        let launched = launch_webdriver(WebDriverCommand {
+            driver: command.program.clone(),
+            args: command.args,
+            env: command.env,
+            new_session: crate::domain::safari::embedded_new_session(),
+            timeout_ms: command.timeout_ms,
+            embedded: true,
+        })
+        .await
+        .map_err(|e| match e {
+            Error::Timeout { .. } => Error::Launch(format!(
+                "{} did not start a WebDriver server on TAURI_WEBDRIVER_PORT: on macOS the app \
+                 must embed tauri-plugin-wdio-webdriver (see tests/fixtures/tauri-app)",
+                command.program.display()
+            )),
+            other => other,
+        })?;
+        return Ok(LaunchedTauri {
+            connection: TauriConnection::WebDriver {
+                endpoint: launched.endpoint,
+                session: launched.session,
+            },
+            process: launched.process,
+        });
+    }
+    let driver = std::env::var_os("WEBKIT_WEBDRIVER")
+        .map(std::path::PathBuf::from)
+        .or_else(|| which::which("WebKitWebDriver").ok())
+        .ok_or_else(|| {
+            Error::Launch(
+                "WebKitWebDriver not found (install webkit2gtk-driver, or set WEBKIT_WEBDRIVER)"
+                    .into(),
+            )
+        })?;
+    let launched = launch_webdriver(WebDriverCommand {
+        driver,
+        args: Vec::new(),
+        env: command
+            .env
+            .iter()
+            .cloned()
+            .chain([("TAURI_WEBVIEW_AUTOMATION".into(), "true".into())])
+            .collect(),
+        new_session: serde_json::json!({"capabilities": {"alwaysMatch": {"webkitgtk:browserOptions": {
+            "binary": command.program, "args": command.args}}}}),
+        timeout_ms: command.timeout_ms,
+        embedded: false,
+    })
+    .await
+    .map_err(|e| match e {
+        Error::Launch(m) => Error::Launch(m.replace("the WebDriver server", "WebKitWebDriver")),
+        other => other,
+    })?;
+    Ok(LaunchedTauri {
+        connection: TauriConnection::WebDriver {
+            endpoint: launched.endpoint,
+            session: launched.session,
+        },
+        process: launched.process,
+    })
+}
+
+/// Starts a WebDriver server on a free port, waits for `/status`, and
+/// opens a session.
+async fn launch_webdriver(command: WebDriverCommand) -> Result<LaunchedWebDriver> {
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .map_err(|e| Error::Launch(format!("cannot pick a port: {e}")))?
+        .port();
+    let mut cmd = Command::new(&command.driver);
+    cmd.args(&command.args).envs(command.env.iter().cloned());
+    if command.embedded {
+        let (name, value) = crate::domain::safari::embedded_port_env(port);
+        cmd.env(name, value);
+    } else {
+        cmd.args(crate::domain::safari::driver_args(&command.driver, port));
+    }
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    let child = cmd
+        .spawn()
+        .map_err(|e| Error::Launch(format!("{}: {e}", command.driver.display())))?;
+    let pid = child.id();
+    let child = Arc::new(tokio::sync::Mutex::new(Some(child)));
+    let process = Process { child, pid };
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(command.timeout_ms.max(1));
+    while http_json(port, "GET", "/status", None).await.is_none() {
+        if tokio::time::Instant::now() > deadline {
+            return Err(Error::Timeout {
+                ms: command.timeout_ms,
+                action: format!("waiting for {}", command.driver.display()),
+            });
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let created = tokio::time::timeout(
+        Duration::from_millis(command.timeout_ms.max(1)),
+        http_json(port, "POST", "/session", Some(command.new_session)),
+    )
+    .await
+    .ok()
+    .flatten()
+    .ok_or_else(|| Error::Launch("the WebDriver server did not start the app".into()))?;
+    let session = created
+        .pointer("/value/sessionId")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| {
+            Error::Launch(format!(
+                "the WebDriver server could not start the app: {}",
+                created
+                    .pointer("/value/message")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("")
+            ))
+        })?
+        .to_owned();
+    Ok(LaunchedWebDriver {
+        endpoint: format!("http://127.0.0.1:{port}"),
+        session,
+        capabilities: created
+            .pointer("/value/capabilities")
+            .cloned()
+            .unwrap_or_default(),
+        process: Box::new(process),
+    })
+}
+
+/// One HTTP/1.0 JSON exchange with a local server; `None` when it cannot
+/// connect or the answer is not JSON.
+async fn http_json(
+    port: u16,
+    method: &str,
+    path: &str,
+    body: Option<serde_json::Value>,
+) -> Option<serde_json::Value> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .ok()?;
+    let body = body.map(|b| b.to_string()).unwrap_or_default();
+    let request = format!(
+        "{method} {path} HTTP/1.0\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+        body.len()
+    );
+    stream.write_all(request.as_bytes()).await.ok()?;
+    let mut answer = Vec::new();
+    stream.read_to_end(&mut answer).await.ok()?;
+    let text = String::from_utf8_lossy(&answer);
+    serde_json::from_str(text.split_once("\r\n\r\n")?.1).ok()
+}
+
+/// Starts WebKit with its inspector pipe on fds 3 and 4.
+#[cfg(unix)]
+async fn launch_webkit(command: WebKitCommand) -> Result<LaunchedWebKit> {
+    let mut cmd = Command::new(&command.program);
+    cmd.args(&command.args)
+        .envs(command.env.iter().cloned())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    let pipes = unix_pipes::attach(&mut cmd)?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| Error::Launch(format!("{}: {e}", command.program.display())))?;
+    let pid = child.id();
+    if let Some(stderr) = child.stderr.take() {
+        tokio::spawn(async move {
+            let mut lines = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                tracing::debug!(target: "chromiumoxide::webkit", "{line}");
+            }
+        });
+    }
+    let (reader, writer) = pipes.into_parent()?;
+    let transport = crate::adapters::transport::pipe::pipe_transport(reader, writer);
+    Ok(LaunchedWebKit {
+        session: Arc::new(crate::adapters::webkit::WebKitConnection::spawn(transport)),
+        process: Box::new(Process {
+            child: Arc::new(tokio::sync::Mutex::new(Some(child))),
+            pid,
+        }),
+    })
+}
+
+/// Windows: WebKit's inspector pipe on its runtime's fds 3 and 4.
+#[cfg(windows)]
+async fn launch_webkit(command: WebKitCommand) -> Result<LaunchedWebKit> {
+    let (transport, process) = windows_pipe_transport(
+        &command.program,
+        &command.args,
+        &command.env,
+        "chromiumoxide::webkit",
+    )?;
+    Ok(LaunchedWebKit {
+        session: Arc::new(crate::adapters::webkit::WebKitConnection::spawn(transport)),
+        process,
+    })
+}
+
+/// Windows: Chromium's `--remote-debugging-pipe` on fds 3 and 4, like
+/// Playwright (Node passes them the same way).
+#[cfg(windows)]
+fn launch_windows_pipe(command: LaunchCommand) -> Result<Launched> {
+    let (transport, process) = windows_pipe_transport(
+        &command.program,
+        &command.args,
+        &command.env,
+        "chromiumoxide::browser",
+    )?;
+    Ok(Launched {
+        cdp: Arc::new(Connection::spawn(transport)),
+        process,
+        ws_endpoint: None,
+    })
+}
+
+/// Starts `program` with pipes on its fds 3 and 4; the transport over them
+/// and the process. Stderr goes to the log.
+#[cfg(windows)]
+fn windows_pipe_transport(
+    program: &std::path::Path,
+    args: &[String],
+    env: &[(String, String)],
+    log_target: &'static str,
+) -> Result<(Transport, Box<dyn BrowserProcess>)> {
+    let spawned = crate::adapters::win_pipes::spawn(program, args, env)?;
+    let stderr = tokio::fs::File::from_std(spawned.stderr);
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            tracing::debug!(target: "chromiumoxide::browser", "[{log_target}] {line}");
+        }
+    });
+    let transport = crate::adapters::transport::pipe::pipe_transport(
+        tokio::fs::File::from_std(spawned.from_child),
+        tokio::fs::File::from_std(spawned.to_child),
+    );
+    Ok((transport, Box::new(spawned.child)))
+}
+
+/// Firefox prints `WebDriver BiDi listening on ws://127.0.0.1:<port>` on
+/// stderr; the BiDi session endpoint is `<that>/session`.
+async fn launch_firefox(command: FirefoxCommand) -> Result<LaunchedFirefox> {
+    let mut cmd = Command::new(&command.program);
+    cmd.args(&command.args)
+        .envs(command.env.iter().cloned())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| Error::Launch(format!("{}: {e}", command.program.display())))?;
+    let pid = child.id();
+    let stderr = child.stderr.take().expect("piped stderr");
+    let child = Arc::new(tokio::sync::Mutex::new(Some(child)));
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            tracing::debug!(target: "chromiumoxide::firefox", "{line}");
+            let _ = tx.send(line);
+        }
+    });
+    let mut log = Vec::new();
+    let found = tokio::time::timeout(Duration::from_millis(command.timeout_ms.max(1)), async {
+        while let Some(line) = rx.recv().await {
+            if let Some(url) = line.strip_prefix("WebDriver BiDi listening on ") {
+                return Some(url.trim().to_owned());
+            }
+            log.push(line);
+        }
+        None
+    })
+    .await;
+    let endpoint = match found {
+        Ok(Some(url)) => url,
+        other => {
+            if let Some(mut c) = child.lock().await.take() {
+                let _ = c.kill().await;
+            }
+            let reason = if other.is_err() {
+                "Timed out waiting for Firefox's WebDriver BiDi endpoint"
+            } else {
+                "Firefox exited before it was ready"
+            };
+            let tail = log
+                .iter()
+                .rev()
+                .take(20)
+                .rev()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n");
+            return Err(Error::Launch(format!("{reason}\n{tail}")));
+        }
+    };
+    // Keep draining stderr so Firefox never blocks on a full pipe.
+    tokio::spawn(async move { while rx.recv().await.is_some() {} });
+    let transport =
+        crate::adapters::transport::websocket::connect(&format!("{endpoint}/session")).await?;
+    Ok(LaunchedFirefox {
+        bidi: Arc::new(crate::adapters::bidi::BidiConnection::spawn(transport)),
+        process: Box::new(Process { child, pid }),
+        ws_endpoint: endpoint,
+    })
 }
 
 /// Playwright's `electron.launch`: the app prints `Debugger listening on
@@ -164,6 +641,28 @@ impl BrowserProcess for Process {
     }
 }
 
+/// A process with no automation channel: shut down by ending it.
+struct PlainProcess {
+    child: Arc<tokio::sync::Mutex<Option<Child>>>,
+    pid: Option<u32>,
+}
+
+impl BrowserProcess for PlainProcess {
+    fn pid(&self) -> Option<u32> {
+        self.pid
+    }
+
+    fn shutdown(&self) -> BoxFuture<'static, ()> {
+        let child = self.child.clone();
+        async move {
+            if let Some(mut child) = child.lock().await.take() {
+                let _ = child.kill().await;
+            }
+        }
+        .boxed()
+    }
+}
+
 type StderrTail = Arc<Mutex<VecDeque<String>>>;
 
 async fn launch(command: LaunchCommand) -> Result<Launched> {
@@ -180,13 +679,15 @@ async fn launch(command: LaunchCommand) -> Result<Launched> {
         Channel::Pipe => Some(unix_pipes::attach(&mut cmd)?),
         Channel::WebSocket => None,
     };
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     if command.channel == Channel::Pipe {
-        return Err(Error::Launch(
-            "the pipe channel is only supported on unix; use Channel::WebSocket".into(),
-        ));
+        return launch_windows_pipe(command);
     }
 
+    if command.channel == Channel::WebSocket {
+        // A reused profile still has the previous browser's port file.
+        let _ = std::fs::remove_file(command.user_data_dir.join("DevToolsActivePort"));
+    }
     let mut child = cmd
         .spawn()
         .map_err(|e| Error::Launch(format!("{}: {e}", command.program.display())))?;
@@ -218,7 +719,7 @@ async fn launch(command: LaunchCommand) -> Result<Launched> {
             ))
         }
         #[cfg(not(unix))]
-        Channel::Pipe => unreachable!(),
+        Channel::Pipe => unreachable!("handled above"),
         Channel::WebSocket => {
             match wait_for_ws_endpoint(&command.user_data_dir, &child, command.timeout_ms).await {
                 Ok(url) => crate::adapters::transport::websocket::connect(&url)
@@ -357,5 +858,47 @@ mod unix_pipes {
             let writer = pipe::Sender::from_owned_fd(parent_write).map_err(map)?;
             Ok((reader, writer))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// Chromium's DevTools HTTP server (WebView2's too) closes HTTP/1.0
+    /// requests without an answer; it answers HTTP/1.1 ones.
+    #[tokio::test]
+    async fn devtools_browser_url_speaks_http_1_1() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut s, _)) = listener.accept().await {
+                let mut buf = vec![0u8; 4096];
+                let n = s.read(&mut buf).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]).into_owned();
+                if request.starts_with("GET /json/version HTTP/1.1\r\n") {
+                    let body = r#"{"webSocketDebuggerUrl":"ws://127.0.0.1/devtools/browser/x"}"#;
+                    let _ = s
+                        .write_all(
+                            format!(
+                                "HTTP/1.1 200 OK\r\nContent-Length:{}\r\n\r\n{body}",
+                                body.len()
+                            )
+                            .as_bytes(),
+                        )
+                        .await;
+                    // WebView2 keeps the connection open after answering.
+                    tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+                }
+            }
+        });
+        let url = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            devtools_browser_url(port),
+        )
+        .await
+        .expect("an answer within 5 s, without waiting for the server to close");
+        assert_eq!(url.as_deref(), Some("ws://127.0.0.1/devtools/browser/x"));
     }
 }

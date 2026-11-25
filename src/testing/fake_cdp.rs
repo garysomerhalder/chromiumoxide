@@ -95,3 +95,14 @@ impl CdpSession for FakeCdp {
         rx.boxed()
     }
 }
+
+/// The same fake as a WebDriver BiDi connection (calls have no session).
+impl crate::ports::BidiSession for FakeCdp {
+    fn call(&self, method: &str, params: Value) -> BoxFuture<'static, Result<Value>> {
+        CdpSession::call(self, None, method, params)
+    }
+
+    fn subscribe(&self) -> EventStream {
+        CdpSession::subscribe(self)
+    }
+}

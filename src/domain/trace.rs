@@ -178,6 +178,53 @@ pub fn action_title(method: &str, params: &serde_json::Value, locator: Option<&s
     }
 }
 
+/// A `frame-snapshot` trace event's snapshot from what Playwright's
+/// snapshot streamer captured in a frame, and the resource files it
+/// stores (`resources/<sha1>.<ext>` for inline overrides).
+pub fn frame_snapshot(
+    data: &serde_json::Value,
+    call_id: &str,
+    phase: &str,
+    page_id: &str,
+    frame_id: &str,
+    is_main_frame: bool,
+    time: f64,
+) -> (serde_json::Value, Vec<(String, Vec<u8>)>) {
+    use serde_json::{Value, json};
+    let mut overrides = Vec::new();
+    let mut files = Vec::new();
+    for o in data["resourceOverrides"].as_array().into_iter().flatten() {
+        let url = o.get("url").cloned().unwrap_or(Value::Null);
+        match o.get("content") {
+            Some(Value::String(content)) => {
+                let mime = o
+                    .get("contentType")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let file = format!(
+                    "resources/{}.{}",
+                    sha1_hex(content.as_bytes()),
+                    crate::domain::har::extension_for(mime)
+                );
+                files.push((file.clone(), content.as_bytes().to_vec()));
+                overrides.push(json!({"url": url, "file": file}));
+            }
+            other => {
+                overrides.push(json!({"url": url, "ref": other.cloned().unwrap_or(Value::Null)}))
+            }
+        }
+    }
+    let snapshot = json!({
+        "callId": call_id, "phase": phase, "pageId": page_id,
+        "frameId": frame_id,
+        "frameUrl": data["url"], "doctype": data["doctype"], "html": data["html"],
+        "viewport": data["viewport"], "timestamp": time, "wallTime": data["wallTime"],
+        "collectionTime": data["collectionTime"], "resourceOverrides": overrides,
+        "isMainFrame": is_main_frame,
+    });
+    (snapshot, files)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
