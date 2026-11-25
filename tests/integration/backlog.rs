@@ -155,21 +155,29 @@ async fn page_frame_dialog_and_crash_events() {
     page.evaluate::<()>("void setTimeout(() => alert('hi'), 0)")
         .await
         .unwrap();
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    let got = seen.lock().unwrap().clone();
-    for want in [
+    let wanted = [
         "framenavigated:",
         "frameattached",
         "framenavigated:child",
         "framedetached",
         "dialog:hi",
         "dialogclosed:hi",
-    ] {
+    ];
+    // The events arrive within moments; a busy machine can take longer.
+    for _ in 0..100 {
+        let got = seen.lock().unwrap().clone();
+        if wanted.iter().all(|w| got.iter().any(|g| g == w)) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let got = seen.lock().unwrap().clone();
+    for want in wanted {
         assert!(got.iter().any(|g| g == want), "{want} not in {got:?}");
     }
     let _ = page.goto("chrome://crash").await;
     // Windows reports the crash later (its crash handling runs first).
-    for _ in 0..100 {
+    for _ in 0..300 {
         if seen.lock().unwrap().iter().any(|g| g == "crash") {
             break;
         }
