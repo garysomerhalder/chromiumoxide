@@ -24,12 +24,10 @@ pub(crate) async fn ws_server() -> u16 {
                             let _ = ws.send(Message::text(format!("echo:{t}"))).await;
                             let _ = ws.send(Message::binary(vec![1u8, 2, 3])).await;
                         }
-                        // Answer the close frame (the handshake), as a real
-                        // server does, before dropping the connection.
-                        Message::Close(_) => {
-                            let _ = ws.close(None).await;
-                            break;
-                        }
+                        // Keep reading after the client's close frame:
+                        // tungstenite sends the close reply (the handshake)
+                        // and the stream ends once the client closes.
+                        Message::Close(_) => {}
                         _ => {}
                     }
                 }
