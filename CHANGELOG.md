@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Milestone 14: every browser on every system
 
+- `Chromium::executable_path` honours `browser_channel` (it returned the
+  default Chromium); `ExtensionLaunchOptions::browser_channel` picks Edge or
+  Chrome by name.
 - Through the extension: `goto` to an HTML `data:` URL shows its content
   (Chrome refuses those navigations from extensions), and
   `record_video` / `record_har` can be set on `ExtensionLaunchOptions` and

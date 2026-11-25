@@ -12,7 +12,6 @@ use futures::StreamExt;
 use serde_json::{Value, json};
 
 use crate::application::context::BrowserContext;
-use crate::application::discovery::discover;
 use crate::application::page::Page;
 use crate::application::services::Services;
 use crate::application::shared::Shared;
@@ -287,18 +286,12 @@ impl Browser {
         options: LaunchOptions,
         persistent: Option<(PathBuf, ContextOptions)>,
     ) -> Result<(Browser, Option<BrowserContext>)> {
-        let found = match (&options.executable_path, &options.browser_channel) {
-            (None, Some(name)) => crate::application::discovery::discover_channel(
-                &*services.fs,
-                &*services.env,
-                name,
-            )?,
-            _ => discover(
-                &*services.fs,
-                &*services.env,
-                options.executable_path.as_deref(),
-            )?,
-        };
+        let found = crate::application::discovery::discover_for(
+            &*services.fs,
+            &*services.env,
+            options.executable_path.as_deref(),
+            options.browser_channel.as_deref(),
+        )?;
         let user_data_dir = match &persistent {
             Some((dir, _)) => dir.clone(),
             None => services.fs.create_temp_dir("chromiumoxide-profile-")?,

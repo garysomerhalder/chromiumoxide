@@ -124,6 +124,20 @@ pub fn discover_channel(
     }
 }
 
+/// The browser a launch uses: an explicit path, else the `channel`'s
+/// installed browser, else the default discovery.
+pub fn discover_for(
+    fs: &dyn FileSystem,
+    env: &dyn Environment,
+    explicit: Option<&Path>,
+    channel: Option<&str>,
+) -> Result<Discovered> {
+    match (explicit, channel) {
+        (None, Some(name)) => discover_channel(fs, env, name),
+        _ => discover(fs, env, explicit),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

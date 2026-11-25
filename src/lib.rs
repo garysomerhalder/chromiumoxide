@@ -458,6 +458,9 @@ engine_server!(WebKitServer, webkit::Browser, "WebKit::connect");
 pub struct ExtensionLaunchOptions {
     /// Chrome, Edge or Chromium; `None` finds one as `Chromium::launch` does.
     pub executable_path: Option<std::path::PathBuf>,
+    /// Playwright's `channel` (`msedge`, `chrome`, ...) when there is no
+    /// `executable_path`.
+    pub browser_channel: Option<String>,
     /// The unpacked extension (`extension/.output/chrome-mv3` or `edge-mv3`).
     pub extension_path: std::path::PathBuf,
     /// The profile, kept between launches (logins stay).
@@ -478,6 +481,7 @@ impl Default for ExtensionLaunchOptions {
     fn default() -> Self {
         Self {
             executable_path: None,
+            browser_channel: None,
             extension_path: std::path::PathBuf::new(),
             user_data_dir: std::path::PathBuf::new(),
             headless: true,
@@ -642,7 +646,12 @@ impl Chromium {
     /// The executable that [`Chromium::launch`] would run.
     pub fn executable_path(options: &LaunchOptions) -> Result<Discovered> {
         let s = Self::services();
-        application::discovery::discover(&*s.fs, &*s.env, options.executable_path.as_deref())
+        application::discovery::discover_for(
+            &*s.fs,
+            &*s.env,
+            options.executable_path.as_deref(),
+            options.browser_channel.as_deref(),
+        )
     }
 
     /// Playwright's `browserType.launchServer()`: a browser other processes
@@ -727,7 +736,12 @@ impl Chromium {
         let program = match options.executable_path {
             Some(p) => p,
             None => {
-                let found = application::discovery::discover(&*s.fs, &*s.env, None)?;
+                let found = application::discovery::discover_for(
+                    &*s.fs,
+                    &*s.env,
+                    None,
+                    options.browser_channel.as_deref(),
+                )?;
                 if domain::launch::BrowserKind::from_executable(&found.executable)
                     == domain::launch::BrowserKind::HeadlessShell
                 {
