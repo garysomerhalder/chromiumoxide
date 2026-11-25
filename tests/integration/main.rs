@@ -14,6 +14,7 @@ mod coverage;
 mod debugger;
 mod dragdrop;
 mod electron;
+mod engine_options;
 mod events;
 mod extras;
 mod extras2;

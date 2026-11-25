@@ -10,10 +10,10 @@ use chromiumoxide::{
     ApiRequestOptions, Chromium, ClientCertificate, ContextOptions, LaunchOptions,
 };
 
-struct MtlsServer {
+pub(crate) struct MtlsServer {
     child: Child,
-    dir: PathBuf,
-    port: u16,
+    pub(crate) dir: PathBuf,
+    pub(crate) port: u16,
 }
 
 impl Drop for MtlsServer {
@@ -35,7 +35,7 @@ fn openssl(dir: &Path, args: &[&str]) -> bool {
 
 /// A CA, a server certificate for localhost, a client certificate (CN=Alice)
 /// as PEM, as an encrypted PEM key and as a PFX (passphrase `secret`).
-fn mtls_server() -> Option<MtlsServer> {
+pub(crate) fn mtls_server() -> Option<MtlsServer> {
     let dir = std::env::temp_dir().join(format!("cox-mtls-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).ok()?;
