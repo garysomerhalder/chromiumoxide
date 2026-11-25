@@ -24,7 +24,12 @@ pub(crate) async fn ws_server() -> u16 {
                             let _ = ws.send(Message::text(format!("echo:{t}"))).await;
                             let _ = ws.send(Message::binary(vec![1u8, 2, 3])).await;
                         }
-                        Message::Close(_) => break,
+                        // Answer the close frame (the handshake), as a real
+                        // server does, before dropping the connection.
+                        Message::Close(_) => {
+                            let _ = ws.close(None).await;
+                            break;
+                        }
                         _ => {}
                     }
                 }
