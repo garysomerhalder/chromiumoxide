@@ -24,14 +24,19 @@ export function parseTabSession(sessionId: string): number | null {
 }
 
 /** A tab as the library sees it: `Target.TargetInfo`, in the browser's own profile. */
-export function targetInfo(targetId: string, tab: { url: string; title: string } | undefined) {
+export function targetInfo(
+  targetId: string,
+  tab: { url: string; title: string } | undefined,
+  openerId?: string,
+) {
   return {
     targetId,
     type: 'page',
     title: tab?.title ?? '',
     url: tab?.url ?? '',
     attached: true,
-    canAccessOpener: false,
+    canAccessOpener: openerId !== undefined,
     browserContextId: '',
+    ...(openerId === undefined ? {} : { openerId }),
   };
 }

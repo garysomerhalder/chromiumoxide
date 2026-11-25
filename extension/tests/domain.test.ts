@@ -61,3 +61,78 @@ describe('the browser version', () => {
     expect(browserVersion(edge).product).toBe('Chrome/147.0.7727.15');
   });
 });
+
+import { fromBrowserCookie, toBrowserCookie } from '../src/domain/cookies';
+import { contentSettingsFor } from '../src/domain/permissions';
+
+describe('cookies', () => {
+  it('read as DevTools cookies', () => {
+    expect(
+      fromBrowserCookie({
+        name: 'k',
+        value: 'v',
+        domain: '.a.test',
+        path: '/',
+        secure: true,
+        httpOnly: false,
+        sameSite: 'no_restriction',
+        session: false,
+        expirationDate: 1900000000.5,
+        hostOnly: false,
+      }),
+    ).toEqual({
+      name: 'k',
+      value: 'v',
+      domain: '.a.test',
+      path: '/',
+      expires: 1900000000.5,
+      size: 2,
+      httpOnly: false,
+      secure: true,
+      session: false,
+      sameSite: 'None',
+    });
+    const session = fromBrowserCookie({
+      name: 's', value: '1', domain: 'a.test', path: '/x', secure: false, httpOnly: true,
+      sameSite: 'unspecified', session: true, hostOnly: true,
+    });
+    expect(session.expires).toBe(-1);
+    expect(session.sameSite).toBe('Lax');
+  });
+
+  it('are written from DevTools cookie parameters, with a URL', () => {
+    expect(toBrowserCookie({ name: 'k', value: 'v', url: 'http://127.0.0.1:5/' })).toEqual({
+      url: 'http://127.0.0.1:5/',
+      name: 'k',
+      value: 'v',
+    });
+    expect(
+      toBrowserCookie({
+        name: 'k', value: 'v', domain: '.a.test', path: '/p', secure: true, httpOnly: true,
+        sameSite: 'Strict', expires: 1900000000,
+      }),
+    ).toEqual({
+      url: 'https://a.test/p',
+      name: 'k',
+      value: 'v',
+      domain: '.a.test',
+      path: '/p',
+      secure: true,
+      httpOnly: true,
+      sameSite: 'strict',
+      expirationDate: 1900000000,
+    });
+    // A host-only cookie (no leading dot) keeps no domain attribute.
+    expect(toBrowserCookie({ name: 'k', value: 'v', domain: 'a.test', path: '/' }).domain).toBeUndefined();
+  });
+});
+
+describe('permissions', () => {
+  it('map to content settings', () => {
+    expect(contentSettingsFor(['geolocation', 'notifications', 'videoCapture', 'audioCapture'])).toEqual([
+      'location', 'notifications', 'camera', 'microphone',
+    ]);
+    expect(contentSettingsFor(['clipboardReadWrite', 'clipboardSanitizedWrite'])).toEqual(['clipboard']);
+    expect(() => contentSettingsFor(['midi'])).toThrow('cannot be granted through the extension: midi');
+  });
+});

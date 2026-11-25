@@ -32,6 +32,30 @@ npm run build          # .output/{chrome-mv3,edge-mv3,firefox-mv2,safari-mv3}
 
 ## Use it from Rust
 
+The easiest: let the library start a separate Chrome or Edge with the
+extension already loaded and its own profile (kept between runs, so logins
+stay). It is an ordinary browser: no debugging port, no automation switches.
+
+```rust
+let browser = chromiumoxide::Chromium::launch_with_extension(
+    chromiumoxide::ExtensionLaunchOptions {
+        executable_path: Some(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe".into()),
+        extension_path: "extension/.output/edge-mv3".into(),
+        user_data_dir: "my-edge-profile".into(),
+        headless: false,
+        ..Default::default()
+    },
+).await?;
+let page = browser.contexts()[0].new_page().await?;
+browser.close().await?; // ends that browser
+```
+
+(Google Chrome 137 and later no longer loads unpacked extensions from the
+command line; use Edge, Chromium or Chrome for Testing for this, or load the
+extension by hand and use `connect_extension`.)
+
+Or drive the browser you already have open:
+
 ```rust
 // Chrome or Edge, your default browser:
 let browser = chromiumoxide::Chromium::connect_extension(Default::default()).await?;
@@ -50,6 +74,10 @@ let firefox = relay.wait_pages().await?;
 let tab = firefox.new_tab("https://example.com").await?;
 let title: String = tab.evaluate("document.title").await?;
 ```
+
+Through the extension Chrome refuses to open `data:` URLs as pages
+(`set_content` works instead). Everything else in the Playwright API works;
+see `docs/PARITY.md` section 15.
 
 While connected, Chrome shows "chromiumoxide started debugging this browser"
 on the tabs it drives; that bar is Chrome's and cannot be hidden.

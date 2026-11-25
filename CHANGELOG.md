@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Milestone 14: every browser on every system
 
+- `Chromium::launch_with_extension`: an ordinary Chrome or Edge (no
+  debugging port, no automation switches) with a kept profile and the
+  extension, driven through it. The whole Playwright API is tested through
+  the extension (`tests/integration/extension_api.rs`); the extension now
+  also handles cookies, permissions, downloads and popups' openers.
+  Chromium pages restored from the back/forward cache, and pages attached
+  after they loaded, count as loaded.
+
 - A browser extension (`extension/`, TypeScript, WXT, MUI popup) lets the
   library drive the browser you already use, without remote-debugging
   mode. Chrome and Edge: the whole page API through

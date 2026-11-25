@@ -776,6 +776,12 @@ impl Browser {
         self.inner.services.clock.clone()
     }
 
+    /// Ties a process this library started to the browser: closing the
+    /// browser ends it (`Chromium::launch_with_extension`).
+    pub(crate) fn adopt_process(&self, process: Box<dyn BrowserProcess>) {
+        *self.inner.process.lock().unwrap() = Some(process);
+    }
+
     /// The pid of the browser process this library launched (`None` when
     /// connected, or once closed).
     pub fn process_id(&self) -> Option<u32> {

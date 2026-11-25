@@ -536,6 +536,41 @@ mod windows_command_line_tests {
     }
 }
 
+/// An ordinary browser started with the chromiumoxide extension
+/// (`Chromium::launch_with_extension`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtensionLaunchSpec {
+    pub kind: BrowserKind,
+    pub headless: bool,
+    /// The profile, kept between launches.
+    pub user_data_dir: PathBuf,
+    /// The unpacked extension (`extension/.output/chrome-mv3`).
+    pub extension: PathBuf,
+    pub args: Vec<String>,
+    /// Tabs to open (the relay's connect page among them).
+    pub urls: Vec<String>,
+}
+
+/// Its command line: none of Playwright's automation switches and no
+/// debugging port, so the browser is driven through the extension only.
+pub fn extension_command_line(spec: &ExtensionLaunchSpec) -> Vec<String> {
+    let mut args = vec![
+        format!("--user-data-dir={}", spec.user_data_dir.display()),
+        format!("--load-extension={}", spec.extension.display()),
+        "--no-first-run".to_owned(),
+        "--no-default-browser-check".to_owned(),
+    ];
+    if spec.headless {
+        args.push(match spec.kind {
+            BrowserKind::HeadlessShell => "--headless".to_owned(),
+            BrowserKind::Chrome => "--headless=new".to_owned(),
+        });
+    }
+    args.extend(spec.args.iter().cloned());
+    args.extend(spec.urls.iter().cloned());
+    args
+}
+
 #[cfg(test)]
 mod extension_launch_tests {
     use super::*;

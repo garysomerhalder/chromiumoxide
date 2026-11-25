@@ -1,5 +1,6 @@
-// Runs on the library's connect page and tells the background, which may
-// still be starting (or asleep), where the library is listening.
+// Runs on the library's connect page and tells the background where the
+// library is listening. The background may still be starting (a fresh
+// profile, or asleep), so it asks again until the background has connected.
 export default defineContentScript({
   matches: [
     'http://127.0.0.1/chromiumoxide-connect*',
@@ -7,7 +8,15 @@ export default defineContentScript({
     'http://[::1]/chromiumoxide-connect*',
   ],
   runAt: 'document_start',
-  main() {
-    void browser.runtime.sendMessage({ type: 'connect', url: location.href });
+  async main() {
+    for (let attempt = 0; attempt < 120; attempt++) {
+      try {
+        const connected = await browser.runtime.sendMessage({ type: 'connect', url: location.href });
+        if (connected === true) return;
+      } catch {
+        // No background listening yet.
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
   },
 });

@@ -87,6 +87,22 @@ pub trait BrowserLauncher: Send + Sync {
         })
     }
 
+    /// Starts a program with no automation channel (an ordinary browser
+    /// driven through its extension); it ends when the process is shut down.
+    fn spawn(
+        &self,
+        program: PathBuf,
+        args: Vec<String>,
+        env: Vec<(String, String)>,
+    ) -> BoxFuture<'static, Result<Box<dyn BrowserProcess>>> {
+        let _ = (program, args, env);
+        Box::pin(async {
+            Err(crate::domain::error::Error::Launch(
+                "this launcher cannot start plain processes".into(),
+            ))
+        })
+    }
+
     /// Starts Playwright's WebKit with `--inspector-pipe` (file descriptors
     /// 3 and 4) and connects to it.
     fn launch_webkit(&self, command: WebKitCommand) -> BoxFuture<'static, Result<LaunchedWebKit>> {

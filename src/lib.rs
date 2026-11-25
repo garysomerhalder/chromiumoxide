@@ -452,6 +452,36 @@ macro_rules! engine_server {
 engine_server!(FirefoxServer, firefox::Browser, "Firefox::connect");
 engine_server!(WebKitServer, webkit::Browser, "WebKit::connect");
 
+/// `Chromium::launch_with_extension`: an ordinary Chrome or Edge with the
+/// extension, driven only through it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtensionLaunchOptions {
+    /// Chrome, Edge or Chromium; `None` finds one as `Chromium::launch` does.
+    pub executable_path: Option<std::path::PathBuf>,
+    /// The unpacked extension (`extension/.output/chrome-mv3` or `edge-mv3`).
+    pub extension_path: std::path::PathBuf,
+    /// The profile, kept between launches (logins stay).
+    pub user_data_dir: std::path::PathBuf,
+    /// Default `true`.
+    pub headless: bool,
+    pub args: Vec<String>,
+    /// How long to wait for the extension to connect. Default 30 s.
+    pub timeout: std::time::Duration,
+}
+
+impl Default for ExtensionLaunchOptions {
+    fn default() -> Self {
+        Self {
+            executable_path: None,
+            extension_path: std::path::PathBuf::new(),
+            user_data_dir: std::path::PathBuf::new(),
+            headless: true,
+            args: Vec::new(),
+            timeout: std::time::Duration::from_secs(30),
+        }
+    }
+}
+
 /// Where the extension relay listens, and how long it waits.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtensionRelayOptions {
@@ -664,6 +694,55 @@ impl Chromium {
             listener,
             timeout: options.timeout,
         })
+    }
+
+    /// Starts Chrome or Edge as an ordinary browser (no debugging port, no
+    /// automation switches) with the extension and the profile in
+    /// `user_data_dir`, and connects through the extension: the whole page
+    /// API, with the profile as `contexts()[0]`. Closing the browser ends it.
+    /// Branded Google Chrome 137+ no longer loads unpacked extensions from
+    /// the command line; Edge, Chromium and Chrome for Testing do.
+    pub async fn launch_with_extension(options: ExtensionLaunchOptions) -> Result<Browser> {
+        let s = Self::services();
+        let program = match options.executable_path {
+            Some(p) => p,
+            None => {
+                let found = application::discovery::discover(&*s.fs, &*s.env, None)?;
+                if domain::launch::BrowserKind::from_executable(&found.executable)
+                    == domain::launch::BrowserKind::HeadlessShell
+                {
+                    return Err(Error::Launch(format!(
+                        "{} cannot load extensions; pass executable_path (Chrome, Edge or Chromium)",
+                        found.executable.display()
+                    )));
+                }
+                found.executable
+            }
+        };
+        let relay = Self::extension_relay(ExtensionRelayOptions {
+            timeout: options.timeout,
+            ..Default::default()
+        })
+        .await?;
+        let args = domain::launch::extension_command_line(&domain::launch::ExtensionLaunchSpec {
+            kind: domain::launch::BrowserKind::from_executable(&program),
+            headless: options.headless,
+            user_data_dir: options.user_data_dir,
+            extension: options.extension_path,
+            args: options.args,
+            urls: vec![relay.connect_url()],
+        });
+        let process = s.launcher.spawn(program, args, Vec::new()).await?;
+        match relay.wait().await {
+            Ok(browser) => {
+                browser.adopt_process(process);
+                Ok(browser)
+            }
+            Err(e) => {
+                process.shutdown().await;
+                Err(e)
+            }
+        }
     }
 
     /// Drives the browser you already use, through the extension: opens the

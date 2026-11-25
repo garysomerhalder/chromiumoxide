@@ -11,7 +11,7 @@ export default defineConfig({
     permissions:
       browser === 'firefox' || browser === 'safari'
         ? ['tabs', 'scripting', 'activeTab', ...(manifestVersion === 2 ? ['<all_urls>'] : [])]
-        : ['debugger', 'tabs'],
+        : ['debugger', 'tabs', 'cookies', 'contentSettings', 'downloads'],
     host_permissions: ['<all_urls>'],
     browser_specific_settings:
       browser === 'firefox' ? { gecko: { id: 'chromiumoxide@garysomerhalder', strict_min_version: '128.0' } } : undefined,

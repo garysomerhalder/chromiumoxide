@@ -3,6 +3,8 @@ export interface Tab {
   url: string;
   title: string;
   windowId: number;
+  /** The tab that opened this one (`window.open`, target=_blank). */
+  openerTabId?: number;
 }
 
 /** The browser's tabs. */

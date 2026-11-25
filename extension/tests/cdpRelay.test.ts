@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CdpRelay } from '../src/application/cdpRelay';
-import { FakeDebugger, FakeSocket, FakeTabs, FakeWindows } from './fakes';
+import { FakeCookies, FakeDebugger, FakeDownloads, FakePermissions, FakeSocket, FakeTabs, FakeWindows } from './fakes';
 
 const UA = 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36';
 
@@ -8,12 +8,20 @@ let tabs: FakeTabs;
 let dbg: FakeDebugger;
 let socket: FakeSocket;
 let relay: CdpRelay;
+let cookies: FakeCookies;
+let permissions: FakePermissions;
+let downloads: FakeDownloads;
 
 beforeEach(() => {
   tabs = new FakeTabs();
   dbg = new FakeDebugger();
   socket = new FakeSocket();
-  relay = new CdpRelay({ tabs, debugger: dbg, windows: new FakeWindows(), socket, userAgent: UA });
+  cookies = new FakeCookies();
+  permissions = new FakePermissions();
+  downloads = new FakeDownloads();
+  relay = new CdpRelay({
+    tabs, debugger: dbg, windows: new FakeWindows(), socket, userAgent: UA, cookies, permissions, downloads,
+  });
 });
 
 describe('the relay', () => {
@@ -22,6 +30,8 @@ describe('the relay', () => {
     expect(socket.url).toBe('ws://127.0.0.1:5/extension');
     expect(socket.received[0]).toEqual({ method: 'Extension.hello', params: { protocol: 'cdp', userAgent: UA } });
     expect(relay.status().state).toBe('connected');
+    expect(relay.connectedTo('ws://127.0.0.1:5/extension')).toBe(true);
+    expect(relay.connectedTo('ws://127.0.0.1:6/extension')).toBe(false);
   });
 
   it('announces every tab it can drive when the library auto-attaches', async () => {
@@ -125,6 +135,69 @@ describe('the relay', () => {
     await new Promise((r) => setTimeout(r, 5));
     expect(dbg.attached.size).toBe(0);
     expect(relay.status()).toEqual({ state: 'idle', tabs: [] });
+  });
+
+  it('names the opener of a tab a driven page opened (popups)', async () => {
+    const page = tabs.add('https://a.test/');
+    relay.connect('ws://127.0.0.1:5/extension');
+    await socket.command(1, 'Target.setAutoAttach');
+    const popup = tabs.add('https://pop.test/', 'Pop', page.id);
+    await relay.tabChanged(popup.id, popup.url);
+    const announced = socket.events('Target.attachedToTarget').at(-1)!;
+    expect((announced.params as { targetInfo: { openerId?: string } }).targetInfo.openerId).toBe(`T${page.id}`);
+    const first = socket.events('Target.attachedToTarget')[0]!;
+    expect((first.params as { targetInfo: object }).targetInfo).not.toHaveProperty('openerId');
+  });
+
+  it('reads, writes and clears the profile\'s cookies', async () => {
+    relay.connect('ws://127.0.0.1:5/extension');
+    await socket.command(1, 'Storage.setCookies', { cookies: [{ name: 'k', value: 'v', url: 'http://a.test/' }] });
+    const got = await socket.command(2, 'Storage.getCookies');
+    expect((got.result as { cookies: { name: string; domain: string }[] }).cookies).toMatchObject([
+      { name: 'k', value: 'v', domain: 'a.test' },
+    ]);
+    await socket.command(3, 'Storage.clearCookies');
+    expect(cookies.jar).toEqual([]);
+  });
+
+  it('grants and resets permissions as content settings', async () => {
+    relay.connect('ws://127.0.0.1:5/extension');
+    await socket.command(1, 'Browser.grantPermissions', { permissions: ['geolocation'], origin: 'http://a.test:8' });
+    expect(permissions.granted).toEqual(['location@http://a.test:8']);
+    await socket.command(2, 'Browser.resetPermissions');
+    expect(permissions.granted).toEqual([]);
+    const refused = await socket.command(3, 'Browser.grantPermissions', { permissions: ['midi'] });
+    expect((refused.error as { message: string }).message).toMatch(/cannot be granted through the extension: midi/);
+  });
+
+  it('reports downloads, from the tab whose request started them, once asked to', async () => {
+    const page = tabs.add('https://a.test/');
+    relay.connect('ws://127.0.0.1:5/extension');
+    await socket.command(1, 'Target.setAutoAttach');
+    downloads.start({ id: 1, url: 'https://a.test/early', referrer: '', filename: '', state: 'in_progress' });
+    expect(socket.events('Browser.downloadWillBegin')).toEqual([]);
+
+    await socket.command(2, 'Browser.setDownloadBehavior', { behavior: 'allowAndName', eventsEnabled: true });
+    dbg.emit({ tabId: page.id }, 'Network.requestWillBeSent', {
+      frameId: 'F1', request: { url: 'https://a.test/file.zip' },
+    });
+    downloads.start({ id: 7, url: 'https://a.test/file.zip', referrer: 'https://a.test/', filename: '', state: 'in_progress' });
+    expect(socket.events('Browser.downloadWillBegin')[0]!.params).toEqual({
+      frameId: 'F1', guid: '7', url: 'https://a.test/file.zip', suggestedFilename: 'file.zip',
+    });
+    downloads.update({
+      id: 7, url: 'https://a.test/file.zip', referrer: '', filename: '/home/g/Downloads/file.zip',
+      state: 'complete', totalBytes: 3, bytesReceived: 3,
+    });
+    expect(socket.events('Browser.downloadProgress')[0]!.params).toEqual({
+      guid: '7', state: 'completed', totalBytes: 3, receivedBytes: 3, filePath: '/home/g/Downloads/file.zip',
+    });
+
+    // Without a matching request: the tab the download's page is open in.
+    downloads.start({ id: 8, url: 'https://cdn.test/x.pdf', referrer: 'https://a.test/', filename: '', state: 'in_progress' });
+    expect(socket.events('Browser.downloadWillBegin')[1]!.params).toMatchObject({ frameId: `T${page.id}`, guid: '8' });
+    downloads.update({ id: 8, url: 'https://cdn.test/x.pdf', referrer: '', filename: '', state: 'interrupted' });
+    expect(socket.events('Browser.downloadProgress')[1]!.params).toMatchObject({ guid: '8', state: 'canceled' });
   });
 
   it('disconnects on request', async () => {

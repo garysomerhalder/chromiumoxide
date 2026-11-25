@@ -7,8 +7,8 @@ import type { WindowBounds, WindowsPort } from '../src/ports/windows';
 export class FakeTabs implements TabsPort {
   tabs = new Map<number, Tab>();
   private next = 100;
-  add(url: string, title = ''): Tab {
-    const tab = { id: this.next++, url, title, windowId: 1 };
+  add(url: string, title = '', openerTabId?: number): Tab {
+    const tab: Tab = { id: this.next++, url, title, windowId: 1, openerTabId };
     this.tabs.set(tab.id, tab);
     return tab;
   }
@@ -111,4 +111,41 @@ export class FakePages implements PagePort {
     this.calls.push(`screenshot ${tabId}`);
     return 'iVBORw0KGgo=';
   }
+}
+
+import type { BrowserCookie, CookieSetting } from '../src/domain/cookies';
+import type { CookiesPort } from '../src/ports/cookies';
+import type { PermissionsPort } from '../src/ports/permissions';
+
+export class FakeCookies implements CookiesPort {
+  jar: BrowserCookie[] = [];
+  async getAll() { return this.jar; }
+  async set(c: CookieSetting) {
+    this.jar = this.jar.filter((x) => x.name !== c.name);
+    this.jar.push({
+      name: c.name, value: c.value, domain: c.domain ?? new URL(c.url).hostname, path: c.path ?? '/',
+      secure: !!c.secure, httpOnly: !!c.httpOnly, sameSite: c.sameSite ?? 'unspecified',
+      session: c.expirationDate === undefined, expirationDate: c.expirationDate, hostOnly: !c.domain,
+    });
+  }
+  async remove(_url: string, name: string) { this.jar = this.jar.filter((x) => x.name !== name); }
+}
+
+export class FakePermissions implements PermissionsPort {
+  granted: string[] = [];
+  async grant(settings: string[], origin?: string) {
+    this.granted.push(...settings.map((s) => `${s}@${origin ?? '*'}`));
+  }
+  async reset() { this.granted = []; }
+}
+
+import type { DownloadItem, DownloadsPort } from '../src/ports/downloads';
+
+export class FakeDownloads implements DownloadsPort {
+  private created: ((d: DownloadItem) => void)[] = [];
+  private changed: ((d: DownloadItem) => void)[] = [];
+  onCreated(cb: (d: DownloadItem) => void) { this.created.push(cb); }
+  onChanged(cb: (d: DownloadItem) => void) { this.changed.push(cb); }
+  start(d: DownloadItem) { this.created.forEach((cb) => cb(d)); }
+  update(d: DownloadItem) { this.changed.forEach((cb) => cb(d)); }
 }

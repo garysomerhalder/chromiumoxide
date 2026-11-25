@@ -49,6 +49,11 @@ export class PageRelay {
     this.notify();
   }
 
+  /** Whether the socket to `url` is open (or opening). */
+  connectedTo(url: string): boolean {
+    return this.relayUrl === url && !!this.connection?.isOpen();
+  }
+
   async disconnect(): Promise<void> {
     const c = this.connection;
     this.connection = null;

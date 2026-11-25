@@ -1374,6 +1374,17 @@ started for automation. Tests: `tests/integration/extension.rs`.
 | Browser | Through the extension | Test / reason |
 |---|---|---|
 | Chrome / Chromium | ✅ the whole page API on the browser's own profile (`contexts()[0]`), open tabs as pages, new tabs; closing only disconnects | `extension_drives_an_everyday_chromium` |
+| `Chromium::launch_with_extension` (an ordinary Chrome/Edge, no debugging port or automation switches, a kept profile, the extension preloaded; closing ends it) | ✅ | `tests/integration/extension_api.rs` (every test starts one) |
+| Navigation, history (incl. pages restored from the back/forward cache), waits, `setContent` | ✅ | `extension_navigation_and_waits` |
+| Locators, input (fill, check, select, dblclick, hover, keyboard), `expect` | ✅ | `extension_locators_input_and_assertions` |
+| Init scripts, `exposeFunction`, handles, style tags | ✅ | `extension_scripts_handles_and_bindings` |
+| Frames, also cross-site (out-of-process) | ✅ | `extension_frames_including_cross_origin` |
+| Console, dialogs, popups (opener from the tab that opened them), responses | ✅ | `extension_events_dialogs_popups_and_websockets` |
+| Routes, extra headers, offline | ✅ | `extension_routes_headers_and_offline` |
+| Cookies (`chrome.cookies`), storage state, permissions (`chrome.contentSettings`: geolocation, notifications, camera, microphone, clipboard), geolocation | ✅ | `extension_cookies_storage_and_permissions`; other permissions are an error naming them |
+| Viewport, media emulation, screenshots, PDF, ARIA snapshots | ✅ | `extension_emulation_screenshots_pdf_and_aria` |
+| Clock, tracing, downloads (`chrome.downloads`; files stay where the browser saves them) | ✅ | `extension_clock_tracing_and_downloads` |
+| `goto` to `data:` URLs | ❌ | Chrome refuses top-level `data:` navigations from extensions; `setContent` works |
 | Edge | ✅ same build as Chrome (`edge-mv3`) | Same code as Chrome; not run in CI (Edge not installed in the container) |
 | New contexts (`newContext`, `newPage` on the browser) | ❌ | An extension cannot create isolated profiles; the error says to use `contexts()[0]` |
 | Firefox | ✅ basic page actions: tabs, `goto`, `evaluate`, click, fill, screenshot | `extension_drives_firefox_tabs` |

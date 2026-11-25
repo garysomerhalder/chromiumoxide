@@ -28,6 +28,31 @@ impl BrowserLauncher for TokioLauncher {
         launch(command).boxed()
     }
 
+    fn spawn(
+        &self,
+        program: std::path::PathBuf,
+        args: Vec<String>,
+        env: Vec<(String, String)>,
+    ) -> BoxFuture<'static, Result<Box<dyn BrowserProcess>>> {
+        async move {
+            let child = Command::new(&program)
+                .args(&args)
+                .envs(env)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .kill_on_drop(true)
+                .spawn()
+                .map_err(|e| Error::Launch(format!("{}: {e}", program.display())))?;
+            let pid = child.id();
+            Ok(Box::new(PlainProcess {
+                child: Arc::new(tokio::sync::Mutex::new(Some(child))),
+                pid,
+            }) as Box<dyn BrowserProcess>)
+        }
+        .boxed()
+    }
+
     fn launch_electron(
         &self,
         command: ElectronCommand,
@@ -609,6 +634,28 @@ impl BrowserProcess for Process {
                 .await
                 .is_err()
             {
+                let _ = child.kill().await;
+            }
+        }
+        .boxed()
+    }
+}
+
+/// A process with no automation channel: shut down by ending it.
+struct PlainProcess {
+    child: Arc<tokio::sync::Mutex<Option<Child>>>,
+    pid: Option<u32>,
+}
+
+impl BrowserProcess for PlainProcess {
+    fn pid(&self) -> Option<u32> {
+        self.pid
+    }
+
+    fn shutdown(&self) -> BoxFuture<'static, ()> {
+        let child = self.child.clone();
+        async move {
+            if let Some(mut child) = child.lock().await.take() {
                 let _ = child.kill().await;
             }
         }

@@ -39,6 +39,12 @@ pub(crate) async fn connect() -> Option<Ext> {
         executable_path: Some(chromium),
         extension_path: extension,
         user_data_dir: profile.clone(),
+        // Containers run tests as root, where Chromium needs this.
+        args: if cfg!(target_os = "linux") {
+            vec!["--no-sandbox".into()]
+        } else {
+            Vec::new()
+        },
         ..Default::default()
     })
     .await
@@ -139,10 +145,13 @@ async fn extension_scripts_handles_and_bindings() {
     assert_eq!(page.evaluate::<i64>("window.__early").await.unwrap(), 7);
     assert_eq!(page.evaluate::<i64>("twice(21)").await.unwrap(), 42);
     let handle = page
-        .evaluate_handle("document.querySelector('#p')")
+        .evaluate_handle("({ text: document.querySelector('#p').textContent })")
         .await
         .unwrap();
-    assert!(format!("{handle:?}").len() > 0);
+    assert_eq!(
+        handle.json_value::<Value>().await.unwrap(),
+        json!({"text": "hi"})
+    );
     page.add_style_tag(chromiumoxide::StyleTag::content(
         "p { color: rgb(1, 2, 3) }",
     ))
@@ -207,7 +216,7 @@ async fn extension_events_dialogs_popups_and_websockets() {
     );
     let popup = page
         .wait_for_popup()
-        .run(page.evaluate::<()>(&format!("window.open('{}')", server.url("/pop"))))
+        .run(page.evaluate::<()>(&format!("void window.open('{}')", server.url("/pop"))))
         .await
         .unwrap();
     popup

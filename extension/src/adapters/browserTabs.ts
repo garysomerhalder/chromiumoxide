@@ -1,10 +1,23 @@
 import type { Tab, TabsPort } from '../ports/tabs';
 import type { WindowBounds, WindowsPort } from '../ports/windows';
 
-type RawTab = { id?: number; url?: string; pendingUrl?: string; title?: string; windowId?: number };
+type RawTab = {
+  id?: number;
+  url?: string;
+  pendingUrl?: string;
+  title?: string;
+  windowId?: number;
+  openerTabId?: number;
+};
 
 function tab(t: RawTab): Tab {
-  return { id: t.id ?? -1, url: t.url || t.pendingUrl || '', title: t.title ?? '', windowId: t.windowId ?? -1 };
+  return {
+    id: t.id ?? -1,
+    url: t.url || t.pendingUrl || '',
+    title: t.title ?? '',
+    windowId: t.windowId ?? -1,
+    openerTabId: t.openerTabId,
+  };
 }
 
 /** `browser.tabs` (every browser). */

@@ -246,6 +246,7 @@ impl Page {
         page.apply_effects(effects);
         page.spawn_event_loop(events);
         page.start_video();
+        page.catch_up_on_load().await;
 
         for result in futures::future::join_all(calls).await {
             result?;
@@ -384,6 +385,14 @@ impl Page {
                         &s(f, "name"),
                         &s(f, "loaderId"),
                     );
+                    // A page restored from the back/forward cache (on in
+                    // everyday browsers; Playwright's launches turn it off)
+                    // fires no lifecycle events: it is already loaded.
+                    if p.get("type").and_then(Value::as_str) == Some("BackForwardCacheRestore") {
+                        for name in ["DOMContentLoaded", "load"] {
+                            st.tree.lifecycle(&s(f, "id"), &s(f, "loaderId"), name);
+                        }
+                    }
                 }
                 "Page.navigatedWithinDocument" => {
                     let frame_id = s(p, "frameId");
@@ -1091,6 +1100,49 @@ fn origin_of(url: &str) -> String {
     let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
     let host = host.rsplit('@').next().unwrap_or(host);
     format!("{}://{}", scheme.to_lowercase(), host.to_lowercase())
+}
+
+impl Page {
+    /// A page attached after its document started loading (an existing
+    /// tab, or a popup the extension reached late) missed its lifecycle
+    /// events: take them from `document.readyState`, for the document the
+    /// frame tree named (a navigation since then is not marked).
+    async fn catch_up_on_load(&self) {
+        let (frame, loader) = {
+            let st = self.inner.state.lock().unwrap();
+            match st.tree.main_frame() {
+                Some(f) => (f.id.clone(), f.loader_id.clone().unwrap_or_default()),
+                None => return,
+            }
+        };
+        let Ok(r) = self
+            .inner
+            .shared
+            .cdp
+            .call(
+                Some(&self.inner.session_id),
+                "Runtime.evaluate",
+                json!({"expression": "document.readyState", "returnByValue": true}),
+            )
+            .await
+        else {
+            return;
+        };
+        let fired: &[&str] = match r["result"]["value"].as_str() {
+            Some("complete") => &["DOMContentLoaded", "load"],
+            Some("interactive") => &["DOMContentLoaded"],
+            _ => &[],
+        };
+        if fired.is_empty() {
+            return;
+        }
+        let mut st = self.inner.state.lock().unwrap();
+        for name in fired {
+            st.tree.lifecycle(&frame, &loader, name);
+        }
+        drop(st);
+        self.inner.changed.send_modify(|v| *v += 1);
+    }
 }
 
 #[cfg(test)]

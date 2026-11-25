@@ -4,12 +4,18 @@
 // send, are answered here. The browser's own profile is the library's
 // default context (`browserContextId: ''`).
 
+import { cookieUrl, type CookieParam, fromBrowserCookie, toBrowserCookie } from '../domain/cookies';
 import { type Command, failure, type Outgoing, type Params, reply, Unavailable } from '../domain/cdp';
 import { hello } from '../domain/hello';
+import { type DownloadItem, progress, suggestedFilename } from '../domain/downloads';
+import { contentSettingsFor } from '../domain/permissions';
 import { IDLE, type ConnectionStatus, type TabSummary } from '../domain/status';
 import { isAttachable, parseTabSession, tabSession, targetInfo } from '../domain/target';
 import { browserVersion } from '../domain/version';
+import type { CookiesPort } from '../ports/cookies';
 import type { DebuggerPort, DebugTarget } from '../ports/debugger';
+import type { DownloadsPort } from '../ports/downloads';
+import type { PermissionsPort } from '../ports/permissions';
 import type { SocketConnection, SocketPort } from '../ports/socket';
 import type { TabsPort } from '../ports/tabs';
 import type { WindowBounds, WindowsPort } from '../ports/windows';
@@ -20,6 +26,9 @@ export interface CdpRelayPorts {
   windows: WindowsPort;
   socket: SocketPort;
   userAgent: string;
+  cookies: CookiesPort;
+  permissions: PermissionsPort;
+  downloads: DownloadsPort;
 }
 
 interface Driven {
@@ -37,10 +46,32 @@ export class CdpRelay {
   /** Child sessions (iframes, workers) -> their tab. */
   private children = new Map<string, number>();
   private listeners: ((s: ConnectionStatus) => void)[] = [];
+  /** `Browser.setDownloadBehavior` asked for download events. */
+  private downloadEvents = false;
+  /** Recent requests' frames by URL, to tell which page started a download. */
+  private requestFrames = new Map<string, string>();
 
   constructor(private readonly ports: CdpRelayPorts) {
     ports.debugger.onEvent((target, method, params) => this.onDebuggerEvent(target, method, params));
     ports.debugger.onDetach((tabId) => this.onDetached(tabId));
+    ports.downloads.onCreated((item) => this.onDownload(item));
+    ports.downloads.onChanged((item) => {
+      const p = this.downloadEvents ? progress(item) : null;
+      if (p) this.send({ method: 'Browser.downloadProgress', params: p });
+    });
+  }
+
+  private onDownload(item: DownloadItem) {
+    if (!this.downloadEvents) return;
+    let frameId = this.requestFrames.get(item.url);
+    if (frameId === undefined) {
+      // The page the download came from: its main frame (id = target id).
+      for (const d of this.driven.values()) if (d.url === item.referrer) frameId = d.targetId;
+    }
+    this.send({
+      method: 'Browser.downloadWillBegin',
+      params: { frameId: frameId ?? '', guid: String(item.id), url: item.url, suggestedFilename: suggestedFilename(item) },
+    });
   }
 
   /** Connects to the relay at `url` (from the connect page); once per relay. */
@@ -60,6 +91,11 @@ export class CdpRelay {
     this.connection = connection;
     connection.send(JSON.stringify(hello('cdp', this.ports.userAgent)));
     this.notify();
+  }
+
+  /** Whether the socket to `url` is open (or opening). */
+  connectedTo(url: string): boolean {
+    return this.relayUrl === url && !!this.connection?.isOpen();
   }
 
   async disconnect(): Promise<void> {
@@ -106,6 +142,7 @@ export class CdpRelay {
   /** Lets go of every tab (the tabs stay open). */
   private async release() {
     this.autoAttach = false;
+    this.downloadEvents = false;
     const tabs = [...this.driven.keys()];
     this.driven.clear();
     this.children.clear();
@@ -127,9 +164,14 @@ export class CdpRelay {
       const targetId = (await this.ports.debugger.targetIdOf(tabId)) ?? tabSession(tabId);
       const tab = await this.ports.tabs.get(tabId);
       this.driven.set(tabId, { targetId, title: tab?.title ?? '', url: tab?.url ?? '' });
+      const opener = tab?.openerTabId === undefined ? undefined : this.driven.get(tab.openerTabId)?.targetId;
       this.send({
         method: 'Target.attachedToTarget',
-        params: { sessionId: tabSession(tabId), targetInfo: targetInfo(targetId, tab), waitingForDebugger: false },
+        params: {
+          sessionId: tabSession(tabId),
+          targetInfo: targetInfo(targetId, tab, opener),
+          waitingForDebugger: false,
+        },
       });
       this.notify();
       return targetId;
@@ -142,6 +184,13 @@ export class CdpRelay {
     if (!this.driven.has(target.tabId)) return;
     if (method === 'Target.attachedToTarget') this.children.set(params.sessionId as string, target.tabId);
     if (method === 'Target.detachedFromTarget') this.children.delete(params.sessionId as string);
+    if (method === 'Network.requestWillBeSent') {
+      const url = (params.request as { url?: string } | undefined)?.url;
+      if (url && typeof params.frameId === 'string') {
+        this.requestFrames.set(url, params.frameId);
+        if (this.requestFrames.size > 500) this.requestFrames.delete(this.requestFrames.keys().next().value!);
+      }
+    }
     this.send({ method, params, sessionId: target.sessionId ?? tabSession(target.tabId) });
   }
 
@@ -192,10 +241,28 @@ export class CdpRelay {
         return {};
       }
       case 'Target.setDiscoverTargets':
-      case 'Browser.setDownloadBehavior':
       case 'Browser.cancelDownload':
+        return {};
+      case 'Browser.setDownloadBehavior':
+        // Files stay where the browser saves them; events say where.
+        this.downloadEvents = p.eventsEnabled === true;
+        return {};
+      case 'Storage.getCookies':
+        return { cookies: (await this.ports.cookies.getAll()).map(fromBrowserCookie) };
+      case 'Storage.setCookies':
+        for (const c of (p.cookies ?? []) as CookieParam[]) await this.ports.cookies.set(toBrowserCookie(c));
+        return {};
+      case 'Storage.clearCookies':
+        for (const c of await this.ports.cookies.getAll()) await this.ports.cookies.remove(cookieUrl(c), c.name);
+        return {};
       case 'Browser.grantPermissions':
+        await this.ports.permissions.grant(
+          contentSettingsFor((p.permissions ?? []) as string[]),
+          typeof p.origin === 'string' ? p.origin : undefined,
+        );
+        return {};
       case 'Browser.resetPermissions':
+        await this.ports.permissions.reset();
         return {};
       case 'Target.getTargets': {
         const infos = await Promise.all(
