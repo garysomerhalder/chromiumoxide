@@ -60,6 +60,17 @@ default launch switches (device-mockup contract).
 ## Status
 
 - 2026-11-23: proposed; waiting for the 1.66.0 release.
+- 2026-11-25: checked ahead of the release against `1.66.0-alpha-2026-11-24`
+  (1.66 is not out yet). Its `types.d.ts` adds `locateOnlyVisible` (done
+  in PR #9) and `ConnectOptions.launchOptions`, which belongs to
+  Playwright's own client-server protocol (a Playwright server launching a
+  browser per connection); this library connects to browsers directly, so
+  it is out of scope. Its browsers (Chromium 159.0.8154.13, Firefox
+  `firefox-1578`, WebKit `webkit-2399`) pass the full integration suite
+  (323, Tauri under Xvfb). WebKit 2399's `protocol.json` only adds
+  (`Playwright.maximizeWindow`, `createPage.background`,
+  `Emulation.clearDeviceMetricsOverride`, `TargetInfo.processIdentifier`);
+  the vendored one stays 2388 until the release. Still waiting for 1.66.0.
 
 ## Set it
 
