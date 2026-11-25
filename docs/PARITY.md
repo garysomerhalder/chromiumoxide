@@ -1384,6 +1384,10 @@ started for automation. Tests: `tests/integration/extension.rs`.
 | Cookies (`chrome.cookies`), storage state, permissions (`chrome.contentSettings`: geolocation, notifications, camera, microphone, clipboard), geolocation | ✅ | `extension_cookies_storage_and_permissions`; other permissions are an error naming them |
 | Viewport, media emulation, screenshots, PDF, ARIA snapshots | ✅ | `extension_emulation_screenshots_pdf_and_aria` |
 | Clock, tracing, downloads (`chrome.downloads`; files stay where the browser saves them) | ✅ | `extension_clock_tracing_and_downloads` |
+| File inputs (`setInputFiles`), file chooser, HTML5 drag and drop | ✅ | `extension_uploads_file_chooser_and_drag_and_drop` |
+| Workers (with `evaluate`), WebSockets, `page.screencast`, `context.request` | ✅ | `extension_workers_websockets_screencast_and_request_api` |
+| `routeFromHAR` | ✅ | `extension_replays_a_har` |
+| `recordVideo`, `recordHar` (context options) | ❌ | The extension drives the browser's existing profile, so no context is created with options; `page.screencast` and tracing record instead |
 | `goto` to `data:` URLs | ❌ | Chrome refuses top-level `data:` navigations from extensions; `setContent` works |
 | Edge | ✅ same build as Chrome (`edge-mv3`) | Same code as Chrome; not run in CI (Edge not installed in the container) |
 | New contexts (`newContext`, `newPage` on the browser) | ❌ | An extension cannot create isolated profiles; the error says to use `contexts()[0]` |

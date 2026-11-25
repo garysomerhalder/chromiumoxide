@@ -378,3 +378,143 @@ async fn extension_clock_tracing_and_downloads() {
     let _ = std::fs::remove_file(&saved);
     ext.close().await;
 }
+
+#[tokio::test]
+async fn extension_uploads_file_chooser_and_drag_and_drop() {
+    let Some(ext) = connect().await else { return };
+    let page = ext.page().await;
+    page.set_content("<input type=file id=f><input type=file id=g>")
+        .await
+        .unwrap();
+    let file = std::env::temp_dir().join(format!("cox-ext-up-{}.txt", rand_suffix()));
+    std::fs::write(&file, "upload").unwrap();
+    page.locator("#f")
+        .set_input_files(std::slice::from_ref(&file))
+        .await
+        .unwrap();
+    assert_eq!(
+        page.evaluate::<String>("f.files[0].name").await.unwrap(),
+        file.file_name().unwrap().to_string_lossy()
+    );
+    let chooser = page
+        .wait_for_file_chooser()
+        .run(page.click("#g"))
+        .await
+        .unwrap();
+    chooser
+        .set_files(std::slice::from_ref(&file))
+        .await
+        .unwrap();
+    assert_eq!(page.evaluate::<i64>("g.files.length").await.unwrap(), 1);
+    let _ = std::fs::remove_file(&file);
+
+    page.set_content(
+        r#"<style>div{width:100px;height:100px;margin:20px}</style>
+        <div id=src draggable=true style="background:red">drag</div><div id=dst style="background:blue"></div>
+        <script>window.log=[];
+        src.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', 'payload'); });
+        dst.addEventListener('dragover', e => e.preventDefault());
+        dst.addEventListener('drop', e => { e.preventDefault(); log.push('drop:' + e.dataTransfer.getData('text/plain')); });
+        </script>"#,
+    )
+    .await
+    .unwrap();
+    page.locator("#src")
+        .drag_to(&page.locator("#dst"))
+        .await
+        .unwrap();
+    assert_eq!(
+        page.evaluate::<Vec<String>>("window.log").await.unwrap(),
+        ["drop:payload"]
+    );
+    ext.close().await;
+}
+
+#[tokio::test]
+async fn extension_workers_websockets_screencast_and_request_api() {
+    let Some(ext) = connect().await else { return };
+    let server = TestServer::start().await;
+    server.route("/", "text/html", "<h1>x</h1>", 0);
+    server.route("/api", "application/json", r#"{"ok":true}"#, 0);
+    let page = ext.page().await;
+    page.goto(&server.url("/")).await.unwrap();
+
+    let worker = page
+        .wait_for_worker()
+        .run(page.evaluate::<()>(
+            "void (window.w = new Worker(URL.createObjectURL(new Blob(['self.x = 7'], {type: 'application/javascript'}))))",
+        ))
+        .await
+        .unwrap();
+    assert!(worker.url().starts_with("blob:"));
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(worker.evaluate::<i64>("self.x").await.unwrap(), 7);
+
+    let port = crate::workers::ws_server().await;
+    let ws = page
+        .wait_for_websocket()
+        .run(page.evaluate::<()>(&format!(
+            "void (window.sock = new WebSocket('ws://127.0.0.1:{port}/sock'), sock.onopen = () => sock.send('hello'))"
+        )))
+        .await
+        .unwrap();
+    assert!(ws.url().ends_with("/sock"));
+
+    let frames = std::sync::Arc::new(std::sync::Mutex::new(0usize));
+    let sink = frames.clone();
+    let cast = page.screencast();
+    cast.start(
+        chromiumoxide::ScreencastOptions::default().on_frame(move |_| {
+            *sink.lock().unwrap() += 1;
+        }),
+    )
+    .await
+    .unwrap();
+    for _ in 0..50 {
+        if *frames.lock().unwrap() > 0 {
+            break;
+        }
+        page.evaluate::<()>("void (document.querySelector('h1').textContent = Math.random())")
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    cast.stop().await.unwrap();
+    assert!(*frames.lock().unwrap() > 0, "screencast frames");
+
+    let r = ext.ctx.request().get(&server.url("/api")).await.unwrap();
+    assert_eq!(r.status(), 200);
+    assert_eq!(r.json::<Value>().await.unwrap(), json!({"ok": true}));
+    ext.close().await;
+}
+
+#[tokio::test]
+async fn extension_replays_a_har() {
+    let Some(ext) = connect().await else { return };
+    let server = TestServer::start().await;
+    server.route("/page", "text/html", "<p>recorded</p>", 0);
+    // Recorded with an ordinary launch, replayed through the extension.
+    let har = std::env::temp_dir().join(format!("cox-ext-{}.har", rand_suffix()));
+    let recorder = Chromium::launch(chromiumoxide::LaunchOptions::default())
+        .await
+        .unwrap();
+    let ctx = recorder
+        .new_context(chromiumoxide::ContextOptions {
+            record_har: Some(chromiumoxide::RecordHar::new(&har)),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let p = ctx.new_page().await.unwrap();
+    p.goto(&server.url("/page")).await.unwrap();
+    ctx.close().await.unwrap();
+    recorder.close().await.unwrap();
+
+    let page = ext.page().await;
+    page.route_from_har(&har).await.unwrap();
+    server.route("/page", "text/html", "<p>changed</p>", 0);
+    page.goto(&server.url("/page")).await.unwrap();
+    assert_eq!(page.locator("p").inner_text().await.unwrap(), "recorded");
+    let _ = std::fs::remove_file(&har);
+    ext.close().await;
+}
