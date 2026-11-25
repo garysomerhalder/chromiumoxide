@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | active |
+| Status | done |
 | Owner | Gary Somerhalder |
 | Proposed | 2026-11-24 |
 | Started | 2026-11-24 |
-| Finished | — |
+| Finished | 2026-11-25 |
 | Repos | garysomerhalder/chromiumoxide |
 | Environments | Linux container (Playwright 1.65.1 browsers); Gary's Windows PC; the cloud Mac |
 
@@ -72,9 +72,9 @@ Out:
 - [x] `scripts/api_coverage.py` reports 453/453 for chromium, firefox and webkit.
 - [x] Every new method has an integration test against the real browser.
 - [x] PARITY 13 and 14 list each method as ✅ or ❌ with the reason.
-- [ ] fmt, clippy `-D warnings` and the full suite pass on Linux; the full
+- [x] fmt, clippy `-D warnings` and the full suite pass on Linux; the full
       suite passes on Windows and macOS.
-- [ ] CHANGELOG has the entry; the PR is updated.
+- [x] CHANGELOG has the entry; the PR is updated.
 
 ## Stop rule
 
@@ -90,6 +90,11 @@ discovery, launch or rendering, or a browser build other than Playwright's.
   red/green batches (`webkit_api.rs`, 23 tests), all passing on Linux with
   the WebKit pixel-parity test. Left: the full suite on Linux, Windows and
   macOS; the PR description.
+- 2026-11-25: done. Full suite on ac074c4 with every browser required:
+  Linux 301 + Tauri (under Xvfb), Windows 300, macOS 302, 0 failures.
+  Two macOS-only failures were fixed on the way: the test WebSocket
+  server now completes the close handshake, and Firefox screenshots wait
+  two animation frames (a rare missing autofocus ring).
 
 ## Set it
 
