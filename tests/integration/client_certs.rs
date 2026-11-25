@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use chromiumoxide::{
@@ -12,14 +12,14 @@ use chromiumoxide::{
 };
 
 pub(crate) struct MtlsServer {
-    children: Vec<Child>,
+    children: Arc<Mutex<Vec<Child>>>,
     pub(crate) dir: PathBuf,
     pub(crate) port: u16,
 }
 
 impl Drop for MtlsServer {
     fn drop(&mut self) {
-        for c in &mut self.children {
+        for c in self.children.lock().unwrap().iter_mut() {
             let _ = c.kill();
         }
         let _ = std::fs::remove_dir_all(&self.dir);
@@ -148,69 +148,32 @@ pub(crate) fn mtls_server() -> Option<MtlsServer> {
             return None;
         }
     }
-    // `s_server` serves one connection at a time, and a browser may hold one
-    // open (WebKit preconnects without a certificate). Like a real server,
-    // the fixture takes several at once: a front port hands each connection
-    // to an idle `s_server` of a small pool.
-    let mut children = Vec::new();
+    // `s_server` serves one connection at a time, and a browser may hold
+    // several open (WebKit preconnects without a certificate). Like a real
+    // server, the fixture takes any number at once: a front port hands each
+    // connection to an idle `s_server`, starting another when all are busy.
+    let children = Arc::new(Mutex::new(Vec::new()));
     let mut backends = Vec::new();
     for _ in 0..4 {
-        let port = free_port()?;
-        let child = Command::new("openssl")
-            .current_dir(&dir)
-            .args([
-                "s_server",
-                "-accept",
-                &port.to_string(),
-                "-cert",
-                "server.pem",
-                "-key",
-                "server.key",
-            ])
-            .args(["-CAfile", "ca.pem", "-Verify", "1", "-www", "-quiet"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .ok()?;
-        children.push(child);
-        backends.push(port);
-    }
-    let ready = backends.iter().all(|&port| {
-        (0..100).any(|_| {
-            let up = std::net::TcpStream::connect(("127.0.0.1", port)).is_ok();
-            if !up {
-                std::thread::sleep(Duration::from_millis(20));
-            }
-            up
-        })
-    });
-    if !ready {
-        for mut c in children {
-            let _ = c.kill();
-        }
-        return None;
+        backends.push(start_backend(&dir, &children)?);
     }
     let front = crate::server::browsable_std_listener();
     let port = front.local_addr().ok()?.port();
-    let idle = Arc::new((Mutex::new(backends), Condvar::new()));
+    let idle = Arc::new(Mutex::new(backends));
+    let (spawn_dir, spawn_children) = (dir.clone(), children.clone());
     std::thread::spawn(move || {
         for conn in front.incoming().flatten() {
             let idle = idle.clone();
+            let (dir, children) = (spawn_dir.clone(), spawn_children.clone());
             std::thread::spawn(move || {
-                let backend = {
-                    let (lock, cv) = &*idle;
-                    let mut free = lock.lock().unwrap();
-                    while free.is_empty() {
-                        free = cv.wait(free).unwrap();
-                    }
-                    free.pop().unwrap()
+                let free = idle.lock().unwrap().pop();
+                let Some(backend) = free.or_else(|| start_backend(&dir, &children)) else {
+                    return;
                 };
                 if let Ok(up) = std::net::TcpStream::connect(("127.0.0.1", backend)) {
                     pipe(conn, up);
                 }
-                let (lock, cv) = &*idle;
-                lock.lock().unwrap().push(backend);
-                cv.notify_one();
+                idle.lock().unwrap().push(backend);
             });
         }
     });
@@ -219,6 +182,41 @@ pub(crate) fn mtls_server() -> Option<MtlsServer> {
         dir,
         port,
     })
+}
+
+/// Starts an `s_server` that requires a client certificate signed by the
+/// test CA and answers with a page naming it; its port once it listens.
+fn start_backend(dir: &Path, children: &Mutex<Vec<Child>>) -> Option<u16> {
+    let port = free_port()?;
+    let mut child = Command::new("openssl")
+        .current_dir(dir)
+        .args([
+            "s_server",
+            "-accept",
+            &port.to_string(),
+            "-cert",
+            "server.pem",
+            "-key",
+            "server.key",
+        ])
+        .args(["-CAfile", "ca.pem", "-Verify", "1", "-www", "-quiet"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let up = (0..250).any(|_| {
+        let up = std::net::TcpStream::connect(("127.0.0.1", port)).is_ok();
+        if !up {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        up
+    });
+    if !up {
+        let _ = child.kill();
+        return None;
+    }
+    children.lock().unwrap().push(child);
+    Some(port)
 }
 
 fn free_port() -> Option<u16> {
