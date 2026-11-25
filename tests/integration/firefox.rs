@@ -24,6 +24,7 @@ pub fn firefox_executable() -> Option<std::path::PathBuf> {
 }
 
 pub(crate) fn options() -> Option<FirefoxLaunchOptions> {
+    crate::trace_protocol();
     Some(FirefoxLaunchOptions {
         executable_path: Some(firefox_executable()?),
         ..Default::default()

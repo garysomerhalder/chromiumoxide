@@ -154,3 +154,36 @@ pub fn process_command_line(pid: u32) -> Option<String> {
 pub fn process_gone(pid: u32) -> bool {
     process_command_line(pid).is_none()
 }
+
+/// With `CHROMIUMOXIDE_TEST_TRACE=<file>`, appends every WebDriver BiDi
+/// message to `<file>`, each line naming its test (the thread name), to
+/// find which call a browser left unanswered.
+pub fn trace_protocol() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        use tracing_subscriber::prelude::*;
+        let Some(path) = std::env::var_os("CHROMIUMOXIDE_TEST_TRACE") else {
+            return;
+        };
+        let Ok(file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        else {
+            return;
+        };
+        let filter = tracing_subscriber::filter::Targets::new().with_target(
+            "chromiumoxide::bidi",
+            tracing_subscriber::filter::LevelFilter::TRACE,
+        );
+        let _ = tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_writer(std::sync::Mutex::new(file))
+                    .with_ansi(false)
+                    .with_thread_names(true)
+                    .with_filter(filter),
+            )
+            .try_init();
+    });
+}
