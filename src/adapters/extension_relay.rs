@@ -60,10 +60,10 @@ pub async fn listen(host: Option<&str>, port: Option<u16>) -> Result<Listener> {
         while let Ok((stream, _)) = listener.accept().await {
             let tx = tx.clone();
             tokio::spawn(async move {
-                if let Some(transport) = serve(stream).await {
-                    if let Some(tx) = tx.lock().unwrap().take() {
-                        let _ = tx.send(transport);
-                    }
+                if let Some(transport) = serve(stream).await
+                    && let Some(tx) = tx.lock().unwrap().take()
+                {
+                    let _ = tx.send(transport);
                 }
             });
         }
