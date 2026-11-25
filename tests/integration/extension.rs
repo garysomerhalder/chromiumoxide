@@ -162,3 +162,60 @@ async fn extension_drives_an_everyday_chromium() {
     everyday.close().await.unwrap();
     let _ = std::fs::remove_dir_all(&profile);
 }
+
+#[tokio::test]
+async fn extension_drives_firefox_tabs() {
+    let (Some(ext), Some(options)) = (built("firefox"), crate::firefox::options()) else {
+        return;
+    };
+    let server = TestServer::start().await;
+    server.route(
+        "/form",
+        "text/html",
+        "<title>Form</title><input><button onclick=\"p.textContent='Hello '+document.querySelector('input').value\">Go</button><p id=p></p>",
+        0,
+    );
+    // Gary's Firefox, with the extension installed and a tab open.
+    let firefox = chromiumoxide::Firefox::launch(options).await.unwrap();
+    firefox.install_extension(&ext).await.unwrap();
+    let mine = firefox.new_page().await.unwrap();
+    mine.goto(&server.url("/form")).await.unwrap();
+
+    let relay = Chromium::extension_relay(ExtensionRelayOptions::default())
+        .await
+        .unwrap();
+    let connect_tab = firefox.new_page().await.unwrap();
+    connect_tab.goto(&relay.connect_url()).await.unwrap();
+    let browser = relay.wait_pages().await.unwrap();
+
+    let tab = browser
+        .tabs()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|t| t.url().ends_with("/form"))
+        .expect("the tab that was already open");
+    assert_eq!(tab.title(), "Form");
+    tab.fill("input", "Gary").await.unwrap();
+    tab.click("button").await.unwrap();
+    assert_eq!(
+        tab.evaluate::<String>("document.querySelector('p').textContent")
+            .await
+            .unwrap(),
+        "Hello Gary"
+    );
+    assert!(tab.click("#missing").await.is_err());
+
+    let new = browser.new_tab(&server.url("/form")).await.unwrap();
+    new.goto(&server.url("/form?again")).await.unwrap();
+    assert!(new.url().ends_with("/form?again"));
+    assert_eq!(new.evaluate::<i64>("6 * 7").await.unwrap(), 42);
+    let png = new.screenshot().await.unwrap();
+    assert!(png.starts_with(b"\x89PNG"));
+    new.close().await.unwrap();
+
+    // Disconnecting leaves Firefox and its tabs alone.
+    browser.close().await;
+    assert_eq!(mine.title().await.unwrap(), "Form");
+    firefox.close().await.unwrap();
+}

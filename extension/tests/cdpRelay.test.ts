@@ -17,9 +17,10 @@ beforeEach(() => {
 });
 
 describe('the relay', () => {
-  it('connects to the relay named by the connect page', () => {
+  it('connects to the relay named by the connect page, and says which protocol it speaks', () => {
     relay.connect('ws://127.0.0.1:5/extension');
     expect(socket.url).toBe('ws://127.0.0.1:5/extension');
+    expect(socket.received[0]).toEqual({ method: 'Extension.hello', params: { protocol: 'cdp', userAgent: UA } });
     expect(relay.status().state).toBe('connected');
   });
 

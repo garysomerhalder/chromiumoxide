@@ -81,3 +81,34 @@ export class FakeSocket implements SocketPort, SocketConnection {
   }
   events(method: string) { return this.received.filter((m) => m.method === method); }
 }
+
+import type { PagePort } from '../src/ports/page';
+
+/** A page per tab: scripts, navigation and pictures, in memory. */
+export class FakePages implements PagePort {
+  calls: string[] = [];
+  values = new Map<string, unknown>();
+  constructor(private tabs: FakeTabs) {}
+  async navigate(tabId: number, url: string) {
+    this.calls.push(`navigate ${tabId} ${url}`);
+    const tab = this.tabs.tabs.get(tabId)!;
+    tab.url = url;
+    return tab;
+  }
+  async evaluate(tabId: number, expression: string) {
+    this.calls.push(`evaluate ${tabId} ${expression}`);
+    if (expression === 'boom') throw new Error('ReferenceError: boom is not defined');
+    return this.values.get(expression);
+  }
+  async click(tabId: number, selector: string) {
+    if (selector === '#missing') throw new Error('no element matches #missing');
+    this.calls.push(`click ${tabId} ${selector}`);
+  }
+  async fill(tabId: number, selector: string, value: string) {
+    this.calls.push(`fill ${tabId} ${selector} ${value}`);
+  }
+  async screenshot(tabId: number) {
+    this.calls.push(`screenshot ${tabId}`);
+    return 'iVBORw0KGgo=';
+  }
+}
