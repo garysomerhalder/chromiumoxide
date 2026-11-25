@@ -1387,10 +1387,10 @@ started for automation. Tests: `tests/integration/extension.rs`.
 | File inputs (`setInputFiles`), file chooser, HTML5 drag and drop | ✅ | `extension_uploads_file_chooser_and_drag_and_drop` |
 | Workers (with `evaluate`), WebSockets, `page.screencast`, `context.request` | ✅ | `extension_workers_websockets_screencast_and_request_api` |
 | `routeFromHAR` | ✅ | `extension_replays_a_har` |
-| `recordVideo`, `recordHar` (context options) | ❌ | The extension drives the browser's existing profile, so no context is created with options; `page.screencast` and tracing record instead |
-| `goto` to `data:` URLs | ❌ | Chrome refuses top-level `data:` navigations from extensions; `setContent` works |
+| `recordVideo`, `recordHar` (set on `ExtensionLaunchOptions` / `ExtensionRelayOptions`: every page driven is recorded) | ✅ | `extension_records_video_and_har` |
+| `goto` to `data:` URLs | ✅ HTML ones | `extension_opens_data_urls`: Chrome refuses `data:` navigations from extensions, so the library shows the content in the tab (`setContent`; the URL stays `about:blank`) |
+| New isolated contexts (`newContext`) | ❌ | An extension lives in one profile; start another `launch_with_extension` with its own `user_data_dir` for a separate browser |
 | Edge | ✅ same build as Chrome (`edge-mv3`) | Same code as Chrome; not run in CI (Edge not installed in the container) |
-| New contexts (`newContext`, `newPage` on the browser) | ❌ | An extension cannot create isolated profiles; the error says to use `contexts()[0]` |
 | Firefox | ✅ basic page actions: tabs, `goto`, `evaluate`, click, fill, screenshot | `extension_drives_firefox_tabs` |
 | Firefox, whole page API | ❌ | Firefox gives extensions no debugger |
 | Safari | ⬜ built (`safari-mv3`, `npm run package:safari`), untested | Needs a Mac with Xcode; the cloud Mac is unreachable (its Daytona key stopped working) |

@@ -229,6 +229,50 @@ mod tests {
     }
 }
 
+/// A `data:` URL's media type and bytes (`None` for any other URL).
+pub fn decode_data_url(url: &str) -> Option<(String, Vec<u8>)> {
+    let rest = url.strip_prefix("data:")?;
+    let (meta, data) = rest.split_once(',')?;
+    let base64 = meta.ends_with(";base64");
+    let mime = meta
+        .trim_end_matches(";base64")
+        .split(';')
+        .next()
+        .filter(|m| !m.is_empty())
+        .unwrap_or("text/plain")
+        .to_owned();
+    let bytes = if base64 {
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD
+            .decode(data.trim())
+            .ok()?
+    } else {
+        percent_decode(data)
+    };
+    Some((mime, bytes))
+}
+
+fn percent_decode(s: &str) -> Vec<u8> {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%'
+            && i + 2 < b.len()
+            && let Some(v) = std::str::from_utf8(&b[i + 1..i + 3])
+                .ok()
+                .and_then(|h| u8::from_str_radix(h, 16).ok())
+        {
+            out.push(v);
+            i += 3;
+            continue;
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    out
+}
+
 #[cfg(test)]
 mod data_url_tests {
     use super::*;

@@ -75,9 +75,13 @@ let tab = firefox.new_tab("https://example.com").await?;
 let title: String = tab.evaluate("document.title").await?;
 ```
 
-Through the extension Chrome refuses to open `data:` URLs as pages
-(`set_content` works instead). Everything else in the Playwright API works;
-see `docs/PARITY.md` section 15.
+Everything in the Playwright API works through the extension (see
+`docs/PARITY.md` section 15), with two differences: a `data:` URL is shown
+as the tab's content (Chrome refuses `data:` navigations from extensions,
+so the address stays `about:blank`), and there are no new isolated contexts
+(start another `launch_with_extension` with its own profile folder instead).
+Video and network recording are set on the launch or relay options
+(`record_video`, `record_har`) and cover every page driven.
 
 While connected, Chrome shows "chromiumoxide started debugging this browser"
 on the tabs it drives; that bar is Chrome's and cannot be hidden.

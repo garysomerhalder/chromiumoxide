@@ -436,16 +436,20 @@ impl Browser {
     pub async fn connect_own_profile(
         services: Services,
         cdp: Arc<dyn CdpSession>,
+        recording: ContextOptions,
     ) -> Result<Browser> {
         // A browser someone uses: headful (no headless font families).
         let browser = Browser::connect_raw_at(services, cdp.clone(), None, false);
         let ctx = browser
             .handshake(Some(ContextOptions {
                 viewport: None,
+                record_video: recording.record_video,
+                record_har: recording.record_har,
                 ..ContextOptions::default()
             }))
             .await?
             .ok_or_else(|| Error::Launch("no default context".into()))?;
+        ctx.inner.shared.via_extension.store(true, Ordering::SeqCst);
         // Like `connectOverCDP`: the tabs already open are pages on return.
         let targets = cdp.call(None, "Target.getTargets", json!({})).await?;
         let open: Vec<String> = targets["targetInfos"]
@@ -642,6 +646,7 @@ impl Browser {
             .and_then(Value::as_str)
             .unwrap_or_default();
         let shared = Arc::new(Shared {
+            via_extension: Default::default(),
             cdp: cdp.clone(),
             services: self.inner.services.clone(),
             headless: self.inner.headless,

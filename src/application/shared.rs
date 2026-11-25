@@ -20,6 +20,8 @@ pub(crate) struct Shared {
     pub(crate) cdp: Arc<dyn CdpSession>,
     pub(crate) services: Services,
     pub(crate) headless: bool,
+    /// Driven through the browser extension (some navigations differ).
+    pub(crate) via_extension: std::sync::atomic::AtomicBool,
     pub(crate) font_platform: FontPlatform,
     /// e.g. `157.0.8103.78`.
     pub(crate) browser_version: String,

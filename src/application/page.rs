@@ -1035,7 +1035,8 @@ impl<'a> IntoFuture for Goto<'a> {
             let timeout = self
                 .timeout
                 .unwrap_or_else(|| self.page.navigation_timeout());
-            self.page
+            let r = self
+                .page
                 .traced(
                     "Frame",
                     "goto",
@@ -1050,7 +1051,11 @@ impl<'a> IntoFuture for Goto<'a> {
                         self.referer.as_deref(),
                     ),
                 )
-                .await
+                .await;
+            match r {
+                Err(e) => self.page.data_url_fallback(&self.url, e).await,
+                ok => ok,
+            }
         }
         .boxed()
     }
@@ -1103,6 +1108,29 @@ fn origin_of(url: &str) -> String {
 }
 
 impl Page {
+    /// Chrome refuses `data:` navigations from extensions: through the
+    /// extension, an HTML `data:` URL that was refused is shown in the tab
+    /// as its content (`setContent`; the URL stays `about:blank`).
+    async fn data_url_fallback(&self, url: &str, e: Error) -> Result<Option<Response>> {
+        let refused = matches!(&e, Error::Navigation(m) if m.contains("ERR_ABORTED"));
+        if !refused
+            || !self
+                .inner
+                .shared
+                .via_extension
+                .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err(e);
+        }
+        match crate::domain::url_matcher::decode_data_url(url) {
+            Some((mime, body)) if mime == "text/html" => {
+                self.set_content(&String::from_utf8_lossy(&body)).await?;
+                Ok(None)
+            }
+            _ => Err(e),
+        }
+    }
+
     /// A page attached after its document started loading (an existing
     /// tab, or a popup the extension reached late) missed its lifecycle
     /// events: take them from `document.readyState`, for the document the

@@ -467,6 +467,11 @@ pub struct ExtensionLaunchOptions {
     pub args: Vec<String>,
     /// How long to wait for the extension to connect. Default 30 s.
     pub timeout: std::time::Duration,
+    /// Records a video of every page driven (Playwright's `recordVideo`).
+    pub record_video: Option<RecordVideo>,
+    /// Records the pages' network traffic (Playwright's `recordHar`),
+    /// written when the browser closes.
+    pub record_har: Option<RecordHar>,
 }
 
 impl Default for ExtensionLaunchOptions {
@@ -478,6 +483,8 @@ impl Default for ExtensionLaunchOptions {
             headless: true,
             args: Vec::new(),
             timeout: std::time::Duration::from_secs(30),
+            record_video: None,
+            record_har: None,
         }
     }
 }
@@ -491,6 +498,10 @@ pub struct ExtensionRelayOptions {
     pub port: Option<u16>,
     /// How long [`ExtensionRelay::wait`] waits for the extension. Default 60 s.
     pub timeout: std::time::Duration,
+    /// Records a video of every page driven (Chrome, Edge).
+    pub record_video: Option<RecordVideo>,
+    /// Records the pages' network traffic, written on close (Chrome, Edge).
+    pub record_har: Option<RecordHar>,
 }
 
 impl Default for ExtensionRelayOptions {
@@ -499,6 +510,8 @@ impl Default for ExtensionRelayOptions {
             host: None,
             port: None,
             timeout: std::time::Duration::from_secs(60),
+            record_video: None,
+            record_har: None,
         }
     }
 }
@@ -509,6 +522,7 @@ impl Default for ExtensionRelayOptions {
 pub struct ExtensionRelay {
     listener: adapters::extension_relay::Listener,
     timeout: std::time::Duration,
+    recording: ContextOptions,
 }
 
 impl ExtensionRelay {
@@ -521,7 +535,8 @@ impl ExtensionRelay {
     /// with the whole page API: `contexts()[0]` is the browser's own profile
     /// with its open tabs. Closing the returned browser disconnects and
     /// leaves the browser running. Firefox and Safari: [`wait_pages`](Self::wait_pages).
-    pub async fn wait(self) -> Result<Browser> {
+    pub async fn wait(mut self) -> Result<Browser> {
+        let recording = std::mem::take(&mut self.recording);
         let (transport, hello) = self.connected().await?;
         if hello.protocol != "cdp" {
             return Err(Error::InvalidArgument(format!(
@@ -530,7 +545,7 @@ impl ExtensionRelay {
             )));
         }
         let cdp = Arc::new(adapters::cdp::Connection::spawn(transport));
-        Browser::connect_own_profile(Chromium::services(), cdp).await
+        Browser::connect_own_profile(Chromium::services(), cdp, recording).await
     }
 
     /// Waits for the extension in Firefox or Safari (whose extensions get no
@@ -693,6 +708,11 @@ impl Chromium {
         Ok(ExtensionRelay {
             listener,
             timeout: options.timeout,
+            recording: ContextOptions {
+                record_video: options.record_video,
+                record_har: options.record_har,
+                ..ContextOptions::default()
+            },
         })
     }
 
@@ -721,6 +741,8 @@ impl Chromium {
         };
         let relay = Self::extension_relay(ExtensionRelayOptions {
             timeout: options.timeout,
+            record_video: options.record_video,
+            record_har: options.record_har,
             ..Default::default()
         })
         .await?;
