@@ -2958,3 +2958,62 @@ pub(crate) fn exception_text(r: &Value) -> String {
         .map(str::to_owned)
         .unwrap_or_else(|| remote_value_to_json(&details["exception"]).to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::error::Error;
+    use crate::testing::fake_cdp::FakeCdp;
+
+    fn services() -> Services {
+        use crate::testing::memory::*;
+        Services {
+            fs: Arc::new(MemoryFileSystem::default()),
+            env: Arc::new(MapEnvironment::linux("/home/u")),
+            launcher: Arc::new(crate::testing::process::FakeLauncher::default()),
+            clock: Arc::new(crate::testing::clock::TestClock),
+            video: Arc::new(NullVideo),
+            http: Arc::new(NoHttp),
+            bridge: Arc::new(NoBridge),
+            bidi_bridge: Arc::new(NoBridge),
+            webkit_bridge: Arc::new(NoBridge),
+            signals: Arc::new(NoSignals),
+            adb: Arc::new(NoAdb),
+        }
+    }
+
+    /// On Windows, Firefox can answer `setViewport` for a user context
+    /// with "browser is null" while a window it is opening is not ready;
+    /// the context's viewport is then set again (Windows run, 2026-11-25).
+    #[tokio::test]
+    async fn context_viewport_is_retried_while_a_window_is_not_ready() {
+        let fake = FakeCdp::new();
+        let failures = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let f = failures.clone();
+        fake.on_call(move |_, call| match call.method.as_str() {
+            "browser.createUserContext" => Ok(json!({"userContext": "uc1"})),
+            "browsingContext.setViewport" if f.fetch_add(1, Ordering::SeqCst) < 2 => {
+                Err(Error::Protocol {
+                    method: call.method.clone(),
+                    code: 0,
+                    message: "unknown error: TypeError: can't access property \"clientHeight\", browser is null".into(),
+                })
+            }
+            _ => Ok(json!({})),
+        });
+        let browser = Browser::connect(services(), Arc::new(fake.clone()))
+            .await
+            .unwrap();
+        browser
+            .new_context(ContextOptions {
+                viewport: Some(crate::domain::emulation::Viewport {
+                    width: 800,
+                    height: 600,
+                }),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(fake.calls_to("browsingContext.setViewport").len(), 3);
+    }
+}
