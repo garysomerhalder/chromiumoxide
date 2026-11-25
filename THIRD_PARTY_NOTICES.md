@@ -26,3 +26,9 @@ Copyright (c) Microsoft Corporation, licensed under the Apache License, Version 
 The Chrome DevTools Protocol definitions in `chromiumoxide_cdp/pdl` come from
 https://github.com/ChromeDevTools/devtools-protocol, Copyright The Chromium
 Authors, BSD-style license.
+
+The WebKit inspector protocol description in
+`chromiumoxide_webkit_protocol/protocol/protocol.json` is the one shipped with
+Playwright's WebKit build 2388: WebKit's inspector protocol (Copyright Apple
+Inc. and the WebKit contributors, BSD-style license) with Playwright's
+additions (Copyright Microsoft Corporation, Apache License 2.0).

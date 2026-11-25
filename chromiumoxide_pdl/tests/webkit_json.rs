@@ -40,7 +40,10 @@ fn webkit_protocol_json_reads_into_the_pdl_model() {
     let Some(Item::Enum(vars)) = &appearance.item else {
         panic!("{appearance:?}")
     };
-    assert_eq!(vars.iter().map(|v| &*v.name).collect::<Vec<_>>(), ["Light", "Dark"]);
+    assert_eq!(
+        vars.iter().map(|v| &*v.name).collect::<Vec<_>>(),
+        ["Light", "Dark"]
+    );
 
     let frame = &d.types[1];
     assert_eq!(frame.extends, Type::Object);
@@ -66,4 +69,24 @@ fn webkit_protocol_json_reads_into_the_pdl_model() {
     assert!(nav.returns[0].optional);
     assert_eq!(d.events[0].name, "loadEventFired");
     assert_eq!(d.events[0].parameters[0].r#type, Type::Number);
+}
+
+#[test]
+fn per_platform_commands_are_merged() {
+    let p = parse_protocol_json(
+        r#"[{"domain": "DOM", "commands": [
+            {"name": "highlightNode", "condition": "ios",
+             "parameters": [{"name": "nodeId", "type": "integer"}]},
+            {"name": "highlightNode", "condition": "!ios",
+             "parameters": [{"name": "nodeId", "type": "integer"},
+                            {"name": "showRulers", "type": "boolean"}]}
+        ]}]"#,
+    )
+    .unwrap();
+    let cmds = &p.domains[0].commands;
+    assert_eq!(cmds.len(), 1);
+    let params = &cmds[0].parameters;
+    assert_eq!(params.len(), 2);
+    assert!(!params[0].optional);
+    assert!(params[1].optional, "showRulers only on some platforms");
 }

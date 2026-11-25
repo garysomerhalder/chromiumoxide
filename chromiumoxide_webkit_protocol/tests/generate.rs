@@ -13,6 +13,7 @@ fn generated_code_is_fresh() {
     Generator::default()
         .out_dir(tmp.path())
         .target_mod("webkit")
+        .docs_url(None)
         .compile_protocol_json(dir.join("protocol/protocol.json"))
         .unwrap();
     let new = fs::read_to_string(tmp.path().join("webkit.rs")).unwrap();
@@ -38,7 +39,14 @@ fn every_domain_is_generated() {
         .map(|d| d["domain"].as_str().unwrap())
         .collect();
     assert_eq!(domains.len(), 33);
-    for d in ["Playwright", "Page", "Runtime", "Network", "Emulation", "Target"] {
+    for d in [
+        "Playwright",
+        "Page",
+        "Runtime",
+        "Network",
+        "Emulation",
+        "Target",
+    ] {
         assert!(domains.contains(&d), "{d}");
     }
     let missing: Vec<_> = domains

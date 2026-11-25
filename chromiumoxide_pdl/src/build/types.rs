@@ -64,8 +64,17 @@ impl<'a> DomainDatatype<'a> {
         todo!()
     }
 
-    pub fn type_description_tokens(&self, domain_name: &str) -> TokenStream {
-        let base_url = "https://chromedevtools.github.io/devtools-protocol/tot/";
+    pub fn type_description_tokens(
+        &self,
+        domain_name: &str,
+        base_url: Option<&str>,
+    ) -> TokenStream {
+        let Some(base_url) = base_url else {
+            return match self.description() {
+                Some(desc) => quote! { #[doc = #desc] },
+                None => TokenStream::default(),
+            };
+        };
 
         let url = match self {
             DomainDatatype::Type(ty) => format!("{}{}/#type-{}", base_url, domain_name, ty.name()),
