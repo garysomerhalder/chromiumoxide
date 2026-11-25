@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`Generator::compile_protocol_json`, `pdl::parse_protocol_json`),
   merges per-platform duplicates, and can leave out the Chrome doc links
   (`Generator::docs_url(None)`). Chrome's generated code is unchanged.
+  The WebKit engine sends its core commands typed through it, and a test
+  checks every other WebKit method name it uses against the protocol.
 
 - `Firefox::launch_server(_with)` and `WebKit::launch_server(_with)`
   (Playwright's `launchServer`, with `host`, `port`, `wsPath`): a browser

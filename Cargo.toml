@@ -19,6 +19,7 @@ serde = { version = "1", features = ["derive"] }
 futures = "0.3"
 chromiumoxide_types = { path = "chromiumoxide_types", version = "0.10" }
 chromiumoxide_cdp = { path = "chromiumoxide_cdp", version = "0.10" }
+chromiumoxide_webkit_protocol = { path = "chromiumoxide_webkit_protocol", version = "0.10" }
 chromiumoxide_fetcher = { path = "chromiumoxide_fetcher", version = "0.10", default-features = false, optional = true }
 serde_json = "1"
 which = "8"

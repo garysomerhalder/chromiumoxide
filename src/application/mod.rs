@@ -84,6 +84,7 @@ pub mod webkit_locator;
 pub mod webkit_locator_more;
 pub mod webkit_network;
 pub mod webkit_page_more;
+pub(crate) mod webkit_protocol;
 pub mod webkit_record;
 pub mod webkit_route;
 pub mod webkit_trace;

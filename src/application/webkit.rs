@@ -28,6 +28,7 @@ use crate::application::screenshot::{CLEANUP, FULL_PAGE_SIZE, PREPARE};
 use crate::application::services::Services;
 use crate::application::webkit_download::Download;
 use crate::application::webkit_events::{ConsoleMessage, PageEvent};
+use crate::application::webkit_protocol::{proto, send, send_target};
 use crate::domain::emulation::{ContextOptions, Viewport};
 use crate::domain::error::{Error, Result};
 use crate::domain::screenshot::{
@@ -226,20 +227,16 @@ impl Browser {
     /// `browser.newContext(options)`.
     pub async fn new_context(&self, options: ContextOptions) -> Result<BrowserContext> {
         let wk = &self.inner.wk;
-        let mut create = json!({});
-        if let Some(proxy) = &options.proxy {
-            create["proxyServer"] = json!(proxy.server);
-            if let Some(bypass) = &proxy.bypass {
-                create["proxyBypassList"] = json!(bypass);
-            }
-        }
-        let id = wk
-            .call(None, "Playwright.createContext", create)
+        let create = proto::playwright::CreateContextParams {
+            proxy_server: options.proxy.as_ref().map(|p| p.server.clone()),
+            proxy_bypass_list: options.proxy.as_ref().and_then(|p| p.bypass.clone()),
+            ..Default::default()
+        };
+        let id = send(&**wk, None, create)
             .await?
-            .get("browserContextId")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned();
+            .browser_context_id
+            .inner()
+            .clone();
         let downloads_dir = if options.accept_downloads {
             Some(
                 self.inner
@@ -453,19 +450,14 @@ impl BrowserContext {
         let services = self.inner.browser.inner.services.clone();
         // Subscribed before the page exists, so no target event is missed.
         let events = self.wk().subscribe();
-        let created = self
-            .wk()
-            .call(
-                None,
-                "Playwright.createPage",
-                json!({"browserContextId": self.inner.id}),
-            )
-            .await?;
-        let proxy = created
-            .get("pageProxyId")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned();
+        let create = proto::playwright::CreatePageParams {
+            browser_context_id: Some(proto::playwright::ContextId::new(self.inner.id.clone())),
+        };
+        let proxy = send(&**self.wk(), None, create)
+            .await?
+            .page_proxy_id
+            .inner()
+            .clone();
         let page = self.make_page(proxy, events);
         let mut ready = page.inner.ready.subscribe();
         within(&services, TIMEOUT, "waiting for the page target", async {
@@ -656,14 +648,14 @@ impl BrowserContext {
         self.inner.closed.store(true, Ordering::SeqCst);
         self.inner
             .emit(crate::application::webkit_events::ContextEvent::Close);
-        let deleted = self
-            .wk()
-            .call(
-                None,
-                "Playwright.deleteContext",
-                json!({"browserContextId": self.inner.id}),
-            )
-            .await;
+        let deleted = send(
+            &**self.wk(),
+            None,
+            proto::playwright::DeleteContextParams::new(proto::playwright::ContextId::new(
+                self.inner.id.clone(),
+            )),
+        )
+        .await;
         deleted?;
         har
     }
@@ -794,6 +786,29 @@ impl Page {
             .wk
             .call(Some(&self.inner.proxy), method, params)
             .await
+    }
+
+    /// This page's proxy id, typed.
+    pub(crate) fn proxy_id(&self) -> proto::playwright::PageProxyId {
+        proto::playwright::PageProxyId::new(self.inner.proxy.clone())
+    }
+
+    /// A typed command to the page proxy.
+    pub(crate) async fn proxy_send<C: chromiumoxide_types::Command>(
+        &self,
+        cmd: C,
+    ) -> Result<C::Response> {
+        send(&*self.inner.wk, Some(&self.inner.proxy), cmd).await
+    }
+
+    /// A typed command to the current page target.
+    pub(crate) async fn target_send<C: chromiumoxide_types::Command>(
+        &self,
+        cmd: C,
+    ) -> Result<C::Response> {
+        self.check_open()?;
+        let target = self.target();
+        send_target(&*self.inner.wk, &self.inner.proxy, &target, cmd).await
     }
 
     /// A command to the current page target.
@@ -1117,13 +1132,11 @@ impl Page {
         let frame_id = self.inner.frame_id.lock().unwrap().clone();
         let url =
             crate::domain::url_matcher::resolve_url(self.inner.options.base_url.as_deref(), url);
-        let mut params = json!({"url": url, "pageProxyId": self.inner.proxy});
+        let mut navigate = proto::playwright::NavigateParams::new(url, self.proxy_id());
         if !frame_id.is_empty() {
-            params["frameId"] = json!(frame_id);
+            navigate.frame_id = Some(proto::network::FrameId::new(frame_id));
         }
-        self.inner
-            .wk
-            .call(None, "Playwright.navigate", params)
+        send(&*self.inner.wk, None, navigate)
             .await
             .map_err(|e| match e {
                 Error::Protocol { message, .. } => Error::Navigation(message),
@@ -1807,15 +1820,12 @@ impl Page {
         if self.inner.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
-        let _ = self
-            .inner
-            .wk
-            .call(
-                None,
-                "Playwright.closePage",
-                json!({"pageProxyId": self.inner.proxy}),
-            )
-            .await;
+        let _ = send(
+            &*self.inner.wk,
+            None,
+            proto::playwright::ClosePageParams::new(self.proxy_id()),
+        )
+        .await;
         let owned = self.inner.owned_context.lock().unwrap().take();
         if let Some(context) = owned {
             context.close().await?;

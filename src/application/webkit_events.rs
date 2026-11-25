@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 
 use crate::application::webkit::{BrowserContext, Page};
 use crate::application::webkit_network::{Request, Response};
+use crate::application::webkit_protocol::proto::page;
 use crate::domain::error::{Error, Result};
 use crate::domain::storage::{Cookie, NewCookie, filter_cookies};
 use crate::domain::webkit::{cookie_from_webkit, cookie_to_webkit};
@@ -441,31 +442,43 @@ impl Page {
     }
 
     /// Runs a history command on the page target and waits for the load.
-    async fn history(&self, method: &str) -> Result<()> {
+    async fn history(&self, step: History) -> Result<()> {
         self.check_open()?;
         let mut loads = self.inner.loads.subscribe();
         let before = *loads.borrow_and_update();
         *self.inner.load_error.lock().unwrap() = None;
-        self.target_call(method, json!({}))
-            .await
-            .map_err(|e| match e {
-                Error::Protocol { message, .. } => Error::Navigation(message),
-                other => other,
-            })?;
+        let sent = match step {
+            History::Reload => self
+                .target_send(page::ReloadParams::default())
+                .await
+                .map(drop),
+            History::Back => self
+                .target_send(page::GoBackParams::default())
+                .await
+                .map(drop),
+            History::Forward => self
+                .target_send(page::GoForwardParams::default())
+                .await
+                .map(drop),
+        };
+        sent.map_err(|e| match e {
+            Error::Protocol { message, .. } => Error::Navigation(message),
+            other => other,
+        })?;
         self.wait_for_load(loads, before).await
     }
 
     /// `page.reload()`.
     pub async fn reload(&self) -> Result<()> {
-        self.history("Page.reload").await
+        self.history(History::Reload).await
     }
     /// `page.goBack()`.
     pub async fn go_back(&self) -> Result<()> {
-        self.history("Page.goBack").await
+        self.history(History::Back).await
     }
     /// `page.goForward()`.
     pub async fn go_forward(&self) -> Result<()> {
-        self.history("Page.goForward").await
+        self.history(History::Forward).await
     }
     /// `page.addInitScript(source)`.
     pub async fn add_init_script(&self, source: &str) -> Result<()> {
@@ -558,4 +571,11 @@ impl BrowserContext {
         }
         Ok(())
     }
+}
+
+/// `reload`, `goBack`, `goForward`.
+enum History {
+    Reload,
+    Back,
+    Forward,
 }

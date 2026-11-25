@@ -27,6 +27,7 @@ use crate::application::webkit_events::{ConsoleMessage, ContextEvent, PageError,
 use crate::application::webkit_frame::FrameLocator;
 use crate::application::webkit_locator::Locator;
 use crate::application::webkit_network::{Request, Response};
+use crate::application::webkit_protocol::proto;
 use crate::application::webkit_worker::Worker;
 use crate::domain::emulation::{
     ColorScheme, Contrast, ForcedColors, Geolocation, HttpCredentials, Media, ReducedMotion,
@@ -344,7 +345,9 @@ impl Page {
 
     /// `page.requestGC()` (`Heap.gc`).
     pub async fn request_gc(&self) -> Result<()> {
-        self.target_call("Heap.gc", json!({})).await.map(drop)
+        self.target_send(proto::heap::GcParams::default())
+            .await
+            .map(drop)
     }
 
     /// `page.emulateMedia(...)`: media type, color scheme, reduced motion,
@@ -509,7 +512,7 @@ impl Page {
             self.apply_credentials(credentials.as_ref()).await?;
         }
         if !ctx.options.java_script_enabled {
-            self.proxy_call("Emulation.setJavaScriptEnabled", json!({"enabled": false}))
+            self.proxy_send(proto::emulation::SetJavaScriptEnabledParams::new(false))
                 .await?;
         }
         Ok(())
@@ -890,11 +893,8 @@ impl BrowserContext {
     pub async fn set_offline(&self, offline: bool) -> Result<()> {
         self.inner.offline.store(offline, Ordering::SeqCst);
         for page in self.pages() {
-            page.target_call(
-                "Network.setEmulateOfflineState",
-                json!({"offline": offline}),
-            )
-            .await?;
+            page.target_send(proto::network::SetEmulateOfflineStateParams::new(offline))
+                .await?;
         }
         Ok(())
     }

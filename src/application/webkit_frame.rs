@@ -15,6 +15,7 @@ use crate::application::firefox_frame::selector_shortcuts;
 use crate::application::scripts::{ADD_SCRIPT, ScriptTag};
 use crate::application::webkit::Page;
 use crate::application::webkit_locator::Locator;
+use crate::application::webkit_protocol::{proto, send};
 use crate::domain::error::{Error, Result};
 use crate::domain::frame::LifecycleEvent;
 use crate::domain::selectors::{self, RoleOptions, TextMatch};
@@ -153,14 +154,9 @@ impl Frame {
             return self.page.goto(url).await;
         }
         let before = self.page.context_of(Some(&self.id), false);
-        self.page
-            .inner
-            .wk
-            .call(
-                None,
-                "Playwright.navigate",
-                json!({"url": url, "pageProxyId": self.page.inner.proxy, "frameId": self.id}),
-            )
+        let mut navigate = proto::playwright::NavigateParams::new(url, self.page.proxy_id());
+        navigate.frame_id = Some(proto::network::FrameId::new(self.id.clone()));
+        send(&*self.page.inner.wk, None, navigate)
             .await
             .map_err(|e| match e {
                 Error::Protocol { message, .. } => Error::Navigation(message),
