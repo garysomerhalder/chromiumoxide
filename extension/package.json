@@ -8,10 +8,12 @@
     "build:chrome": "wxt build -b chrome",
     "build:edge": "wxt build -b edge",
     "build:firefox": "wxt build -b firefox",
-    "build:safari": "wxt build -b safari",
+    "build:safari": "wxt build -b safari --mv3",
     "zip": "wxt zip",
     "check": "wxt prepare && tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build": "wxt build -b chrome && wxt build -b edge && wxt build -b firefox && wxt build -b safari --mv3",
+    "package:safari": "wxt build -b safari --mv3 && xcrun safari-web-extension-converter .output/safari-mv3 --project-location .output/safari-xcode --app-name chromiumoxide --bundle-identifier com.garysomerhalder.chromiumoxide --macos-only --no-open --force"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.3",

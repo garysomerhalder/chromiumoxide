@@ -17,7 +17,7 @@ pub(crate) fn built(browser: &str) -> Option<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("extension");
     let out = dir.join(".output").join(match browser {
         "firefox" => "firefox-mv2",
-        "safari" => "safari-mv2",
+        "safari" => "safari-mv3",
         _ => "chrome-mv3",
     });
     let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };

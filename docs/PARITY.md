@@ -1365,3 +1365,18 @@ the real Safari on macOS.
 | Windows | WebView2 over CDP: the app passes `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` on to its WebView2 arguments (Tauri sets its own, and WebView2 then ignores the variable); each window is a Chromium `Page` | ✅ `tauri_window_runs_the_page_api` (Windows 11, WebView2 158) |
 | Linux | WebKitGTK through `WebKitWebDriver` (`webkit2gtk-driver`), with `TAURI_WEBVIEW_AUTOMATION=true` like `tauri-driver`; goto, title, evaluate, waits, screenshot, CSS locators (click, inner text) | ✅ `tauri_window_runs_the_page_api` (Xvfb) |
 | macOS | WKWebView has no automation interface of its own (Tauri's `tauri-driver` has no macOS support), so the app embeds a W3C WebDriver server, [`tauri-plugin-wdio-webdriver`](https://crates.io/crates/tauri-plugin-wdio-webdriver), and chromiumoxide starts it with `TAURI_WEBDRIVER_PORT`; same calls as Linux; `goto` waits for the load (the server answers first). WKWebView does not open `data:` URLs as the top page. An app without the plugin gets an error that names it | ✅ `tauri_window_runs_the_page_api` (macOS 26.6 arm64) |
+
+## 15. Your own browser, through the extension
+
+`extension/` (see its README) lets the library drive a browser that was not
+started for automation. Tests: `tests/integration/extension.rs`.
+
+| Browser | Through the extension | Test / reason |
+|---|---|---|
+| Chrome / Chromium | ✅ the whole page API on the browser's own profile (`contexts()[0]`), open tabs as pages, new tabs; closing only disconnects | `extension_drives_an_everyday_chromium` |
+| Edge | ✅ same build as Chrome (`edge-mv3`) | Same code as Chrome; not run in CI (Edge not installed in the container) |
+| New contexts (`newContext`, `newPage` on the browser) | ❌ | An extension cannot create isolated profiles; the error says to use `contexts()[0]` |
+| Firefox | ✅ basic page actions: tabs, `goto`, `evaluate`, click, fill, screenshot | `extension_drives_firefox_tabs` |
+| Firefox, whole page API | ❌ | Firefox gives extensions no debugger |
+| Safari | ⬜ built (`safari-mv3`, `npm run package:safari`), untested | Needs a Mac with Xcode; the cloud Mac is unreachable (its Daytona key stopped working) |
+

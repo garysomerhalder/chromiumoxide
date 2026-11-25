@@ -59,9 +59,9 @@ Out:
 
 ## Done when
 
-- [ ] Through the extension, a Chromium with its own tabs is driven with the page API (existing tabs, new tabs, `goto`, `evaluate`, locators, screenshots), and disconnecting leaves it running.
-- [ ] Through the extension, Firefox runs `goto`, `evaluate`, click, fill and screenshot on a tab.
-- [ ] The Safari build is produced; it is tested on a Mac or listed in PARITY as untested with the reason.
+- [x] Through the extension, a Chromium with its own tabs is driven with the page API (existing tabs, new tabs, `goto`, `evaluate`, locators, screenshots), and disconnecting leaves it running.
+- [x] Through the extension, Firefox runs `goto`, `evaluate`, click, fill and screenshot on a tab.
+- [x] The Safari build is produced; it is tested on a Mac or listed in PARITY as untested with the reason.
 - [ ] fmt, clippy -D warnings and the full suite pass; PARITY, CHANGELOG and a README for `extension/` describe it.
 
 ## Stop rule
@@ -72,6 +72,10 @@ by hand each time (beyond loading the extension once).
 ## Status
 
 - 2026-11-25: proposed and active.
+- 2026-11-25: Chrome (whole API) and Firefox (basic page actions) pass
+  through the extension. The extension is TypeScript, DDD + hexagonal, with
+  an MUI popup in atomic design (Gary's request). Safari's build is made
+  (`safari-mv3`) but untested: the cloud Mac is unreachable.
 
 ## Set it
 
