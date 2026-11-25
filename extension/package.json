@@ -1,0 +1,19 @@
+{
+  "name": "chromiumoxide-extension",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Lets chromiumoxide drive the browser you already use.",
+  "type": "module",
+  "scripts": {
+    "build:chrome": "wxt build -b chrome",
+    "build:edge": "wxt build -b edge",
+    "build:firefox": "wxt build -b firefox",
+    "build:safari": "wxt build -b safari",
+    "zip": "wxt zip",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "wxt": "0.21.5"
+  }
+}

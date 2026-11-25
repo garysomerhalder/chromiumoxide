@@ -17,6 +17,7 @@ mod electron;
 mod engine_options;
 mod engine_server;
 mod events;
+mod extension;
 mod extras;
 mod extras2;
 mod extras3;
