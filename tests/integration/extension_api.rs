@@ -578,3 +578,55 @@ async fn extension_records_video_and_har() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn extension_drives_edge() {
+    let Ok(found) = Chromium::executable_path(&chromiumoxide::LaunchOptions {
+        browser_channel: Some("msedge".into()),
+        ..Default::default()
+    }) else {
+        assert!(
+            std::env::var_os("CHROMIUMOXIDE_REQUIRE_EDGE").is_none(),
+            "no Edge installed"
+        );
+        return;
+    };
+    // The channel's executable, not the default Chromium's.
+    assert!(
+        found
+            .executable
+            .to_string_lossy()
+            .to_lowercase()
+            .contains("edge"),
+        "{:?}",
+        found.executable
+    );
+    let Some(extension) = crate::extension::built("edge") else {
+        return;
+    };
+    let profile = std::env::temp_dir().join(format!("cox-ext-edge-{}", rand_suffix()));
+    let browser = Chromium::launch_with_extension(ExtensionLaunchOptions {
+        executable_path: Some(found.executable),
+        extension_path: extension,
+        user_data_dir: profile.clone(),
+        args: if cfg!(target_os = "linux") {
+            vec!["--no-sandbox".into()]
+        } else {
+            Vec::new()
+        },
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    assert!(browser.version().await.unwrap().starts_with("Chrome/"));
+    let page = browser.contexts()[0].new_page().await.unwrap();
+    page.set_content("<button onclick=\"this.textContent='ok'\">go</button>")
+        .await
+        .unwrap();
+    page.click("button").await.unwrap();
+    assert_eq!(page.locator("button").inner_text().await.unwrap(), "ok");
+    let ua: String = page.evaluate("navigator.userAgent").await.unwrap();
+    assert!(ua.contains("Edg/"), "{ua}");
+    browser.close().await.unwrap();
+    let _ = std::fs::remove_dir_all(&profile);
+}

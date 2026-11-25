@@ -132,6 +132,31 @@ mod tests {
     const PW_SHELL: &str = "/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
     const PW_CHROME: &str = "/opt/pw-browsers/chromium-1243/chrome-linux64/chrome";
 
+    #[test]
+    fn a_launch_finds_its_channel_and_an_explicit_path_wins() {
+        let fs = MemoryFileSystem::default();
+        fs.add_file(PW_SHELL);
+        fs.add_file("/opt/microsoft/msedge/msedge");
+        let env = MapEnvironment::linux("/home/u");
+        let edge = Some("msedge".to_owned());
+        assert_eq!(
+            discover_for(&fs, &env, None, edge.as_deref())
+                .unwrap()
+                .executable,
+            Path::new("/opt/microsoft/msedge/msedge")
+        );
+        assert_eq!(
+            discover_for(&fs, &env, None, None).unwrap().executable,
+            Path::new(PW_SHELL)
+        );
+        assert_eq!(
+            discover_for(&fs, &env, Some(Path::new(PW_SHELL)), edge.as_deref())
+                .unwrap()
+                .executable,
+            Path::new(PW_SHELL)
+        );
+    }
+
     fn found(fs: &MemoryFileSystem, env: &MapEnvironment, explicit: Option<&str>) -> Discovered {
         discover(fs, env, explicit.map(Path::new)).expect("discovered")
     }

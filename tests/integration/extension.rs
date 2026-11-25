@@ -18,6 +18,7 @@ pub(crate) fn built(browser: &str) -> Option<PathBuf> {
     let out = dir.join(".output").join(match browser {
         "firefox" => "firefox-mv2",
         "safari" => "safari-mv3",
+        "edge" => "edge-mv3",
         _ => "chrome-mv3",
     });
     let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
