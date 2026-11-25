@@ -82,6 +82,17 @@ impl Browser {
         &self,
         options: crate::application::browser::BindOptions,
     ) -> Result<String> {
+        self.serve(crate::ports::BridgeAddress {
+            host: options.host.clone(),
+            port: options.port,
+            path: None,
+        })
+        .await
+    }
+
+    /// Serves this browser at `address` (`bind`, `launchServer`); the same
+    /// endpoint until `unbind`.
+    pub(crate) async fn serve(&self, address: crate::ports::BridgeAddress) -> Result<String> {
         if let Some(b) = self.inner.bridge.lock().unwrap().as_ref() {
             return Ok(b.endpoint());
         }
@@ -91,17 +102,18 @@ impl Browser {
             .bidi_bridge
             .serve(
                 self.inner.bidi.clone(),
-                crate::ports::BridgeAddress {
-                    host: options.host.clone(),
-                    port: options.port,
-                    path: None,
-                },
+                address,
                 self.inner.capabilities.clone(),
             )
             .await?;
         let endpoint = bound.endpoint();
         *self.inner.bridge.lock().unwrap() = Some(bound);
         Ok(endpoint)
+    }
+
+    /// The browser process id (`None` when connected or closed).
+    pub fn process_id(&self) -> Option<u32> {
+        self.inner.process.lock().unwrap().as_ref()?.pid()
     }
 
     /// `browser.unbind()`: stops serving other clients.

@@ -59,7 +59,9 @@ async fn serve_client(
     #[allow(clippy::result_large_err)]
     let check =
         move |req: &Request, resp: Response| -> std::result::Result<Response, ErrorResponse> {
-            if req.uri().path() == &*path {
+            // `Firefox::connect` adds `/session` to an endpoint without it.
+            let asked = req.uri().path();
+            if asked == &*path || asked.strip_suffix("/session") == Some(&*path) {
                 Ok(resp)
             } else {
                 let mut refused = ErrorResponse::new(Some("not found".into()));

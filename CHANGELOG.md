@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Milestone 14: every browser on every system
 
+- `Firefox::launch_server(_with)` and `WebKit::launch_server(_with)`
+  (Playwright's `launchServer`, with `host`, `port`, `wsPath`): a browser
+  other programs reach with `Firefox::connect` / `WebKit::connect`.
+
 - Firefox and WebKit contexts take `bypassCSP`, `proxy` (with
   credentials), `clientCertificates` and `serviceWorkers: "block"`;
   WebKit also `javaScriptEnabled: false`. The client-certificate test

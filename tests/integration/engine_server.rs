@@ -33,7 +33,10 @@ async fn firefox_launch_server_serves_clients() {
     let again = Firefox::connect(&ws).await.unwrap();
     let page = again.new_page().await.unwrap();
     page.goto(PAGE).await.unwrap();
-    assert_eq!(page.evaluate::<String>("p.textContent").await.unwrap(), "hi");
+    assert_eq!(
+        page.evaluate::<String>("p.textContent").await.unwrap(),
+        "hi"
+    );
     let wrong = ws.replace("/firefox-secret", "/nope");
     assert!(Firefox::connect(&wrong).await.is_err());
     server.close().await.unwrap();
@@ -75,7 +78,10 @@ async fn webkit_launch_server_serves_clients() {
     let again = WebKit::connect(&ws).await.unwrap();
     let page = again.new_page().await.unwrap();
     page.goto(PAGE).await.unwrap();
-    assert_eq!(page.evaluate::<String>("p.textContent").await.unwrap(), "hi");
+    assert_eq!(
+        page.evaluate::<String>("p.textContent").await.unwrap(),
+        "hi"
+    );
     let wrong = ws.replace("/webkit-secret", "/nope");
     assert!(WebKit::connect(&wrong).await.is_err());
     server.close().await.unwrap();

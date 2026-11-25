@@ -194,6 +194,34 @@ impl WebKit {
         webkit::Browser::launch(Chromium::services(), options).await
     }
 
+    /// `webkit.launchServer(options)`: a WebKit other programs can
+    /// [`connect`](Self::connect) to, on a free local port.
+    pub async fn launch_server(options: webkit::WebKitLaunchOptions) -> Result<WebKitServer> {
+        Self::launch_server_with(options, ServerAddress::default()).await
+    }
+
+    /// `webkit.launchServer({ host, port, wsPath })`.
+    pub async fn launch_server_with(
+        options: webkit::WebKitLaunchOptions,
+        address: ServerAddress,
+    ) -> Result<WebKitServer> {
+        let browser = Self::launch(options).await?;
+        let served = browser
+            .serve(ports::BridgeAddress {
+                host: address.host,
+                port: address.port,
+                path: address.ws_path,
+            })
+            .await;
+        match served {
+            Ok(endpoint) => Ok(WebKitServer { browser, endpoint }),
+            Err(e) => {
+                let _ = browser.close().await;
+                Err(e)
+            }
+        }
+    }
+
     /// Connects to a WebKit shared with `browser.bind()` (its endpoint).
     /// Closing it disconnects and leaves the browser running.
     pub async fn connect(ws_endpoint: &str) -> Result<webkit::Browser> {
@@ -253,6 +281,35 @@ impl Firefox {
             context_options,
         )
         .await
+    }
+
+    /// `firefox.launchServer(options)`: a Firefox other programs can
+    /// [`connect`](Self::connect) to, on a free local port. Firefox allows
+    /// one WebDriver BiDi session, so clients share it through a relay.
+    pub async fn launch_server(options: firefox::FirefoxLaunchOptions) -> Result<FirefoxServer> {
+        Self::launch_server_with(options, ServerAddress::default()).await
+    }
+
+    /// `firefox.launchServer({ host, port, wsPath })`.
+    pub async fn launch_server_with(
+        options: firefox::FirefoxLaunchOptions,
+        address: ServerAddress,
+    ) -> Result<FirefoxServer> {
+        let browser = Self::launch(options).await?;
+        let served = browser
+            .serve(ports::BridgeAddress {
+                host: address.host,
+                port: address.port,
+                path: address.ws_path,
+            })
+            .await;
+        match served {
+            Ok(endpoint) => Ok(FirefoxServer { browser, endpoint }),
+            Err(e) => {
+                let _ = browser.close().await;
+                Err(e)
+            }
+        }
     }
 
     /// `firefox.connect(wsEndpoint)`: a running Firefox's WebDriver BiDi
@@ -348,6 +405,51 @@ impl BrowserServer {
         self.browser.close().await
     }
 }
+
+/// Where `launch_server_with` listens (Playwright's `host`, `port`,
+/// `wsPath`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServerAddress {
+    /// Default `127.0.0.1`.
+    pub host: Option<String>,
+    /// Default `0`: any free port.
+    pub port: Option<u16>,
+    /// The only path clients may connect to. Anyone who knows it can drive
+    /// the browser; keep it unguessable.
+    pub ws_path: Option<String>,
+}
+
+macro_rules! engine_server {
+    ($name:ident, $browser:ty, $connect:literal) => {
+        #[doc = concat!("A launched browser serving clients (Playwright's `BrowserServer`); they connect with `", $connect, "`.")]
+        pub struct $name {
+            browser: $browser,
+            endpoint: String,
+        }
+
+        impl $name {
+            /// `browserServer.process()`: the browser's process (`None` once closed).
+            pub fn process(&self) -> Option<ServerProcess> {
+                self.browser.process_id().map(|pid| ServerProcess { pid })
+            }
+            #[doc = concat!("`browserServer.wsEndpoint()`: the URL clients pass to `", $connect, "`.")]
+            pub fn ws_endpoint(&self) -> String {
+                self.endpoint.clone()
+            }
+            /// Closes the browser (and every client's pages).
+            pub async fn close(&self) -> Result<()> {
+                self.browser.close().await
+            }
+            /// Same as [`close`](Self::close): the process is ended either way.
+            pub async fn kill(&self) -> Result<()> {
+                self.browser.close().await
+            }
+        }
+    };
+}
+
+engine_server!(FirefoxServer, firefox::Browser, "Firefox::connect");
+engine_server!(WebKitServer, webkit::Browser, "WebKit::connect");
 
 /// Entry point, like Playwright's `chromium` browser type.
 pub struct Chromium;

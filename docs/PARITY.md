@@ -1286,7 +1286,7 @@ Firefox.
 | Clock (Playwright's fake timers) | ✅ | `firefox_clock_controls_time` |
 | CDP sessions, coverage, `browser.startTracing`, CDP domain clients (section 12) | ❌ | Chromium-only: Firefox does not speak CDP |
 | `firefox.connect` (a running Firefox's BiDi endpoint; `close` leaves it running), `launchPersistentContext` (kept profile) | ✅ | `firefox_persistent_context_and_connect` |
-| `launchServer` | ⬜ | |
+| `launchServer`, `launchServer({ host, port, wsPath })` (`FirefoxServer`: `wsEndpoint`, `process`, `close`, `kill`; clients share the one BiDi session through a relay) | ✅ | `firefox_launch_server_serves_clients` |
 
 ## 14. WebKit (M14)
 
@@ -1302,6 +1302,7 @@ Windows. Real Safari needs a Mac (not reachable yet: see the goal).
 | `browser.version`, `newPage`, `newContext`, `close` | ✅ | `webkit_launches_and_runs_a_page` |
 | Context options `viewport`, `deviceScaleFactor`, `screen`, `userAgent` (default: Playwright's Safari 27.2 one), `locale`, `timezoneId`, `geolocation`, `ignoreHTTPSErrors`, `extraHTTPHeaders`, `hasTouch` | ✅ | `webkit_contexts_emulate_devices` |
 | Context options `bypassCSP`, `proxy` (with credentials), `clientCertificates`, `serviceWorkers: "block"`, `javaScriptEnabled: false` | ✅ | `webkit_proxy_certificates_csp_service_workers_and_javascript` |
+| `launchServer`, `launchServer({ host, port, wsPath })` (`WebKitServer`; clients use `WebKit::connect`) | ✅ | `webkit_launch_server_serves_clients` |
 | `page.goto`, `setContent`, `title`, `url`, `content`, `evaluate`, `addStyleTag`, `setViewportSize`, `waitForFunction`, `waitForTimeout` | ✅ | `webkit_launches_and_runs_a_page`, `webkit_contexts_emulate_devices` |
 | `page.screenshot` (viewport, clip, fullPage, JPEG, scale) | ✅ | `webkit_screenshots_are_pixel_identical_to_playwright`: pixel-identical to Playwright's WebKit (desktop, mobile 3x, mockup 2x) |
 | Pixelated `<img>` and the `autofocus` focus ring in parity pages | ❌ | Headless WebKit paints them in some runs only, in Playwright's own runs too; left out of the parity cases |

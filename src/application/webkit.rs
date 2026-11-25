@@ -134,7 +134,7 @@ pub struct Browser {
 pub(crate) struct BrowserInner {
     pub(crate) wk: Arc<dyn WebKitSession>,
     pub(crate) services: Services,
-    process: Mutex<Option<Box<dyn BrowserProcess>>>,
+    pub(crate) process: Mutex<Option<Box<dyn BrowserProcess>>>,
     /// The contexts made through this browser (`browser.contexts()`).
     pub(crate) contexts: Mutex<Vec<std::sync::Weak<ContextInner>>>,
     /// `browser.bind()`'s relay.

@@ -152,7 +152,7 @@ pub struct Browser {
 pub(crate) struct BrowserInner {
     pub(crate) bidi: Arc<dyn BidiSession>,
     pub(crate) services: Services,
-    process: Mutex<Option<Box<dyn BrowserProcess>>>,
+    pub(crate) process: Mutex<Option<Box<dyn BrowserProcess>>>,
     /// The temporary profile (removed on close).
     profile: Option<PathBuf>,
     version: String,
