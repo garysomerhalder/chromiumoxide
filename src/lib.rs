@@ -451,6 +451,51 @@ macro_rules! engine_server {
 engine_server!(FirefoxServer, firefox::Browser, "Firefox::connect");
 engine_server!(WebKitServer, webkit::Browser, "WebKit::connect");
 
+/// Where the extension relay listens, and how long it waits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtensionRelayOptions {
+    /// Default `127.0.0.1`.
+    pub host: Option<String>,
+    /// Default `0`: any free port.
+    pub port: Option<u16>,
+    /// How long [`ExtensionRelay::wait`] waits for the extension. Default 60 s.
+    pub timeout: std::time::Duration,
+}
+
+impl Default for ExtensionRelayOptions {
+    fn default() -> Self {
+        Self {
+            host: None,
+            port: None,
+            timeout: std::time::Duration::from_secs(60),
+        }
+    }
+}
+
+/// A relay waiting for the browser extension (`extension/`): opening
+/// [`connect_url`](Self::connect_url) in a browser that has the extension
+/// connects that browser.
+pub struct ExtensionRelay {
+    listener: adapters::extension_relay::Listener,
+    timeout: std::time::Duration,
+}
+
+impl ExtensionRelay {
+    /// The page to open in the browser that has the extension.
+    pub fn connect_url(&self) -> String {
+        self.listener.connect_url().to_owned()
+    }
+
+    /// Waits for the extension, then returns its browser: `contexts()[0]`
+    /// is the browser's own profile with its open tabs. Closing the
+    /// returned browser disconnects and leaves the browser running.
+    pub async fn wait(self) -> Result<Browser> {
+        let transport = self.listener.accept(self.timeout).await?;
+        let cdp = Arc::new(adapters::cdp::Connection::spawn(transport));
+        Browser::connect_own_profile(Chromium::services(), cdp).await
+    }
+}
+
 /// Entry point, like Playwright's `chromium` browser type.
 pub struct Chromium;
 
@@ -551,6 +596,28 @@ impl Chromium {
     /// disconnects and leaves the browser running.
     pub async fn connect(ws_endpoint: &str) -> Result<Browser> {
         Self::connect_over_cdp(ws_endpoint).await
+    }
+
+    /// Listens for the browser extension (`extension/`), without opening
+    /// anything: open [`ExtensionRelay::connect_url`] in the browser, then
+    /// [`ExtensionRelay::wait`].
+    pub async fn extension_relay(options: ExtensionRelayOptions) -> Result<ExtensionRelay> {
+        let listener =
+            adapters::extension_relay::listen(options.host.as_deref(), options.port).await?;
+        Ok(ExtensionRelay {
+            listener,
+            timeout: options.timeout,
+        })
+    }
+
+    /// Drives the browser you already use, through the extension: opens the
+    /// relay's page in the default browser (which must have the extension)
+    /// and waits for it. Chrome and Edge give the whole page API; the
+    /// browser's own profile is `contexts()[0]`.
+    pub async fn connect_extension(options: ExtensionRelayOptions) -> Result<Browser> {
+        let relay = Self::extension_relay(options).await?;
+        adapters::extension_relay::open_in_default_browser(&relay.connect_url())?;
+        relay.wait().await
     }
 
     /// Connects to a running browser's DevTools WebSocket URL.

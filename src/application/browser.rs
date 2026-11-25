@@ -395,12 +395,23 @@ impl Browser {
         cdp: Arc<dyn CdpSession>,
         ws_endpoint: Option<String>,
     ) -> Result<Browser> {
-        let browser = Browser {
+        let browser = Browser::connect_raw_at(services, cdp, ws_endpoint, true);
+        browser.handshake(None).await?;
+        Ok(browser)
+    }
+
+    fn connect_raw_at(
+        services: Services,
+        cdp: Arc<dyn CdpSession>,
+        ws_endpoint: Option<String>,
+        headless: bool,
+    ) -> Browser {
+        Browser {
             inner: Arc::new(BrowserInner {
                 cdp,
                 services,
                 shared: Mutex::new(None),
-                headless: true,
+                headless,
                 process: Mutex::new(None),
                 user_data_dir: None,
                 executable: None,
@@ -416,8 +427,49 @@ impl Browser {
                 subscribers: Mutex::new(Vec::new()),
                 disconnected: AtomicBool::new(false),
             }),
-        };
-        browser.handshake(None).await?;
+        }
+    }
+
+    /// Connects to a browser driven through the extension: its own profile
+    /// is the default context (`contexts()[0]`, with its open tabs), and
+    /// no viewport is emulated, so tabs keep their window's size.
+    pub async fn connect_own_profile(
+        services: Services,
+        cdp: Arc<dyn CdpSession>,
+    ) -> Result<Browser> {
+        // A browser someone uses: headful (no headless font families).
+        let browser = Browser::connect_raw_at(services, cdp.clone(), None, false);
+        let ctx = browser
+            .handshake(Some(ContextOptions {
+                viewport: None,
+                ..ContextOptions::default()
+            }))
+            .await?
+            .ok_or_else(|| Error::Launch("no default context".into()))?;
+        // Like `connectOverCDP`: the tabs already open are pages on return.
+        let targets = cdp.call(None, "Target.getTargets", json!({})).await?;
+        let open: Vec<String> = targets["targetInfos"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|t| t["type"] == "page")
+            .filter_map(|t| t["targetId"].as_str().map(str::to_owned))
+            .collect();
+        let inner = &ctx.inner;
+        crate::application::wait::wait_until(
+            &*inner.shared.services.clock,
+            &inner.changed,
+            crate::application::page::DEFAULT_TIMEOUT,
+            "initialising the browser's open tabs",
+            || {
+                let pages = inner.pages.lock().unwrap();
+                let failed = inner.init_errors.lock().unwrap();
+                open.iter()
+                    .all(|id| pages.iter().any(|p| p.target_id() == id) || failed.contains_key(id))
+                    .then_some(Ok(()))
+            },
+        )
+        .await?;
         Ok(browser)
     }
 

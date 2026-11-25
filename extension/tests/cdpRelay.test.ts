@@ -31,7 +31,7 @@ describe('the relay', () => {
     expect(reply).toEqual({ id: 1, result: {} });
     expect([...dbg.attached]).toEqual([page.id]);
     const [attached] = socket.events('Target.attachedToTarget');
-    expect(attached.params).toMatchObject({
+    expect(attached!.params).toMatchObject({
       sessionId: `tab-${page.id}`,
       waitingForDebugger: false,
       targetInfo: { targetId: `T${page.id}`, type: 'page', url: 'https://a.test/', title: 'A', browserContextId: '' },
@@ -105,7 +105,7 @@ describe('the relay', () => {
     relay.connect('ws://127.0.0.1:5/extension');
     await socket.command(1, 'Target.setAutoAttach');
     dbg.drop(page.id);
-    expect(socket.events('Target.detachedFromTarget')[0].params).toEqual({
+    expect(socket.events('Target.detachedFromTarget')[0]!.params).toEqual({
       sessionId: `tab-${page.id}`,
       targetId: `T${page.id}`,
     });

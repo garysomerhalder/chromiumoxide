@@ -6,6 +6,7 @@ pub mod bidi_bridge;
 pub mod cdp;
 pub mod clock;
 pub mod electron;
+pub mod extension_relay;
 pub mod http;
 pub mod os;
 pub mod process;

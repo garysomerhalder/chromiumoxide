@@ -31,7 +31,7 @@ pub async fn over_stream(stream: tokio::net::TcpStream, url: &str) -> Result<Tra
 }
 
 /// Text frames in and out, until the socket closes.
-fn wrap<S>(ws: async_tungstenite::WebSocketStream<S>) -> Transport
+pub(crate) fn wrap<S>(ws: async_tungstenite::WebSocketStream<S>) -> Transport
 where
     S: futures::AsyncRead + futures::AsyncWrite + Unpin + Send + 'static,
 {
