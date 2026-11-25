@@ -228,3 +228,26 @@ mod tests {
         assert_eq!(resolve_url(None, "sub/page"), "sub/page");
     }
 }
+
+#[cfg(test)]
+mod data_url_tests {
+    use super::*;
+
+    #[test]
+    fn data_urls_decode_to_their_content() {
+        assert_eq!(
+            decode_data_url("data:text/html,<p>a%20b</p>"),
+            Some(("text/html".to_owned(), b"<p>a b</p>".to_vec()))
+        );
+        assert_eq!(
+            decode_data_url("data:text/html;charset=utf-8;base64,PHA+eDwvcD4="),
+            Some(("text/html".to_owned(), b"<p>x</p>".to_vec()))
+        );
+        assert_eq!(
+            decode_data_url("data:,plain"),
+            Some(("text/plain".to_owned(), b"plain".to_vec()))
+        );
+        assert_eq!(decode_data_url("https://a.test/"), None);
+        assert_eq!(decode_data_url("data:no-comma"), None);
+    }
+}

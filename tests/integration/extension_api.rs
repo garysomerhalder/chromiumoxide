@@ -28,6 +28,11 @@ impl Ext {
 }
 
 pub(crate) async fn connect() -> Option<Ext> {
+    connect_with(|_| {}).await
+}
+
+/// [`connect`], with launch options changed by `edit`.
+pub(crate) async fn connect_with(edit: impl FnOnce(&mut ExtensionLaunchOptions)) -> Option<Ext> {
     let extension = crate::extension::built("chrome")?;
     let chromium = crate::extension::full_chromium()?;
     let profile = std::env::temp_dir().join(format!(
@@ -35,7 +40,7 @@ pub(crate) async fn connect() -> Option<Ext> {
         std::process::id(),
         rand_suffix()
     ));
-    let browser = Chromium::launch_with_extension(ExtensionLaunchOptions {
+    let mut options = ExtensionLaunchOptions {
         executable_path: Some(chromium),
         extension_path: extension,
         user_data_dir: profile.clone(),
@@ -46,9 +51,9 @@ pub(crate) async fn connect() -> Option<Ext> {
             Vec::new()
         },
         ..Default::default()
-    })
-    .await
-    .unwrap();
+    };
+    edit(&mut options);
+    let browser = Chromium::launch_with_extension(options).await.unwrap();
     let ctx = browser.contexts().into_iter().next().unwrap();
     Some(Ext {
         browser,
@@ -517,4 +522,59 @@ async fn extension_replays_a_har() {
     assert_eq!(page.locator("p").inner_text().await.unwrap(), "recorded");
     let _ = std::fs::remove_file(&har);
     ext.close().await;
+}
+
+#[tokio::test]
+async fn extension_opens_data_urls() {
+    let Some(ext) = connect().await else { return };
+    let page = ext.page().await;
+    // Chrome refuses data: navigations from extensions; the library shows
+    // the content in the tab instead.
+    page.goto("data:text/html,<title>Inline</title><p>inline%20page</p>")
+        .await
+        .unwrap();
+    assert_eq!(page.title().await.unwrap(), "Inline");
+    assert_eq!(page.locator("p").inner_text().await.unwrap(), "inline page");
+    page.goto("data:text/html;base64,PHA+YmFzZTY0PC9wPg==")
+        .await
+        .unwrap();
+    assert_eq!(page.locator("p").inner_text().await.unwrap(), "base64");
+    ext.close().await;
+}
+
+#[tokio::test]
+async fn extension_records_video_and_har() {
+    let dir = std::env::temp_dir().join(format!("cox-ext-rec-{}", rand_suffix()));
+    let har = dir.join("traffic.har");
+    let (video_dir, har_path) = (dir.clone(), har.clone());
+    let Some(ext) = connect_with(move |o| {
+        o.record_video = Some(chromiumoxide::RecordVideo::new(&video_dir));
+        o.record_har = Some(chromiumoxide::RecordHar::new(&har_path));
+    })
+    .await
+    else {
+        return;
+    };
+    let server = TestServer::start().await;
+    server.route("/", "text/html", "<h1>recorded</h1>", 0);
+    let page = ext.page().await;
+    page.goto(&server.url("/")).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let video = page
+        .video()
+        .expect("a video for pages through the extension");
+    page.close().await.unwrap();
+    let path = video.path().await.unwrap();
+    assert!(std::fs::metadata(&path).unwrap().len() > 0, "{path:?}");
+    ext.close().await;
+    let log: Value = serde_json::from_slice(&std::fs::read(&har).unwrap()).unwrap();
+    assert!(
+        log["log"]["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["request"]["url"] == server.url("/")),
+        "{log}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }
