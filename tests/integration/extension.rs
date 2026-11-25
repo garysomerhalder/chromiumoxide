@@ -42,7 +42,7 @@ pub(crate) fn built(browser: &str) -> Option<PathBuf> {
 }
 
 /// Playwright's full Chromium (its headless shell cannot load extensions).
-fn full_chromium() -> Option<PathBuf> {
+pub(crate) fn full_chromium() -> Option<PathBuf> {
     let root = std::env::var_os("PLAYWRIGHT_BROWSERS_PATH")
         .map(PathBuf::from)
         .or_else(|| {

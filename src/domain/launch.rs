@@ -535,3 +535,48 @@ mod windows_command_line_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod extension_launch_tests {
+    use super::*;
+
+    #[test]
+    fn an_extension_launch_is_an_ordinary_browser_with_the_extension() {
+        let args = extension_command_line(&ExtensionLaunchSpec {
+            kind: BrowserKind::Chrome,
+            headless: true,
+            user_data_dir: PathBuf::from("/p"),
+            extension: PathBuf::from("/ext"),
+            args: vec!["--lang=nl".into()],
+            urls: vec!["http://127.0.0.1:5/chromiumoxide-connect".into()],
+        });
+        assert_eq!(
+            args,
+            [
+                "--user-data-dir=/p",
+                "--load-extension=/ext",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--headless=new",
+                "--lang=nl",
+                "http://127.0.0.1:5/chromiumoxide-connect",
+            ]
+        );
+        // Nothing that marks it as automated or opens a debugging port.
+        assert!(!args.iter().any(|a| a.contains("remote-debugging")
+            || a.contains("enable-automation")
+            || a.contains("disable-extensions")));
+        let headful = extension_command_line(&ExtensionLaunchSpec {
+            headless: false,
+            ..ExtensionLaunchSpec {
+                kind: BrowserKind::Chrome,
+                headless: true,
+                user_data_dir: PathBuf::from("/p"),
+                extension: PathBuf::from("/ext"),
+                args: vec![],
+                urls: vec![],
+            }
+        });
+        assert!(!headful.iter().any(|a| a.starts_with("--headless")));
+    }
+}

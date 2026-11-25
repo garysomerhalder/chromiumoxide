@@ -18,6 +18,7 @@ mod engine_options;
 mod engine_server;
 mod events;
 mod extension;
+mod extension_api;
 mod extras;
 mod extras2;
 mod extras3;
