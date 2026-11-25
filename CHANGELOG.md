@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Milestone 14: every browser on every system
 
+- Firefox: a context's viewport is set again while a window Firefox is
+  still opening is not ready ("browser is null", seen on Windows when a
+  persistent profile is launched a second time).
 - `Chromium::executable_path` honours `browser_channel` (it returned the
   default Chromium); `ExtensionLaunchOptions::browser_channel` picks Edge or
   Chrome by name.
