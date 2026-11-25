@@ -116,6 +116,26 @@ impl Browser {
         self.inner.process.lock().unwrap().as_ref()?.pid()
     }
 
+    /// Installs a web extension from a folder (or `.xpi`) for this session
+    /// (BiDi `webExtension.install`, temporary: unsigned extensions work);
+    /// its id.
+    pub async fn install_extension(&self, path: impl AsRef<std::path::Path>) -> Result<String> {
+        let path = path.as_ref();
+        let archive = path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("xpi") || e.eq_ignore_ascii_case("zip"));
+        let kind = if archive { "archivePath" } else { "path" };
+        let r = self
+            .inner
+            .bidi
+            .call(
+                "webExtension.install",
+                serde_json::json!({"extensionData": {"type": kind, "path": path.display().to_string()}}),
+            )
+            .await?;
+        Ok(r["extension"].as_str().unwrap_or_default().to_owned())
+    }
+
     /// `browser.unbind()`: stops serving other clients.
     pub async fn unbind(&self) -> Result<()> {
         if let Some(b) = self.inner.bridge.lock().unwrap().take() {

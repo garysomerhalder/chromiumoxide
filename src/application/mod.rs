@@ -16,6 +16,7 @@ pub mod electron;
 pub mod element_handle;
 pub mod events;
 pub mod expect;
+pub mod extension_pages;
 pub mod extras;
 pub mod filechooser;
 pub mod firefox;

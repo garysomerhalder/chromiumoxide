@@ -231,6 +231,7 @@ impl WebKit {
     }
 }
 
+pub use crate::application::extension_pages::{PageBrowser, PageTab};
 pub use crate::application::safari::{SafariBrowser, SafariLaunchOptions};
 pub use crate::application::tauri::{
     TauriApp, TauriLaunchOptions, TauriLocator, TauriWindow, WebDriverLocator, WebDriverWindow,
@@ -486,14 +487,69 @@ impl ExtensionRelay {
         self.listener.connect_url().to_owned()
     }
 
-    /// Waits for the extension, then returns its browser: `contexts()[0]`
-    /// is the browser's own profile with its open tabs. Closing the
-    /// returned browser disconnects and leaves the browser running.
+    /// Waits for the extension in Chrome or Edge, then returns its browser
+    /// with the whole page API: `contexts()[0]` is the browser's own profile
+    /// with its open tabs. Closing the returned browser disconnects and
+    /// leaves the browser running. Firefox and Safari: [`wait_pages`](Self::wait_pages).
     pub async fn wait(self) -> Result<Browser> {
-        let transport = self.listener.accept(self.timeout).await?;
+        let (transport, hello) = self.connected().await?;
+        if hello.protocol != "cdp" {
+            return Err(Error::InvalidArgument(format!(
+                "the extension is in a browser without a debugger for extensions ({}); use wait_pages()",
+                hello.user_agent
+            )));
+        }
         let cdp = Arc::new(adapters::cdp::Connection::spawn(transport));
         Browser::connect_own_profile(Chromium::services(), cdp).await
     }
+
+    /// Waits for the extension in Firefox or Safari (whose extensions get no
+    /// debugger): tabs, `goto`, `evaluate`, click, fill and screenshots.
+    pub async fn wait_pages(self) -> Result<PageBrowser> {
+        let (transport, hello) = self.connected().await?;
+        if hello.protocol != "pages" {
+            return Err(Error::InvalidArgument(
+                "the extension is in Chrome or Edge; use wait() for the whole page API".into(),
+            ));
+        }
+        let session = Arc::new(adapters::cdp::Connection::spawn(transport));
+        Ok(PageBrowser::new(session, hello.user_agent))
+    }
+
+    /// The extension's socket, after its first message (`Extension.hello`).
+    async fn connected(self) -> Result<(ports::Transport, Hello)> {
+        use futures::StreamExt;
+        let mut transport = self.listener.accept(self.timeout).await?;
+        let first = transport
+            .stream
+            .next()
+            .await
+            .ok_or_else(|| Error::Transport("the extension closed the connection".into()))?
+            .map_err(|e| Error::Transport(e.to_string()))?;
+        let v: serde_json::Value = serde_json::from_str(&first)?;
+        if v["method"] != "Extension.hello" {
+            return Err(Error::Transport(format!(
+                "the extension did not say hello: {first}"
+            )));
+        }
+        let hello = Hello {
+            protocol: v["params"]["protocol"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned(),
+            user_agent: v["params"]["userAgent"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned(),
+        };
+        Ok((transport, hello))
+    }
+}
+
+/// The extension's first message.
+struct Hello {
+    protocol: String,
+    user_agent: String,
 }
 
 /// Entry point, like Playwright's `chromium` browser type.

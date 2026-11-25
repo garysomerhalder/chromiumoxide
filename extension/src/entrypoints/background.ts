@@ -3,22 +3,25 @@
 // The library listens on a local port (`Chromium::extension_relay`). A tab
 // opening its page, http://127.0.0.1:<port>/chromiumoxide-connect, tells the
 // extension where to connect.
+import { BrowserPages } from '../adapters/browserPages';
 import { BrowserTabs, BrowserWindows } from '../adapters/browserTabs';
 import { ChromeDebugger, hasDebugger } from '../adapters/chromeDebugger';
 import { serveStatus } from '../adapters/runtimeStatus';
 import { BrowserWebSocket } from '../adapters/webSocket';
 import { CdpRelay } from '../application/cdpRelay';
+import { PageRelay } from '../application/pageRelay';
 import { parseConnectUrl } from '../domain/connect';
 
 export default defineBackground(() => {
-  if (!hasDebugger()) return; // Firefox and Safari: next step.
-  const relay = new CdpRelay({
-    tabs: new BrowserTabs(),
-    debugger: new ChromeDebugger(),
-    windows: new BrowserWindows(),
-    socket: new BrowserWebSocket(),
-    userAgent: navigator.userAgent,
-  });
+  const tabs = new BrowserTabs();
+  const socket = new BrowserWebSocket();
+  const userAgent = navigator.userAgent;
+  // Chrome and Edge: the whole DevTools protocol. Firefox and Safari (no
+  // debugger for extensions): the page protocol.
+  const cdp = hasDebugger()
+    ? new CdpRelay({ tabs, debugger: new ChromeDebugger(), windows: new BrowserWindows(), socket, userAgent })
+    : null;
+  const relay = cdp ?? new PageRelay({ tabs, pages: new BrowserPages(), socket, userAgent });
   serveStatus(relay);
 
   const consider = (url: string | undefined) => {
@@ -27,11 +30,11 @@ export default defineBackground(() => {
   };
   browser.tabs.onUpdated.addListener((tabId, info, tab) => {
     consider(info.url ?? tab.url);
-    void relay.tabChanged(tabId, tab.url, tab.title);
+    void cdp?.tabChanged(tabId, tab.url, tab.title);
   });
   browser.tabs.onCreated.addListener((tab) => {
     consider(tab.url ?? tab.pendingUrl);
-    if (tab.id !== undefined) void relay.tabChanged(tab.id, tab.url ?? tab.pendingUrl, tab.title);
+    if (tab.id !== undefined) void cdp?.tabChanged(tab.id, tab.url ?? tab.pendingUrl, tab.title);
   });
   // From the connect page's script (wakes a sleeping background).
   browser.runtime.onMessage.addListener((m: unknown) => {

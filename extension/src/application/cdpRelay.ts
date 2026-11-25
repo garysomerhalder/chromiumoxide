@@ -5,6 +5,7 @@
 // default context (`browserContextId: ''`).
 
 import { type Command, failure, type Outgoing, type Params, reply, Unavailable } from '../domain/cdp';
+import { hello } from '../domain/hello';
 import { IDLE, type ConnectionStatus, type TabSummary } from '../domain/status';
 import { isAttachable, parseTabSession, tabSession, targetInfo } from '../domain/target';
 import { browserVersion } from '../domain/version';
@@ -57,6 +58,7 @@ export class CdpRelay {
       },
     });
     this.connection = connection;
+    connection.send(JSON.stringify(hello('cdp', this.ports.userAgent)));
     this.notify();
   }
 
