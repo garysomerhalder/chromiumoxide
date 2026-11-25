@@ -83,6 +83,11 @@ so the address stays `about:blank`), and there are no new isolated contexts
 Video and network recording are set on the launch or relay options
 (`record_video`, `record_har`) and cover every page driven.
 
+With a Chromium that Playwright downloaded, on Windows, pass
+`args: vec!["--no-sandbox".into()]`: Chromium's sandbox cannot read that
+folder, and without network access the connect page never loads. An
+installed Chrome or Edge needs nothing.
+
 While connected, Chrome shows "chromiumoxide started debugging this browser"
 on the tabs it drives; that bar is Chrome's and cannot be hidden.
 

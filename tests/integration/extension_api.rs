@@ -44,8 +44,11 @@ pub(crate) async fn connect_with(edit: impl FnOnce(&mut ExtensionLaunchOptions))
         executable_path: Some(chromium),
         extension_path: extension,
         user_data_dir: profile.clone(),
-        // Containers run tests as root, where Chromium needs this.
-        args: if cfg!(target_os = "linux") {
+        // Containers run tests as root, where Chromium needs this; on
+        // Windows, Chromium's sandbox cannot read Playwright's download
+        // folder ("Sandbox cannot access executable"), so its network
+        // service crashes. Playwright launches with this switch by default.
+        args: if cfg!(any(target_os = "linux", windows)) {
             vec!["--no-sandbox".into()]
         } else {
             Vec::new()
